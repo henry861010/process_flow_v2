@@ -1,5 +1,9 @@
 # CAD Viewer UI Design
 
+## Route
+
+`/cad-viewer`
+
 ## 1. 目標
 
 CAD Viewer 是一個基於 Next.js、React、Tailwind、shadcn/ui style components 與 React Three Fiber 的封裝幾何檢視工具。第一版專注在本機 CAD 檔案顯示，不處理 process flow editor、geometry database 或 manifest metadata。
@@ -192,7 +196,7 @@ Mobile：
 
 | File | 責任 |
 | --- | --- |
-| `apps/viewer/app/page.tsx` | Viewer app entry |
+| `apps/viewer/app/cad-viewer/page.tsx` | Viewer app entry |
 | `apps/viewer/components/viewer/cad-viewer-workbench.tsx` | Workbench layout、UI state、controls |
 | `apps/viewer/components/viewer/viewer-scene.tsx` | React Three Fiber scene、camera、lights、clipping、demo package |
 | `apps/viewer/components/viewer/model-loader.ts` | STL / GLB / GLTF loading、model stats、bounds、material fallback |

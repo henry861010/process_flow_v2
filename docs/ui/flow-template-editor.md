@@ -2,7 +2,7 @@
 
 ## Route
 
-`/processFlowEditor`
+`/flow-template-editor`
 
 ## Purpose
 
@@ -517,9 +517,9 @@ Save button 不可點選條件包含：
 - 將 process flow template 存入 local catalog。
 - 將 process flow instance 存入 local instance store。
 - 下載一份包含 process flow template、process flow instance、相關 process step templates、categories 與 geometry refs 的 process JSON。
-- 回到 workspace 首頁，讓剛建立的 process flow template 出現在 template list 中。
+- 回到 workspace 首頁入口。
 
-Save 後，使用者可以在首頁 template list 中選取剛建立的 process flow template，也可以透過匯出的 JSON 保存同一份建立結果。
+Save 後，使用者可以透過匯出的 JSON 保存同一份建立結果；首頁只作為工具入口，不承擔 template list。
 
 ## Frontend Resources
 

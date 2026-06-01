@@ -2,7 +2,7 @@
 
 ## Route
 
-`/processFlowInstanceEditor`
+`/flow-instance-editor`
 
 ## Purpose
 
@@ -82,7 +82,7 @@ Save 規則：
 - 此頁 Save 不新增或修改 `processStepTemplates`。
 - 此頁 Save 不新增或修改 `GeometryEntity`。
 
-Save 成功後留在 `/processFlowInstanceEditor`，不自動導頁。
+Save 成功後留在 `/flow-instance-editor`，不自動導頁。
 
 ## Initial State
 
@@ -277,7 +277,7 @@ Picker 行為：
 
 ## Geometry Preview
 
-每個 process step output edge 中間提供一個圓形 geometry preview button，風格與 `/processFlowEditor` 的 geometry view button 一致。
+每個 process step output edge 中間提供一個圓形 geometry preview button，風格與 `/flow-template-editor` 的 geometry view button 一致。
 
 Initial geometry circle 本身代表 initial geometry state，因此 initial geometry circle 到第一個 process step 的 edge 不需要額外 geometry preview button。
 
@@ -409,4 +409,3 @@ Abort button：
 - 不提供 edge connect / reconnect / delete。
 - 不新增 process flow template。
 - 不 export process JSON。
-
