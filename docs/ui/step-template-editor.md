@@ -336,6 +336,7 @@ Top filter bar:
 - Search input：依 `name` 做 case-insensitive substring search。
 - Category selector：依現有 templates 的 `category` path 分層列出可往下選的 category segment。
 - Clear filters button。
+- Home button：導回 home page `/`。
 - Export button：下載全部 templates。
 - Add button：建立新 draft 並進入 edit overlay。
 

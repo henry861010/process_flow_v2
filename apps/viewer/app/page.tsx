@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Boxes, GitBranch, Workflow } from "lucide-react";
+import { GitBranch, ListChecks, Workflow } from "lucide-react";
 
 import {
   initializeHomeLocalStorage,
@@ -21,14 +21,14 @@ export default function Home() {
       icon: Workflow,
     },
     {
-      href: "/cad-viewer",
-      label: "CAD Viewer",
-      icon: Boxes,
-    },
-    {
       href: "/flow-instance-editor",
       label: "Flow Instance Editor",
       icon: GitBranch,
+    },
+    {
+      href: "/admin/processstepeditor",
+      label: "Process Step Editor",
+      icon: ListChecks,
     },
   ];
 

@@ -9,8 +9,8 @@
 Home page 是 process flow tools 的入口頁。此頁不承擔 editor workflow，也不顯示 template list；只提供進入下列頁面的 buttons：
 
 - Flow Template Editor：`/flow-template-editor`
-- CAD Viewer：`/cad-viewer`
 - Flow Instance Editor：`/flow-instance-editor`
+- Process Step Editor：`/admin/processstepeditor`
 - `cmd: reset-poc-data`：POC-only system command，清除整個 origin 的 browser `localStorage`，再寫回 default JSON seed。
 
 ## localStorage Bootstrap

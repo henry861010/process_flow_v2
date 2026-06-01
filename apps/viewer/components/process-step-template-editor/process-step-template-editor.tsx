@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   AlertCircle,
+  ArrowLeft,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -360,6 +362,12 @@ export function ProcessStepTemplateEditor() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/">
+                <ArrowLeft />
+                Home
+              </Link>
+            </Button>
             <Button variant="outline" onClick={exportTemplates}>
               <Download />
               Export
