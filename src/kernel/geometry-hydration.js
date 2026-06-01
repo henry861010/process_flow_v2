@@ -12,11 +12,21 @@ import { normalizeGeometryDocument } from "../data/schema.js";
 import { Via } from "../data/via.js";
 import { Status } from "../process/status.js";
 
+/**
+ * Rebuild a mutable Container object from a stored geometry document.
+ */
 export function geometryDocumentToContainer(payload) {
   const document = normalizeGeometryDocument(payload);
   return containerFromJson(document.root);
 }
 
+/**
+ * Rebuild a Status object so process steps can continue from stored geometry.
+ *
+ * The restored Status uses the document's container as current geometry,
+ * infers a base footprint from the first body, and sets zNow to the top of the
+ * container.
+ */
 export function geometryDocumentToStatus(payload) {
   const container = geometryDocumentToContainer(payload);
   const status = new Status();
@@ -26,6 +36,9 @@ export function geometryDocumentToStatus(payload) {
   return status;
 }
 
+/**
+ * Convert a Status-like value back into normalized geometry JSON.
+ */
 export function statusToGeometryDocument(status) {
   if (status?.container && typeof status.container === "function") {
     return status.container().json();
@@ -36,10 +49,17 @@ export function statusToGeometryDocument(status) {
   return normalizeGeometryDocument(status);
 }
 
+/**
+ * Serialize a Container object as a normalized geometry document.
+ */
 export function containerToGeometryDocument(container) {
   return container.json();
 }
 
+/**
+ * Recursively convert container JSON into Container, Body, Via, Circuit, and
+ * Bump instances.
+ */
 function containerFromJson(container) {
   const result = new Container({ key: container.key ?? "" });
 
@@ -64,6 +84,9 @@ function containerFromJson(container) {
   return result;
 }
 
+/**
+ * Rebuild the correct geometry subclass from its JSON shape signature.
+ */
 function geometryFromJson(geometry) {
   if (
     Object.hasOwn(geometry, "bottom_left") &&
@@ -99,6 +122,9 @@ function geometryFromJson(geometry) {
   throw new Error(`Unsupported geometry payload: ${JSON.stringify(geometry)}`);
 }
 
+/**
+ * Choose a footprint geometry that future fill/via/circuit operations can copy.
+ */
 function inferBaseGeometry(container) {
   const bodies = container.bodies();
   if (bodies.length > 0) {

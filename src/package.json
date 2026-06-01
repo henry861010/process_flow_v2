@@ -27,7 +27,8 @@
     "example": "node ./examples/generate-json.js",
     "test": "node --test",
     "example:json": "node ./examples/generate-json.js --format json",
-    "example:cad": "node ./examples/generate-json.js --format all --output /tmp/process-flow-example"
+    "example:cad": "node ./examples/generate-json.js --format all --output /tmp/process-flow-example",
+    "example:kernel": "node ./examples/geometry-kernel-usage.js"
   },
   "dependencies": {
     "opencascade.js": "beta"

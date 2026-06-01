@@ -263,7 +263,7 @@ type GraphAnalysis = {
   flowStepCount: number;
   hasCycle: boolean;
   duplicateTargetSlots: string[];
-  duplicateProcessStepOutgoingSources: string[];
+  duplicateOutgoingSources: string[];
   invalidEdgeMessages: string[];
   stepCompletion: Map<string, StepCompletion>;
   validationMessage: string;
@@ -2009,9 +2009,8 @@ function getConnectionReplacementEdges(
     }
     const replacesTargetSlot =
       edge.target === targetNodeId && edge.targetHandle === targetFieldId;
-    const replacesProcessStepOutput =
-      sourceNode.data.nodeKind === "processStep" && edge.source === sourceNode.id;
-    if (replacesTargetSlot || replacesProcessStepOutput) {
+    const replacesSourceOutgoing = edge.source === sourceNode.id;
+    if (replacesTargetSlot || replacesSourceOutgoing) {
       replacements.set(edge.id, edge);
     }
   });
@@ -2039,10 +2038,7 @@ function analyzeGraph(
   );
   const stepCompletion = computeStepCompletion(stepNodes, edges, reachableStepNodeIds);
   const duplicateTargetSlots = findDuplicateTargetSlots(edges);
-  const duplicateProcessStepOutgoingSources = findDuplicateProcessStepOutgoingSources(
-    stepNodes,
-    edges,
-  );
+  const duplicateOutgoingSources = findDuplicateOutgoingSources(nodes, edges);
   const invalidEdgeMessages = findInvalidEdges(nodes, edges);
   const hasCycle = graphHasCycle(nodes, edges);
   const unconnectedInitial = nodes.find(
@@ -2073,8 +2069,8 @@ function analyzeGraph(
     validationMessage = "Graph contains a cycle.";
   } else if (duplicateTargetSlots.length > 0) {
     validationMessage = "A target geometry slot has more than one incoming edge.";
-  } else if (duplicateProcessStepOutgoingSources.length > 0) {
-    validationMessage = "A process step output has more than one outgoing edge.";
+  } else if (duplicateOutgoingSources.length > 0) {
+    validationMessage = "A source node has more than one outgoing edge.";
   } else if (invalidEdgeMessages.length > 0) {
     validationMessage = invalidEdgeMessages[0];
   } else if (firstGeometryError) {
@@ -2092,7 +2088,7 @@ function analyzeGraph(
     flowStepCount: reachableStepNodeIds.size,
     hasCycle,
     duplicateTargetSlots,
-    duplicateProcessStepOutgoingSources,
+    duplicateOutgoingSources,
     invalidEdgeMessages,
     stepCompletion,
     validationMessage,
@@ -2244,14 +2240,11 @@ function findDuplicateTargetSlots(edges: FlowEdge[]) {
     .map(([key]) => key);
 }
 
-function findDuplicateProcessStepOutgoingSources(
-  stepNodes: ProcessStepFlowNode[],
-  edges: FlowEdge[],
-) {
-  const stepNodeIds = new Set(stepNodes.map((node) => node.id));
+function findDuplicateOutgoingSources(nodes: FlowNode[], edges: FlowEdge[]) {
+  const nodeIds = new Set(nodes.map((node) => node.id));
   const counts = new Map<string, number>();
   edges.forEach((edge) => {
-    if (!stepNodeIds.has(edge.source)) {
+    if (!nodeIds.has(edge.source)) {
       return;
     }
     counts.set(edge.source, (counts.get(edge.source) ?? 0) + 1);
@@ -2343,11 +2336,12 @@ function validateConnection(
     return { valid: false, reason: "Target slot must be a top-level geometryRef field." };
   }
 
-  const edgesAfterSlotReplacement = edges.filter(
+  const edgesAfterReplacement = edges.filter(
     (edge) =>
+      edge.source !== connection.source &&
       !(edge.target === connection.target && edge.targetHandle === connection.targetHandle),
   );
-  if (hasPath(connection.target, connection.source, edgesAfterSlotReplacement)) {
+  if (hasPath(connection.target, connection.source, edgesAfterReplacement)) {
     return { valid: false, reason: "Connection would create a cycle." };
   }
 

@@ -926,8 +926,9 @@ FieldDefinition editor 與資料驗證應只允許下列 `valueType`、`controlT
 
   - Flow graph 規則：
      - 每個 process flow 是一個 directed acyclic graph，不能有 cycle。
-     - 每個 target `geometryRef` field 最多只能有一條 incoming edge。
+     - 每個 target `geometryRef` field 必定只能有一條 incoming edge。
      - 每個 process step 可以有多個 `geoemetryRef` field
+     - process step incoming edge 數量等於 `geoemetryRef` field 數量
      - 若某個 `geometryRef` field 在 instance 中使用 `null`，該 field 必須有一條 incoming `stepOutput` edge。
      - Process step 只能也必定只有一條 outgoing edge。
 

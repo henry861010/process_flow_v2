@@ -6,7 +6,20 @@ import {
 import { GeometryKernelExecutionResult } from "./execution-result.js";
 import { ProcessStepModuleResolver } from "./process-step-module-resolver.js";
 
+/**
+ * High-level facade for running a process flow against geometry data.
+ *
+ * The kernel loads flow definitions and geometry documents from repositories,
+ * converts geometry JSON into a mutable Status, executes each process-step
+ * module, and returns a serializable result.
+ */
 export class GeometryKernel {
+  /**
+   * Create a kernel from repository-like objects.
+   *
+   * Every repository must expose `getById(id)`. The instance repository is only
+   * required when `execute()` receives a process flow instance id.
+   */
   constructor({
     geometryRepository,
     processFlowInstanceRepository = null,
@@ -30,6 +43,18 @@ export class GeometryKernel {
     this._moduleResolver = moduleResolver ?? new ProcessStepModuleResolver();
   }
 
+  /**
+   * Execute all steps in a process flow instance.
+   *
+   * Steps run in dependency order based on `stepOutput` edges. Each process
+   * module receives a context object containing `status`, normalized `values`,
+   * metadata, and resolved geometry inputs.
+   *
+   * @param {string|object} processFlowInstanceOrId - Instance id or instance object.
+   * @param {object} options
+   * @param {?string} options.outputStepRefId - Return this step output instead of the terminal output.
+   * @returns {Promise<GeometryKernelExecutionResult>}
+   */
   async execute(processFlowInstanceOrId, options = {}) {
     const processFlowInstance = await this._resolveProcessFlowInstance(
       processFlowInstanceOrId,
@@ -118,6 +143,9 @@ export class GeometryKernel {
     });
   }
 
+  /**
+   * Resolve an instance object from either a direct object or a repository id.
+   */
   async _resolveProcessFlowInstance(processFlowInstanceOrId) {
     if (typeof processFlowInstanceOrId !== "string") {
       return processFlowInstanceOrId;
@@ -134,6 +162,12 @@ export class GeometryKernel {
     );
   }
 
+  /**
+   * Resolve the geometry fields required by one process step.
+   *
+   * Inputs can come from an upstream step output, an inline geometry document,
+   * or a geometry entity id stored in the geometry repository.
+   */
   async _resolveGeometryInputs({
     stepRef,
     stepTemplate,
@@ -188,6 +222,9 @@ export class GeometryKernel {
     return geometryInputs;
   }
 
+  /**
+   * Repository helper that keeps missing-id and not-found errors consistent.
+   */
   async _getByIdOrThrow(repository, id, label) {
     if (id === undefined || id === null || id === "") {
       throw new Error(`${label} id is required`);
@@ -200,6 +237,9 @@ export class GeometryKernel {
   }
 }
 
+/**
+ * Validate that a repository-like object supports the kernel read API.
+ */
 function requiredRepository(repository, name) {
   if (!repository || typeof repository.getById !== "function") {
     throw new Error(`${name} with getById(id) is required`);
@@ -207,6 +247,12 @@ function requiredRepository(repository, name) {
   return repository;
 }
 
+/**
+ * Return step references in a safe execution order.
+ *
+ * Only `stepOutput` edges create execution dependencies. Geometry-ref edges
+ * point to external inputs and do not affect ordering.
+ */
 function topologicalStepRefs(stepRefs, flowEdges) {
   const stepRefIds = new Set(stepRefs.map((stepRef) => stepRef.stepRefId));
   const incomingCounts = new Map(stepRefs.map((stepRef) => [stepRef.stepRefId, 0]));
@@ -245,6 +291,9 @@ function topologicalStepRefs(stepRefs, flowEdges) {
   return ordered;
 }
 
+/**
+ * Terminal steps are steps whose output is not consumed by another step.
+ */
 function findTerminalStepRefIds(stepRefsById, flowEdges) {
   const sources = new Set(
     flowEdges
@@ -254,6 +303,9 @@ function findTerminalStepRefIds(stepRefsById, flowEdges) {
   return Array.from(stepRefsById.keys()).filter((stepRefId) => !sources.has(stepRefId));
 }
 
+/**
+ * Find the flow edge connected to one step field.
+ */
 function findIncomingEdge(flowEdges, stepRefId, fieldId) {
   return flowEdges.find(
     (edge) =>
@@ -262,14 +314,23 @@ function findIncomingEdge(flowEdges, stepRefId, fieldId) {
   );
 }
 
+/**
+ * Find the raw value selected for one field in a StepValueSet.
+ */
 function findFieldValue(fieldValues, fieldId) {
   return fieldValues.find((fieldValue) => fieldValue.fieldId === fieldId)?.value;
 }
 
+/**
+ * Geometry fields are handled separately because they become Status inputs.
+ */
 function isGeometryField(field) {
   return field.valueType === "geometry" || field.valueType === "geometryRef";
 }
 
+/**
+ * Detect inline geometry documents passed directly in a field value.
+ */
 function isGeometryDocument(value) {
   return (
     value !== null &&
@@ -278,6 +339,12 @@ function isGeometryDocument(value) {
   );
 }
 
+/**
+ * Build the `values` object passed to a process-step module.
+ *
+ * Geometry fields are skipped because they are provided through `status` and
+ * `geometryInputs`. Other fields are normalized by declared value type.
+ */
 function buildValues(fieldDefinitions, fieldValues) {
   const result = {};
   for (const field of fieldDefinitions) {
@@ -288,6 +355,9 @@ function buildValues(fieldDefinitions, fieldValues) {
   return result;
 }
 
+/**
+ * Convert form-style field values into process-step-friendly JavaScript values.
+ */
 function normalizeFieldValue(field, value) {
   if (field.valueType === "integer") {
     if (value === "" || value === null || value === undefined) return null;
@@ -306,6 +376,9 @@ function normalizeFieldValue(field, value) {
   return value;
 }
 
+/**
+ * Convert repeater field payloads into an array of normalized item objects.
+ */
 function normalizeFieldGroupArray(field, value) {
   if (!value || !Array.isArray(value.items)) return [];
   const childFields = field.repeatDefinition?.itemFieldDefinitions ?? [];
@@ -324,16 +397,27 @@ function normalizeFieldGroupArray(field, value) {
   });
 }
 
+/**
+ * Return the first geometry input for steps with a single main geometry field.
+ */
 function firstMapValue(map) {
   for (const value of map.values()) return value;
   return null;
 }
 
+/**
+ * Convert a process module return value into a normalized geometry document.
+ *
+ * If the module returns nothing, the mutated fallback Status is used as output.
+ */
 function normalizeStepOutput(output, fallbackStatus) {
   const resolvedOutput = output === undefined || output === null ? fallbackStatus : output;
   return statusToGeometryDocument(resolvedOutput);
 }
 
+/**
+ * Create an empty Status for steps that do not require geometry input.
+ */
 function newStatus() {
   return geometryDocumentToStatus({
     key: "main",
