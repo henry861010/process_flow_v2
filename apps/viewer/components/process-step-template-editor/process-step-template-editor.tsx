@@ -18,9 +18,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PROCESS_STEP_TEMPLATES_STORAGE_KEY } from "@/lib/home-local-storage";
 import { cn } from "@/lib/utils";
 
-const LOCAL_STORAGE_KEY = "processStepTemplates";
 const SNAKE_CASE_RE = /^[a-z][a-z0-9_]*$/;
 const VERSION_RE = /^V\d+\.\d+\.\d+$/;
 
@@ -112,186 +112,6 @@ const MAIN_GEOMETRY_FIELD: FieldDefinition = {
   unit: null,
 };
 
-const SEED_TEMPLATES: ProcessStepTemplate[] = [
-  {
-    id: "step_tpl_bonding_micro_bump",
-    version: "V1.0.0",
-    name: "Micro bump bonding",
-    category: "bonding.micro_bump",
-    description:
-      "Define micro bump bonding process parameters and resulting bonded package state.",
-    owner: "integration.platform",
-    fieldDefinitions: [
-      MAIN_GEOMETRY_FIELD,
-      {
-        id: "incoming_pad_finish",
-        name: "Incoming pad finish",
-        description: "Pad finish before micro bump bonding starts.",
-        scope: "inputState",
-        valueType: "string",
-        controlType: "select",
-        selectionMode: "single",
-        unit: null,
-        optionSource: {
-          type: "static",
-          options: [
-            { value: "cu", name: "Cu" },
-            { value: "ni_au", name: "Ni/Au" },
-          ],
-        },
-      },
-      {
-        id: "bonding_profile",
-        name: "Bonding profile",
-        description: "Named bonding recipe or process profile family.",
-        scope: "processParameter",
-        valueType: "string",
-        controlType: "select",
-        selectionMode: "single",
-        unit: null,
-        optionSource: {
-          type: "static",
-          options: [
-            {
-              value: "baseline_thermal_compression",
-              name: "Baseline thermal compression",
-            },
-            { value: "low_temperature", name: "Low temperature" },
-          ],
-        },
-      },
-      {
-        id: "bump_pitch",
-        name: "Bump pitch",
-        description: "Nominal micro bump pitch used by this bonding process.",
-        scope: "processParameter",
-        valueType: "float",
-        controlType: "number",
-        selectionMode: null,
-        unit: null,
-        validation: { min: 0 },
-      },
-    ],
-  },
-  {
-    id: "step_tpl_molding_encapsulation",
-    version: "V1.0.0",
-    name: "Molding encapsulation",
-    category: "encapsulation.molding",
-    description: "Define mold compound, mold thickness, and cure condition.",
-    owner: "assembly.process",
-    fieldDefinitions: [
-      MAIN_GEOMETRY_FIELD,
-      {
-        id: "mold_compound",
-        name: "Mold compound",
-        description: "Mold compound material used for encapsulation.",
-        scope: "processParameter",
-        valueType: "materialRef",
-        controlType: "select",
-        selectionMode: "single",
-        unit: null,
-        optionSource: {
-          type: "static",
-          options: [
-            { value: "EMC-A", name: "EMC-A" },
-            { value: "EMC-B", name: "EMC-B" },
-          ],
-        },
-      },
-      {
-        id: "mold_thickness",
-        name: "Mold thickness",
-        description: "Target encapsulation thickness after molding.",
-        scope: "processParameter",
-        valueType: "float",
-        controlType: "number",
-        selectionMode: null,
-        unit: null,
-        validation: { min: 0 },
-      },
-      {
-        id: "cure_required",
-        name: "Cure required",
-        description: "Whether the process requires a dedicated post mold cure step.",
-        scope: "processParameter",
-        valueType: "boolean",
-        controlType: "checkbox",
-        selectionMode: null,
-        unit: null,
-      },
-    ],
-  },
-  {
-    id: "step_tpl_rdl_build_up",
-    version: "V1.0.0",
-    name: "RDL build up",
-    category: "interconnect.rdl",
-    description: "Define repeatable PM and RDL layer parameters.",
-    owner: "interconnect.integration",
-    fieldDefinitions: [
-      MAIN_GEOMETRY_FIELD,
-      {
-        id: "rdl_layers",
-        name: "RDL layers",
-        description: "Repeatable PM and RDL layer definitions.",
-        scope: "processParameter",
-        valueType: "fieldGroupArray",
-        controlType: "repeater",
-        selectionMode: null,
-        unit: null,
-        repeatDefinition: {
-          itemNameTemplate: "RDL layer {{index}}",
-          indexBase: 1,
-          minItems: 1,
-          maxItems: 12,
-          itemFieldDefinitions: [
-            {
-              id: "pm_material",
-              name: "PM material",
-              description: "Photo-material used before this RDL layer.",
-              scope: "processParameter",
-              valueType: "materialRef",
-              controlType: "select",
-              selectionMode: "single",
-              unit: null,
-              optionSource: {
-                type: "static",
-                options: [
-                  { value: "PM-001", name: "Baseline photo-material" },
-                  { value: "PM-002", name: "Low-stress photo-material" },
-                ],
-              },
-            },
-            {
-              id: "pm_thickness",
-              name: "PM thickness",
-              description: "Photo-material thickness for this layer.",
-              scope: "processParameter",
-              valueType: "float",
-              controlType: "number",
-              selectionMode: null,
-              unit: null,
-              validation: { min: 0 },
-            },
-            {
-              id: "rdl_thickness",
-              name: "RDL thickness",
-              description: "Copper RDL thickness for this layer.",
-              scope: "processParameter",
-              valueType: "float",
-              controlType: "number",
-              selectionMode: null,
-              unit: null,
-              validation: { min: 0 },
-            },
-          ],
-        },
-      },
-    ],
-  },
-];
-
 const valueTypes: ValueType[] = [
   "string",
   "string[]",
@@ -332,14 +152,8 @@ export function ProcessStepTemplateEditor() {
   const [selectedFieldIndex, setSelectedFieldIndex] = React.useState(0);
 
   React.useEffect(() => {
-    const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (stored === null) {
-      const seeded = clone(SEED_TEMPLATES);
-      window.localStorage.setItem(LOCAL_STORAGE_KEY, stringify(seeded));
-      setTemplates(seeded);
-    } else {
-      setTemplates(JSON.parse(stored) as ProcessStepTemplate[]);
-    }
+    const stored = window.localStorage.getItem(PROCESS_STEP_TEMPLATES_STORAGE_KEY);
+    setTemplates(stored ? (JSON.parse(stored) as ProcessStepTemplate[]) : []);
     setHydrated(true);
   }, []);
 
@@ -391,7 +205,10 @@ export function ProcessStepTemplateEditor() {
   });
 
   function persistTemplates(nextTemplates: ProcessStepTemplate[]) {
-    window.localStorage.setItem(LOCAL_STORAGE_KEY, stringify(nextTemplates));
+    window.localStorage.setItem(
+      PROCESS_STEP_TEMPLATES_STORAGE_KEY,
+      stringify(nextTemplates),
+    );
     setTemplates(nextTemplates);
   }
 
@@ -539,7 +356,7 @@ export function ProcessStepTemplateEditor() {
             </h1>
             <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="signal">{templates.length} templates</Badge>
-              <span>localStorage key: {LOCAL_STORAGE_KEY}</span>
+              <span>localStorage key: {PROCESS_STEP_TEMPLATES_STORAGE_KEY}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">

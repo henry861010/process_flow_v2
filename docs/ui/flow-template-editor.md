@@ -86,12 +86,13 @@ Micro bump -> PNP.main_geometry
 
 ### Storage
 
-localStorage 內保存三類資料：
+localStorage 內保存四類資料：
 
 ```ts
 const PROCESS_STEP_TEMPLATES_STORAGE_KEY = "processStepTemplates";
 const PROCESS_FLOW_TEMPLATES_STORAGE_KEY = "processFlowTemplates";
 const PROCESS_FLOW_INSTANCES_STORAGE_KEY = "processFlowInstances";
+const GEOMETRY_ENTITIES_STORAGE_KEY = "GeometryEntity";
 ```
 
 | localStorage key | Value shape | 此頁用途 | 此頁是否寫入 |
@@ -99,8 +100,9 @@ const PROCESS_FLOW_INSTANCES_STORAGE_KEY = "processFlowInstances";
 | `processStepTemplates` | `ProcessStepTemplate[]` | 右側 process step template palette 的資料來源。 | 不寫入。此頁只讀取既有 process step templates，不建立、不修改、不刪除 process step templates。 |
 | `processFlowTemplates` | `ProcessFlowTemplate[]` | Save custom flow 後新增一份 process flow template snapshot。 | 寫入。Save 成功後 append 新 template。 |
 | `processFlowInstances` | `ProcessFlowInstance[]` | Save custom flow 後新增一份綁定新 template 的 instance。 | 寫入。Save 成功後 append 新 instance。 |
+| `GeometryEntity` | `GeometryEntity[]` | 左側 geometry selection palette 的資料來源。 | 不寫入。此頁只讀取 home seed 的 geometry entities。 |
 
-三個 localStorage value 都是純 array，不包額外 metadata。
+四個 localStorage value 都是純 array，不包額外 metadata。
 
 此頁先假設上述 localStorage key 若存在，其 JSON 格式與 schema 都正確；不需要做 malformed localStorage recovery UI。
 
@@ -126,11 +128,13 @@ Save custom flow 時：
 
 ### Seed Templates
 
-此頁不 seed process step templates。
+此頁不 seed process step templates 或 geometry entities。Home page 負責建立所有缺少的 localStorage keys。
 
-`processStepTemplates` 由 process step template editor 或其他初始化流程先寫入 localStorage。若 `processStepTemplates` 不存在或為空陣列，右側 process step template palette 顯示 empty state，使用者無法拖入 process step，但本頁不自動建立 seed data。
+`processStepTemplates` 由 home page 或 process step template editor 寫入 localStorage。若 `processStepTemplates` 不存在或為空陣列，右側 process step template palette 顯示 empty state，使用者無法拖入 process step，但本頁不自動建立 seed data。
 
-此頁不 seed process flow templates 或 process flow instances。若 `processFlowTemplates` 或 `processFlowInstances` 不存在，初始化時以空陣列處理。
+`GeometryEntity` 由 home page 寫入 localStorage。若 `GeometryEntity` 不存在或為空陣列，左側 geometry palette 顯示 empty state 或空列表，本頁不自動建立 seed data。
+
+此頁不 seed process flow templates 或 process flow instances。若 `processFlowTemplates` 或 `processFlowInstances` 不存在，Save / export 時以空陣列處理。
 
 ## Metadata Form
 
@@ -227,16 +231,20 @@ Step node 的 incoming edges 規則是 slot-level，而不是 node-level：
 - `fieldGroupArray` repeater 內的 child fields。
 - 非 geometry reference 的 material、layout 或 primitive fields。
 
-Top-level `geometryRef` field 有兩種供值來源：
+Top-level `geometryRef` field 有兩種 incoming edge source：
 
-- Geometry DB 或 mock geometry library reference：使用者從 geometry library 選取 geometry entity，值保存在 target step 的 `FieldValue.value`，其值必須是 `GeometryEntity.id`。
+- Geometry DB 或 mock geometry library reference：由 `flowEdges[]` 中指向該 `targetFieldId` 的 incoming edge 提供，且 edge source 必須是 `sourceType: "geometryRef"`。使用者在 initial geometry node 選取 geometry entity 後，target step 對應的 `FieldValue.value` 必須保存 `GeometryEntity.id`。
 - Upstream process step output：由 `flowEdges[]` 中指向該 `targetFieldId` 的 incoming edge 提供，且 edge source 必須是 `sourceType: "stepOutput"`。此時 target step 對應的 `FieldValue.value` 可以是 `null`，表示 runtime 會從上游 step output resolve geometry DB id。
+
+`FieldValue.value: null` 不代表沒有 incoming edge；它只代表該欄位有一條 incoming `stepOutput` edge，且 geometry DB id 會由上游 process step output resolve。
+
+Save flow template 時，flow graph 中每個 reachable process step 的每個 top-level `geometryRef` field 都必須有且只能有一條 incoming edge。Template 不允許保存「沒有 incoming edge 的 `geometryRef` field」；若使用者暫時造成此狀態，該 step 顯示 incomplete / invalid，Save disabled。
 
 當 top-level `geometryRef` field 的 incoming edge source 是 geometry DB / initial geometry 時，`FieldValue.value` 仍必須保存明確的 `GeometryEntity.id`，不可保存 `null`。
 
 當 top-level `geometryRef` field 的 incoming edge source 是 upstream process step output 時，該 field 的 effective geometry 由 graph resolution 提供，不需要在 `FieldValue.value` 中保存特殊 geometry id。Editor 不使用 `ffffffff` 或其他 sentinel id 表示 graph-provided geometry。此時對應 form field 可顯示為 read-only mapping，例如 `Provided by Micro bump formation output`，而 `FieldValue.value` 保存 `null`。
 
-當使用者 unlink 該 incoming edge 後，該 `geometryRef` field 回到一般 geometry library picker 狀態，可由使用者從 DB 或 mock geometry library 選取 geometry reference，並在 `FieldValue.value` 保存明確的 geometry DB id。
+當使用者 unlink 該 incoming edge 後，該 `geometryRef` field 進入未連接狀態。使用者必須重新連接 initial geometry node 或 upstream process step output；不能只在 step dialog 內用 picker 補值後保存 template。
 
 Process step block 平常保持乾淨，不常駐顯示 `wafer_geometry`、`soic_geometry` 等 field text。若 step template 有 geometry input fields，block 左側需要顯示 input port indicators；當 field 數量大於一個時，hover、drag-over、selected、new edge dragging 或 edge target reconnecting 狀態需要展開 slot labels，避免使用者把 edge 接錯 field。
 
@@ -262,7 +270,7 @@ Top-level `geometryRef` field 的 completion 規則：
 
 - 有 incoming `stepOutput` edge 指向該 field 時，`FieldValue.value` 可以是 `null`，但 upstream source step 必須已完成欄位，該 field 才算 complete。
 - 有 incoming geometry DB / initial geometry edge 指向該 field 時，`FieldValue.value` 必須是明確的 `GeometryEntity.id`。
-- 沒有 incoming edge 指向該 field 時，必須檢查使用者是否已從 geometry library picker 選取 geometry entity，並使 `FieldValue.value` 保存明確的 `GeometryEntity.id`。
+- 沒有 incoming edge 指向該 field 時，該 field 不算 complete，且 Save disabled。使用者必須建立一條 incoming edge，不能只保存 field value。
 
 ## Large Flow Navigation
 
@@ -310,7 +318,7 @@ Save 時：
 每個 process step instance：
 
 - 可以有零個或一個 outgoing edge。零個 outgoing edge 表示此 step 是目前 flow 的終點。
-- 可以有零個或多個 incoming edges。
+- Draft 白板上暫時可以有零個或多個 incoming edges；Save 時，flow graph 中每個 reachable process step 的每個 top-level `geometryRef` field 都必須有一條 incoming edge。
 - 每個 top-level `geometryRef` field 最多一個 incoming edge。
 
 Process step instance 的 incoming edge 上限為：
@@ -328,6 +336,8 @@ top-level geometryRef field count
 不允許 cycle。使用者拉線時，如果新連線會形成 cycle，UI 必須阻止該連線成立。
 
 Save 使用 `stepRefs[]` 與 `flowEdges[]` 表示 graph topology。Initial geometry 不保存成 `initialGeometryRefs[]`；geometry DB source 由 `flowEdges[].source` 表示，實際 geometry DB id 由 target step 對應的 instance `FieldValue.value` 保存。
+
+Save 前必須驗證所有 reachable process step 的 top-level `geometryRef` fields 都有對應 incoming edge。沒有 incoming edge 的 `geometryRef` field 是 template validation error，不可保存成 process flow template。
 
 ## Connection Interaction
 
@@ -378,7 +388,7 @@ new_soic_initial -> PNP.SOIC geometry
 
 也就是只有 `PNP.SOIC geometry` slot 原本的 incoming edge 被移除；`PNP.main_geometry` 或其他 target slots 的 incoming edges 保留。
 
-若使用者從同一個 process step output 再拉一條 edge 到其他 target slot，原 outgoing edge 會被移除，原 target slot 回到一般 geometry picker 或未選取狀態。
+若使用者從同一個 process step output 再拉一條 edge 到其他 target slot，原 outgoing edge 會被移除，原 target slot 變成未連接狀態，並依 completion rule 變成 incomplete / invalid。
 
 既有 edge 必須支援 target reconnect。使用者可以拖動 flow edge 的 target endpoint，將它改接到另一個 process step 的合法 `geometryRef` input slot。Reconnect 時 source endpoint 不變，仍套用 cycle validation、target slot validation、slot-level replacement，以及 source 單一 outgoing 規則。Reconnect 成功後，舊 target slot 的 graph-provided mapping 被清除，新 target slot 立即顯示新的 input mapping。
 
@@ -400,7 +410,7 @@ new_soic_initial -> PNP.SOIC geometry
 - 使用者將滑鼠移到 edge 上時，edge 靠近 target 端顯示一個 small delete icon button。
 - 使用者點擊該 delete icon button 後，只移除該 edge。
 - Source node、target node，以及 target node 其他 input slots 的 incoming edges 都保留。
-- 若被刪除的 edge 原本供值給 target step 的 `geometryRef` field，該 field 回到一般 geometry library picker 或未選取狀態；若沒有其他有效值，該 field 會依 completion rule 變成 incomplete。
+- 若被刪除的 edge 原本供值給 target step 的 `geometryRef` field，該 field 變成未連接狀態，並依 completion rule 變成 incomplete / invalid。使用者必須重新連接一條 incoming edge，或讓該 step 不進入 saved flow graph。
 
 ## Geometry State Button
 
@@ -445,10 +455,10 @@ Dialog header 顯示正在編輯的 step template 名稱、step instance id、fl
 Dialog 內需要顯示 input mapping 區塊：
 
 - 每個 top-level `geometryRef` field 對應的 source。
-- 未連接且尚未選值的 input slot 狀態。
-- 已連接 input slot 的 unlink 或 change source 操作。
+- 未連接 input slot 的 blocking 狀態。
+- 已連接 input slot 的 unlink 或 change source 操作；unlink 後 Save disabled，直到使用者重新連接合法 source。
 
-若某個 `geometryRef` field 已由 incoming `stepOutput` edge 提供，該欄位在表單區顯示為 graph-provided input，不要求使用者再從 DB 選值，並以 `FieldValue.value: null` 保存。若 incoming edge 來自 geometry DB / initial geometry，或沒有 incoming edge，該欄位都必須對應明確的 `GeometryEntity.id`。
+若某個 `geometryRef` field 已由 incoming `stepOutput` edge 提供，該欄位在表單區顯示為 graph-provided input，不要求使用者再從 DB 選值，並以 `FieldValue.value: null` 保存。若 incoming edge 來自 geometry DB / initial geometry，該欄位必須對應明確的 `GeometryEntity.id`。若沒有 incoming edge，該欄位不可在 dialog 內以 picker 補值，必須回到白板建立合法 incoming edge。
 
 Dialog 內的欄位編輯採用 live update。使用者在 dialog 中修改任一 field value 時，該 value 立即寫回白板上的 process step instance draft state，並立即重新計算此 step 的 field completion、flow graph validation、status strip 訊息與 Save button enabled 狀態。
 
@@ -476,7 +486,7 @@ Validation message 優先順序：
 1. Metadata 錯誤，例如 `Technology name is required.`
 2. Initial geometry root 錯誤，例如沒有任何已連接 initial geometry root，或存在未連接 initial geometry node。
 3. Graph topology 錯誤，例如 cycle、同一 target slot 多 incoming edge、edge target field 不合法。
-4. Geometry input value 錯誤，例如 geometry DB / initial geometry input 沒有明確 `GeometryEntity.id`。
+4. Geometry input value 錯誤，例如 reachable step 的 `geometryRef` field 沒有 incoming edge，或 geometry DB / initial geometry input 沒有明確 `GeometryEntity.id`。
 5. Flow graph 中 reachable process step 的 required fields 尚未完成，訊息需包含 step name 與第一個 blocking field，例如 `Add layer12: Candidate materials is required.`
 6. 全部檢查通過時顯示 `Ready to save`。
 
@@ -496,6 +506,7 @@ Save button 不可點選條件包含：
 - Graph 內存在 cycle。
 - 任一 target step input slot 有多個 incoming edges。
 - 任一 edge 的 `targetFieldId` 不存在於 target step template，或不是 top-level `valueType: "geometryRef"` field。
+- Flow graph 中任一 reachable process step 的任一 top-level `geometryRef` field 沒有 incoming edge。
 - 任一 `geometryRef` field 的 `FieldValue.value` 為 `null`，但沒有 incoming `stepOutput` edge。
 - 任一 geometry DB / initial geometry input 沒有保存明確的 `GeometryEntity.id`。
 - Flow graph 中的 process step fields 尚未完成。

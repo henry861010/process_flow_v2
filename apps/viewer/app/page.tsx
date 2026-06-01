@@ -1,7 +1,16 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { Boxes, GitBranch, Workflow } from "lucide-react";
 
+import { initializeHomeLocalStorage } from "@/lib/home-local-storage";
+
 export default function Home() {
+  React.useEffect(() => {
+    initializeHomeLocalStorage();
+  }, []);
+
   const entries = [
     {
       href: "/flow-template-editor",

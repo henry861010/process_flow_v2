@@ -88,7 +88,7 @@ export class LocalStorageJsonArrayRepository {
  */
 export class LocalStorageGeometryRepository extends LocalStorageJsonArrayRepository {
   constructor(options = {}) {
-    super({ storageKey: "geometryEntities", ...options });
+    super({ storageKey: "GeometryEntity", ...options });
   }
 }
 

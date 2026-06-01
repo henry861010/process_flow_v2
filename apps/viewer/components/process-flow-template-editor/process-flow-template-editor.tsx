@@ -47,11 +47,13 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  GEOMETRY_ENTITIES_STORAGE_KEY,
+  PROCESS_FLOW_INSTANCES_STORAGE_KEY,
+  PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
+  PROCESS_STEP_TEMPLATES_STORAGE_KEY,
+} from "@/lib/home-local-storage";
 import { cn } from "@/lib/utils";
-
-const PROCESS_STEP_TEMPLATES_STORAGE_KEY = "processStepTemplates";
-const PROCESS_FLOW_TEMPLATES_STORAGE_KEY = "processFlowTemplates";
-const PROCESS_FLOW_INSTANCES_STORAGE_KEY = "processFlowInstances";
 
 const GEOMETRY_DRAG_TYPE = "application/process-flow-geometry";
 const STEP_TEMPLATE_DRAG_TYPE = "application/process-flow-step-template";
@@ -270,75 +272,6 @@ type GraphAnalysis = {
   canSave: boolean;
 };
 
-const MOCK_GEOMETRIES: GeometryEntity[] = [
-  {
-    id: "geom_wafer_aaatv_rev_a",
-    category: "carrier.wafer.glass",
-    name: "SKH HBM4 incoming wafer",
-    version: "v1.0.0",
-    owner: "integration-team",
-    description: "Incoming glass wafer geometry for aaaTV process flow.",
-    entityType: "wafer",
-    summary: "300 mm glass carrier, standard stack, um coordinates.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_die_hbm4_logic_rev_b",
-    category: "die.silicon.logic",
-    name: "HBM4 logic die",
-    version: "v2.1.0",
-    owner: "die-integration",
-    description: "Logic die outline and bump keepout model.",
-    entityType: "die",
-    summary: "Reticle-sized silicon die with bump density features.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_die_hbm4_memory_rev_c",
-    category: "die.silicon.memory",
-    name: "HBM4 memory die",
-    version: "v1.4.2",
-    owner: "memory-platform",
-    description: "Memory die geometry with TSV via density.",
-    entityType: "die",
-    summary: "Thin silicon memory die with via/circuit density.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_substrate_abf_55x55_rev_a",
-    category: "substrate.organic.abf",
-    name: "55x55 ABF substrate",
-    version: "v1.0.0",
-    owner: "substrate-team",
-    description: "Organic substrate for package assembly flow.",
-    entityType: "substrate",
-    summary: "ABF package substrate with coarse routing density.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_interposer_silicon_bridge_rev_a",
-    category: "interposer.silicon.bridge",
-    name: "Silicon bridge interposer",
-    version: "v0.9.0",
-    owner: "advanced-packaging",
-    description: "Bridge interposer geometry for fan-in assembly.",
-    entityType: "interposer",
-    summary: "Bridge with circuit density regions and copper vias.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_panel_temp_carrier_rev_a",
-    category: "carrier.panel.temporary",
-    name: "Temporary process panel",
-    version: "v1.0.0",
-    owner: "panel-process",
-    description: "Panel-level temporary carrier geometry.",
-    entityType: "panel",
-    summary: "Large-format carrier used during panel build-up.",
-    structureFormat: "standard",
-  },
-];
-
 const nodeTypes = {
   initialGeometry: InitialGeometryNode,
   processStep: ProcessStepNode,
@@ -367,6 +300,7 @@ function ProcessFlowTemplateEditorInner() {
   const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>(
     [],
   );
+  const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
   const [nodes, setNodes] = React.useState<FlowNode[]>([]);
   const [edges, setEdges] = React.useState<FlowEdge[]>([]);
   const [editingStepNodeId, setEditingStepNodeId] = React.useState<string | null>(
@@ -387,6 +321,7 @@ function ProcessFlowTemplateEditorInner() {
     setStepTemplates(
       readStorageArray<ProcessStepTemplate>(PROCESS_STEP_TEMPLATES_STORAGE_KEY),
     );
+    setGeometries(readStorageArray<GeometryEntity>(GEOMETRY_ENTITIES_STORAGE_KEY));
     setHydrated(true);
   }, []);
 
@@ -502,10 +437,7 @@ function ProcessFlowTemplateEditorInner() {
     [editingStepNodeId, nodes],
   );
 
-  const geometryGroups = React.useMemo(
-    () => groupByCategory(MOCK_GEOMETRIES),
-    [],
-  );
+  const geometryGroups = React.useMemo(() => groupByCategory(geometries), [geometries]);
   const stepGroups = React.useMemo(
     () => groupByCategory(stepTemplates),
     [stepTemplates],
@@ -653,7 +585,7 @@ function ProcessFlowTemplateEditorInner() {
 
   const addGeometryNode = React.useCallback(
     (geometryId: string, position: { x: number; y: number }) => {
-      const geometry = MOCK_GEOMETRIES.find((item) => item.id === geometryId);
+      const geometry = geometries.find((item) => item.id === geometryId);
       if (!geometry) {
         return;
       }
@@ -670,7 +602,7 @@ function ProcessFlowTemplateEditorInner() {
       setNodes((currentNodes) => [...currentNodes, node]);
       setSelectedNodeId(nodeId);
     },
-    [],
+    [geometries],
   );
 
   const addStepNode = React.useCallback(
@@ -897,7 +829,7 @@ function ProcessFlowTemplateEditorInner() {
       processStepTemplates: stepTemplates.filter((template) =>
         usedTemplateIds.has(template.id),
       ),
-      geometryRefs: MOCK_GEOMETRIES.filter((geometry) =>
+      geometryRefs: geometries.filter((geometry) =>
         usedGeometryIds.has(geometry.id),
       ),
       categories: {
@@ -906,7 +838,7 @@ function ProcessFlowTemplateEditorInner() {
         ).sort(),
         geometryCategories: Array.from(
           new Set(
-            MOCK_GEOMETRIES.filter((geometry) => usedGeometryIds.has(geometry.id)).map(
+            geometries.filter((geometry) => usedGeometryIds.has(geometry.id)).map(
               (geometry) => geometry.category,
             ),
           ),
@@ -1128,7 +1060,7 @@ function ProcessFlowTemplateEditorInner() {
           edges={edges}
           nodes={nodes}
           analysis={analysis}
-          geometries={MOCK_GEOMETRIES}
+          geometries={geometries}
           onClose={() => setEditingStepNodeId(null)}
           onFieldChange={(fieldId, value) =>
             updateStepFieldValue(editingStepNode.id, fieldId, value)

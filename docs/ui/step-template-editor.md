@@ -28,7 +28,7 @@ localStorage 儲存值為純 `ProcessStepTemplate[]`，不包額外 metadata。
 此頁先假設 `localStorage` 內若存在 `processStepTemplates` key，其 JSON 格式與 schema 都正確；不需要做 malformed localStorage recovery UI。
 
 ```ts
-const LOCAL_STORAGE_KEY = "processStepTemplates";
+const PROCESS_STEP_TEMPLATES_STORAGE_KEY = "processStepTemplates";
 ```
 
 Export all templates 時，下載內容同樣為 `ProcessStepTemplate[]`。
@@ -43,7 +43,7 @@ Export 行為：
 
 ### Seed Templates
 
-當 `localStorage` 尚未存在 `processStepTemplates` key 時，頁面初始化下列 sample templates。若使用者刪除全部 templates，不自動重新建立 seed data。
+當 `localStorage` 尚未存在 `processStepTemplates` key 時，由 home page 初始化 sample templates。此頁只讀取與寫入既有 key，不負責 seed。若使用者刪除全部 templates，不自動重新建立 seed data。完整 seed 清單以 `docs/ui/home.md` 與 `apps/viewer/lib/home-local-storage.ts` 為準。
 
 ```json
 [
