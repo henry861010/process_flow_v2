@@ -39,21 +39,43 @@ export const DEMO_BOUNDS: BoundsTuple = {
 
 export async function loadCadFile(file: File): Promise<LoadedCadModel> {
   const fileKind = inferFileKind(file.name);
-  const url = URL.createObjectURL(file);
+  return loadCadBlob(file, {
+    fileName: file.name,
+    fileKind,
+    fileSize: file.size,
+    id: `${file.name}-${file.size}-${file.lastModified}`,
+  });
+}
+
+export async function loadCadBlob(
+  blob: Blob,
+  {
+    fileName,
+    fileKind = inferFileKind(fileName),
+    fileSize = blob.size,
+    id = `${fileName}-${fileSize}`,
+  }: {
+    fileName: string;
+    fileKind?: CadFileKind;
+    fileSize?: number;
+    id?: string;
+  },
+): Promise<LoadedCadModel> {
+  const url = URL.createObjectURL(blob);
 
   try {
     const object =
-      fileKind === "stl" ? await loadStl(url, file.name) : await loadGltf(url);
+      fileKind === "stl" ? await loadStl(url, fileName) : await loadGltf(url);
 
-    object.name = file.name;
+    object.name = fileName;
     standardizeImportedObject(object);
 
     return {
-      id: `${file.name}-${file.size}-${file.lastModified}`,
+      id,
       object,
-      fileName: file.name,
+      fileName,
       fileKind,
-      fileSize: file.size,
+      fileSize,
       stats: collectModelStats(object),
     };
   } finally {

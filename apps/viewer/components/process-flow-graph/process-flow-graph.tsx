@@ -63,6 +63,9 @@ export type ProcessFlowGraphEdgeData = Record<string, unknown> & {
   slotLabel: string;
   sourceLabel: string;
   graphMode?: ProcessFlowGraphMode;
+  geometryViewVisible?: boolean;
+  geometryViewDisabled?: boolean;
+  geometryViewTitle?: string;
   onDelete?: (edgeId: string) => void;
   onGeometryView?: () => void;
 };
@@ -418,7 +421,10 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
   const [edgePath, labelX, labelY] = getBezierPath(props);
   const data = props.data;
   const graphMode = data?.graphMode ?? "edit";
-  const canViewGeometry = data?.sourceType === "stepOutput";
+  const canViewGeometry =
+    Boolean(data?.onGeometryView) &&
+    (data?.geometryViewVisible === true || data?.sourceType === "stepOutput");
+  const geometryViewDisabled = Boolean(data?.geometryViewDisabled);
 
   return (
     <>
@@ -439,8 +445,13 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
         >
           {canViewGeometry ? (
             <button
-              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-white text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground"
-              title="View geometry state"
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-white text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground",
+                geometryViewDisabled &&
+                  "cursor-not-allowed border-muted-foreground/30 text-muted-foreground opacity-60 hover:bg-white hover:text-muted-foreground",
+              )}
+              title={data?.geometryViewTitle ?? "View geometry state"}
+              disabled={geometryViewDisabled}
               onClick={(event) => {
                 event.stopPropagation();
                 data?.onGeometryView?.();

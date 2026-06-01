@@ -46,7 +46,9 @@ flow edge 所代表的 geometry state。
 
 ### 1.3 Button Enabled State
 
-所有 fields 都是 required。
+所有 fields 在 Save flow instance 時都是 required。Preview button 的 enabled state
+只檢查該 preview edge 所需的 dependency，不檢查 preview edge 後方的 downstream
+steps。
 
 對 `geometryRef` edge：
 
@@ -54,6 +56,8 @@ flow edge 所代表的 geometry state。
 - 選到的 id 必須存在於目前 geometry repository snapshot。
 - 如果 initial geometry 尚未選擇、值是空的，或指到不存在的 geometry entity，
   button 必須 disabled。
+- 不需要檢查 target step 或 downstream steps 的其他 required fields。Initial geometry
+  preview 只代表該 selected geometry state 經過 preview execution path 的結果。
 
 對 `stepOutput` edge：
 
@@ -325,6 +329,7 @@ type GeometryEntityDownload = {
 | `version` | `null` |
 | `owner` | `null` |
 | `description` | 包含 edge id 與 source kind 的簡短 preview context |
+| `category` | `"preview.generated"` |
 | `structureFormat` | `"standard"` |
 | `structure` | Kernel preview output geometry document |
 
@@ -335,10 +340,11 @@ type GeometryEntityDownload = {
   download JSON 應以 `docs/data-model.md` 為準，除非 data model 後續更新。
 - Preview download JSON 預設不加入 `entityType`。
 
-未決事項：
+Category rule:
 
-- `category` 仍需要明確規則。選項包含 `null`、input geometry category、
-  source step category，或 dedicated generated-preview category。實作時不得私自決定。
+- Preview download JSON 的 `category` 固定為 `"preview.generated"`。
+- 不沿用 input geometry category，也不從 source process step category 推導，避免
+  使用者把 preview artifact 誤認為已治理的原始 geometry 或正式 process output。
 
 ### 2.8 Validation Flow
 
@@ -529,16 +535,6 @@ GLB blob 與 download state 由 panel 自己管理。
 - 跨 draft edits cache preview results。
 - 執行 preview edge 後面的 downstream steps。
 
-## 3. Remaining Decision
+## 3. Product Decision
 
-實作前需要先定義 preview download JSON 的 `category` 規則。
-
-目前未決選項：
-
-- 使用 `null`。
-- `geometryRef` preview 沿用 selected initial geometry category。
-- `stepOutput` preview 沿用第一個 upstream input geometry category。
-- 從 source process step template 推導 category。
-- 使用固定 generated-preview category，例如 `preview.generated`。
-
-實作時不得在沒有明確 product decision 的情況下私自選擇。
+Preview download JSON 的 `category` 固定使用 `"preview.generated"`。

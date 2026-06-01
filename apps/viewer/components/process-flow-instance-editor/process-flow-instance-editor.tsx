@@ -11,10 +11,7 @@ import {
   type Node,
 } from "@xyflow/react";
 import {
-  AlertCircle,
   ArrowLeft,
-  Check,
-  FileWarning,
   GitBranch,
   Layers3,
   Plus,
@@ -25,6 +22,10 @@ import {
   X,
 } from "lucide-react";
 
+import {
+  GeometryPreviewPanel,
+  type GeometryPreviewContext,
+} from "@/components/geometry-preview/geometry-preview-panel";
 import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -178,6 +179,7 @@ type GeometryEntity = {
   entityType: string;
   summary: string;
   structureFormat: string;
+  structure?: unknown;
 };
 
 type DraftValidationStatus = "complete" | "incomplete" | "invalid";
@@ -215,6 +217,9 @@ type FlowEdgeData = Record<string, unknown> & {
   slotLabel: string;
   sourceLabel: string;
   readonlyTopology: true;
+  geometryViewVisible?: boolean;
+  geometryViewDisabled?: boolean;
+  geometryViewTitle?: string;
   onGeometryView?: () => void;
 };
 
@@ -240,11 +245,6 @@ type InstanceAnalysis = {
   initialGeometryCompleteCount: number;
   completeStepCount: number;
   stepCompletion: Map<string, StepCompletion>;
-};
-
-type GeometryPreviewState = {
-  sourceLabel: string;
-  slotLabel: string;
 };
 
 type LayoutResult = {
@@ -281,7 +281,7 @@ function ProcessFlowInstanceEditorInner() {
   const [pickingGeometryEdgeId, setPickingGeometryEdgeId] =
     React.useState<string | null>(null);
   const [geometryPreview, setGeometryPreview] =
-    React.useState<GeometryPreviewState | null>(null);
+    React.useState<GeometryPreviewContext | null>(null);
 
   React.useEffect(() => {
     setTemplates(
@@ -372,12 +372,20 @@ function ProcessFlowInstanceEditorInner() {
           (field) => field.id === edge.data?.targetFieldId,
         );
         const sourceLabel = sourceNode ? sourceLabelForNode(sourceNode) : "Unknown";
+        const availability = getPreviewAvailability(
+          edge,
+          nodes,
+          geometries,
+          analysis,
+          selectedTemplate,
+        );
+        const sourceKind = edge.data?.sourceType ?? "geometryRef";
         const nextEdge: FlowEdge = {
           ...edge,
           reconnectable: false,
           focusable: false,
           data: {
-            sourceType: edge.data?.sourceType ?? "geometryRef",
+            sourceType: sourceKind,
             sourceStepRefId: edge.data?.sourceStepRefId,
             sourceEdgeId: edge.data?.sourceEdgeId,
             targetStepRefId: edge.data?.targetStepRefId ?? "",
@@ -386,16 +394,45 @@ function ProcessFlowInstanceEditorInner() {
             sourceLabel,
             graphMode: "view",
             readonlyTopology: true,
+            geometryViewVisible: true,
+            geometryViewDisabled: !availability.enabled,
+            geometryViewTitle: availability.enabled
+              ? "Preview geometry state"
+              : availability.reason,
             onGeometryView: () =>
-              setGeometryPreview({
-                sourceLabel,
-                slotLabel: targetField?.name || edge.data?.targetFieldId || "slot",
-              }),
+              selectedTemplate
+                ? setGeometryPreview({
+                    edgeId: edge.id,
+                    sourceLabel,
+                    slotLabel: targetField?.name || edge.data?.targetFieldId || "slot",
+                    sourceKind,
+                    request: {
+                      previewEdgeId: edge.id,
+                      sourceLabel,
+                      flowTemplate: selectedTemplate,
+                      draftInstance: buildDraftInstanceForPreview(
+                        selectedTemplate,
+                        nodes,
+                        productInstanceName,
+                      ),
+                      geometries,
+                      processStepTemplates: stepTemplates,
+                    },
+                  })
+                : undefined,
           },
         };
         return nextEdge;
       }),
-    [edges, nodes],
+    [
+      analysis,
+      edges,
+      geometries,
+      nodes,
+      productInstanceName,
+      selectedTemplate,
+      stepTemplates,
+    ],
   );
 
   const editingStepNode = React.useMemo(
@@ -765,7 +802,7 @@ function ProcessFlowInstanceEditorInner() {
       ) : null}
 
       {geometryPreview ? (
-        <GeometryUnsupportedDialog
+        <GeometryPreviewPanel
           preview={geometryPreview}
           onClose={() => setGeometryPreview(null)}
         />
@@ -812,8 +849,8 @@ function StepInstanceDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        aria-label="Close step editor"
+      <div
+        aria-hidden="true"
         className="absolute inset-0 cursor-default bg-foreground/40"
         onClick={onClose}
       />
@@ -970,8 +1007,8 @@ function GeometryPickerDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        aria-label="Close geometry picker"
+      <div
+        aria-hidden="true"
         className="absolute inset-0 cursor-default bg-foreground/40"
         onClick={onClose}
       />
@@ -1051,53 +1088,6 @@ function GeometryPickerDialog({
               ))}
             </div>
           )}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function GeometryUnsupportedDialog({
-  preview,
-  onClose,
-}: {
-  preview: GeometryPreviewState;
-  onClose: () => void;
-}) {
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        aria-label="Close geometry view"
-        className="absolute inset-0 cursor-default bg-foreground/40"
-        onClick={onClose}
-      />
-      <section
-        className="relative z-10 w-[min(520px,calc(100vw-32px))] rounded-md border bg-background shadow-viewport"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-4 border-b bg-white px-5 py-4">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold">Geometry view</h2>
-            <div className="mt-1 truncate text-sm text-muted-foreground">
-              {preview.sourceLabel} {"->"} {preview.slotLabel}
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
-            <X />
-          </Button>
-        </header>
-        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-          geometry is not supported now
         </div>
       </section>
     </div>
@@ -2086,6 +2076,66 @@ function draftHasContent(
     );
     return JSON.stringify(node.data.fieldValues) !== JSON.stringify(initialValues);
   });
+}
+
+function buildDraftInstanceForPreview(
+  template: ProcessFlowTemplate,
+  nodes: FlowNode[],
+  productInstanceName: string,
+): ProcessFlowInstance {
+  return {
+    id: "preview_draft_instance",
+    name: productInstanceName.trim() || "Preview draft",
+    processFlowTemplateId: template.id,
+    stepValueSets: template.stepRefs.map((stepRef) => {
+      const node = findProcessNodeByStepRef(nodes, stepRef.stepRefId);
+      return {
+        stepRefId: stepRef.stepRefId,
+        processStepTemplateId: stepRef.processStepTemplateId,
+        fieldValues: node ? normalizeFieldValuesForSave(node, template, nodes) : [],
+      };
+    }),
+  };
+}
+
+function getPreviewAvailability(
+  edge: FlowEdge,
+  nodes: FlowNode[],
+  geometries: GeometryEntity[],
+  analysis: InstanceAnalysis,
+  selectedTemplate: ProcessFlowTemplate | null,
+) {
+  if (!selectedTemplate) {
+    return { enabled: false, reason: "Select a flow template first" };
+  }
+  if (analysis.templateSchemaError) {
+    return { enabled: false, reason: analysis.templateSchemaError };
+  }
+
+  const data = getFlowEdgeData(edge);
+  if (data.sourceType === "geometryRef") {
+    const initialNode = nodes.find(
+      (node): node is InitialGeometryFlowNode =>
+        isInitialGeometryNode(node) && node.data.sourceEdgeId === edge.id,
+    );
+    if (!initialNode?.data.selectedGeometryEntityId) {
+      return { enabled: false, reason: "Select initial geometry first" };
+    }
+    if (!isSelectedGeometryValid(initialNode, geometries)) {
+      return { enabled: false, reason: "Selected geometry no longer exists" };
+    }
+    return { enabled: true, reason: "Preview geometry state" };
+  }
+
+  const sourceStepRefId = data.sourceStepRefId;
+  if (!sourceStepRefId) {
+    return { enabled: false, reason: "Preview source step is missing" };
+  }
+  const completion = analysis.stepCompletion.get(sourceStepRefId);
+  if (!completion?.complete) {
+    return { enabled: false, reason: "Complete upstream fields first" };
+  }
+  return { enabled: true, reason: "Preview geometry state" };
 }
 
 function normalizeFieldValuesForSave(

@@ -144,6 +144,107 @@ export class GeometryKernel {
   }
 
   /**
+   * Execute the minimum preview path for one flow edge.
+   *
+   * GeometryRef edges resolve directly to the selected geometry entity. Step
+   * output edges execute only the upstream closure required to produce the
+   * source step output, leaving downstream draft fields out of scope.
+   *
+   * @param {object} input
+   * @param {object} input.processFlowTemplate
+   * @param {object} input.processFlowInstance
+   * @param {string} input.previewEdgeId
+   * @returns {Promise<{geometryDocument: object, sourceKind: string, outputStepRefId: ?string}>}
+   */
+  async executePreview(input = {}) {
+    const processFlowTemplate = input.processFlowTemplate;
+    const processFlowInstance = input.processFlowInstance;
+    const previewEdgeId = input.previewEdgeId;
+
+    if (!processFlowTemplate || typeof processFlowTemplate !== "object") {
+      throw new Error("processFlowTemplate is required for geometry preview");
+    }
+    if (!processFlowInstance || typeof processFlowInstance !== "object") {
+      throw new Error("processFlowInstance is required for geometry preview");
+    }
+    if (!previewEdgeId) {
+      throw new Error("previewEdgeId is required");
+    }
+
+    const previewEdge = (processFlowTemplate.flowEdges ?? []).find(
+      (edge) => edge.edgeId === previewEdgeId,
+    );
+    if (!previewEdge) {
+      throw new Error(`Preview edge not found: ${previewEdgeId}`);
+    }
+
+    if (previewEdge.source?.sourceType === "geometryRef") {
+      const valueSet = findStepValueSet(
+        processFlowInstance.stepValueSets ?? [],
+        previewEdge.target?.stepRefId,
+      );
+      const geometryEntityId = findFieldValue(
+        valueSet?.fieldValues ?? [],
+        previewEdge.target?.targetFieldId,
+      );
+      if (typeof geometryEntityId !== "string" || geometryEntityId.trim() === "") {
+        throw new Error(
+          `Preview edge ${previewEdgeId} requires a selected geometry entity id`,
+        );
+      }
+      const entity = await this._getByIdOrThrow(
+        this._geometryRepository,
+        geometryEntityId,
+        "Geometry entity",
+      );
+      if (!entity.structure) {
+        throw new Error(`Geometry entity ${geometryEntityId} is missing structure`);
+      }
+      return {
+        geometryDocument: normalizeGeometryDocument(entity.structure),
+        sourceKind: "geometryRef",
+        outputStepRefId: null,
+      };
+    }
+
+    if (previewEdge.source?.sourceType !== "stepOutput") {
+      throw new Error(`Unsupported preview edge source: ${previewEdge.source?.sourceType}`);
+    }
+
+    const outputStepRefId = previewEdge.source.stepRefId;
+    const includedStepRefIds = upstreamClosureStepRefIds(
+      processFlowTemplate,
+      outputStepRefId,
+    );
+    const previewTemplate = buildPreviewFlowTemplate(
+      processFlowTemplate,
+      includedStepRefIds,
+      previewEdgeId,
+    );
+    const previewInstance = buildPreviewFlowInstance(
+      processFlowInstance,
+      previewTemplate,
+      previewEdgeId,
+    );
+    const previewKernel = new GeometryKernel({
+      geometryRepository: this._geometryRepository,
+      processStepRepository: this._processStepRepository,
+      processFlowTemplateRepository: objectRepository(previewTemplate),
+      processFlowInstanceRepository: objectRepository(previewInstance),
+      moduleResolver: this._moduleResolver,
+    });
+    const result = await previewKernel.execute(previewInstance, {
+      outputStepRefId,
+    });
+
+    return {
+      geometryDocument: result.geometry(),
+      sourceKind: "stepOutput",
+      outputStepRefId,
+    };
+  }
+
+  /**
    * Resolve an instance object from either a direct object or a repository id.
    */
   async _resolveProcessFlowInstance(processFlowInstanceOrId) {
@@ -322,6 +423,13 @@ function findFieldValue(fieldValues, fieldId) {
 }
 
 /**
+ * Find one StepValueSet by flow-local step ref id.
+ */
+function findStepValueSet(stepValueSets, stepRefId) {
+  return stepValueSets.find((valueSet) => valueSet.stepRefId === stepRefId);
+}
+
+/**
  * Geometry fields are handled separately because they become Status inputs.
  */
 function isGeometryField(field) {
@@ -427,4 +535,86 @@ function newStatus() {
     bumps: [],
     children: [],
   });
+}
+
+function upstreamClosureStepRefIds(processFlowTemplate, outputStepRefId) {
+  const stepRefIds = new Set(
+    (processFlowTemplate.stepRefs ?? []).map((stepRef) => stepRef.stepRefId),
+  );
+  if (!stepRefIds.has(outputStepRefId)) {
+    throw new Error(`Preview source step not found: ${outputStepRefId}`);
+  }
+
+  const reverseDependencies = new Map();
+  stepRefIds.forEach((stepRefId) => reverseDependencies.set(stepRefId, []));
+  for (const edge of processFlowTemplate.flowEdges ?? []) {
+    if (
+      edge.source?.sourceType === "stepOutput" &&
+      stepRefIds.has(edge.source.stepRefId) &&
+      stepRefIds.has(edge.target?.stepRefId)
+    ) {
+      reverseDependencies.get(edge.target.stepRefId).push(edge.source.stepRefId);
+    }
+  }
+
+  const included = new Set();
+  const visiting = new Set();
+  function visit(stepRefId) {
+    if (included.has(stepRefId)) return;
+    if (visiting.has(stepRefId)) {
+      throw new Error("Process flow contains a cycle in preview upstream closure");
+    }
+    visiting.add(stepRefId);
+    for (const upstream of reverseDependencies.get(stepRefId) ?? []) {
+      visit(upstream);
+    }
+    visiting.delete(stepRefId);
+    included.add(stepRefId);
+  }
+
+  visit(outputStepRefId);
+  return included;
+}
+
+function buildPreviewFlowTemplate(processFlowTemplate, includedStepRefIds, previewEdgeId) {
+  const stepRefs = (processFlowTemplate.stepRefs ?? []).filter((stepRef) =>
+    includedStepRefIds.has(stepRef.stepRefId),
+  );
+  const flowEdges = (processFlowTemplate.flowEdges ?? []).filter((edge) => {
+    if (!includedStepRefIds.has(edge.target?.stepRefId)) return false;
+    return (
+      edge.source?.sourceType === "geometryRef" ||
+      includedStepRefIds.has(edge.source?.stepRefId)
+    );
+  });
+
+  return {
+    ...processFlowTemplate,
+    id: `${processFlowTemplate.id ?? "flow"}__preview__${previewEdgeId}`,
+    stepRefs,
+    flowEdges,
+  };
+}
+
+function buildPreviewFlowInstance(processFlowInstance, previewTemplate, previewEdgeId) {
+  const includedStepRefIds = new Set(
+    (previewTemplate.stepRefs ?? []).map((stepRef) => stepRef.stepRefId),
+  );
+
+  return {
+    ...processFlowInstance,
+    id: `${processFlowInstance.id ?? "instance"}__preview__${previewEdgeId}`,
+    processFlowTemplateId: previewTemplate.id,
+    stepValueSets: (processFlowInstance.stepValueSets ?? []).filter((valueSet) =>
+      includedStepRefIds.has(valueSet.stepRefId),
+    ),
+  };
+}
+
+function objectRepository(item) {
+  return {
+    async getById(id) {
+      return item?.id === id ? item : null;
+    },
+  };
 }

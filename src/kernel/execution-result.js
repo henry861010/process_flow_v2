@@ -1,4 +1,3 @@
-import { convertCad } from "../exporters/cad.js";
 import { deepCopy, normalizeGeometryDocument } from "../data/schema.js";
 
 /**
@@ -55,6 +54,9 @@ export class GeometryKernelExecutionResult {
    */
   async cad(format = "step", options = {}) {
     const normalizedFormat = normalizeCadFormat(format);
+    const { convertCad } = await importRuntime(
+      resolveRuntimeUrl(import.meta.url, "../exporters/cad.js"),
+    );
     const result = await convertCad(this._geometryDocument, {
       ...options,
       formats: [normalizedFormat],
@@ -71,4 +73,15 @@ function normalizeCadFormat(format) {
   if (normalized === "gltf") return "glb";
   if (normalized === "stp") return "step";
   return normalized;
+}
+
+function importRuntime(specifier) {
+  return Function("specifier", "return import(specifier)")(specifier);
+}
+
+function resolveRuntimeUrl(baseUrl, relativePath) {
+  return Function("baseUrl", "relativePath", "return new URL(relativePath, baseUrl).href")(
+    baseUrl,
+    relativePath,
+  );
 }

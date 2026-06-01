@@ -64,5 +64,5 @@ export class ProcessStepModuleResolver {
  * Default dynamic import used in runtime code.
  */
 function defaultImportModule(specifier) {
-  return import(specifier);
+  return Function("specifier", "return import(specifier)")(specifier);
 }

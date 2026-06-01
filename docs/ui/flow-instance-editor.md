@@ -290,9 +290,9 @@ Picker 行為：
 
 ## Geometry Preview
 
-每個 process step output edge 中間提供一個圓形 geometry preview button，風格與 `/flow-template-editor` 的 geometry view button 一致。
-
-Initial geometry circle 本身代表 initial geometry state，因此 initial geometry circle 到第一個 process step 的 edge 不需要額外 geometry preview button。
+每一條 flow edge 中間都提供一個圓形 geometry preview button，風格與 `/flow-template-editor`
+的 geometry view button 一致。`sourceType: "geometryRef"` 的 initial geometry edge
+與 `sourceType: "stepOutput"` 的 process output edge 都需要顯示 preview button。
 
 使用者點擊 geometry preview button 時：
 
