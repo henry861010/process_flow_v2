@@ -1,0 +1,620 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { Bump } from "../data/bump.js";
+import { Container } from "../data/container.js";
+import { PolygonGeometry } from "../data/geometry.js";
+import { classifyPolygonLoops } from "../utils/polygon.js";
+import { Body } from "../data/body.js";
+import { BoxGeometry } from "../data/geometry.js";
+import { processBgaBump } from "../process/process-bgaBump.js";
+import { processC4Bump } from "../process/process-c4Bump.js";
+import { processMolding } from "../process/process-molding.js";
+import { processPanel } from "../process/process-panel.js";
+import { processPnp } from "../process/process-pnp.js";
+import { processRdl } from "../process/process-rdl.js";
+import { Status } from "../process/status.js";
+import {
+  CadExportError,
+  OpenCascadeConverter,
+  convertCad,
+} from "../exporters/cad.js";
+import {
+  GeometryKernel,
+  InMemoryRepository,
+  geometryDocumentToStatus,
+} from "../kernel/index.js";
+import { parseExampleArgs } from "../examples/generate-json.js";
+
+test("container json has schema unit and stable ids", () => {
+  const root = new Container({ key: "package-root" });
+  root.addBodyBox("mold", [0, 0, 0], [10, 10, 0], 1);
+
+  const child = new Container({ key: "die" });
+  child.addBodyBox("silicon", [2, 2, 0.2], [8, 8, 0.2], 0.2);
+  root.addChild(child);
+
+  const first = root.json();
+  const second = root.json();
+
+  assert.equal(first.schemaVersion, "1.0.0");
+  assert.equal(first.unitSystem, "um");
+  assert.deepEqual(first, second);
+  assert.ok(first.root.id);
+  assert.ok(first.root.bodies[0].id);
+  assert.ok(first.root.children[0].bodies[0].id);
+});
+
+test("polygon geometry rejects self intersection", () => {
+  assert.throws(
+    () =>
+      new PolygonGeometry(
+        [[[0, 0, 0], [2, 2, 0], [0, 2, 0], [2, 0, 0]]],
+        1,
+      ),
+    /self-intersects/,
+  );
+});
+
+test("polygon loop odd even classification", () => {
+  const regions = classifyPolygonLoops([
+    [[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]],
+    [[2, 2, 0], [8, 2, 0], [8, 8, 0], [2, 8, 0]],
+    [[3, 3, 0], [4, 3, 0], [4, 4, 0], [3, 4, 0]],
+  ]);
+
+  assert.equal(regions.length, 2);
+  assert.deepEqual(regions.map((region) => region.holes.length), [1, 0]);
+});
+
+test("status fill and add containers track process z", () => {
+  const status = new Status();
+  status.initialBody(
+    new Body(new BoxGeometry([0, 0, 2], [10, 10, 2], 3), "template"),
+  );
+
+  status.fillThk("base", 5);
+  const die = new Container({ key: "die" });
+  die.addBodyBox("silicon", [2, 2, 1], [8, 8, 1], 2);
+  status.addContainers([die]);
+
+  assert.equal(status.zNow(), 5);
+  assert.equal(status.container().zMin(), 0);
+  assert.equal(status.container().zMax(), 7);
+  assert.equal(status.container().children()[0].zMin(), 5);
+});
+
+test("process step modules compose status independently", () => {
+  const status = processPanel(new Status(), "panel", 10, 100);
+  processMolding(status, "dielectric", 5);
+  processRdl(status, [
+    {
+      pm_material: "PI",
+      metal_material: "Cu",
+      density: 0.2,
+      thk: 3,
+    },
+  ]);
+
+  assert.equal(status.zNow(), 18);
+  assert.equal(status.container().bodies().length, 3);
+  assert.equal(status.container().vias().length, 1);
+});
+
+test("process pnp places die copies at coordinates on current z", () => {
+  const targetStatus = processPanel(new Status(), "carrier", 10, 1000);
+  const dieStatus = processPanel(new Status(), "silicon", 20, 100);
+
+  processPnp(targetStatus, dieStatus, [
+    [100, 200],
+    { x: -25, y: 50 },
+  ]);
+
+  const children = targetStatus.container().children();
+  assert.equal(children.length, 2);
+  assert.deepEqual(children[0].bodies()[0].geometry().bottomLeft(), [
+    100,
+    200,
+    10,
+  ]);
+  assert.deepEqual(children[1].bodies()[0].geometry().bottomLeft(), [
+    -25,
+    50,
+    10,
+  ]);
+  assert.equal(targetStatus.zNow(), 10);
+  assert.deepEqual(dieStatus.container().bodies()[0].geometry().bottomLeft(), [
+    -50,
+    -50,
+    0,
+  ]);
+});
+
+test("bga and c4 bump processes overlap existing uncontained bumps", () => {
+  const status = processPanel(new Status(), "silicon", 20, 100);
+  status.container().addBump(
+    new Bump(
+      new BoxGeometry([-80, -80, -20], [80, 80, -20], 20),
+      0.1,
+      "old bump",
+    ),
+  );
+
+  processBgaBump(status, "BGA", 0.2);
+  processC4Bump(status, "C4", 0.3);
+
+  const bumps = status.container().bumps();
+  assert.equal(bumps.length, 3);
+  assert.deepEqual(
+    bumps.map((bump) => [bump.material(), bump.zMin(), bump.zMax()]),
+    [
+      ["old bump", -20, 0],
+      ["BGA", -20, 0],
+      ["C4", -20, 0],
+    ],
+  );
+  assert.deepEqual(bumps[1].geometry().bottomLeft(), [-50, -50, -20]);
+  assert.deepEqual(bumps[2].geometry().bottomLeft(), [-50, -50, -20]);
+});
+
+test("CAD converter reports missing OpenCascade instance clearly", () => {
+  assert.throws(
+    () => new OpenCascadeConverter(null),
+    CadExportError,
+  );
+});
+
+test("CAD converter exports a box with OpenCascade.js", async () => {
+  const result = await convertCad(
+    {
+      key: "root",
+      bodies: [
+        {
+          geometry: {
+            bottom_left: [0, 0, 0],
+            top_right: [1, 1, 0],
+            thk: 1,
+          },
+          material: "test",
+        },
+      ],
+      children: [],
+    },
+    { formats: ["glb"] },
+  );
+
+  assert.ok(result.files.glb.byteLength > 0);
+  assert.equal(result.manifest.bodies.length, 1);
+});
+
+test("example CLI parses output format options", () => {
+  assert.deepEqual(
+    parseExampleArgs(["--format", "stp", "--output", "/tmp/example"]),
+    {
+      format: "step",
+      output: "/tmp/example",
+      help: false,
+    },
+  );
+  assert.deepEqual(parseExampleArgs(["all"]), {
+    format: "all",
+    output: null,
+    help: false,
+  });
+  assert.throws(() => parseExampleArgs(["--format", "iges"]), /Unsupported/);
+});
+
+test("geometry hydration restores process status from geometry document", () => {
+  const status = geometryDocumentToStatus(kernelInputGeometry());
+
+  processMolding(status, "EMC-A", 5);
+
+  const output = status.container().json();
+  assert.equal(output.root.bodies.length, 2);
+  assert.deepEqual(output.root.bodies[1].geometry.bottom_left, [-50, -50, 10]);
+  assert.equal(output.root.bodies[1].geometry.thk, 5);
+});
+
+test("geometry kernel resolves step definition by id and category path", async () => {
+  const kernel = createTestKernel();
+
+  const result = await kernel.execute("flow_inst_kernel_test");
+  const geometry = result.geometry();
+
+  assert.equal(geometry.schemaVersion, "1.0.0");
+  assert.equal(geometry.root.bodies.length, 2);
+  assert.equal(geometry.root.bodies[1].material, "EMC-A");
+  assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-50, -50, 10]);
+  assert.equal(geometry.root.bodies[1].geometry.thk, 5);
+  assert.deepEqual(result.terminalStepRefIds(), ["molding"]);
+  assert.ok(result.stepOutput("molding"));
+});
+
+test("geometry kernel passes step output geometry to downstream steps", async () => {
+  const kernel = createTestKernel({
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "molding_1",
+          processStepTemplateId: "step_tpl_molding_encapsulation",
+        },
+        {
+          stepRefId: "molding_2",
+          processStepTemplateId: "step_tpl_molding_encapsulation",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_molding_1",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "molding_1",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_molding_1_to_molding_2",
+          source: { sourceType: "stepOutput", stepRefId: "molding_1" },
+          target: {
+            stepRefId: "molding_2",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "molding_1",
+          processStepTemplateId: "step_tpl_molding_encapsulation",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            { fieldId: "mold_compound", value: "EMC-A" },
+            { fieldId: "mold_thickness", value: 5 },
+          ],
+        },
+        {
+          stepRefId: "molding_2",
+          processStepTemplateId: "step_tpl_molding_encapsulation",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "mold_compound", value: "EMC-B" },
+            { fieldId: "mold_thickness", value: 7 },
+          ],
+        },
+      ],
+    },
+  });
+
+  const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
+
+  assert.equal(geometry.root.bodies.length, 3);
+  assert.equal(geometry.root.bodies[2].material, "EMC-B");
+  assert.deepEqual(geometry.root.bodies[2].geometry.bottom_left, [-50, -50, 15]);
+  assert.equal(geometry.root.bodies[2].geometry.thk, 7);
+});
+
+test("geometry kernel normalizes repeater values before executing handler", async () => {
+  const kernel = createTestKernel({
+    processStepTemplates: [rdlStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "rdl",
+          processStepTemplateId: "step_tpl_rdl_build_up",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_rdl",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "rdl",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "rdl",
+          processStepTemplateId: "step_tpl_rdl_build_up",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            {
+              fieldId: "rdl_layers",
+              value: {
+                items: [
+                  {
+                    itemId: "rdl_layer_1",
+                    index: 1,
+                    fieldValues: [
+                      { fieldId: "pm_material", value: "PI" },
+                      { fieldId: "metal_material", value: "Cu" },
+                      { fieldId: "density", value: "0.25" },
+                      { fieldId: "thk", value: "3" },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
+
+  assert.equal(geometry.root.bodies.length, 2);
+  assert.equal(geometry.root.bodies[1].material, "PI");
+  assert.equal(geometry.root.vias.length, 1);
+  assert.equal(geometry.root.vias[0].material, "Cu");
+  assert.equal(geometry.root.vias[0].density, 0.25);
+  assert.equal(geometry.root.vias[0].geometry.thk, 3);
+});
+
+test("geometry kernel reports unsupported process step modules clearly", async () => {
+  const kernel = createTestKernel({
+    processStepTemplates: [
+      {
+        ...moldingStepTemplate(),
+        id: "missing_process_step",
+        category: "missing.category",
+      },
+    ],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "missing",
+          processStepTemplateId: "missing_process_step",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_missing",
+          source: { sourceType: "geometryRef" },
+          target: { stepRefId: "missing", targetFieldId: "main_geometry" },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "missing",
+          processStepTemplateId: "missing_process_step",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            { fieldId: "mold_compound", value: "EMC-A" },
+            { fieldId: "mold_thickness", value: 5 },
+          ],
+        },
+      ],
+    },
+  });
+
+  await assert.rejects(
+    () => kernel.execute("flow_inst_kernel_test"),
+    /Unable to load process step module for missing_process_step/,
+  );
+});
+
+test("geometry kernel glb exports output geometry", async () => {
+  const result = await createTestKernel().execute("flow_inst_kernel_test");
+
+  const glb = await result.glb();
+
+  assert.ok(glb.byteLength > 0);
+});
+
+function createTestKernel({
+  geometryEntities = [
+    {
+      id: "geom_kernel_input",
+      category: "carrier.panel",
+      name: "Kernel input panel",
+      version: "v1",
+      owner: "test",
+      description: "Geometry kernel test input",
+      structureFormat: "standard",
+      structure: kernelInputGeometry(),
+    },
+  ],
+  processStepTemplates = [moldingStepTemplate()],
+  flowTemplate = kernelFlowTemplate(),
+  flowInstance = kernelFlowInstance(),
+} = {}) {
+  return new GeometryKernel({
+    geometryRepository: new InMemoryRepository(geometryEntities),
+    processFlowInstanceRepository: new InMemoryRepository([flowInstance]),
+    processFlowTemplateRepository: new InMemoryRepository([flowTemplate]),
+    processStepRepository: new InMemoryRepository(processStepTemplates),
+  });
+}
+
+function moldingStepTemplate() {
+  return {
+    id: "step_tpl_molding_encapsulation",
+    version: "V1.0.0",
+    name: "Molding encapsulation",
+    category: "encapsulation.molding",
+    description: "Define mold compound and mold thickness.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometry",
+        controlType: "geometry",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "mold_compound",
+        name: "Mold compound",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "select",
+        selectionMode: "single",
+        unit: null,
+      },
+      {
+        id: "mold_thickness",
+        name: "Mold thickness",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: null,
+      },
+    ],
+  };
+}
+
+function rdlStepTemplate() {
+  return {
+    id: "step_tpl_rdl_build_up",
+    version: "V1.0.0",
+    name: "RDL build up",
+    category: "interconnect.rdl",
+    description: "Define repeatable PM and RDL layer parameters.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometry",
+        controlType: "geometry",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "rdl_layers",
+        name: "RDL layers",
+        scope: "processParameter",
+        valueType: "fieldGroupArray",
+        controlType: "repeater",
+        selectionMode: null,
+        unit: null,
+        repeatDefinition: {
+          itemNameTemplate: "RDL layer {{index}}",
+          indexBase: 1,
+          itemFieldDefinitions: [
+            {
+              id: "pm_material",
+              name: "PM material",
+              scope: "processParameter",
+              valueType: "materialRef",
+              controlType: "select",
+              selectionMode: "single",
+              unit: null,
+            },
+            {
+              id: "metal_material",
+              name: "Metal material",
+              scope: "processParameter",
+              valueType: "materialRef",
+              controlType: "select",
+              selectionMode: "single",
+              unit: null,
+            },
+            {
+              id: "density",
+              name: "Density",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: null,
+            },
+            {
+              id: "thk",
+              name: "Thickness",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: null,
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
+
+function kernelFlowTemplate() {
+  return {
+    id: "flow_tpl_kernel_test",
+    stepRefs: [
+      {
+        stepRefId: "molding",
+        processStepTemplateId: "step_tpl_molding_encapsulation",
+      },
+    ],
+    flowEdges: [
+      {
+        edgeId: "edge_input_to_molding",
+        source: { sourceType: "geometryRef" },
+        target: {
+          stepRefId: "molding",
+          targetFieldId: "main_geometry",
+        },
+      },
+    ],
+  };
+}
+
+function kernelFlowInstance() {
+  return {
+    id: "flow_inst_kernel_test",
+    processFlowTemplateId: "flow_tpl_kernel_test",
+    stepValueSets: [
+      {
+        stepRefId: "molding",
+        processStepTemplateId: "step_tpl_molding_encapsulation",
+        fieldValues: [
+          { fieldId: "main_geometry", value: "geom_kernel_input" },
+          { fieldId: "mold_compound", value: "EMC-A" },
+          { fieldId: "mold_thickness", value: 5 },
+        ],
+      },
+    ],
+  };
+}
+
+function kernelInputGeometry() {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key: "kernel-input",
+      bodies: [
+        {
+          geometry: {
+            bottom_left: [-50, -50, 0],
+            top_right: [50, 50, 0],
+            thk: 10,
+          },
+          material: "carrier",
+        },
+      ],
+      vias: [],
+      circuits: [],
+      bumps: [],
+      children: [],
+    },
+  };
+}
