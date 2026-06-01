@@ -3,28 +3,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Background,
-  BaseEdge,
-  Controls,
-  EdgeLabelRenderer,
-  Handle,
   MarkerType,
-  MiniMap,
-  Position,
-  ReactFlow,
   ReactFlowProvider,
   applyEdgeChanges,
   applyNodeChanges,
-  getBezierPath,
   useReactFlow,
   type Connection,
   type Edge,
   type EdgeChange,
-  type EdgeProps,
   type Node,
   type NodeChange,
-  type NodeProps,
-  type NodeTypes,
 } from "@xyflow/react";
 import {
   AlertCircle,
@@ -32,19 +20,17 @@ import {
   Boxes,
   Check,
   ChevronDown,
-  CircleDot,
   Download,
-  Eye,
   FileJson,
   GitBranch,
   Link2Off,
-  Pencil,
   Plus,
   Save,
   Trash2,
   X,
 } from "lucide-react";
 
+import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -229,7 +215,6 @@ type ProcessStepNodeData = Record<string, unknown> & {
   geometryInputFields: FieldDefinition[];
   isReachable?: boolean;
   isComplete?: boolean;
-  showInputLabels?: boolean;
   blockingFieldName?: string | null;
   onDelete?: (nodeId: string) => void;
   onEdit?: (nodeId: string) => void;
@@ -272,15 +257,6 @@ type GraphAnalysis = {
   canSave: boolean;
 };
 
-const nodeTypes = {
-  initialGeometry: InitialGeometryNode,
-  processStep: ProcessStepNode,
-} as NodeTypes;
-
-const edgeTypes = {
-  dataFlow: DataFlowEdge,
-};
-
 export function ProcessFlowTemplateEditor() {
   return (
     <ReactFlowProvider>
@@ -308,7 +284,6 @@ function ProcessFlowTemplateEditorInner() {
   );
   const [geometryPreview, setGeometryPreview] =
     React.useState<GeometryPreviewState | null>(null);
-  const [isConnectingEdge, setIsConnectingEdge] = React.useState(false);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [openGeometryCategories, setOpenGeometryCategories] = React.useState<
     Record<string, boolean>
@@ -370,6 +345,12 @@ function ProcessFlowTemplateEditorInner() {
             ...node,
             data: {
               ...node.data,
+              graphMode: "edit",
+              displayLabel: node.data.geometry.name,
+              displaySublabel: node.data.geometry.entityType,
+              status: analysis.connectedInitialNodeIds.has(node.id)
+                ? "complete"
+                : "incomplete",
               isConnected: analysis.connectedInitialNodeIds.has(node.id),
               onDelete: deleteNode,
             },
@@ -385,9 +366,15 @@ function ProcessFlowTemplateEditorInner() {
           ...node,
           data: {
             ...node.data,
+            graphMode: "edit",
+            editId: node.id,
+            status: analysis.reachableStepNodeIds.has(node.id)
+              ? completion.complete
+                ? "complete"
+                : "incomplete"
+              : "outside",
             isReachable: analysis.reachableStepNodeIds.has(node.id),
             isComplete: completion.complete,
-            showInputLabels: isConnectingEdge || selectedNodeId === node.id,
             blockingFieldName: completion.blockingFieldName,
             onDelete: deleteNode,
             onEdit: openStepEditor,
@@ -395,7 +382,7 @@ function ProcessFlowTemplateEditorInner() {
         };
         return nextNode;
       }),
-    [analysis, deleteNode, isConnectingEdge, nodes, openStepEditor, selectedNodeId],
+    [analysis, deleteNode, nodes, openStepEditor],
   );
 
   const displayEdges = React.useMemo<FlowEdge[]>(
@@ -418,6 +405,7 @@ function ProcessFlowTemplateEditorInner() {
             targetFieldId: edgeData?.targetFieldId ?? "",
             slotLabel: targetField?.name || edgeData?.targetFieldId || "slot",
             sourceLabel,
+            graphMode: "edit",
             geometryViewEnabled: true,
             onDelete: deleteEdge,
             onGeometryView: () =>
@@ -970,49 +958,35 @@ function ProcessFlowTemplateEditorInner() {
           </div>
         </aside>
 
-        <section className="min-h-[560px] bg-[linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[length:32px_32px] lg:min-h-0">
-          <ReactFlow
-            nodes={displayNodes}
-            edges={displayEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onConnectStart={() => setIsConnectingEdge(true)}
-            onConnectEnd={() => setIsConnectingEdge(false)}
-            onReconnect={onReconnect}
-            onReconnectStart={() => setIsConnectingEdge(true)}
-            onReconnectEnd={() => setIsConnectingEdge(false)}
-            isValidConnection={isValidConnection}
-            edgesReconnectable
-            reconnectRadius={14}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onNodeClick={(_, node) => {
-              setSelectedNodeId(node.id);
-              if (node.data.nodeKind === "processStep") {
-                setEditingStepNodeId(node.id);
-              }
-            }}
-            onPaneClick={() => setSelectedNodeId(null)}
-            fitView
-            minZoom={0.35}
-            maxZoom={1.4}
-            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-          >
-            <Background color="rgba(15, 118, 110, 0.18)" gap={32} />
-            <Controls position="bottom-left" />
-            <MiniMap
-              position="bottom-right"
-              pannable
-              zoomable
-              nodeColor={(node) =>
-                node.data.nodeKind === "initialGeometry" ? "#0f766e" : "#0891b2"
-              }
-            />
-          </ReactFlow>
-        </section>
+        <ProcessFlowGraph<FlowNode, FlowEdge>
+          mode="edit"
+          nodes={displayNodes}
+          edges={displayEdges}
+          className="min-h-[560px] lg:min-h-0"
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onReconnect={onReconnect}
+          isValidConnection={isValidConnection}
+          edgesReconnectable
+          reconnectRadius={14}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onNodeClick={(_, node) => {
+            setSelectedNodeId(node.id);
+            if (node.data.nodeKind === "processStep") {
+              setEditingStepNodeId(node.id);
+            }
+          }}
+          onPaneClick={() => setSelectedNodeId(null)}
+          fitView
+          minZoom={0.35}
+          maxZoom={1.4}
+          defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+          miniMapNodeColor={(node) =>
+            node.data.nodeKind === "initialGeometry" ? "#0f766e" : "#0891b2"
+          }
+        />
 
         <aside className="min-h-[280px] border-l bg-white lg:min-h-0">
           <PaletteHeader
@@ -1079,191 +1053,6 @@ function ProcessFlowTemplateEditorInner() {
         />
       ) : null}
     </main>
-  );
-}
-
-function InitialGeometryNode({ id, data }: NodeProps<InitialGeometryFlowNode>) {
-  const connected = Boolean(data.isConnected);
-
-  return (
-    <div
-      className={cn(
-        "group relative flex h-[132px] w-[132px] flex-col items-center justify-center rounded-full border-4 bg-white p-4 text-center shadow-sm transition",
-        connected ? "border-emerald-500" : "border-destructive",
-      )}
-    >
-      <Handle
-        type="source"
-        id="out"
-        position={Position.Right}
-        className="!h-4 !w-4 !border-2 !border-white !bg-primary"
-      />
-      <CircleDot className="mb-2 h-5 w-5 text-primary" />
-      <div className="line-clamp-2 text-xs font-semibold leading-tight">
-        {data.geometry.name}
-      </div>
-      <div className="mt-1 max-w-[92px] truncate text-[10px] text-muted-foreground">
-        {data.geometry.entityType}
-      </div>
-      <button
-        className="nodrag absolute -right-1 -top-1 hidden h-7 w-7 items-center justify-center rounded-full border bg-white text-muted-foreground shadow-sm transition hover:text-destructive group-hover:flex"
-        title="Delete geometry node"
-        onClick={(event) => {
-          event.stopPropagation();
-          data.onDelete?.(id);
-        }}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  );
-}
-
-function ProcessStepNode({ id, data }: NodeProps<ProcessStepFlowNode>) {
-  const statusClass = !data.isReachable
-    ? "border-destructive"
-    : data.isComplete
-      ? "border-emerald-500"
-      : "border-amber-500";
-
-  return (
-    <div
-      className={cn(
-        "group relative w-[248px] rounded-md border-2 bg-white shadow-sm transition",
-        statusClass,
-      )}
-    >
-      <div className="absolute left-0 top-3 flex -translate-x-1/2 flex-col gap-2">
-        {data.geometryInputFields.map((field, index) => (
-          <div key={field.id} className="relative flex items-center">
-            <Handle
-              type="target"
-              id={field.id}
-              position={Position.Left}
-              className="!relative !left-auto !top-auto !h-4 !w-4 !translate-x-0 !translate-y-0 !border-2 !border-white !bg-cyan-600"
-            />
-            <div
-              className={cn(
-                "pointer-events-none absolute left-5 hidden max-w-[150px] rounded-md border bg-white px-2 py-1 text-[10px] font-medium shadow-sm",
-                (data.geometryInputFields.length > 1 || index === 0) &&
-                  "group-hover:block",
-                data.showInputLabels && "block",
-              )}
-            >
-              {field.name}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <Handle
-        type="source"
-        id="out"
-        position={Position.Right}
-        className="!h-4 !w-4 !border-2 !border-white !bg-primary"
-      />
-
-      <div className="border-b bg-muted/40 px-3 py-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="line-clamp-2 text-sm font-semibold leading-snug">
-              {data.template.name}
-            </div>
-          </div>
-          <div className="flex shrink-0 gap-1 opacity-0 transition group-hover:opacity-100">
-            <button
-              className="nodrag flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-white hover:text-foreground"
-              title="Edit values"
-              onClick={(event) => {
-                event.stopPropagation();
-                data.onEdit?.(id);
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="nodrag flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-white hover:text-destructive"
-              title="Delete step"
-              onClick={(event) => {
-                event.stopPropagation();
-                data.onDelete?.(id);
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-        <span className="truncate text-muted-foreground">{data.template.version}</span>
-        <Badge
-          variant={data.isReachable && data.isComplete ? "signal" : "outline"}
-          className={cn(
-            !data.isReachable && "border-destructive/30 text-destructive",
-            data.isReachable && !data.isComplete && "border-amber-300 text-amber-700",
-          )}
-        >
-          {!data.isReachable
-            ? "outside flow"
-            : data.isComplete
-              ? "Complete"
-              : "Incomplete fields"}
-        </Badge>
-      </div>
-    </div>
-  );
-}
-
-function DataFlowEdge(props: EdgeProps<FlowEdge>) {
-  const [edgePath, labelX, labelY] = getBezierPath(props);
-  const data = props.data;
-  const canViewGeometry = data?.sourceType === "stepOutput";
-
-  return (
-    <>
-      <BaseEdge
-        id={props.id}
-        path={edgePath}
-        markerEnd={props.markerEnd}
-        interactionWidth={18}
-        className={cn(
-          "!stroke-[2.5px]",
-          props.selected ? "!stroke-primary" : "!stroke-cyan-700",
-        )}
-      />
-      <EdgeLabelRenderer>
-        <div
-          className="nodrag nopan pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 text-[10px]"
-          style={{ transform: `translate(${labelX}px, ${labelY}px)` }}
-        >
-          {canViewGeometry ? (
-            <button
-              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-white text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground"
-              title="View geometry state"
-              onClick={(event) => {
-                event.stopPropagation();
-                data?.onGeometryView?.();
-              }}
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          ) : null}
-          <span className="max-w-[120px] truncate rounded-md border bg-white/95 px-2 py-1 text-muted-foreground shadow-sm">
-            {data?.slotLabel}
-          </span>
-          <button
-            className="flex h-6 w-6 items-center justify-center rounded-full border bg-white/95 text-muted-foreground shadow-sm transition hover:bg-destructive/10 hover:text-destructive"
-            title="Delete edge"
-            onClick={(event) => {
-              event.stopPropagation();
-              data?.onDelete?.(props.id);
-            }}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </EdgeLabelRenderer>
-    </>
   );
 }
 

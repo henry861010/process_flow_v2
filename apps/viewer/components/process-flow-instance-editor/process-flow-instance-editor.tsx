@@ -4,30 +4,16 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Background,
-  BaseEdge,
-  Controls,
-  EdgeLabelRenderer,
-  Handle,
   MarkerType,
-  MiniMap,
-  Position,
-  ReactFlow,
   ReactFlowProvider,
-  getBezierPath,
   useReactFlow,
   type Edge,
-  type EdgeProps,
   type Node,
-  type NodeProps,
-  type NodeTypes,
 } from "@xyflow/react";
 import {
   AlertCircle,
   ArrowLeft,
   Check,
-  CircleDot,
-  Eye,
   FileWarning,
   GitBranch,
   Layers3,
@@ -39,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -265,15 +252,6 @@ type LayoutResult = {
   initialPositions: Map<string, { x: number; y: number }>;
 };
 
-const nodeTypes = {
-  initialGeometry: InitialGeometryNode,
-  processStep: ProcessStepNode,
-} as NodeTypes;
-
-const edgeTypes = {
-  dataFlow: DataFlowEdge,
-};
-
 export function ProcessFlowInstanceEditor() {
   return (
     <ReactFlowProvider>
@@ -350,6 +328,11 @@ function ProcessFlowInstanceEditorInner() {
             draggable: false,
             data: {
               ...node.data,
+              graphMode: "view",
+              displayLabel: node.data.selectedGeometryDisplayName ?? "Select geometry",
+              displaySublabel: node.data.targetFieldName,
+              pickId: node.data.sourceEdgeId,
+              status: complete ? "complete" : "incomplete",
               validationStatus: complete ? "complete" : "incomplete",
               onPick: setPickingGeometryEdgeId,
             },
@@ -366,6 +349,10 @@ function ProcessFlowInstanceEditorInner() {
           draggable: false,
           data: {
             ...node.data,
+            graphMode: "view",
+            displaySublabel: node.data.stepRefId,
+            editId: node.data.stepRefId,
+            status: completion.complete ? "complete" : "incomplete",
             validationStatus: completion.complete ? "complete" : "incomplete",
             blockingFieldName: completion.blockingFieldName,
             onEdit: setEditingStepRefId,
@@ -397,6 +384,7 @@ function ProcessFlowInstanceEditorInner() {
             targetFieldId: edge.data?.targetFieldId ?? "",
             slotLabel: targetField?.name || edge.data?.targetFieldId || "slot",
             sourceLabel,
+            graphMode: "view",
             readonlyTopology: true,
             onGeometryView: () =>
               setGeometryPreview({
@@ -697,55 +685,42 @@ function ProcessFlowInstanceEditorInner() {
         </div>
       </section>
 
-      <section className="relative min-h-0 flex-1 bg-[linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[length:32px_32px]">
-        <ReactFlow
-          nodes={displayNodes}
-          edges={displayEdges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          edgesReconnectable={false}
-          elementsSelectable
-          panOnScroll
-          minZoom={0.35}
-          maxZoom={1.45}
-          defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-          onNodeClick={(_, node) => {
-            if (node.data.nodeKind === "initialGeometry") {
-              setPickingGeometryEdgeId(node.data.sourceEdgeId);
-            }
-            if (node.data.nodeKind === "processStep") {
-              setEditingStepRefId(node.data.stepRefId);
-            }
-          }}
-        >
-          <Background color="rgba(15, 118, 110, 0.18)" gap={32} />
-          <Controls position="bottom-left" />
-          {displayNodes.length > 0 ? (
-            <MiniMap
-              position="bottom-right"
-              pannable
-              zoomable
-              nodeColor={(node) =>
-                node.data.nodeKind === "initialGeometry" ? "#f59e0b" : "#0891b2"
-              }
-            />
-          ) : null}
-        </ReactFlow>
-
-        {displayNodes.length === 0 ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-            <div className="max-w-md rounded-md border border-dashed bg-white/90 px-5 py-4 text-center shadow-sm">
-              <Layers3 className="mx-auto h-6 w-6 text-primary" />
-              <h2 className="mt-3 text-sm font-semibold">Select a flow template</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                The graph appears here after a process flow template is selected.
-              </p>
+      <ProcessFlowGraph<FlowNode, FlowEdge>
+        mode="view"
+        nodes={displayNodes}
+        edges={displayEdges}
+        edgesReconnectable={false}
+        elementsSelectable
+        panOnScroll
+        minZoom={0.35}
+        maxZoom={1.45}
+        defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+        showMiniMap={displayNodes.length > 0}
+        miniMapNodeColor={(node) =>
+          node.data.nodeKind === "initialGeometry" ? "#f59e0b" : "#0891b2"
+        }
+        onNodeClick={(_, node) => {
+          if (node.data.nodeKind === "initialGeometry") {
+            setPickingGeometryEdgeId(node.data.sourceEdgeId);
+          }
+          if (node.data.nodeKind === "processStep") {
+            setEditingStepRefId(node.data.stepRefId);
+          }
+        }}
+        emptyState={
+          displayNodes.length === 0 ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+              <div className="max-w-md rounded-md border border-dashed bg-white/90 px-5 py-4 text-center shadow-sm">
+                <Layers3 className="mx-auto h-6 w-6 text-primary" />
+                <h2 className="mt-3 text-sm font-semibold">Select a flow template</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  The graph appears here after a process flow template is selected.
+                </p>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </section>
+          ) : null
+        }
+      />
 
       <div className="fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-md border bg-white p-2 shadow-viewport">
         <Button variant="outline" onClick={clearDraft}>
@@ -796,154 +771,6 @@ function ProcessFlowInstanceEditorInner() {
         />
       ) : null}
     </main>
-  );
-}
-
-function InitialGeometryNode({ data }: NodeProps<InitialGeometryFlowNode>) {
-  const complete = data.validationStatus === "complete";
-
-  return (
-    <div
-      className={cn(
-        "relative flex h-[138px] w-[138px] cursor-pointer flex-col items-center justify-center rounded-full border-4 bg-white p-4 text-center shadow-sm transition hover:shadow-md",
-        complete ? "border-emerald-500" : "border-amber-500",
-      )}
-      title="Select initial geometry"
-      onDoubleClick={(event) => {
-        event.stopPropagation();
-        data.onPick?.(data.sourceEdgeId);
-      }}
-    >
-      <Handle
-        type="source"
-        id="out"
-        position={Position.Right}
-        isConnectable={false}
-        className="!h-4 !w-4 !border-2 !border-white !bg-primary"
-      />
-      <CircleDot className="mb-2 h-5 w-5 text-primary" />
-      <div className="line-clamp-2 text-xs font-semibold leading-tight">
-        {data.selectedGeometryDisplayName ?? "Select geometry"}
-      </div>
-      <div className="mt-1 max-w-[100px] truncate text-[10px] text-muted-foreground">
-        {data.targetFieldName}
-      </div>
-      <Badge
-        variant={complete ? "signal" : "outline"}
-        className={cn(
-          "mt-2",
-          !complete && "border-amber-300 text-amber-700",
-        )}
-      >
-        {complete ? "Selected" : "Required"}
-      </Badge>
-    </div>
-  );
-}
-
-function ProcessStepNode({ data }: NodeProps<ProcessStepFlowNode>) {
-  const complete = data.validationStatus === "complete";
-
-  return (
-    <div
-      className={cn(
-        "relative w-[252px] cursor-pointer rounded-md border-2 bg-white shadow-sm transition hover:shadow-md",
-        complete ? "border-emerald-500" : "border-amber-500",
-      )}
-      title="Edit step values"
-      onDoubleClick={(event) => {
-        event.stopPropagation();
-        data.onEdit?.(data.stepRefId);
-      }}
-    >
-      <div className="absolute left-0 top-3 flex -translate-x-1/2 flex-col gap-2">
-        {data.geometryInputFields.map((field) => (
-          <div key={field.id} className="relative flex items-center">
-            <Handle
-              type="target"
-              id={field.id}
-              position={Position.Left}
-              isConnectable={false}
-              className="!relative !left-auto !top-auto !h-4 !w-4 !translate-x-0 !translate-y-0 !border-2 !border-white !bg-cyan-600"
-            />
-            <div className="pointer-events-none absolute left-5 max-w-[150px] rounded-md border bg-white px-2 py-1 text-[10px] font-medium shadow-sm">
-              {field.name}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <Handle
-        type="source"
-        id="out"
-        position={Position.Right}
-        isConnectable={false}
-        className="!h-4 !w-4 !border-2 !border-white !bg-primary"
-      />
-
-      <div className="border-b bg-muted/40 px-3 py-2">
-        <div className="line-clamp-2 text-sm font-semibold leading-snug">
-          {data.template.name}
-        </div>
-        <div className="mt-1 truncate text-xs text-muted-foreground">
-          {data.stepRefId}
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-        <span className="truncate text-muted-foreground">
-          {data.template.version}
-        </span>
-        <Badge
-          variant={complete ? "signal" : "outline"}
-          className={cn(!complete && "border-amber-300 text-amber-700")}
-        >
-          {complete ? "Complete" : "Incomplete fields"}
-        </Badge>
-      </div>
-    </div>
-  );
-}
-
-function DataFlowEdge(props: EdgeProps<FlowEdge>) {
-  const [edgePath, labelX, labelY] = getBezierPath(props);
-  const data = props.data;
-  const canViewGeometry = data?.sourceType === "stepOutput";
-
-  return (
-    <>
-      <BaseEdge
-        id={props.id}
-        path={edgePath}
-        markerEnd={props.markerEnd}
-        interactionWidth={16}
-        className={cn(
-          "!stroke-[2.5px]",
-          props.selected ? "!stroke-primary" : "!stroke-cyan-700",
-        )}
-      />
-      <EdgeLabelRenderer>
-        <div
-          className="nodrag nopan pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 text-[10px]"
-          style={{ transform: `translate(${labelX}px, ${labelY}px)` }}
-        >
-          {canViewGeometry ? (
-            <button
-              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-white text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground"
-              title="View geometry state"
-              onClick={(event) => {
-                event.stopPropagation();
-                data?.onGeometryView?.();
-              }}
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          ) : null}
-          <span className="max-w-[132px] truncate rounded-md border bg-white/95 px-2 py-1 text-muted-foreground shadow-sm">
-            {data?.slotLabel}
-          </span>
-        </div>
-      </EdgeLabelRenderer>
-    </>
   );
 }
 
@@ -1771,6 +1598,13 @@ function computeTemplateLayout(template: ProcessFlowTemplate): LayoutResult {
     });
   });
 
+  const occupiedLayoutCells = new Set<string>();
+  stepIds.forEach((stepRefId) => {
+    occupiedLayoutCells.add(
+      layoutCellKey(rank.get(stepRefId) ?? 1, lane.get(stepRefId) ?? 0),
+    );
+  });
+
   const geometryEdgesByTarget = new Map<string, SavedFlowEdge[]>();
   template.flowEdges.forEach((edge) => {
     if (edge.source.sourceType !== "geometryRef") {
@@ -1781,16 +1615,29 @@ function computeTemplateLayout(template: ProcessFlowTemplate): LayoutResult {
   });
 
   geometryEdgesByTarget.forEach((group, targetStepRefId) => {
+    const targetRank = rank.get(targetStepRefId) ?? 1;
+    const targetLane = lane.get(targetStepRefId) ?? 0;
+    const initialRank = Math.max(0, targetRank - 1);
+    const laneOffsets = centeredInitialLaneOffsets(
+      group.length,
+      group.length + stepIds.length + 8,
+    );
+
     group
       .slice()
       .sort((left, right) => left.edgeId.localeCompare(right.edgeId))
-      .forEach((edge, index) => {
-        const targetRank = rank.get(targetStepRefId) ?? 1;
-        const targetLane = lane.get(targetStepRefId) ?? 0;
-        const centeredOffset = (index - (group.length - 1) / 2) * 1.08;
+      .forEach((edge) => {
+        const initialLane =
+          laneOffsets
+            .map((offset) => targetLane + offset)
+            .find(
+              (candidateLane) =>
+                !occupiedLayoutCells.has(layoutCellKey(initialRank, candidateLane)),
+            ) ?? targetLane;
+        occupiedLayoutCells.add(layoutCellKey(initialRank, initialLane));
         initialPositions.set(edge.edgeId, {
-          x: Math.max(0, targetRank - 1) * xGap,
-          y: 280 + (targetLane + centeredOffset) * yGap,
+          x: initialRank * xGap,
+          y: 280 + initialLane * yGap,
         });
       });
   });
@@ -1923,6 +1770,24 @@ function buildLanePattern(count: number) {
     lanes.push(-index, index);
   }
   return lanes;
+}
+
+function centeredInitialLaneOffsets(groupSize: number, minimumCount: number) {
+  const offsets: number[] = [];
+  if (groupSize % 2 === 1) {
+    offsets.push(0);
+  }
+  for (let distance = 1; offsets.length < minimumCount; distance += 1) {
+    offsets.push(-distance, distance);
+  }
+  if (groupSize % 2 === 0) {
+    offsets.push(0);
+  }
+  return offsets;
+}
+
+function layoutCellKey(rank: number, lane: number) {
+  return `${rank}:${lane}`;
 }
 
 function analyzeDraft(

@@ -200,6 +200,7 @@ Node 的 x position 由 graph rank / processing depth 決定。
 Rank 規則：
 
 - Initial geometry circle 放在其 target step 前一個 column。
+- 若 target step 前一個 column 的同一 lane 已有 upstream process step 或其他 initial geometry circle，initial geometry circle 必須改放到 target lane 上方或下方的最近可用 lane，避免與既有 node 重疊。
 - Process step 的 rank 由 upstream dependency 推導。
 - 若 step 有多個 incoming edges，其 rank 必須大於所有 upstream process step 的 rank。
 - 同 rank 的 process steps 使用同一 column x position。
