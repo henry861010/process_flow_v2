@@ -13,6 +13,7 @@
     "./process": "./process/index.js",
     "./process/process-bgaBump": "./process/process-bgaBump.js",
     "./process/process-c4Bump": "./process/process-c4Bump.js",
+    "./process/process-ubump": "./process/process-ubump.js",
     "./process/process-molding": "./process/process-molding.js",
     "./process/process-panel": "./process/process-panel.js",
     "./process/process-pnp": "./process/process-pnp.js",

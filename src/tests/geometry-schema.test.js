@@ -101,13 +101,13 @@ test("process step modules compose status independently", () => {
   assert.equal(status.container().vias().length, 1);
 });
 
-test("process pnp places die copies at coordinates on current z", () => {
+test("process pnp places die copies at fieldGroupArray bottom-left points", () => {
   const targetStatus = processPanel(new Status(), "carrier", 10, 1000);
   const dieStatus = processPanel(new Status(), "silicon", 20, 100);
 
   processPnp(targetStatus, dieStatus, [
-    [100, 200],
-    { x: -25, y: 50 },
+    { bottomLeft_x: 100, bottomLeft_y: 200 },
+    { bottomLeft_x: -25, bottomLeft_y: 50 },
   ]);
 
   const children = targetStatus.container().children();

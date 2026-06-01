@@ -470,6 +470,11 @@ function ProcessFlowInstanceEditorInner() {
     setGeometryPreview(null);
   }
 
+  function abortDraft() {
+    clearDraft();
+    router.push("/");
+  }
+
   function requestTemplateChange(nextTemplateId: string) {
     if (nextTemplateId === (selectedTemplateId ?? "")) {
       return;
@@ -760,7 +765,7 @@ function ProcessFlowInstanceEditorInner() {
       />
 
       <div className="fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-md border bg-white p-2 shadow-viewport">
-        <Button variant="outline" onClick={clearDraft}>
+        <Button variant="outline" onClick={abortDraft}>
           <RotateCcw />
           Abort
         </Button>

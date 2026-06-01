@@ -1,4 +1,4 @@
-import { addBumpBelowLowestDirectBody } from "./process-ubunp.js";
+import { addBumpBelowLowestDirectBody } from "./process-ubump.js";
 
 /**
  * Add a C4 bump feature below the lowest direct body in the die root container.

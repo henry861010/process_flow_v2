@@ -1,29 +1,30 @@
 /**
  * Pick and place die container copies onto the target process status.
  *
- * Each coordinate places one copy of `status2`'s root container under
+ * Each field group item places one copy of `status2`'s root container under
  * `status1`'s root container. The placed die's lower-left xy corner is aligned
- * to the coordinate, and its bottom z is aligned to `status1.zNow()`.
+ * to the item's `bottomLeft_x` / `bottomLeft_y`, and its bottom z is aligned
+ * to `status1.zNow()`.
  *
  * @param {import("./status.js").Status} status1 - Target wafer/carrier status.
  * @param {import("./status.js").Status} status2 - Source die status.
- * @param {Array<number[]|{x: number, y: number}>} coordinates - Placement xy
- *   coordinates.
+ * @param {Array<{bottomLeft_x: number, bottomLeft_y: number}>} fieldGroupArray
+ *   Placement fieldGroupArray items.
  * @returns {import("./status.js").Status} The target status after placement.
  */
-export function processPnp(status1, status2, coordinates = []) {
+export function processPnp(status1, status2, fieldGroupArray = []) {
   const targetContainer = statusContainer(status1, "status1");
   const sourceContainer = statusContainer(status2, "status2");
   const targetZ = statusZNow(status1);
 
-  if (!Array.isArray(coordinates)) {
-    throw new Error("coordinates must be an array");
+  if (!Array.isArray(fieldGroupArray)) {
+    throw new Error("fieldGroupArray must be an array");
   }
-  if (coordinates.length === 0) return status1;
+  if (fieldGroupArray.length === 0) return status1;
 
   const sourceBounds = containerBounds(sourceContainer);
-  coordinates.forEach((coordinate) => {
-    const { x, y } = coordinatePoint(coordinate);
+  fieldGroupArray.forEach((fieldGroupItem) => {
+    const { x, y } = fieldGroupPoint(fieldGroupItem);
     const die = sourceContainer.copy();
     die.move({
       x: x - sourceBounds.xMin,
@@ -52,21 +53,25 @@ function statusZNow(status) {
   throw new Error("status1 must provide zNow");
 }
 
-function coordinatePoint(coordinate) {
-  if (Array.isArray(coordinate) && coordinate.length >= 2) {
-    return requireFinitePoint(coordinate[0], coordinate[1]);
-  }
-  if (coordinate !== null && typeof coordinate === "object") {
-    return requireFinitePoint(coordinate.x, coordinate.y);
+function fieldGroupPoint(fieldGroupItem) {
+  if (
+    fieldGroupItem !== null &&
+    typeof fieldGroupItem === "object" &&
+    !Array.isArray(fieldGroupItem)
+  ) {
+    return requireFinitePoint(
+      fieldGroupItem.bottomLeft_x,
+      fieldGroupItem.bottomLeft_y,
+    );
   }
   throw new Error(
-    "coordinates must contain [x, y] arrays or { x, y } objects",
+    "fieldGroupArray items must provide bottomLeft_x and bottomLeft_y",
   );
 }
 
 function requireFinitePoint(x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error("coordinate x and y must be finite numbers");
+    throw new Error("bottomLeft_x and bottomLeft_y must be finite numbers");
   }
   return { x, y };
 }

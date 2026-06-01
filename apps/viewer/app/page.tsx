@@ -4,7 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { Boxes, GitBranch, Workflow } from "lucide-react";
 
-import { initializeHomeLocalStorage } from "@/lib/home-local-storage";
+import {
+  initializeHomeLocalStorage,
+  resetHomeLocalStorage,
+} from "@/lib/home-local-storage";
 
 export default function Home() {
   React.useEffect(() => {
@@ -29,6 +32,10 @@ export default function Home() {
     },
   ];
 
+  function handlePocReset() {
+    resetHomeLocalStorage();
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10">
       <nav
@@ -46,6 +53,15 @@ export default function Home() {
           </Link>
         ))}
       </nav>
+      <button
+        type="button"
+        aria-label="Reset POC Data"
+        title="Clear localStorage and restore default JSON"
+        className="fixed bottom-3 left-3 h-7 rounded border border-foreground/20 bg-background/70 px-2 font-mono text-[11px] text-muted-foreground shadow-none backdrop-blur-sm transition hover:border-foreground/35 hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        onClick={handlePocReset}
+      >
+        cmd: reset-poc-data
+      </button>
     </main>
   );
 }

@@ -9,6 +9,7 @@ export {
   process_c4Bump,
   process_c4_bump,
 } from "./process-c4Bump.js";
+export { processUbump, process_ubump } from "./process-ubump.js";
 export { processMolding, process_molding } from "./process-molding.js";
 export { processPanel, process_panel } from "./process-panel.js";
 export { processPnp, process_pnp } from "./process-pnp.js";

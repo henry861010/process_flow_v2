@@ -147,6 +147,8 @@ Metadata 區域至少包含：
 
 Metadata 區域需要常駐在白板上方，與 Save 狀態列相鄰，讓使用者在任何白板縮放或捲動狀態下都能看見目前建立目標與 validation 狀態。
 
+Header 右上角需要提供 `Home` button，點擊後導回 home page `/`，不寫入 localStorage、不下載 process JSON。`Home` button 與 `Export all templates`、`Save` 放在同一組 header action controls。
+
 `Technology name` 空白時，Save button 必須 disabled，狀態列顯示 technology name required 類型的錯誤訊息。`Product / instance name` 空白時不阻止 Save。
 
 若未來需要讓使用者填寫 `ProcessFlowTemplate.version`、`description`、`owner` 或其他 metadata，應優先擴充此 metadata 區域，不要把 template metadata 混入 step instance editor。

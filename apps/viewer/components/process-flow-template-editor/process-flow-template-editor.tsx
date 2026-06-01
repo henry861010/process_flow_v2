@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   MarkerType,
@@ -16,6 +17,7 @@ import {
 } from "@xyflow/react";
 import {
   AlertCircle,
+  ArrowLeft,
   Box,
   Boxes,
   Check,
@@ -861,6 +863,12 @@ function ProcessFlowTemplateEditorInner() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/">
+                <ArrowLeft />
+                Home
+              </Link>
+            </Button>
             <Button variant="outline" onClick={exportAllTemplates}>
               <Download />
               Export all templates
@@ -941,11 +949,11 @@ function ProcessFlowTemplateEditorInner() {
                   key={group.category}
                   category={group.category}
                   count={group.items.length}
-                  open={openGeometryCategories[group.category] !== false}
+                  open={openGeometryCategories[group.category] === true}
                   onToggle={() =>
                     setOpenGeometryCategories((current) => ({
                       ...current,
-                      [group.category]: current[group.category] === false,
+                      [group.category]: current[group.category] !== true,
                     }))
                   }
                 >
@@ -1005,11 +1013,11 @@ function ProcessFlowTemplateEditorInner() {
                     key={group.category}
                     category={group.category}
                     count={group.items.length}
-                    open={openStepCategories[group.category] !== false}
+                    open={openStepCategories[group.category] === true}
                     onToggle={() =>
                       setOpenStepCategories((current) => ({
                         ...current,
-                        [group.category]: current[group.category] === false,
+                        [group.category]: current[group.category] !== true,
                       }))
                     }
                   >

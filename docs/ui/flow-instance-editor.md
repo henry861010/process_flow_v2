@@ -96,7 +96,7 @@ Save 成功後導回 home page `/`。
 - 右上角顯示 template selector。
 - 上方顯示 `Product / instance name` 必填欄位。
 - Save disabled。
-- Abort enabled 或 disabled 皆可，但若目前沒有 draft，點擊後不需要產生資料變化。
+- Abort enabled 或 disabled 皆可；點擊後導回 home page `/`，不寫入任何資料。
 
 Empty state 只需要告知使用者選擇 flow template 後開始建立 instance，不提供 marketing-style landing content。
 
@@ -105,8 +105,9 @@ Empty state 只需要告知使用者選擇 flow template 後開始建立 instanc
 Header 需要包含：
 
 - 左側頁面名稱，例如 `Process Flow Instance Editor`。
+- 右上角 `Home` button，點擊後導回 home page `/`。
 - `Product / instance name` 必填欄位。
-- 右上角 `Process flow template` selector。
+- 上方 controls 區顯示 `Process flow template` selector。
 - 選到 template 後，在 selector 附近顯示 selected template name，並以小字顯示 `version`。
 
 Template metadata 顯示只需要：
@@ -398,7 +399,7 @@ Abort button：
 
 - 固定放在右下角，與 Save button 相鄰。
 - 表示放棄本次編輯。
-- 點擊後留在目前頁面，清空所有 draft content。
+- 點擊後清空所有 draft content，並導回 home page `/`。
 - 清空內容包含 selected template、product / instance name、geometry selections、step field values、open dialogs 與 validation state。
 - Abort 不寫入 localStorage。
 

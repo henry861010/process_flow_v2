@@ -361,11 +361,27 @@ export function initializeHomeLocalStorage(storage: Storage = window.localStorag
   ensureStorageArray(storage, GEOMETRY_ENTITIES_STORAGE_KEY, GEOMETRY_ENTITY_SEED);
 }
 
+export function resetHomeLocalStorage(storage: Storage = window.localStorage) {
+  storage.clear();
+  writeStorageArray(
+    storage,
+    PROCESS_STEP_TEMPLATES_STORAGE_KEY,
+    PROCESS_STEP_TEMPLATE_SEED,
+  );
+  writeStorageArray(storage, PROCESS_FLOW_TEMPLATES_STORAGE_KEY, []);
+  writeStorageArray(storage, PROCESS_FLOW_INSTANCES_STORAGE_KEY, []);
+  writeStorageArray(storage, GEOMETRY_ENTITIES_STORAGE_KEY, GEOMETRY_ENTITY_SEED);
+}
+
 function ensureStorageArray<T>(storage: Storage, key: string, seed: T[]) {
   if (storage.getItem(key) !== null) {
     return;
   }
 
+  writeStorageArray(storage, key, seed);
+}
+
+function writeStorageArray<T>(storage: Storage, key: string, seed: T[]) {
   storage.setItem(key, JSON.stringify(clone(seed)));
 }
 
