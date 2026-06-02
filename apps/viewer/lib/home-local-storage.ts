@@ -303,7 +303,7 @@ export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [
       {
         edgeId: "edge_panel_to_pnp_hbm_target",
         source: { sourceType: "geometryRef" },
-        target: { stepRefId: "pnp_hbm", targetFieldId: "target_geometry" },
+        target: { stepRefId: "pnp_hbm", targetFieldId: "main_geometry" },
       },
       {
         edgeId: "edge_hbm_to_pnp_hbm_die",
@@ -313,7 +313,7 @@ export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [
       {
         edgeId: "edge_pnp_hbm_to_pnp_soc_target",
         source: { sourceType: "stepOutput", stepRefId: "pnp_hbm" },
-        target: { stepRefId: "pnp_soc", targetFieldId: "target_geometry" },
+        target: { stepRefId: "pnp_soc", targetFieldId: "main_geometry" },
       },
       {
         edgeId: "edge_soc_to_pnp_soc_die",
@@ -349,7 +349,7 @@ export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
         stepRefId: "pnp_hbm",
         processStepTemplateId: "pnp",
         fieldValues: [
-          { fieldId: "target_geometry", value: "geom_example_panel" },
+          { fieldId: "main_geometry", value: "geom_example_panel" },
           { fieldId: "die_geometry", value: "geom_example_hbm" },
           {
             fieldId: "coordinates",
@@ -366,7 +366,7 @@ export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
         stepRefId: "pnp_soc",
         processStepTemplateId: "pnp",
         fieldValues: [
-          { fieldId: "target_geometry", value: null },
+          { fieldId: "main_geometry", value: null },
           { fieldId: "die_geometry", value: "geom_example_soc" },
           {
             fieldId: "coordinates",
@@ -524,6 +524,7 @@ function centeredBoxDocument(
   return geometryDocument(key, [
     {
       geometry: {
+        type: "BoxGeometry",
         bottom_left: [-width / 2, -height / 2, -thk / 2],
         top_right: [width / 2, height / 2, -thk / 2],
         thk,
@@ -542,6 +543,7 @@ function centeredCylinderDocument(
   return geometryDocument(key, [
     {
       geometry: {
+        type: "CylinderGeometry",
         center: [0, 0, -thk / 2],
         bottom_radius: radius,
         thk,
