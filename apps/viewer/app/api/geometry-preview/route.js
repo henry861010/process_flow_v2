@@ -1,8 +1,17 @@
 import { GeometryKernel, InMemoryRepository } from "../../../../../src/kernel/index.js";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 
 export const runtime = "nodejs";
+
+const DEFAULT_EXPORT_CONCURRENCY = 1;
+const DEFAULT_EXPORT_TIMEOUT_MS = 30_000;
+const MAX_WORKER_LOG_BYTES = 16_000;
+
+let activeGeometryPreviewExports = 0;
+const pendingGeometryPreviewExports = [];
 
 export async function POST(request) {
   try {
@@ -27,7 +36,7 @@ export async function POST(request) {
       previewEdgeId: normalized.previewEdgeId,
     });
     const geometryDocument = preview.geometryDocument;
-    const glbBytes = await geometryToGlb(geometryDocument);
+    const glbBytes = await enqueueGeometryToGlb(geometryDocument);
     const geometryJson = buildDownloadGeometry({
       geometryDocument,
       edgeId: normalized.previewEdgeId,
@@ -47,17 +56,145 @@ export async function POST(request) {
   }
 }
 
-async function geometryToGlb(geometryDocument) {
-  const exporterUrl = pathToFileURL(
-    join(process.cwd(), "../../src/exporters/cad.js"),
-  ).href;
-  const { convertCad } = await importRuntime(exporterUrl);
-  const result = await convertCad(geometryDocument, { formats: ["glb"] });
-  return result.files.glb;
+function enqueueGeometryToGlb(geometryDocument) {
+  return new Promise((resolve, reject) => {
+    pendingGeometryPreviewExports.push({ geometryDocument, resolve, reject });
+    drainGeometryPreviewExportQueue();
+  });
 }
 
-function importRuntime(specifier) {
-  return Function("specifier", "return import(specifier)")(specifier);
+function drainGeometryPreviewExportQueue() {
+  const concurrency = exportConcurrency();
+
+  while (
+    activeGeometryPreviewExports < concurrency &&
+    pendingGeometryPreviewExports.length > 0
+  ) {
+    const job = pendingGeometryPreviewExports.shift();
+    activeGeometryPreviewExports += 1;
+
+    geometryToGlb(job.geometryDocument)
+      .then(job.resolve, job.reject)
+      .finally(() => {
+        activeGeometryPreviewExports -= 1;
+        drainGeometryPreviewExportQueue();
+      });
+  }
+}
+
+async function geometryToGlb(geometryDocument) {
+  const workDir = await mkdtemp(join(tmpdir(), "process-flow-preview-"));
+  const inputPath = join(workDir, "geometry.json");
+  const outputPath = join(workDir, "preview.glb");
+
+  try {
+    await writeFile(inputPath, JSON.stringify(geometryDocument), "utf8");
+    await runGeometryExportWorker({ inputPath, outputPath });
+    return await readFile(outputPath);
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
+function runGeometryExportWorker({ inputPath, outputPath }) {
+  const workerPath = join(process.cwd(), "scripts/geometry-to-glb-worker.mjs");
+  const exporterPath = join(process.cwd(), "../../src/exporters/cad.js");
+  const timeoutMs = exportTimeoutMs();
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [workerPath, inputPath, outputPath, exporterPath],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+
+    let stderr = "";
+    let stdout = "";
+    let settled = false;
+    let timedOut = false;
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, timeoutMs);
+
+    child.stderr.on("data", (chunk) => {
+      stderr = appendLimited(stderr, chunk);
+    });
+    child.stdout.on("data", (chunk) => {
+      stdout = appendLimited(stdout, chunk);
+    });
+
+    child.on("error", (error) => {
+      settle(() => {
+        reject(
+          new Error(`Unable to start geometry preview export worker: ${error.message}`),
+        );
+      });
+    });
+
+    child.on("exit", (code, signal) => {
+      settle(() => {
+        if (timedOut) {
+          reject(
+            new Error(
+              `Geometry preview GLB export timed out after ${timeoutMs}ms.`,
+            ),
+          );
+          return;
+        }
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(workerFailureError({ code, signal, stderr, stdout }));
+      });
+    });
+
+    function settle(callback) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    }
+  });
+}
+
+function exportConcurrency() {
+  const value = Number(process.env.GEOMETRY_PREVIEW_EXPORT_CONCURRENCY ?? "");
+  return Number.isSafeInteger(value) && value > 0
+    ? value
+    : DEFAULT_EXPORT_CONCURRENCY;
+}
+
+function exportTimeoutMs() {
+  const value = Number.parseInt(
+    process.env.GEOMETRY_PREVIEW_EXPORT_TIMEOUT_MS ?? "",
+    10,
+  );
+  return Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_EXPORT_TIMEOUT_MS;
+}
+
+function appendLimited(current, chunk) {
+  const next = `${current}${chunk.toString()}`;
+  return next.length > MAX_WORKER_LOG_BYTES
+    ? next.slice(next.length - MAX_WORKER_LOG_BYTES)
+    : next;
+}
+
+function workerFailureError({ code, signal, stderr, stdout }) {
+  const reason = signal ? `signal ${signal}` : `exit code ${code}`;
+  const details = (stderr || stdout).trim();
+  if (!details) {
+    return new Error(`Geometry preview GLB export failed with ${reason}.`);
+  }
+  return new Error(`Geometry preview GLB export failed with ${reason}: ${details}`);
 }
 
 function normalizePreviewRequest(payload) {
