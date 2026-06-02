@@ -78,6 +78,46 @@ type ProcessStepTemplate = {
   fieldDefinitions: FieldDefinition[];
 };
 
+type SavedFlowEdge = {
+  edgeId: string;
+  source:
+    | { sourceType: "geometryRef" }
+    | { sourceType: "stepOutput"; stepRefId: string };
+  target: {
+    stepRefId: string;
+    targetFieldId: string;
+  };
+};
+
+type ProcessFlowTemplate = {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  owner: string;
+  stepRefs: Array<{
+    stepRefId: string;
+    processStepTemplateId: string;
+  }>;
+  flowEdges: SavedFlowEdge[];
+};
+
+type FieldValue = {
+  fieldId: string;
+  value: unknown;
+};
+
+type ProcessFlowInstance = {
+  id: string;
+  name: string;
+  processFlowTemplateId: string;
+  stepValueSets: Array<{
+    stepRefId: string;
+    processStepTemplateId: string;
+    fieldValues: FieldValue[];
+  }>;
+};
+
 type GeometryEntity = {
   id: string;
   category: string;
@@ -88,6 +128,7 @@ type GeometryEntity = {
   entityType: string;
   summary: string;
   structureFormat: "standard";
+  structure?: unknown;
 };
 
 const MAIN_GEOMETRY_FIELD: FieldDefinition = {
@@ -101,178 +142,151 @@ const MAIN_GEOMETRY_FIELD: FieldDefinition = {
   unit: null,
 };
 
+const TARGET_GEOMETRY_FIELD: FieldDefinition = {
+  id: "target_geometry",
+  name: "target_geometry",
+  description: "Target carrier or package geometry that receives placed die.",
+  scope: "inputState",
+  valueType: "geometry",
+  controlType: "geometry",
+  selectionMode: null,
+  unit: null,
+};
+
+const DIE_GEOMETRY_FIELD: FieldDefinition = {
+  id: "die_geometry",
+  name: "die_geometry",
+  description: "Die geometry copied into the target package by pnp.",
+  scope: "inputState",
+  valueType: "geometry",
+  controlType: "geometry",
+  selectionMode: null,
+  unit: null,
+};
+
+const DENSITY_FIELD: FieldDefinition = {
+  id: "density",
+  name: "Density",
+  description: "Simple demo density parameter for this station.",
+  scope: "processParameter",
+  valueType: "float",
+  controlType: "number",
+  selectionMode: null,
+  unit: null,
+  validation: { min: 0, exclusiveMin: true },
+};
+
+const MATERIAL_FIELD: FieldDefinition = {
+  id: "material",
+  name: "Material",
+  description: "Material used by this demo station.",
+  scope: "processParameter",
+  valueType: "materialRef",
+  controlType: "select",
+  selectionMode: "single",
+  unit: null,
+  optionSource: {
+    type: "static",
+    options: [
+      { value: "EMC-A", name: "EMC-A" },
+      { value: "EMC-B", name: "EMC-B" },
+      { value: "SAC305", name: "SAC305" },
+      { value: "Cu", name: "Cu" },
+    ],
+  },
+};
+
 export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
   {
-    id: "step_tpl_bonding_micro_bump",
+    id: "molding1",
     version: "V1.0.0",
-    name: "Micro bump bonding",
-    category: "bonding.micro_bump",
+    name: "Molding 1",
+    category: "example",
     description:
-      "Define micro bump bonding process parameters and resulting bonded package state.",
-    owner: "integration.platform",
+      "Demo molding station that adds a visible full-footprint layer above the current geometry.",
+    owner: "demo.example",
+    fieldDefinitions: [MAIN_GEOMETRY_FIELD, DENSITY_FIELD, MATERIAL_FIELD],
+  },
+  {
+    id: "modeling2",
+    version: "V1.0.0",
+    name: "Modeling 2",
+    category: "example",
+    description:
+      "Second demo molding/modeling station with the requested modeling2 process id.",
+    owner: "demo.example",
+    fieldDefinitions: [MAIN_GEOMETRY_FIELD, DENSITY_FIELD, MATERIAL_FIELD],
+  },
+  {
+    id: "bump",
+    version: "V1.0.0",
+    name: "Bump",
+    category: "example",
+    description:
+      "Demo bump station that adds a bump feature using geometry, density, thickness, and material.",
+    owner: "demo.example",
     fieldDefinitions: [
       MAIN_GEOMETRY_FIELD,
+      DENSITY_FIELD,
       {
-        id: "incoming_pad_finish",
-        name: "Incoming pad finish",
-        description: "Pad finish before micro bump bonding starts.",
-        scope: "inputState",
-        valueType: "string",
-        controlType: "select",
-        selectionMode: "single",
-        unit: null,
-        optionSource: {
-          type: "static",
-          options: [
-            { value: "cu", name: "Cu" },
-            { value: "ni_au", name: "Ni/Au" },
-          ],
-        },
-      },
-      {
-        id: "bonding_profile",
-        name: "Bonding profile",
-        description: "Named bonding recipe or process profile family.",
-        scope: "processParameter",
-        valueType: "string",
-        controlType: "select",
-        selectionMode: "single",
-        unit: null,
-        optionSource: {
-          type: "static",
-          options: [
-            {
-              value: "baseline_thermal_compression",
-              name: "Baseline thermal compression",
-            },
-            { value: "low_temperature", name: "Low temperature" },
-          ],
-        },
-      },
-      {
-        id: "bump_pitch",
-        name: "Bump pitch",
-        description: "Nominal micro bump pitch used by this bonding process.",
+        id: "thk",
+        name: "Thickness",
+        description: "Bump thickness.",
         scope: "processParameter",
         valueType: "float",
         controlType: "number",
         selectionMode: null,
         unit: null,
-        validation: { min: 0 },
+        validation: { min: 0, exclusiveMin: true },
       },
+      MATERIAL_FIELD,
     ],
   },
   {
-    id: "step_tpl_molding_encapsulation",
+    id: "pnp",
     version: "V1.0.0",
-    name: "Molding encapsulation",
-    category: "encapsulation.molding",
-    description: "Define mold compound, mold thickness, and cure condition.",
-    owner: "assembly.process",
+    name: "PnP",
+    category: "example",
+    description:
+      "Demo pick-and-place station that copies one die geometry into a target geometry at coordinate rows.",
+    owner: "demo.example",
     fieldDefinitions: [
-      MAIN_GEOMETRY_FIELD,
+      TARGET_GEOMETRY_FIELD,
+      DIE_GEOMETRY_FIELD,
       {
-        id: "mold_compound",
-        name: "Mold compound",
-        description: "Mold compound material used for encapsulation.",
-        scope: "processParameter",
-        valueType: "materialRef",
-        controlType: "select",
-        selectionMode: "single",
-        unit: null,
-        optionSource: {
-          type: "static",
-          options: [
-            { value: "EMC-A", name: "EMC-A" },
-            { value: "EMC-B", name: "EMC-B" },
-          ],
-        },
-      },
-      {
-        id: "mold_thickness",
-        name: "Mold thickness",
-        description: "Target encapsulation thickness after molding.",
-        scope: "processParameter",
-        valueType: "float",
-        controlType: "number",
-        selectionMode: null,
-        unit: null,
-        validation: { min: 0 },
-      },
-      {
-        id: "cure_required",
-        name: "Cure required",
-        description: "Whether the process requires a dedicated post mold cure step.",
-        scope: "processParameter",
-        valueType: "boolean",
-        controlType: "checkbox",
-        selectionMode: null,
-        unit: null,
-      },
-    ],
-  },
-  {
-    id: "step_tpl_rdl_build_up",
-    version: "V1.0.0",
-    name: "RDL build up",
-    category: "interconnect.rdl",
-    description: "Define repeatable PM and RDL layer parameters.",
-    owner: "interconnect.integration",
-    fieldDefinitions: [
-      MAIN_GEOMETRY_FIELD,
-      {
-        id: "rdl_layers",
-        name: "RDL layers",
-        description: "Repeatable PM and RDL layer definitions.",
+        id: "coordinates",
+        name: "Coordinates",
+        description: "Bottom-left xy placement coordinates for copied die.",
         scope: "processParameter",
         valueType: "fieldGroupArray",
         controlType: "repeater",
         selectionMode: null,
         unit: null,
         repeatDefinition: {
-          itemNameTemplate: "RDL layer {{index}}",
+          itemNameTemplate: "Coordinate {{index}}",
           indexBase: 1,
           minItems: 1,
-          maxItems: 12,
+          maxItems: 16,
           itemFieldDefinitions: [
             {
-              id: "pm_material",
-              name: "PM material",
-              description: "Photo-material used before this RDL layer.",
-              scope: "processParameter",
-              valueType: "materialRef",
-              controlType: "select",
-              selectionMode: "single",
-              unit: null,
-              optionSource: {
-                type: "static",
-                options: [
-                  { value: "PM-001", name: "Baseline photo-material" },
-                  { value: "PM-002", name: "Low-stress photo-material" },
-                ],
-              },
-            },
-            {
-              id: "pm_thickness",
-              name: "PM thickness",
-              description: "Photo-material thickness for this layer.",
+              id: "bottomLeft_x",
+              name: "bottomLeft_x",
+              description: "Placed die lower-left x coordinate.",
               scope: "processParameter",
               valueType: "float",
               controlType: "number",
               selectionMode: null,
               unit: null,
-              validation: { min: 0 },
             },
             {
-              id: "rdl_thickness",
-              name: "RDL thickness",
-              description: "Copper RDL thickness for this layer.",
+              id: "bottomLeft_y",
+              name: "bottomLeft_y",
+              description: "Placed die lower-left y coordinate.",
               scope: "processParameter",
               valueType: "float",
               controlType: "number",
               selectionMode: null,
               unit: null,
-              validation: { min: 0 },
             },
           ],
         },
@@ -281,72 +295,178 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
   },
 ];
 
+export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [
+  {
+    id: "flow_tpl_example_pnp_molding_demo",
+    name: "Example PnP Molding Demo",
+    version: "V1.0.0",
+    description:
+      "Linear demo flow for previewing pnp, molding1, bump, and modeling2 station outputs.",
+    owner: "demo.example",
+    stepRefs: [
+      { stepRefId: "pnp_hbm", processStepTemplateId: "pnp" },
+      { stepRefId: "pnp_soc", processStepTemplateId: "pnp" },
+      { stepRefId: "molding1", processStepTemplateId: "molding1" },
+      { stepRefId: "bump", processStepTemplateId: "bump" },
+      { stepRefId: "modeling2", processStepTemplateId: "modeling2" },
+    ],
+    flowEdges: [
+      {
+        edgeId: "edge_panel_to_pnp_hbm_target",
+        source: { sourceType: "geometryRef" },
+        target: { stepRefId: "pnp_hbm", targetFieldId: "target_geometry" },
+      },
+      {
+        edgeId: "edge_hbm_to_pnp_hbm_die",
+        source: { sourceType: "geometryRef" },
+        target: { stepRefId: "pnp_hbm", targetFieldId: "die_geometry" },
+      },
+      {
+        edgeId: "edge_pnp_hbm_to_pnp_soc_target",
+        source: { sourceType: "stepOutput", stepRefId: "pnp_hbm" },
+        target: { stepRefId: "pnp_soc", targetFieldId: "target_geometry" },
+      },
+      {
+        edgeId: "edge_soc_to_pnp_soc_die",
+        source: { sourceType: "geometryRef" },
+        target: { stepRefId: "pnp_soc", targetFieldId: "die_geometry" },
+      },
+      {
+        edgeId: "edge_pnp_soc_to_molding1",
+        source: { sourceType: "stepOutput", stepRefId: "pnp_soc" },
+        target: { stepRefId: "molding1", targetFieldId: "main_geometry" },
+      },
+      {
+        edgeId: "edge_molding1_to_bump",
+        source: { sourceType: "stepOutput", stepRefId: "molding1" },
+        target: { stepRefId: "bump", targetFieldId: "main_geometry" },
+      },
+      {
+        edgeId: "edge_bump_to_modeling2",
+        source: { sourceType: "stepOutput", stepRefId: "bump" },
+        target: { stepRefId: "modeling2", targetFieldId: "main_geometry" },
+      },
+    ],
+  },
+];
+
+export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
+  {
+    id: "flow_inst_example_pnp_molding_demo",
+    name: "Example PnP molding demo instance",
+    processFlowTemplateId: "flow_tpl_example_pnp_molding_demo",
+    stepValueSets: [
+      {
+        stepRefId: "pnp_hbm",
+        processStepTemplateId: "pnp",
+        fieldValues: [
+          { fieldId: "target_geometry", value: "geom_example_panel" },
+          { fieldId: "die_geometry", value: "geom_example_hbm" },
+          {
+            fieldId: "coordinates",
+            value: {
+              items: [
+                coordinateItem("coordinates_item_1", 1, -1750, -700),
+                coordinateItem("coordinates_item_2", 2, 350, -700),
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "pnp_soc",
+        processStepTemplateId: "pnp",
+        fieldValues: [
+          { fieldId: "target_geometry", value: null },
+          { fieldId: "die_geometry", value: "geom_example_soc" },
+          {
+            fieldId: "coordinates",
+            value: {
+              items: [coordinateItem("coordinates_item_1", 1, -1000, 550)],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "molding1",
+        processStepTemplateId: "molding1",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "density", value: 1.85 },
+          { fieldId: "material", value: "EMC-A" },
+        ],
+      },
+      {
+        stepRefId: "bump",
+        processStepTemplateId: "bump",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "density", value: 0.55 },
+          { fieldId: "thk", value: 40 },
+          { fieldId: "material", value: "SAC305" },
+        ],
+      },
+      {
+        stepRefId: "modeling2",
+        processStepTemplateId: "modeling2",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "density", value: 1.75 },
+          { fieldId: "material", value: "EMC-B" },
+        ],
+      },
+    ],
+  },
+];
+
 export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
   {
-    id: "geom_wafer_aaatv_rev_a",
-    category: "carrier.wafer.glass",
-    name: "SKH HBM4 incoming wafer",
+    id: "geom_example_wafer",
+    category: "initial.wafer",
+    name: "Wafer",
     version: "v1.0.0",
-    owner: "integration-team",
-    description: "Incoming glass wafer geometry for aaaTV process flow.",
+    owner: "demo.example",
+    description: "Centered circular wafer geometry for demo flow roots.",
     entityType: "wafer",
-    summary: "300 mm glass carrier, standard stack, um coordinates.",
+    summary: "Cylinder wafer, center at 0,0,0.",
     structureFormat: "standard",
+    structure: centeredCylinderDocument("example-wafer", "Si", 150000, 775),
   },
   {
-    id: "geom_die_hbm4_logic_rev_b",
-    category: "die.silicon.logic",
-    name: "HBM4 logic die",
-    version: "v2.1.0",
-    owner: "die-integration",
-    description: "Logic die outline and bump keepout model.",
-    entityType: "die",
-    summary: "Reticle-sized silicon die with bump density features.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_die_hbm4_memory_rev_c",
-    category: "die.silicon.memory",
-    name: "HBM4 memory die",
-    version: "v1.4.2",
-    owner: "memory-platform",
-    description: "Memory die geometry with TSV via density.",
-    entityType: "die",
-    summary: "Thin silicon memory die with via/circuit density.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_substrate_abf_55x55_rev_a",
-    category: "substrate.organic.abf",
-    name: "55x55 ABF substrate",
+    id: "geom_example_panel",
+    category: "initial.panel",
+    name: "Panel",
     version: "v1.0.0",
-    owner: "substrate-team",
-    description: "Organic substrate for package assembly flow.",
-    entityType: "substrate",
-    summary: "ABF package substrate with coarse routing density.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_interposer_silicon_bridge_rev_a",
-    category: "interposer.silicon.bridge",
-    name: "Silicon bridge interposer",
-    version: "v0.9.0",
-    owner: "advanced-packaging",
-    description: "Bridge interposer geometry for fan-in assembly.",
-    entityType: "interposer",
-    summary: "Bridge with circuit density regions and copper vias.",
-    structureFormat: "standard",
-  },
-  {
-    id: "geom_panel_temp_carrier_rev_a",
-    category: "carrier.panel.temporary",
-    name: "Temporary process panel",
-    version: "v1.0.0",
-    owner: "panel-process",
-    description: "Panel-level temporary carrier geometry.",
+    owner: "demo.example",
+    description: "Centered square panel geometry for demo flow roots.",
     entityType: "panel",
-    summary: "Large-format carrier used during panel build-up.",
+    summary: "10000 x 10000 x 500 um panel, center at 0,0,0.",
     structureFormat: "standard",
+    structure: centeredBoxDocument("example-panel", "glass", 10000, 10000, 500),
+  },
+  {
+    id: "geom_example_hbm",
+    category: "initial.die.hbm",
+    name: "HBM",
+    version: "v1.0.0",
+    owner: "demo.example",
+    description: "Simple block placeholder for HBM die.",
+    entityType: "die",
+    summary: "1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    structureFormat: "standard",
+    structure: centeredBoxDocument("example-hbm", "Si-HBM", 1400, 1000, 50),
+  },
+  {
+    id: "geom_example_soc",
+    category: "initial.die.soc",
+    name: "SoC",
+    version: "v1.0.0",
+    owner: "demo.example",
+    description: "Simple block placeholder for SoC die.",
+    entityType: "die",
+    summary: "2000 x 1600 x 70 um SoC block, center at 0,0,0.",
+    structureFormat: "standard",
+    structure: centeredBoxDocument("example-soc", "Si-SoC", 2000, 1600, 70),
   },
 ];
 
@@ -356,8 +476,16 @@ export function initializeHomeLocalStorage(storage: Storage = window.localStorag
     PROCESS_STEP_TEMPLATES_STORAGE_KEY,
     PROCESS_STEP_TEMPLATE_SEED,
   );
-  ensureStorageArray(storage, PROCESS_FLOW_TEMPLATES_STORAGE_KEY, []);
-  ensureStorageArray(storage, PROCESS_FLOW_INSTANCES_STORAGE_KEY, []);
+  ensureStorageArray(
+    storage,
+    PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
+    PROCESS_FLOW_TEMPLATE_SEED,
+  );
+  ensureStorageArray(
+    storage,
+    PROCESS_FLOW_INSTANCES_STORAGE_KEY,
+    PROCESS_FLOW_INSTANCE_SEED,
+  );
   ensureStorageArray(storage, GEOMETRY_ENTITIES_STORAGE_KEY, GEOMETRY_ENTITY_SEED);
 }
 
@@ -368,9 +496,88 @@ export function resetHomeLocalStorage(storage: Storage = window.localStorage) {
     PROCESS_STEP_TEMPLATES_STORAGE_KEY,
     PROCESS_STEP_TEMPLATE_SEED,
   );
-  writeStorageArray(storage, PROCESS_FLOW_TEMPLATES_STORAGE_KEY, []);
-  writeStorageArray(storage, PROCESS_FLOW_INSTANCES_STORAGE_KEY, []);
+  writeStorageArray(
+    storage,
+    PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
+    PROCESS_FLOW_TEMPLATE_SEED,
+  );
+  writeStorageArray(
+    storage,
+    PROCESS_FLOW_INSTANCES_STORAGE_KEY,
+    PROCESS_FLOW_INSTANCE_SEED,
+  );
   writeStorageArray(storage, GEOMETRY_ENTITIES_STORAGE_KEY, GEOMETRY_ENTITY_SEED);
+}
+
+function coordinateItem(
+  itemId: string,
+  index: number,
+  bottomLeftX: number,
+  bottomLeftY: number,
+) {
+  return {
+    itemId,
+    index,
+    fieldValues: [
+      { fieldId: "bottomLeft_x", value: bottomLeftX },
+      { fieldId: "bottomLeft_y", value: bottomLeftY },
+    ],
+  };
+}
+
+function centeredBoxDocument(
+  key: string,
+  material: string,
+  width: number,
+  height: number,
+  thk: number,
+) {
+  return geometryDocument(key, [
+    {
+      geometry: {
+        bottom_left: [-width / 2, -height / 2, -thk / 2],
+        top_right: [width / 2, height / 2, -thk / 2],
+        thk,
+      },
+      material,
+    },
+  ]);
+}
+
+function centeredCylinderDocument(
+  key: string,
+  material: string,
+  radius: number,
+  thk: number,
+) {
+  return geometryDocument(key, [
+    {
+      geometry: {
+        center: [0, 0, -thk / 2],
+        bottom_radius: radius,
+        thk,
+      },
+      material,
+    },
+  ]);
+}
+
+function geometryDocument(
+  key: string,
+  bodies: Array<{ geometry: unknown; material: string }>,
+) {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key,
+      bodies,
+      vias: [],
+      circuits: [],
+      bumps: [],
+      children: [],
+    },
+  };
 }
 
 function ensureStorageArray<T>(storage: Storage, key: string, seed: T[]) {

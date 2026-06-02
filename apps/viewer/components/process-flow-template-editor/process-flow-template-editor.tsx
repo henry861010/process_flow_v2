@@ -36,6 +36,10 @@ import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-g
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  GeometryPreviewPanel,
+  type GeometryPreviewContext,
+} from "@/components/geometry-preview/geometry-preview-panel";
+import {
   GEOMETRY_ENTITIES_STORAGE_KEY,
   PROCESS_FLOW_INSTANCES_STORAGE_KEY,
   PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
@@ -190,16 +194,12 @@ type GeometryEntity = {
   entityType: string;
   summary: string;
   structureFormat: "standard";
+  structure?: unknown;
 };
 
 type EditorMetadata = {
   technologyName: string;
   productInstanceName: string;
-};
-
-type GeometryPreviewState = {
-  sourceLabel: string;
-  slotLabel: string;
 };
 
 type InitialGeometryNodeData = Record<string, unknown> & {
@@ -230,7 +230,9 @@ type FlowEdgeData = Record<string, unknown> & {
   targetFieldId: string;
   slotLabel: string;
   sourceLabel: string;
-  geometryViewEnabled: boolean;
+  geometryViewVisible?: boolean;
+  geometryViewDisabled?: boolean;
+  geometryViewTitle?: string;
   onDelete?: (edgeId: string) => void;
   onGeometryView?: () => void;
 };
@@ -285,7 +287,7 @@ function ProcessFlowTemplateEditorInner() {
     null,
   );
   const [geometryPreview, setGeometryPreview] =
-    React.useState<GeometryPreviewState | null>(null);
+    React.useState<GeometryPreviewContext | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [openGeometryCategories, setOpenGeometryCategories] = React.useState<
     Record<string, boolean>
@@ -397,29 +399,53 @@ function ProcessFlowTemplateEditorInner() {
           (field) => field.id === edgeData?.targetFieldId,
         );
         const sourceLabel = sourceNode ? sourceLabelForNode(sourceNode) : "Unknown";
+        const slotLabel = targetField?.name || edgeData?.targetFieldId || "slot";
+        const availability = getGeometryPreviewAvailability(
+          edge,
+          nodes,
+          geometries,
+          analysis,
+        );
+        const sourceKind = edgeData?.sourceType ?? "geometryRef";
         const nextEdge: FlowEdge = {
           ...edge,
           data: {
-            sourceType: edgeData?.sourceType ?? "geometryRef",
+            sourceType: sourceKind,
             sourceGeometryEntityId: edgeData?.sourceGeometryEntityId,
             sourceStepRefId: edgeData?.sourceStepRefId,
             targetStepRefId: edgeData?.targetStepRefId ?? "",
             targetFieldId: edgeData?.targetFieldId ?? "",
-            slotLabel: targetField?.name || edgeData?.targetFieldId || "slot",
+            slotLabel,
             sourceLabel,
             graphMode: "edit",
-            geometryViewEnabled: true,
+            geometryViewVisible: true,
+            geometryViewDisabled: !availability.enabled,
+            geometryViewTitle: availability.enabled
+              ? "Preview geometry state"
+              : availability.reason,
             onDelete: deleteEdge,
-            onGeometryView: () =>
+            onGeometryView: () => {
+              if (!availability.enabled) return;
               setGeometryPreview({
+                edgeId: edge.id,
                 sourceLabel,
-                slotLabel: targetField?.name || edgeData?.targetFieldId || "slot",
-              }),
+                slotLabel,
+                sourceKind,
+                request: {
+                  previewEdgeId: edge.id,
+                  sourceLabel,
+                  flowTemplate: buildDraftFlowTemplateForPreview(nodes, edges),
+                  draftInstance: buildDraftInstanceForPreview(nodes, edges, metadata),
+                  geometries,
+                  processStepTemplates: stepTemplates,
+                },
+              });
+            },
           },
         };
         return nextEdge;
       }),
-    [deleteEdge, edges, nodes],
+    [analysis, deleteEdge, edges, geometries, metadata, nodes, stepTemplates],
   );
 
   const editingStepNode = React.useMemo(
@@ -1055,59 +1081,12 @@ function ProcessFlowTemplateEditorInner() {
       ) : null}
 
       {geometryPreview ? (
-        <GeometryUnsupportedDialog
+        <GeometryPreviewPanel
           preview={geometryPreview}
           onClose={() => setGeometryPreview(null)}
         />
       ) : null}
     </main>
-  );
-}
-
-function GeometryUnsupportedDialog({
-  preview,
-  onClose,
-}: {
-  preview: GeometryPreviewState;
-  onClose: () => void;
-}) {
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        aria-label="Close geometry view"
-        className="absolute inset-0 cursor-default bg-foreground/40"
-        onClick={onClose}
-      />
-      <section
-        className="relative z-10 w-[min(520px,calc(100vw-32px))] rounded-md border bg-background shadow-viewport"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-4 border-b bg-white px-5 py-4">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold">Geometry view</h2>
-            <div className="mt-1 truncate text-sm text-muted-foreground">
-              {preview.sourceLabel} {"->"} {preview.slotLabel}
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
-            <X />
-          </Button>
-        </header>
-        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-          geometry is not supported now
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -1719,7 +1698,7 @@ function buildFlowEdge(
       targetFieldId: targetField.id,
       slotLabel: targetField.name,
       sourceLabel: sourceLabelForNode(sourceNode),
-      geometryViewEnabled: true,
+      geometryViewVisible: true,
     },
   };
 }
@@ -2115,6 +2094,122 @@ function normalizeFieldValuesForSave(node: ProcessStepFlowNode, edges: FlowEdge[
   });
 
   return values;
+}
+
+function buildDraftFlowTemplateForPreview(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+): ProcessFlowTemplate {
+  const stepNodes = nodes.filter(isProcessStepNode);
+  const stepNodeIds = new Set(stepNodes.map((node) => node.id));
+
+  return {
+    id: "preview_template_draft",
+    name: "Preview template draft",
+    version: "V1.0.0",
+    description: "In-memory process flow template draft used for geometry preview.",
+    owner: "local.user",
+    stepRefs: stepNodes.map((node) => ({
+      stepRefId: node.data.stepRefId,
+      processStepTemplateId: node.data.template.id,
+    })),
+    flowEdges: edges.flatMap((edge) => {
+      const targetNode = findProcessNode(nodes, edge.target);
+      if (!targetNode) return [];
+      const data = getFlowEdgeData(edge);
+      const sourceNode = nodes.find((node) => node.id === edge.source);
+      const source =
+        data.sourceType === "stepOutput"
+          ? stepOutputSourceForPreview(data, sourceNode, stepNodeIds)
+          : { sourceType: "geometryRef" as const };
+      if (!source) return [];
+      return [
+        {
+          edgeId: edge.id,
+          source,
+          target: {
+            stepRefId: targetNode.data.stepRefId,
+            targetFieldId: data.targetFieldId,
+          },
+        },
+      ];
+    }),
+  };
+}
+
+function buildDraftInstanceForPreview(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  metadata: EditorMetadata,
+): ProcessFlowInstance {
+  const stepNodes = nodes.filter(isProcessStepNode);
+  const name =
+    metadata.productInstanceName.trim() ||
+    metadata.technologyName.trim() ||
+    "Preview draft";
+
+  return {
+    id: "preview_instance_draft",
+    name,
+    processFlowTemplateId: "preview_template_draft",
+    stepValueSets: stepNodes.map((node) => ({
+      stepRefId: node.data.stepRefId,
+      processStepTemplateId: node.data.template.id,
+      fieldValues: normalizeFieldValuesForSave(node, edges),
+    })),
+  };
+}
+
+function stepOutputSourceForPreview(
+  data: FlowEdgeData,
+  sourceNode: FlowNode | undefined,
+  stepNodeIds: Set<string>,
+): { sourceType: "stepOutput"; stepRefId: string } | null {
+  if (data.sourceStepRefId) {
+    return { sourceType: "stepOutput", stepRefId: data.sourceStepRefId };
+  }
+  if (sourceNode && isProcessStepNode(sourceNode) && stepNodeIds.has(sourceNode.id)) {
+    return { sourceType: "stepOutput", stepRefId: sourceNode.data.stepRefId };
+  }
+  return null;
+}
+
+function getGeometryPreviewAvailability(
+  edge: FlowEdge,
+  nodes: FlowNode[],
+  geometries: GeometryEntity[],
+  analysis: GraphAnalysis,
+) {
+  if (analysis.hasCycle) {
+    return { enabled: false, reason: "Resolve the graph cycle first" };
+  }
+  if (analysis.duplicateTargetSlots.length > 0) {
+    return { enabled: false, reason: "Resolve duplicate target slots first" };
+  }
+  if (analysis.invalidEdgeMessages.length > 0) {
+    return { enabled: false, reason: analysis.invalidEdgeMessages[0] };
+  }
+
+  const data = getFlowEdgeData(edge);
+  if (data.sourceType === "geometryRef") {
+    if (!data.sourceGeometryEntityId) {
+      return { enabled: false, reason: "Select initial geometry first" };
+    }
+    if (!geometries.some((geometry) => geometry.id === data.sourceGeometryEntityId)) {
+      return { enabled: false, reason: "Selected geometry no longer exists" };
+    }
+    return { enabled: true, reason: "Preview geometry state" };
+  }
+
+  const sourceStep = findProcessNode(nodes, edge.source);
+  if (!sourceStep) {
+    return { enabled: false, reason: "Preview source step is missing" };
+  }
+  const completion = analysis.stepCompletion.get(sourceStep.id);
+  if (!completion?.complete) {
+    return { enabled: false, reason: "Complete upstream fields first" };
+  }
+  return { enabled: true, reason: "Preview geometry state" };
 }
 
 function clearTargetValuesForRemovedEdges(

@@ -130,6 +130,36 @@ test("process pnp places die copies at fieldGroupArray bottom-left points", () =
   ]);
 });
 
+test("example pnp demo flow runs through station outputs", async () => {
+  const kernel = createExampleDemoKernel();
+
+  const pnpPreview = await kernel.execute("flow_inst_example_demo", {
+    outputStepRefId: "pnp_hbm",
+  });
+  const pnpGeometry = pnpPreview.geometry();
+  assert.equal(pnpGeometry.root.children.length, 2);
+  assert.deepEqual(
+    pnpGeometry.root.children[0].bodies[0].geometry.bottom_left,
+    [-1750, -700, 250],
+  );
+
+  const result = await kernel.execute("flow_inst_example_demo");
+  const geometry = result.geometry();
+
+  assert.equal(geometry.root.bodies.length, 3);
+  assert.equal(geometry.root.children.length, 3);
+  assert.equal(geometry.root.bumps.length, 1);
+  assert.equal(geometry.root.bodies[1].material, "EMC-A");
+  assert.equal(geometry.root.bodies[1].geometry.bottom_left[2], 370);
+  assert.equal(geometry.root.bodies[1].geometry.thk, 120);
+  assert.equal(geometry.root.bodies[2].material, "EMC-B");
+  assert.equal(geometry.root.bodies[2].geometry.bottom_left[2], 490);
+  assert.equal(geometry.root.bodies[2].geometry.thk, 80);
+  assert.equal(geometry.root.bumps[0].material, "SAC305");
+  assert.equal(geometry.root.bumps[0].density, 0.55);
+  assert.equal(geometry.root.bumps[0].geometry.thk, 40);
+});
+
 test("bga and c4 bump processes overlap existing uncontained bumps", () => {
   const status = processPanel(new Status(), "silicon", 20, 100);
   status.container().addBump(
@@ -609,6 +639,246 @@ function kernelInputGeometry() {
             thk: 10,
           },
           material: "carrier",
+        },
+      ],
+      vias: [],
+      circuits: [],
+      bumps: [],
+      children: [],
+    },
+  };
+}
+
+function createExampleDemoKernel() {
+  const geometryEntities = [
+    {
+      id: "geom_example_panel",
+      structure: centeredBoxDocument("example-panel", "glass", 10000, 10000, 500),
+    },
+    {
+      id: "geom_example_hbm",
+      structure: centeredBoxDocument("example-hbm", "Si-HBM", 1400, 1000, 50),
+    },
+    {
+      id: "geom_example_soc",
+      structure: centeredBoxDocument("example-soc", "Si-SoC", 2000, 1600, 70),
+    },
+  ];
+
+  return new GeometryKernel({
+    geometryRepository: new InMemoryRepository(geometryEntities),
+    processStepRepository: new InMemoryRepository(exampleStepTemplates()),
+    processFlowTemplateRepository: new InMemoryRepository([exampleFlowTemplate()]),
+    processFlowInstanceRepository: new InMemoryRepository([exampleFlowInstance()]),
+  });
+}
+
+function exampleStepTemplates() {
+  return [
+    {
+      id: "pnp",
+      category: "example",
+      fieldDefinitions: [
+        geometryField("target_geometry"),
+        geometryField("die_geometry"),
+        {
+          id: "coordinates",
+          valueType: "fieldGroupArray",
+          repeatDefinition: {
+            itemFieldDefinitions: [
+              floatField("bottomLeft_x"),
+              floatField("bottomLeft_y"),
+            ],
+          },
+        },
+      ],
+    },
+    {
+      id: "molding1",
+      category: "example",
+      fieldDefinitions: [
+        geometryField("main_geometry"),
+        floatField("density"),
+        materialField("material"),
+      ],
+    },
+    {
+      id: "bump",
+      category: "example",
+      fieldDefinitions: [
+        geometryField("main_geometry"),
+        floatField("density"),
+        floatField("thk"),
+        materialField("material"),
+      ],
+    },
+    {
+      id: "modeling2",
+      category: "example",
+      fieldDefinitions: [
+        geometryField("main_geometry"),
+        floatField("density"),
+        materialField("material"),
+      ],
+    },
+  ];
+}
+
+function exampleFlowTemplate() {
+  return {
+    id: "flow_tpl_example_demo",
+    stepRefs: [
+      { stepRefId: "pnp_hbm", processStepTemplateId: "pnp" },
+      { stepRefId: "pnp_soc", processStepTemplateId: "pnp" },
+      { stepRefId: "molding1", processStepTemplateId: "molding1" },
+      { stepRefId: "bump", processStepTemplateId: "bump" },
+      { stepRefId: "modeling2", processStepTemplateId: "modeling2" },
+    ],
+    flowEdges: [
+      {
+        edgeId: "edge_panel_to_pnp_hbm_target",
+        source: { sourceType: "geometryRef" },
+        target: { stepRefId: "pnp_hbm", targetFieldId: "target_geometry" },
+      },
+      {
+        edgeId: "edge_hbm_to_pnp_hbm_die",
+        source: { sourceType: "geometryRef" },
+        target: { stepRefId: "pnp_hbm", targetFieldId: "die_geometry" },
+      },
+      {
+        edgeId: "edge_pnp_hbm_to_pnp_soc_target",
+        source: { sourceType: "stepOutput", stepRefId: "pnp_hbm" },
+        target: { stepRefId: "pnp_soc", targetFieldId: "target_geometry" },
+      },
+      {
+        edgeId: "edge_soc_to_pnp_soc_die",
+        source: { sourceType: "geometryRef" },
+        target: { stepRefId: "pnp_soc", targetFieldId: "die_geometry" },
+      },
+      {
+        edgeId: "edge_pnp_soc_to_molding1",
+        source: { sourceType: "stepOutput", stepRefId: "pnp_soc" },
+        target: { stepRefId: "molding1", targetFieldId: "main_geometry" },
+      },
+      {
+        edgeId: "edge_molding1_to_bump",
+        source: { sourceType: "stepOutput", stepRefId: "molding1" },
+        target: { stepRefId: "bump", targetFieldId: "main_geometry" },
+      },
+      {
+        edgeId: "edge_bump_to_modeling2",
+        source: { sourceType: "stepOutput", stepRefId: "bump" },
+        target: { stepRefId: "modeling2", targetFieldId: "main_geometry" },
+      },
+    ],
+  };
+}
+
+function exampleFlowInstance() {
+  return {
+    id: "flow_inst_example_demo",
+    processFlowTemplateId: "flow_tpl_example_demo",
+    stepValueSets: [
+      {
+        stepRefId: "pnp_hbm",
+        processStepTemplateId: "pnp",
+        fieldValues: [
+          { fieldId: "target_geometry", value: "geom_example_panel" },
+          { fieldId: "die_geometry", value: "geom_example_hbm" },
+          {
+            fieldId: "coordinates",
+            value: {
+              items: [
+                coordinateItem("coordinates_item_1", 1, -1750, -700),
+                coordinateItem("coordinates_item_2", 2, 350, -700),
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "pnp_soc",
+        processStepTemplateId: "pnp",
+        fieldValues: [
+          { fieldId: "target_geometry", value: null },
+          { fieldId: "die_geometry", value: "geom_example_soc" },
+          {
+            fieldId: "coordinates",
+            value: {
+              items: [coordinateItem("coordinates_item_1", 1, -1000, 550)],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "molding1",
+        processStepTemplateId: "molding1",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "density", value: 1.85 },
+          { fieldId: "material", value: "EMC-A" },
+        ],
+      },
+      {
+        stepRefId: "bump",
+        processStepTemplateId: "bump",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "density", value: 0.55 },
+          { fieldId: "thk", value: 40 },
+          { fieldId: "material", value: "SAC305" },
+        ],
+      },
+      {
+        stepRefId: "modeling2",
+        processStepTemplateId: "modeling2",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "density", value: 1.75 },
+          { fieldId: "material", value: "EMC-B" },
+        ],
+      },
+    ],
+  };
+}
+
+function geometryField(id) {
+  return { id, valueType: "geometry" };
+}
+
+function floatField(id) {
+  return { id, valueType: "float" };
+}
+
+function materialField(id) {
+  return { id, valueType: "materialRef" };
+}
+
+function coordinateItem(itemId, index, bottomLeftX, bottomLeftY) {
+  return {
+    itemId,
+    index,
+    fieldValues: [
+      { fieldId: "bottomLeft_x", value: bottomLeftX },
+      { fieldId: "bottomLeft_y", value: bottomLeftY },
+    ],
+  };
+}
+
+function centeredBoxDocument(key, material, width, height, thk) {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key,
+      bodies: [
+        {
+          geometry: {
+            bottom_left: [-width / 2, -height / 2, -thk / 2],
+            top_right: [width / 2, height / 2, -thk / 2],
+            thk,
+          },
+          material,
         },
       ],
       vias: [],
