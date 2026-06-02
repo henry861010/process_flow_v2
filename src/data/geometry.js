@@ -140,6 +140,7 @@ export class BoxGeometry extends Geometry {
 
   json() {
     return {
+      type: "BoxGeometry",
       bottom_left: deepCopy(this._bottomLeft),
       top_right: deepCopy(this._topRight),
       thk: this._thk,
@@ -213,6 +214,7 @@ export class PolygonGeometry extends Geometry {
 
   json() {
     return {
+      type: "PolygonGeometry",
       polys: deepCopy(this._polys),
       thk: this._thk,
     };
@@ -284,6 +286,7 @@ export class CylinderGeometry extends Geometry {
 
   json() {
     return {
+      type: "CylinderGeometry",
       center: deepCopy(this._center),
       bottom_radius: this._bottomRadius,
       thk: this._thk,
@@ -379,6 +382,7 @@ export class ConeGeometry extends Geometry {
 
   json() {
     return {
+      type: "ConeGeometry",
       center: deepCopy(this._center),
       bottom_radius: this._bottomRadius,
       top_radius: this._topRadius,

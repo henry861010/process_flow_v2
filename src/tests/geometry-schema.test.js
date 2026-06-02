@@ -2,11 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { Bump } from "../data/bump.js";
+import { Circuit } from "../data/circuit.js";
 import { Container } from "../data/container.js";
-import { PolygonGeometry } from "../data/geometry.js";
+import {
+  BoxGeometry,
+  ConeGeometry,
+  CylinderGeometry,
+  PolygonGeometry,
+} from "../data/geometry.js";
 import { classifyPolygonLoops } from "../utils/polygon.js";
 import { Body } from "../data/body.js";
-import { BoxGeometry } from "../data/geometry.js";
+import { Via } from "../data/via.js";
 import { processBgaBump } from "../process/process-bgaBump.js";
 import { processC4Bump } from "../process/process-c4Bump.js";
 import { processMolding } from "../process/process-molding.js";
@@ -43,6 +49,63 @@ test("container json has schema unit and stable ids", () => {
   assert.ok(first.root.id);
   assert.ok(first.root.bodies[0].id);
   assert.ok(first.root.children[0].bodies[0].id);
+});
+
+test("geometry primitives serialize explicit type", () => {
+  const root = new Container({ key: "typed-primitives" });
+  root.addBody(
+    new Body(new BoxGeometry([0, 0, 0], [10, 10, 0], 1), "box"),
+  );
+  root.addVia(
+    new Via(new CylinderGeometry([0, 0, 0], 1, 2), 0.5, "via"),
+  );
+  root.addCircuit(
+    new Circuit(
+      new PolygonGeometry(
+        [[[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]]],
+        1,
+      ),
+      0.6,
+      "circuit",
+    ),
+  );
+  root.addBump(
+    new Bump(new ConeGeometry([0, 0, 0], 2, 1, 3), 0.7, "bump"),
+  );
+
+  const output = root.json();
+
+  assert.equal(output.root.bodies[0].geometry.type, "BoxGeometry");
+  assert.equal(output.root.vias[0].geometry.type, "CylinderGeometry");
+  assert.equal(output.root.circuits[0].geometry.type, "PolygonGeometry");
+  assert.equal(output.root.bumps[0].geometry.type, "ConeGeometry");
+});
+
+test("geometry hydration requires explicit primitive type", () => {
+  assert.throws(
+    () =>
+      geometryDocumentToStatus(
+        singleBodyGeometryDocument({
+          bottom_left: [0, 0, 0],
+          top_right: [1, 1, 0],
+          thk: 1,
+        }),
+      ),
+    /Unsupported geometry type: undefined/,
+  );
+
+  assert.throws(
+    () =>
+      geometryDocumentToStatus(
+        singleBodyGeometryDocument({
+          type: "PolygonGeometry",
+          bottom_left: [0, 0, 0],
+          top_right: [1, 1, 0],
+          thk: 1,
+        }),
+      ),
+    /Geometry PolygonGeometry missing field polys/,
+  );
 });
 
 test("polygon geometry rejects self intersection", () => {
@@ -194,6 +257,22 @@ test("CAD converter reports missing OpenCascade instance clearly", () => {
   );
 });
 
+test("CAD converter requires explicit primitive type", () => {
+  const converter = new OpenCascadeConverter({});
+
+  assert.throws(
+    () =>
+      converter.convert(
+        singleBodyGeometryDocument({
+          bottom_left: [0, 0, 0],
+          top_right: [1, 1, 0],
+          thk: 1,
+        }),
+      ),
+    /Unknown geometry type: undefined/,
+  );
+});
+
 test("CAD converter exports a box with OpenCascade.js", async () => {
   const result = await convertCad(
     {
@@ -201,6 +280,7 @@ test("CAD converter exports a box with OpenCascade.js", async () => {
       bodies: [
         {
           geometry: {
+            type: "BoxGeometry",
             bottom_left: [0, 0, 0],
             top_right: [1, 1, 0],
             thk: 1,
@@ -625,6 +705,26 @@ function kernelFlowInstance() {
   };
 }
 
+function singleBodyGeometryDocument(geometry) {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key: "single-body",
+      bodies: [
+        {
+          geometry,
+          material: "test",
+        },
+      ],
+      vias: [],
+      circuits: [],
+      bumps: [],
+      children: [],
+    },
+  };
+}
+
 function kernelInputGeometry() {
   return {
     schemaVersion: "1.0.0",
@@ -634,6 +734,7 @@ function kernelInputGeometry() {
       bodies: [
         {
           geometry: {
+            type: "BoxGeometry",
             bottom_left: [-50, -50, 0],
             top_right: [50, 50, 0],
             thk: 10,
@@ -874,6 +975,7 @@ function centeredBoxDocument(key, material, width, height, thk) {
       bodies: [
         {
           geometry: {
+            type: "BoxGeometry",
             bottom_left: [-width / 2, -height / 2, -thk / 2],
             top_right: [width / 2, height / 2, -thk / 2],
             thk,

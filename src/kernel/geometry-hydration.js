@@ -85,41 +85,52 @@ function containerFromJson(container) {
 }
 
 /**
- * Rebuild the correct geometry subclass from its JSON shape signature.
+ * Rebuild the correct geometry subclass from its explicit primitive type.
  */
 function geometryFromJson(geometry) {
-  if (
-    Object.hasOwn(geometry, "bottom_left") &&
-    Object.hasOwn(geometry, "top_right") &&
-    Object.hasOwn(geometry, "thk")
-  ) {
-    return new BoxGeometry(geometry.bottom_left, geometry.top_right, geometry.thk);
-  }
-  if (Object.hasOwn(geometry, "polys") && Object.hasOwn(geometry, "thk")) {
-    return new PolygonGeometry(geometry.polys, geometry.thk);
-  }
-  if (
-    Object.hasOwn(geometry, "center") &&
-    Object.hasOwn(geometry, "bottom_radius") &&
-    Object.hasOwn(geometry, "top_radius") &&
-    Object.hasOwn(geometry, "thk")
-  ) {
-    return new ConeGeometry(
-      geometry.center,
-      geometry.bottom_radius,
-      geometry.top_radius,
-      geometry.thk,
-    );
-  }
-  if (
-    Object.hasOwn(geometry, "center") &&
-    Object.hasOwn(geometry, "bottom_radius") &&
-    Object.hasOwn(geometry, "thk")
-  ) {
-    return new CylinderGeometry(geometry.center, geometry.bottom_radius, geometry.thk);
-  }
+  assertGeometryObject(geometry);
 
-  throw new Error(`Unsupported geometry payload: ${JSON.stringify(geometry)}`);
+  switch (geometry.type) {
+    case "BoxGeometry":
+      return new BoxGeometry(
+        geometryField(geometry, "bottom_left"),
+        geometryField(geometry, "top_right"),
+        geometryField(geometry, "thk"),
+      );
+    case "PolygonGeometry":
+      return new PolygonGeometry(
+        geometryField(geometry, "polys"),
+        geometryField(geometry, "thk"),
+      );
+    case "CylinderGeometry":
+      return new CylinderGeometry(
+        geometryField(geometry, "center"),
+        geometryField(geometry, "bottom_radius"),
+        geometryField(geometry, "thk"),
+      );
+    case "ConeGeometry":
+      return new ConeGeometry(
+        geometryField(geometry, "center"),
+        geometryField(geometry, "bottom_radius"),
+        geometryField(geometry, "top_radius"),
+        geometryField(geometry, "thk"),
+      );
+    default:
+      throw new Error(`Unsupported geometry type: ${geometry.type}`);
+  }
+}
+
+function assertGeometryObject(geometry) {
+  if (geometry === null || typeof geometry !== "object" || Array.isArray(geometry)) {
+    throw new Error(`Unsupported geometry payload: ${JSON.stringify(geometry)}`);
+  }
+}
+
+function geometryField(geometry, fieldName) {
+  if (!Object.hasOwn(geometry, fieldName)) {
+    throw new Error(`Geometry ${geometry.type} missing field ${fieldName}`);
+  }
+  return geometry[fieldName];
 }
 
 /**
