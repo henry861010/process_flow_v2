@@ -242,22 +242,37 @@ export class OpenCascadeConverter {
   }
 
   _geometryToShape(geometry) {
-    if (hasKeys(geometry, ["bottom_left", "top_right", "thk"])) {
-      return this._boxToShape(geometry);
+    if (geometry === null || typeof geometry !== "object" || Array.isArray(geometry)) {
+      throw new CadExportError(
+        `Unknown geometry payload: ${JSON.stringify(geometry)}`,
+      );
     }
-    if ("polys" in geometry && "thk" in geometry) {
-      return this._polygonsToShape(geometry);
+
+    switch (geometry.type) {
+      case "BoxGeometry":
+        return this._boxToShape(
+          requireGeometryFields(geometry, ["bottom_left", "top_right", "thk"]),
+        );
+      case "PolygonGeometry":
+        return this._polygonsToShape(
+          requireGeometryFields(geometry, ["polys", "thk"]),
+        );
+      case "CylinderGeometry":
+        return this._cylinderToShape(
+          requireGeometryFields(geometry, ["center", "bottom_radius", "thk"]),
+        );
+      case "ConeGeometry":
+        return this._coneToShape(
+          requireGeometryFields(geometry, [
+            "center",
+            "bottom_radius",
+            "top_radius",
+            "thk",
+          ]),
+        );
+      default:
+        throw new CadExportError(`Unknown geometry type: ${geometry.type}`);
     }
-    if (
-      hasKeys(geometry, ["center", "bottom_radius", "thk"]) &&
-      !("top_radius" in geometry)
-    ) {
-      return this._cylinderToShape(geometry);
-    }
-    if (hasKeys(geometry, ["center", "bottom_radius", "top_radius", "thk"])) {
-      return this._coneToShape(geometry);
-    }
-    throw new CadExportError(`Unknown geometry payload: ${JSON.stringify(geometry)}`);
   }
 
   _boxToShape(geometry) {
@@ -666,8 +681,13 @@ async function resolveOpenCascade(candidate, options = {}) {
   return initOpenCascade(initOptions);
 }
 
-function hasKeys(value, keys) {
-  return keys.every((key) => Object.hasOwn(value, key));
+function requireGeometryFields(geometry, fields) {
+  for (const field of fields) {
+    if (!Object.hasOwn(geometry, field)) {
+      throw new CadExportError(`Geometry ${geometry.type} missing field ${field}`);
+    }
+  }
+  return geometry;
 }
 
 function withSuffix(outputBase, suffix) {

@@ -62,6 +62,7 @@ function exampleGeometryEntity() {
         bodies: [
           {
             geometry: {
+              type: "BoxGeometry",
               bottom_left: [-2500, -2500, 0],
               top_right: [2500, 2500, 0],
               thk: 300,
