@@ -142,17 +142,6 @@ const MAIN_GEOMETRY_FIELD: FieldDefinition = {
   unit: null,
 };
 
-const TARGET_GEOMETRY_FIELD: FieldDefinition = {
-  id: "target_geometry",
-  name: "target_geometry",
-  description: "Target carrier or package geometry that receives placed die.",
-  scope: "inputState",
-  valueType: "geometry",
-  controlType: "geometry",
-  selectionMode: null,
-  unit: null,
-};
-
 const DIE_GEOMETRY_FIELD: FieldDefinition = {
   id: "die_geometry",
   name: "die_geometry",
@@ -208,9 +197,9 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     fieldDefinitions: [MAIN_GEOMETRY_FIELD, DENSITY_FIELD, MATERIAL_FIELD],
   },
   {
-    id: "modeling2",
+    id: "molding2",
     version: "V1.0.0",
-    name: "Modeling 2",
+    name: "Molding 2",
     category: "example",
     description:
       "Second demo molding/modeling station with the requested modeling2 process id.",
@@ -251,7 +240,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
       "Demo pick-and-place station that copies one die geometry into a target geometry at coordinate rows.",
     owner: "demo.example",
     fieldDefinitions: [
-      TARGET_GEOMETRY_FIELD,
+      MAIN_GEOMETRY_FIELD,
       DIE_GEOMETRY_FIELD,
       {
         id: "coordinates",
@@ -430,7 +419,7 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     entityType: "wafer",
     summary: "Cylinder wafer, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredCylinderDocument("example-wafer", "Si", 150000, 775),
+    structure: centeredCylinderDocument("example-wafer", "Si", 500, 775),
   },
   {
     id: "geom_example_panel",
@@ -442,7 +431,7 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     entityType: "panel",
     summary: "10000 x 10000 x 500 um panel, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredBoxDocument("example-panel", "glass", 10000, 10000, 500),
+    structure: centeredBoxDocument("example-panel", "glass", 500, 500, 500),
   },
   {
     id: "geom_example_hbm",
