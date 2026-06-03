@@ -1,5 +1,9 @@
+export type GeometryPreviewTarget =
+  | { type: "edge"; previewEdgeId: string }
+  | { type: "stepOutput"; stepRefId: string };
+
 export type GeometryPreviewRequest = {
-  previewEdgeId: string;
+  target: GeometryPreviewTarget;
   sourceLabel?: string | null;
   flowTemplate: unknown;
   draftInstance: unknown;

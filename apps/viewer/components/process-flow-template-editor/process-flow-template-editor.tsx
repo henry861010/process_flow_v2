@@ -366,6 +366,16 @@ function ProcessFlowTemplateEditorInner() {
           complete: false,
           blockingFieldName: null,
         };
+        const terminalPreviewVisible = isTerminalFinalPreviewVisible(
+          node,
+          edges,
+          analysis.reachableStepNodeIds,
+        );
+        const terminalPreviewAvailability = getTerminalFinalPreviewAvailability(
+          node,
+          analysis,
+        );
+        const terminalSourceLabel = node.data.template.name;
         const nextNode: ProcessStepFlowNode = {
           ...node,
           data: {
@@ -382,11 +392,42 @@ function ProcessFlowTemplateEditorInner() {
             blockingFieldName: completion.blockingFieldName,
             onDelete: deleteNode,
             onEdit: openStepEditor,
+            terminalGeometryViewVisible: terminalPreviewVisible,
+            terminalGeometryViewDisabled: !terminalPreviewAvailability.enabled,
+            terminalGeometryViewTitle: terminalPreviewAvailability.enabled
+              ? "Preview final geometry state"
+              : terminalPreviewAvailability.reason,
+            onTerminalGeometryView: () => {
+              if (!terminalPreviewAvailability.enabled) return;
+              setGeometryPreview({
+                previewId: `final:${node.data.stepRefId}`,
+                sourceLabel: terminalSourceLabel,
+                slotLabel: "F",
+                sourceKind: "stepOutput",
+                request: {
+                  target: { type: "stepOutput", stepRefId: node.data.stepRefId },
+                  sourceLabel: terminalSourceLabel,
+                  flowTemplate: buildDraftFlowTemplateForPreview(nodes, edges),
+                  draftInstance: buildDraftInstanceForPreview(nodes, edges, metadata),
+                  geometries,
+                  processStepTemplates: stepTemplates,
+                },
+              });
+            },
           },
         };
         return nextNode;
       }),
-    [analysis, deleteNode, nodes, openStepEditor],
+    [
+      analysis,
+      deleteNode,
+      edges,
+      geometries,
+      metadata,
+      nodes,
+      openStepEditor,
+      stepTemplates,
+    ],
   );
 
   const displayEdges = React.useMemo<FlowEdge[]>(
@@ -427,12 +468,12 @@ function ProcessFlowTemplateEditorInner() {
             onGeometryView: () => {
               if (!availability.enabled) return;
               setGeometryPreview({
-                edgeId: edge.id,
+                previewId: edge.id,
                 sourceLabel,
                 slotLabel,
                 sourceKind,
                 request: {
-                  previewEdgeId: edge.id,
+                  target: { type: "edge", previewEdgeId: edge.id },
                   sourceLabel,
                   flowTemplate: buildDraftFlowTemplateForPreview(nodes, edges),
                   draftInstance: buildDraftInstanceForPreview(nodes, edges, metadata),
@@ -2210,6 +2251,41 @@ function getGeometryPreviewAvailability(
     return { enabled: false, reason: "Complete upstream fields first" };
   }
   return { enabled: true, reason: "Preview geometry state" };
+}
+
+function isTerminalFinalPreviewVisible(
+  node: ProcessStepFlowNode,
+  edges: FlowEdge[],
+  reachableStepNodeIds: Set<string>,
+) {
+  return (
+    reachableStepNodeIds.has(node.id) &&
+    !edges.some((edge) => edge.source === node.id)
+  );
+}
+
+function getTerminalFinalPreviewAvailability(
+  node: ProcessStepFlowNode,
+  analysis: GraphAnalysis,
+) {
+  if (analysis.hasCycle) {
+    return { enabled: false, reason: "Resolve the graph cycle first" };
+  }
+  if (analysis.duplicateTargetSlots.length > 0) {
+    return { enabled: false, reason: "Resolve duplicate target slots first" };
+  }
+  if (analysis.invalidEdgeMessages.length > 0) {
+    return { enabled: false, reason: analysis.invalidEdgeMessages[0] };
+  }
+  if (!analysis.reachableStepNodeIds.has(node.id)) {
+    return { enabled: false, reason: "Connect an initial geometry first" };
+  }
+
+  const completion = analysis.stepCompletion.get(node.id);
+  if (!completion?.complete) {
+    return { enabled: false, reason: "Complete upstream fields first" };
+  }
+  return { enabled: true, reason: "Preview final geometry state" };
 }
 
 function clearTargetValuesForRemovedEdges(

@@ -344,6 +344,13 @@ function ProcessFlowInstanceEditorInner() {
           complete: false,
           blockingFieldName: null,
         };
+        const terminalPreviewVisible = isTerminalFinalPreviewVisible(node, edges);
+        const terminalPreviewAvailability = getTerminalFinalPreviewAvailability(
+          node,
+          analysis,
+          selectedTemplate,
+        );
+        const terminalSourceLabel = node.data.template.name;
         const nextNode: ProcessStepFlowNode = {
           ...node,
           draggable: false,
@@ -356,11 +363,48 @@ function ProcessFlowInstanceEditorInner() {
             validationStatus: completion.complete ? "complete" : "incomplete",
             blockingFieldName: completion.blockingFieldName,
             onEdit: setEditingStepRefId,
+            terminalGeometryViewVisible: terminalPreviewVisible,
+            terminalGeometryViewDisabled: !terminalPreviewAvailability.enabled,
+            terminalGeometryViewTitle: terminalPreviewAvailability.enabled
+              ? "Preview final geometry state"
+              : terminalPreviewAvailability.reason,
+            onTerminalGeometryView: () =>
+              selectedTemplate
+                ? setGeometryPreview({
+                    previewId: `final:${node.data.stepRefId}`,
+                    sourceLabel: terminalSourceLabel,
+                    slotLabel: "F",
+                    sourceKind: "stepOutput",
+                    request: {
+                      target: {
+                        type: "stepOutput",
+                        stepRefId: node.data.stepRefId,
+                      },
+                      sourceLabel: terminalSourceLabel,
+                      flowTemplate: selectedTemplate,
+                      draftInstance: buildDraftInstanceForPreview(
+                        selectedTemplate,
+                        nodes,
+                        productInstanceName,
+                      ),
+                      geometries,
+                      processStepTemplates: stepTemplates,
+                    },
+                  })
+                : undefined,
           },
         };
         return nextNode;
       }),
-    [analysis.stepCompletion, geometries, nodes],
+    [
+      analysis,
+      edges,
+      geometries,
+      nodes,
+      productInstanceName,
+      selectedTemplate,
+      stepTemplates,
+    ],
   );
 
   const displayEdges = React.useMemo<FlowEdge[]>(
@@ -402,12 +446,12 @@ function ProcessFlowInstanceEditorInner() {
             onGeometryView: () =>
               selectedTemplate
                 ? setGeometryPreview({
-                    edgeId: edge.id,
+                    previewId: edge.id,
                     sourceLabel,
                     slotLabel: targetField?.name || edge.data?.targetFieldId || "slot",
                     sourceKind,
                     request: {
-                      previewEdgeId: edge.id,
+                      target: { type: "edge", previewEdgeId: edge.id },
                       sourceLabel,
                       flowTemplate: selectedTemplate,
                       draftInstance: buildDraftInstanceForPreview(
@@ -455,7 +499,7 @@ function ProcessFlowInstanceEditorInner() {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
-      reactFlow.fitView({ padding: 0.18, duration: 220 });
+      reactFlow.fitView({ padding: 0.26, duration: 220 });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [nodes.length, reactFlow, selectedTemplateId]);
@@ -734,7 +778,7 @@ function ProcessFlowInstanceEditorInner() {
         edgesReconnectable={false}
         elementsSelectable
         panOnScroll
-        minZoom={0.35}
+        minZoom={0.28}
         maxZoom={1.45}
         defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
         showMiniMap={displayNodes.length > 0}
@@ -2141,6 +2185,57 @@ function getPreviewAvailability(
     return { enabled: false, reason: "Complete upstream fields first" };
   }
   return { enabled: true, reason: "Preview geometry state" };
+}
+
+function isTerminalFinalPreviewVisible(
+  node: ProcessStepFlowNode,
+  edges: FlowEdge[],
+) {
+  if (edges.some((edge) => edge.source === node.id)) {
+    return false;
+  }
+  return isReachableFromInitialGeometry(node.id, edges);
+}
+
+function isReachableFromInitialGeometry(nodeId: string, edges: FlowEdge[]) {
+  const queue = edges
+    .filter((edge) => getFlowEdgeData(edge).sourceType === "geometryRef")
+    .map((edge) => edge.target);
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    if (current === nodeId) {
+      return true;
+    }
+    visited.add(current);
+    edges
+      .filter((edge) => edge.source === current)
+      .forEach((edge) => queue.push(edge.target));
+  }
+
+  return false;
+}
+
+function getTerminalFinalPreviewAvailability(
+  node: ProcessStepFlowNode,
+  analysis: InstanceAnalysis,
+  selectedTemplate: ProcessFlowTemplate | null,
+) {
+  if (!selectedTemplate) {
+    return { enabled: false, reason: "Select a flow template first" };
+  }
+  if (analysis.templateSchemaError) {
+    return { enabled: false, reason: analysis.templateSchemaError };
+  }
+  const completion = analysis.stepCompletion.get(node.data.stepRefId);
+  if (!completion?.complete) {
+    return { enabled: false, reason: "Complete upstream fields first" };
+  }
+  return { enabled: true, reason: "Preview final geometry state" };
 }
 
 function normalizeFieldValuesForSave(

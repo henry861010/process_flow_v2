@@ -51,6 +51,10 @@ export type ProcessFlowGraphNodeData = Record<string, unknown> & {
   stepRefId?: string;
   template?: ProcessFlowGraphStepTemplate;
   geometryInputFields?: ProcessFlowGraphField[];
+  terminalGeometryViewVisible?: boolean;
+  terminalGeometryViewDisabled?: boolean;
+  terminalGeometryViewTitle?: string;
+  onTerminalGeometryView?: () => void;
   onDelete?: (nodeId: string) => void;
   onEdit?: (nodeId: string) => void;
   onPick?: (nodeId: string) => void;
@@ -295,6 +299,15 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
       ? connection.toHandle.id
       : null,
   );
+  const activeSourceHandleId = useConnection((connection) =>
+    connection.fromHandle?.nodeId === id && connection.fromHandle.type === "source"
+      ? connection.fromHandle.id
+      : null,
+  );
+  const terminalViewDisabled = Boolean(data.terminalGeometryViewDisabled);
+  const terminalViewVisible =
+    Boolean(data.terminalGeometryViewVisible && data.onTerminalGeometryView) &&
+    activeSourceHandleId !== "out";
 
   return (
     <div
@@ -351,6 +364,31 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
         isConnectable={graphMode === "edit"}
         className="!h-4 !w-4 !border-2 !border-white !bg-primary"
       />
+
+      {terminalViewVisible ? (
+        <div className="nodrag nopan pointer-events-none absolute left-full top-1/2 z-20 ml-3 flex -translate-y-1/2 items-center">
+          <div className="h-px w-5 bg-border/80" />
+          <button
+            className={cn(
+              "pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-white text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground",
+              terminalViewDisabled &&
+                "cursor-not-allowed border-muted-foreground/30 text-muted-foreground opacity-60 hover:bg-white hover:text-muted-foreground",
+            )}
+            title={data.terminalGeometryViewTitle ?? "Preview final geometry state"}
+            aria-label={data.terminalGeometryViewTitle ?? "Preview final geometry state"}
+            disabled={terminalViewDisabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (terminalViewDisabled) {
+                return;
+              }
+              data.onTerminalGeometryView?.();
+            }}
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
 
       <div className="border-b bg-muted/40 px-3 py-2">
         {graphMode === "edit" ? (

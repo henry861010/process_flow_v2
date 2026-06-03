@@ -44,7 +44,7 @@ import {
 } from "@/components/viewer/viewer-scene";
 
 export type GeometryPreviewContext = {
-  edgeId: string;
+  previewId: string;
   sourceLabel: string;
   slotLabel: string;
   sourceKind: "geometryRef" | "stepOutput";
@@ -115,13 +115,13 @@ export function GeometryPreviewPanel({
       new Blob([JSON.stringify(state.geometryEntityJson, null, 2)], {
         type: "application/json;charset=utf-8",
       }),
-      `geometry-preview-${preview.edgeId}.json`,
+      `geometry-preview-${preview.previewId}.json`,
     );
   }
 
   function saveGlb() {
     if (state.status !== "ready") return;
-    downloadBlob(state.glbBlob, `geometry-preview-${preview.edgeId}.glb`);
+    downloadBlob(state.glbBlob, `geometry-preview-${preview.previewId}.glb`);
   }
 
   return (
@@ -171,7 +171,7 @@ export function GeometryPreviewPanel({
           ) : (
             <PreviewCadWorkbench
               glbBlob={state.glbBlob}
-              fileName={`geometry-preview-${preview.edgeId}.glb`}
+              fileName={`geometry-preview-${preview.previewId}.glb`}
             />
           )}
         </div>

@@ -33,13 +33,13 @@ export async function POST(request) {
     const preview = await kernel.executePreview({
       processFlowTemplate: normalized.flowTemplate,
       processFlowInstance: normalized.draftInstance,
-      previewEdgeId: normalized.previewEdgeId,
+      previewTarget: normalized.target,
     });
     const geometryStructure = preview.geometryStructure;
     const glbBytes = await enqueueGeometryToGlb(geometryStructure);
     const geometryEntityJson = buildGeometryEntityDownload({
       geometryStructure,
-      edgeId: normalized.previewEdgeId,
+      previewId: previewIdForTarget(normalized.target),
       sourceKind: preview.sourceKind,
       outputStepRefId: preview.outputStepRefId,
       sourceLabel: normalized.sourceLabel,
@@ -207,7 +207,7 @@ function normalizePreviewRequest(payload) {
   );
 
   return {
-    previewEdgeId: expectString(payload.previewEdgeId, "previewEdgeId"),
+    target: normalizePreviewTarget(payload),
     sourceLabel:
       typeof payload.sourceLabel === "string" ? payload.sourceLabel : null,
     flowTemplate: expectObject(payload.flowTemplate, "flowTemplate"),
@@ -220,14 +220,31 @@ function normalizePreviewRequest(payload) {
   };
 }
 
-function validatePreviewRequest(request) {
-  const { flowTemplate, draftInstance, previewEdgeId } = request;
-  const edge = (flowTemplate.flowEdges ?? []).find(
-    (candidate) => candidate.edgeId === previewEdgeId,
-  );
-  if (!edge) {
-    throw new Error(`Preview edge not found: ${previewEdgeId}`);
+function normalizePreviewTarget(payload) {
+  if (payload.target && typeof payload.target === "object") {
+    if (payload.target.type === "edge") {
+      return {
+        type: "edge",
+        previewEdgeId: expectString(payload.target.previewEdgeId, "target.previewEdgeId"),
+      };
+    }
+    if (payload.target.type === "stepOutput") {
+      return {
+        type: "stepOutput",
+        stepRefId: expectString(payload.target.stepRefId, "target.stepRefId"),
+      };
+    }
   }
+
+  if (typeof payload.previewEdgeId === "string") {
+    return { type: "edge", previewEdgeId: payload.previewEdgeId };
+  }
+
+  throw new Error("Preview target is required.");
+}
+
+function validatePreviewRequest(request) {
+  const { flowTemplate, draftInstance, target } = request;
 
   const stepTemplateById = new Map(
     request.processStepTemplates.map((stepTemplate) => [
@@ -270,6 +287,35 @@ function validatePreviewRequest(request) {
     throw new Error("Pre-flow must be acyclic.");
   }
 
+  const completion = buildStepCompletionChecker({
+    flowTemplate,
+    stepRefsById,
+    stepTemplateById,
+    valueSetsByStepRef,
+    geometryIds,
+  });
+
+  if (target.type === "stepOutput") {
+    if (!stepRefsById.has(target.stepRefId)) {
+      throw new Error(`Preview source step not found: ${target.stepRefId}`);
+    }
+    if (!hasInitialGeometryPath(flowTemplate, target.stepRefId)) {
+      throw new Error("Preview step is not reachable from an initial geometry source.");
+    }
+    const sourceCompletion = completion(target.stepRefId, new Set());
+    if (!sourceCompletion.complete) {
+      throw new Error(sourceCompletion.message);
+    }
+    return;
+  }
+
+  const edge = (flowTemplate.flowEdges ?? []).find(
+    (candidate) => candidate.edgeId === target.previewEdgeId,
+  );
+  if (!edge) {
+    throw new Error(`Preview edge not found: ${target.previewEdgeId}`);
+  }
+
   const targetStepRef = stepRefsById.get(edge.target?.stepRefId);
   const targetTemplate = targetStepRef
     ? stepTemplateById.get(targetStepRef.processStepTemplateId)
@@ -302,13 +348,6 @@ function validatePreviewRequest(request) {
     throw new Error(`Preview source step not found: ${edge.source.stepRefId}`);
   }
 
-  const completion = buildStepCompletionChecker({
-    flowTemplate,
-    stepRefsById,
-    stepTemplateById,
-    valueSetsByStepRef,
-    geometryIds,
-  });
   const sourceCompletion = completion(edge.source.stepRefId, new Set());
   if (!sourceCompletion.complete) {
     throw new Error(sourceCompletion.message);
@@ -463,6 +502,34 @@ function hasStepOutputCycle(flowTemplate) {
   return [...stepIds].some((stepRefId) => visit(stepRefId));
 }
 
+function hasInitialGeometryPath(flowTemplate, targetStepRefId) {
+  const queue = (flowTemplate.flowEdges ?? [])
+    .filter((edge) => edge.source?.sourceType === "geometryRef")
+    .map((edge) => edge.target?.stepRefId)
+    .filter(Boolean);
+  const visited = new Set();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    if (current === targetStepRefId) {
+      return true;
+    }
+    visited.add(current);
+    (flowTemplate.flowEdges ?? [])
+      .filter(
+        (edge) =>
+          edge.source?.sourceType === "stepOutput" &&
+          edge.source.stepRefId === current,
+      )
+      .forEach((edge) => queue.push(edge.target?.stepRefId));
+  }
+
+  return false;
+}
+
 function isFieldValueComplete(field, value) {
   if (field.valueType === "boolean") return typeof value === "boolean";
   if (field.valueType === "integer") return Number.isInteger(value);
@@ -489,12 +556,12 @@ function isFieldValueComplete(field, value) {
 
 function buildGeometryEntityDownload({
   geometryStructure,
-  edgeId,
+  previewId,
   sourceKind,
   outputStepRefId,
   sourceLabel,
 }) {
-  const label = sourceLabel || outputStepRefId || edgeId;
+  const label = sourceLabel || outputStepRefId || previewId;
   const name = label.toLowerCase().endsWith("output")
     ? `Preview - ${label}`
     : `Preview - ${label} output`;
@@ -504,10 +571,16 @@ function buildGeometryEntityDownload({
     name,
     version: null,
     owner: null,
-    description: `Generated geometry preview for edge ${edgeId}; source kind ${sourceKind}.`,
+    description: `Generated geometry preview for ${previewId}; source kind ${sourceKind}.`,
     structureFormat: "standard",
     structure: geometryStructure,
   };
+}
+
+function previewIdForTarget(target) {
+  return target.type === "edge"
+    ? target.previewEdgeId
+    : `step-output-${target.stepRefId}`;
 }
 
 function ensureGeometryStructures(geometries) {
