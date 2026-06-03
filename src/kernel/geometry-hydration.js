@@ -8,27 +8,27 @@ import {
   CylinderGeometry,
   PolygonGeometry,
 } from "../data/geometry.js";
-import { normalizeGeometryDocument } from "../data/schema.js";
+import { normalizeGeometryStructure } from "../data/schema.js";
 import { Via } from "../data/via.js";
 import { Status } from "../process/status.js";
 
 /**
- * Rebuild a mutable Container object from a stored geometry document.
+ * Rebuild a mutable Container object from a stored geometry structure.
  */
-export function geometryDocumentToContainer(payload) {
-  const document = normalizeGeometryDocument(payload);
-  return containerFromJson(document.root);
+export function geometryStructureToContainer(payload) {
+  const structure = normalizeGeometryStructure(payload);
+  return containerFromJson(structure.root);
 }
 
 /**
  * Rebuild a Status object so process steps can continue from stored geometry.
  *
- * The restored Status uses the document's container as current geometry,
+ * The restored Status uses the structure's container as current geometry,
  * infers a base footprint from the first body, and sets zNow to the top of the
  * container.
  */
-export function geometryDocumentToStatus(payload) {
-  const container = geometryDocumentToContainer(payload);
+export function geometryStructureToStatus(payload) {
+  const container = geometryStructureToContainer(payload);
   const status = new Status();
   status._container = container;
   status._baseGeometry = inferBaseGeometry(container);
@@ -37,22 +37,22 @@ export function geometryDocumentToStatus(payload) {
 }
 
 /**
- * Convert a Status-like value back into normalized geometry JSON.
+ * Convert a Status-like value back into a normalized geometry structure.
  */
-export function statusToGeometryDocument(status) {
+export function statusToGeometryStructure(status) {
   if (status?.container && typeof status.container === "function") {
     return status.container().json();
   }
   if (status?.json && typeof status.json === "function") {
     return status.json();
   }
-  return normalizeGeometryDocument(status);
+  return normalizeGeometryStructure(status);
 }
 
 /**
- * Serialize a Container object as a normalized geometry document.
+ * Serialize a Container object as a normalized geometry structure.
  */
-export function containerToGeometryDocument(container) {
+export function containerToGeometryStructure(container) {
   return container.json();
 }
 

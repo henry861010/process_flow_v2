@@ -55,7 +55,7 @@ type PanelState =
   | { status: "loading" }
   | {
       status: "ready";
-      geometryJson: GeometryEntityDownload;
+      geometryEntityJson: GeometryEntityDownload;
       glbBlob: Blob;
     }
   | { status: "error"; message: string };
@@ -87,7 +87,7 @@ export function GeometryPreviewPanel({
       .then((response) => {
         setState({
           status: "ready",
-          geometryJson: response.geometryJson,
+          geometryEntityJson: response.geometryEntityJson,
           glbBlob: base64ToBlob(response.glbBase64, "model/gltf-binary"),
         });
       })
@@ -112,7 +112,7 @@ export function GeometryPreviewPanel({
   function saveJson() {
     if (state.status !== "ready") return;
     downloadBlob(
-      new Blob([JSON.stringify(state.geometryJson, null, 2)], {
+      new Blob([JSON.stringify(state.geometryEntityJson, null, 2)], {
         type: "application/json;charset=utf-8",
       }),
       `geometry-preview-${preview.edgeId}.json`,

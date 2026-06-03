@@ -1,4 +1,4 @@
-import { deepCopy, normalizeGeometryDocument } from "../data/schema.js";
+import { deepCopy, normalizeGeometryStructure } from "../data/schema.js";
 
 /**
  * Immutable-style wrapper returned by `GeometryKernel.execute()`.
@@ -11,11 +11,11 @@ export class GeometryKernelExecutionResult {
    * Store the final geometry plus all intermediate step outputs.
    */
   constructor({
-    geometryDocument,
+    geometryStructure,
     stepOutputs = new Map(),
     terminalStepRefIds = [],
   }) {
-    this._geometryDocument = normalizeGeometryDocument(geometryDocument);
+    this._geometryStructure = normalizeGeometryStructure(geometryStructure);
     this._stepOutputs = new Map(stepOutputs);
     this._terminalStepRefIds = [...terminalStepRefIds];
   }
@@ -24,7 +24,7 @@ export class GeometryKernelExecutionResult {
    * Return the selected output geometry as normalized JSON.
    */
   geometry() {
-    return deepCopy(this._geometryDocument);
+    return deepCopy(this._geometryStructure);
   }
 
   /**
@@ -57,7 +57,7 @@ export class GeometryKernelExecutionResult {
     const { convertCad } = await importRuntime(
       resolveRuntimeUrl(import.meta.url, "../exporters/cad.js"),
     );
-    const result = await convertCad(this._geometryDocument, {
+    const result = await convertCad(this._geometryStructure, {
       ...options,
       formats: [normalizedFormat],
     });

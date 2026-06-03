@@ -12,7 +12,7 @@ export {
 export {
   DEFAULT_UNIT_SYSTEM,
   GEOMETRY_SCHEMA_VERSION,
-  normalizeGeometryDocument,
+  normalizeGeometryStructure,
   stableId,
 } from "./schema.js";
 export { Via } from "./via.js";

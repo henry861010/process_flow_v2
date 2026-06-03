@@ -1,7 +1,7 @@
-import { normalizeGeometryDocument } from "../data/schema.js";
+import { normalizeGeometryStructure } from "../data/schema.js";
 import {
-  geometryDocumentToStatus,
-  statusToGeometryDocument,
+  geometryStructureToStatus,
+  statusToGeometryStructure,
 } from "./geometry-hydration.js";
 import { GeometryKernelExecutionResult } from "./execution-result.js";
 import { ProcessStepModuleResolver } from "./process-step-module-resolver.js";
@@ -9,7 +9,7 @@ import { ProcessStepModuleResolver } from "./process-step-module-resolver.js";
 /**
  * High-level facade for running a process flow against geometry data.
  *
- * The kernel loads flow definitions and geometry documents from repositories,
+ * The kernel loads flow definitions and geometry structures from repositories,
  * converts geometry JSON into a mutable Status, executes each process-step
  * module, and returns a serializable result.
  */
@@ -97,7 +97,7 @@ export class GeometryKernel {
       });
       const inputGeometry = firstMapValue(geometryInputs);
       const status = inputGeometry
-        ? geometryDocumentToStatus(inputGeometry)
+        ? geometryStructureToStatus(inputGeometry)
         : newStatus();
       const values = buildValues(stepTemplate.fieldDefinitions ?? [], fieldValues);
       const processModule = await this._moduleResolver.resolve(stepTemplate);
@@ -118,7 +118,7 @@ export class GeometryKernel {
         },
         geometryStatus(fieldId) {
           const geometry = geometryInputs.get(fieldId);
-          return geometry === undefined ? null : geometryDocumentToStatus(geometry);
+          return geometry === undefined ? null : geometryStructureToStatus(geometry);
         },
       };
 
@@ -131,13 +131,13 @@ export class GeometryKernel {
     if (!selectedStepRefId) {
       throw new Error("Process flow does not contain an executable terminal step");
     }
-    const geometryDocument = stepOutputs.get(selectedStepRefId);
-    if (geometryDocument === undefined) {
+    const geometryStructure = stepOutputs.get(selectedStepRefId);
+    if (geometryStructure === undefined) {
       throw new Error(`No geometry output for terminal step ${selectedStepRefId}`);
     }
 
     return new GeometryKernelExecutionResult({
-      geometryDocument,
+      geometryStructure,
       stepOutputs,
       terminalStepRefIds,
     });
@@ -154,7 +154,7 @@ export class GeometryKernel {
    * @param {object} input.processFlowTemplate
    * @param {object} input.processFlowInstance
    * @param {string} input.previewEdgeId
-   * @returns {Promise<{geometryDocument: object, sourceKind: string, outputStepRefId: ?string}>}
+   * @returns {Promise<{geometryStructure: object, sourceKind: string, outputStepRefId: ?string}>}
    */
   async executePreview(input = {}) {
     const processFlowTemplate = input.processFlowTemplate;
@@ -201,7 +201,7 @@ export class GeometryKernel {
         throw new Error(`Geometry entity ${geometryEntityId} is missing structure`);
       }
       return {
-        geometryDocument: normalizeGeometryDocument(entity.structure),
+        geometryStructure: normalizeGeometryStructure(entity.structure),
         sourceKind: "geometryRef",
         outputStepRefId: null,
       };
@@ -238,7 +238,7 @@ export class GeometryKernel {
     });
 
     return {
-      geometryDocument: result.geometry(),
+      geometryStructure: result.geometry(),
       sourceKind: "stepOutput",
       outputStepRefId,
     };
@@ -266,7 +266,7 @@ export class GeometryKernel {
   /**
    * Resolve the geometry fields required by one process step.
    *
-   * Inputs can come from an upstream step output, an inline geometry document,
+   * Inputs can come from an upstream step output, an inline geometry structure,
    * or a geometry entity id stored in the geometry repository.
    */
   async _resolveGeometryInputs({
@@ -299,8 +299,8 @@ export class GeometryKernel {
       }
 
       const fieldValue = findFieldValue(stepValueSet.fieldValues ?? [], field.id);
-      if (isGeometryDocument(fieldValue)) {
-        geometryInputs.set(field.id, normalizeGeometryDocument(fieldValue));
+      if (isGeometryStructure(fieldValue)) {
+        geometryInputs.set(field.id, normalizeGeometryStructure(fieldValue));
         continue;
       }
       if (typeof fieldValue !== "string" || fieldValue.trim() === "") {
@@ -317,7 +317,7 @@ export class GeometryKernel {
       if (!entity.structure) {
         throw new Error(`Geometry entity ${fieldValue} is missing structure`);
       }
-      geometryInputs.set(field.id, normalizeGeometryDocument(entity.structure));
+      geometryInputs.set(field.id, normalizeGeometryStructure(entity.structure));
     }
 
     return geometryInputs;
@@ -437,9 +437,9 @@ function isGeometryField(field) {
 }
 
 /**
- * Detect inline geometry documents passed directly in a field value.
+ * Detect inline geometry structures passed directly in a field value.
  */
-function isGeometryDocument(value) {
+function isGeometryStructure(value) {
   return (
     value !== null &&
     typeof value === "object" &&
@@ -514,20 +514,20 @@ function firstMapValue(map) {
 }
 
 /**
- * Convert a process module return value into a normalized geometry document.
+ * Convert a process module return value into a normalized geometry structure.
  *
  * If the module returns nothing, the mutated fallback Status is used as output.
  */
 function normalizeStepOutput(output, fallbackStatus) {
   const resolvedOutput = output === undefined || output === null ? fallbackStatus : output;
-  return statusToGeometryDocument(resolvedOutput);
+  return statusToGeometryStructure(resolvedOutput);
 }
 
 /**
  * Create an empty Status for steps that do not require geometry input.
  */
 function newStatus() {
-  return geometryDocumentToStatus({
+  return geometryStructureToStatus({
     key: "main",
     bodies: [],
     vias: [],

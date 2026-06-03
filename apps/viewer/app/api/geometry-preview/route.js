@@ -35,10 +35,10 @@ export async function POST(request) {
       processFlowInstance: normalized.draftInstance,
       previewEdgeId: normalized.previewEdgeId,
     });
-    const geometryDocument = preview.geometryDocument;
-    const glbBytes = await enqueueGeometryToGlb(geometryDocument);
-    const geometryJson = buildDownloadGeometry({
-      geometryDocument,
+    const geometryStructure = preview.geometryStructure;
+    const glbBytes = await enqueueGeometryToGlb(geometryStructure);
+    const geometryEntityJson = buildGeometryEntityDownload({
+      geometryStructure,
       edgeId: normalized.previewEdgeId,
       sourceKind: preview.sourceKind,
       outputStepRefId: preview.outputStepRefId,
@@ -46,7 +46,7 @@ export async function POST(request) {
     });
 
     return Response.json({
-      geometryJson,
+      geometryEntityJson,
       glbBase64: Buffer.from(glbBytes).toString("base64"),
     });
   } catch (error) {
@@ -56,9 +56,9 @@ export async function POST(request) {
   }
 }
 
-function enqueueGeometryToGlb(geometryDocument) {
+function enqueueGeometryToGlb(geometryStructure) {
   return new Promise((resolve, reject) => {
-    pendingGeometryPreviewExports.push({ geometryDocument, resolve, reject });
+    pendingGeometryPreviewExports.push({ geometryStructure, resolve, reject });
     drainGeometryPreviewExportQueue();
   });
 }
@@ -73,7 +73,7 @@ function drainGeometryPreviewExportQueue() {
     const job = pendingGeometryPreviewExports.shift();
     activeGeometryPreviewExports += 1;
 
-    geometryToGlb(job.geometryDocument)
+    geometryToGlb(job.geometryStructure)
       .then(job.resolve, job.reject)
       .finally(() => {
         activeGeometryPreviewExports -= 1;
@@ -82,13 +82,13 @@ function drainGeometryPreviewExportQueue() {
   }
 }
 
-async function geometryToGlb(geometryDocument) {
+async function geometryToGlb(geometryStructure) {
   const workDir = await mkdtemp(join(tmpdir(), "process-flow-preview-"));
-  const inputPath = join(workDir, "geometry.json");
+  const inputPath = join(workDir, "geometry-structure.json");
   const outputPath = join(workDir, "preview.glb");
 
   try {
-    await writeFile(inputPath, JSON.stringify(geometryDocument), "utf8");
+    await writeFile(inputPath, JSON.stringify(geometryStructure), "utf8");
     await runGeometryExportWorker({ inputPath, outputPath });
     return await readFile(outputPath);
   } finally {
@@ -487,8 +487,8 @@ function isFieldValueComplete(field, value) {
   return value !== null && value !== undefined && String(value).trim() !== "";
 }
 
-function buildDownloadGeometry({
-  geometryDocument,
+function buildGeometryEntityDownload({
+  geometryStructure,
   edgeId,
   sourceKind,
   outputStepRefId,
@@ -506,7 +506,7 @@ function buildDownloadGeometry({
     owner: null,
     description: `Generated geometry preview for edge ${edgeId}; source kind ${sourceKind}.`,
     structureFormat: "standard",
-    structure: geometryDocument,
+    structure: geometryStructure,
   };
 }
 
@@ -524,27 +524,27 @@ function ensureGeometryStructures(geometries) {
 function fallbackStructureForGeometry(geometry) {
   const normalized = `${geometry?.entityType ?? ""} ${geometry?.category ?? ""}`.toLowerCase();
   if (normalized.includes("wafer")) {
-    return boxDocument("incoming-wafer", "glass", [-5000, -3500, 0], [5000, 3500, 0], 300);
+    return boxStructure("incoming-wafer", "glass", [-5000, -3500, 0], [5000, 3500, 0], 300);
   }
   if (normalized.includes("panel")) {
-    return boxDocument("temporary-panel", "glass", [-6500, -4500, 0], [6500, 4500, 0], 450);
+    return boxStructure("temporary-panel", "glass", [-6500, -4500, 0], [6500, 4500, 0], 450);
   }
   if (normalized.includes("substrate")) {
-    return boxDocument("abf-substrate", "abf", [-3300, -3300, 0], [3300, 3300, 0], 260);
+    return boxStructure("abf-substrate", "abf", [-3300, -3300, 0], [3300, 3300, 0], 260);
   }
   if (normalized.includes("interposer")) {
-    return boxDocument("silicon-interposer", "silicon", [-2400, -1400, 0], [2400, 1400, 0], 120);
+    return boxStructure("silicon-interposer", "silicon", [-2400, -1400, 0], [2400, 1400, 0], 120);
   }
   if (normalized.includes("memory")) {
-    return boxDocument("memory-die", "silicon", [-950, -780, 0], [950, 780, 0], 80);
+    return boxStructure("memory-die", "silicon", [-950, -780, 0], [950, 780, 0], 80);
   }
   if (normalized.includes("die")) {
-    return boxDocument("logic-die", "silicon", [-1200, -900, 0], [1200, 900, 0], 110);
+    return boxStructure("logic-die", "silicon", [-1200, -900, 0], [1200, 900, 0], 110);
   }
-  return boxDocument("preview-geometry", "generic", [-1000, -1000, 0], [1000, 1000, 0], 100);
+  return boxStructure("preview-geometry", "generic", [-1000, -1000, 0], [1000, 1000, 0], 100);
 }
 
-function boxDocument(key, material, bottomLeft, topRight, thk) {
+function boxStructure(key, material, bottomLeft, topRight, thk) {
   return {
     schemaVersion: "1.0.0",
     unitSystem: "um",

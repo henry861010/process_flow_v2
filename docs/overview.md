@@ -66,7 +66,7 @@ flowchart TD
   flowEdge["FlowEdge[]<br/>acyclic graph topology"]
   instance["ProcessFlowInstance<br/>aaaTV"]
   geometryDbEntity["GeometryEntity[]<br/>geometry library metadata"]
-  geometryDocument["GeometryStructure<br/>kernel payload"]
+  geometryStructure["GeometryStructure<br/>kernel payload"]
   valueSet["StepValueSet[]<br/>one value set per stepRef"]
   fieldValue["FieldValue[]<br/>actual value"]
 
@@ -76,7 +76,7 @@ flowchart TD
   flowTemplate --> flowEdge
   stepRef --> stepTemplate
   instance --> flowTemplate
-  geometryDbEntity --> geometryDocument
+  geometryDbEntity --> geometryStructure
   instance --> valueSet
   valueSet --> fieldValue
   fieldValue -. "fieldId resolves to" .-> fieldDefinition

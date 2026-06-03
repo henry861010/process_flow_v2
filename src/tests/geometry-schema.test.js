@@ -29,7 +29,7 @@ import {
 import {
   GeometryKernel,
   InMemoryRepository,
-  geometryDocumentToStatus,
+  geometryStructureToStatus,
 } from "../kernel/index.js";
 import { parseExampleArgs } from "../examples/generate-json.js";
 
@@ -85,8 +85,8 @@ test("geometry primitives serialize explicit type", () => {
 test("geometry hydration requires explicit primitive type", () => {
   assert.throws(
     () =>
-      geometryDocumentToStatus(
-        singleBodyGeometryDocument({
+      geometryStructureToStatus(
+        singleBodyGeometryStructure({
           bottom_left: [0, 0, 0],
           top_right: [1, 1, 0],
           thk: 1,
@@ -97,8 +97,8 @@ test("geometry hydration requires explicit primitive type", () => {
 
   assert.throws(
     () =>
-      geometryDocumentToStatus(
-        singleBodyGeometryDocument({
+      geometryStructureToStatus(
+        singleBodyGeometryStructure({
           type: "PolygonGeometry",
           bottom_left: [0, 0, 0],
           top_right: [1, 1, 0],
@@ -264,7 +264,7 @@ test("CAD converter requires explicit primitive type", () => {
   assert.throws(
     () =>
       converter.convert(
-        singleBodyGeometryDocument({
+        singleBodyGeometryStructure({
           bottom_left: [0, 0, 0],
           top_right: [1, 1, 0],
           thk: 1,
@@ -362,8 +362,8 @@ test("example CLI parses output format options", () => {
   assert.throws(() => parseExampleArgs(["--format", "iges"]), /Unsupported/);
 });
 
-test("geometry hydration restores process status from geometry document", () => {
-  const status = geometryDocumentToStatus(kernelInputGeometry());
+test("geometry hydration restores process status from geometry structure", () => {
+  const status = geometryStructureToStatus(kernelInputGeometry());
 
   processMolding(status, "EMC-A", 5);
 
@@ -753,7 +753,7 @@ function kernelFlowInstance() {
   };
 }
 
-function singleBodyGeometryDocument(geometry) {
+function singleBodyGeometryStructure(geometry) {
   return {
     schemaVersion: "1.0.0",
     unitSystem: "um",
@@ -802,15 +802,15 @@ function createExampleDemoKernel() {
   const geometryEntities = [
     {
       id: "geom_example_panel",
-      structure: centeredBoxDocument("example-panel", "glass", 10000, 10000, 500),
+      structure: centeredBoxStructure("example-panel", "glass", 10000, 10000, 500),
     },
     {
       id: "geom_example_hbm",
-      structure: centeredBoxDocument("example-hbm", "Si-HBM", 1400, 1000, 50),
+      structure: centeredBoxStructure("example-hbm", "Si-HBM", 1400, 1000, 50),
     },
     {
       id: "geom_example_soc",
-      structure: centeredBoxDocument("example-soc", "Si-SoC", 2000, 1600, 70),
+      structure: centeredBoxStructure("example-soc", "Si-SoC", 2000, 1600, 70),
     },
   ];
 
@@ -1014,7 +1014,7 @@ function coordinateItem(itemId, index, bottomLeftX, bottomLeftY) {
   };
 }
 
-function centeredBoxDocument(key, material, width, height, thk) {
+function centeredBoxStructure(key, material, width, height, thk) {
   return {
     schemaVersion: "1.0.0",
     unitSystem: "um",

@@ -13,10 +13,32 @@
 
 - 使用者選擇既有 process flow template。
 - 使用者不能編輯 flow topology。
-- 使用者只能填寫本次 TV/Product instance name、initial geometry selections 與各 process step instance values。
+- 使用者只進行 instance-level editing，包括本次 TV/Product instance name、initial geometry selections 與各 process step instance values。
 - Save 時只建立新的 process flow instance，並 append 到 local instance store。
 
 使用者在此頁的心理模型是「我正在從標準 process flow template 建立一個具體 product / TV instance」。Template 是不可變的 topology source；此頁不修改 template，也不建立新的 template snapshot。
+
+## 共用 Graph UI 邊界
+
+此頁使用共用 Graph UI 的 `readonlyTopology` mode。Graph UI 的共用 canvas、node、edge、slot、preview button、pan / zoom、topology edit / readonly mode 定義，以 `docs/ui/process-flow-graph.md` 為準。
+
+`readonlyTopology` 只代表 graph structure locked，不代表整個頁面不可編輯。本頁仍允許 instance-level editing：
+
+- 選擇 initial geometry。
+- 開啟 step instance dialog 並填寫 field values。
+- 查看 geometry preview。
+- 填寫 Product / instance name。
+
+本文件只定義 Flow Instance Editor 專屬的頁面外框與工作流程：
+
+- Process flow template selector。
+- Product / instance metadata form。
+- Initial geometry picker。
+- Step instance dialog 的 from-template 行為。
+- Status strip 與 Save validation priority。
+- 依 selected template 建立並保存 `ProcessFlowInstance`。
+
+此頁不提供 geometry library palette 或 process step template library palette。這兩個 palette 是 Flow Template Editor 的頁面外框，不屬於 Graph UI core。
 
 ## Technology
 
@@ -26,7 +48,7 @@
 - shadcn/ui
 - Tailwind CSS
 - lucide-react icons
-- `@xyflow/react`
+- `@xyflow/react` via shared Graph UI
 
 ## Data Contract
 
@@ -79,8 +101,9 @@ Save 規則：
 - 每個 `StepValueSet.processStepTemplateId` 必須與 selected template 中該 step ref resolve 出來的 `processStepTemplateId` 一致。
 - `fieldValues[]` 依 resolved process step template 的 `fieldDefinitions[]` 建立。
 - 所有 `fieldDefinitions[]` 都視為 required；每個 `FieldDefinition` 都必須有對應且 complete 的 `FieldValue`。
-- 對 `sourceType: "geometryRef"` flow edge 對應的 target `geometryRef` field，`FieldValue.value` 保存使用者在 geometry circle 選到的 `GeometryEntity.id`。
-- 對 `sourceType: "stepOutput"` flow edge 對應的 target `geometryRef` field，`FieldValue.value` 保存 `null`。
+- 對 `sourceType: "geometryRef"` flow edge 對應的 target geometry input field，`FieldValue.value` 保存使用者在 geometry circle 選到的 `GeometryEntity.id`。
+- 對 `sourceType: "stepOutput"` flow edge 對應的 target geometry input field，`FieldValue.value` 保存 `null`。
+- Target geometry input field 的 schema 判斷與共用 Graph UI 相同：`valueType: "geometryRef"` 或 `valueType: "geometry"` 都是合法 geometry input。
 - 此頁 Save 不下載 process JSON。
 - 此頁 Save 不新增或修改 `processFlowTemplates`。
 - 此頁 Save 不新增或修改 `processStepTemplates`。
@@ -140,6 +163,13 @@ Template selector 來源為 `localStorage.processFlowTemplates`。
 - 所有 step values 初始為 default / empty values。
 - 所有 initial geometry circles 初始為未選 geometry。
 
+Template resolve 失敗時的目前 UI 行為：
+
+- 若 selected template 的 `stepRefs[].processStepTemplateId` 無法在 `processStepTemplates[]` 中 resolve，對應 process step node 不會被建立。
+- 若因此 `displayNodes.length === 0`，graph 仍顯示 empty state card，即使 status strip 已經顯示 `template selected` 與 template 的 `flow steps` count。
+- Validation message 的優先順序仍先顯示 `Product / instance name is required.`；使用者填入 product name 後，才會顯示例如 `Step template ... could not be resolved.` 的 schema error。
+- Save 維持 disabled。
+
 若使用者在已經有 draft content 時切換 template：
 
 - 先跳出確認 dialog。
@@ -156,9 +186,9 @@ Draft content 包含：
 
 ## Layout
 
-中央 graph 使用 left-to-right dataflow layout。Graph 是靜態 topology view：使用者可以 pan / zoom，但不能拖動 node、建立 edge、刪除 edge、reconnect edge 或修改 topology。
+中央 graph 使用 shared Graph UI 的 `readonlyTopology` mode 與 left-to-right dataflow layout。Graph 是靜態 topology view：使用者可以 pan / zoom，但不能拖動 node、建立 edge、刪除 edge、reconnect edge 或修改 topology。
 
-此 layout 未來也會套用到 custom flow editor / process flow editor，作為 flow graph 自動排版規則。
+共用 visual model、node / edge vocabulary 與 topology mode 以 `docs/ui/process-flow-graph.md` 為準。本節補充 from-template instance editor 載入 selected template 後的自動排版規則。
 
 ### Visual Model
 
@@ -233,7 +263,7 @@ Geometry source node 規則：
 
 ## Graph Interaction
 
-此頁 graph 是 from-template static graph，不是 topology editor。
+此頁 graph 是 from-template static graph，不是 topology editor。它使用 shared Graph UI 的 `readonlyTopology` mode；以下列出此頁接上的 parent-owned callbacks 與禁用的 topology actions。
 
 允許：
 
@@ -280,7 +310,7 @@ Picker 行為：
 - 依 `GeometryEntity.category` 分組或提供可搜尋列表。
 - 每個 geometry item 顯示 `name`、`version`、`id`，以及必要摘要資訊。
 - 使用者選取 geometry 後，該 geometry circle 顯示 selected geometry 的主要名稱。
-- 該 target geometryRef `FieldValue.value` 更新為 selected `GeometryEntity.id`。
+- 該 target geometry input `FieldValue.value` 更新為 selected `GeometryEntity.id`。
 - Picker 關閉不 rollback 已選結果。
 
 若 `GeometryEntity` 不存在或為空陣列：
@@ -297,14 +327,19 @@ Picker 行為：
 
 使用者點擊 geometry preview button 時：
 
-- 開啟 geometry view dialog。
-- Dialog 顯示在 graph 上方，背景遮罩變暗。
-- 支援 close button 與 Escape 關閉。
-- Geometry kernel 尚未接入時，dialog body 顯示：
+- 開啟共用 `GeometryPreviewPanel` 全螢幕 overlay。
+- Header 顯示 `Geometry Preview`、狀態 badge (`Loading` / `Ready` / `Error`)、source kind badge (`Initial geometry` 或 `Step output`) 與 `${sourceLabel} -> ${slotLabel}`。
+- Loading 時顯示 `Generating geometry preview...`。
+- Ready 時左側顯示 3D CAD viewer，右側顯示 Section、Measure、View、Model controls。
+- Footer 顯示 `Save JSON` 與 `Save GLB`；ready 前 disabled。
+- 支援 close button、點擊遮罩與 Escape 關閉。
 
-```text
-geometry is not supported now
-```
+Preview availability：
+
+- Initial geometry edge 需要先在對應 circle 選到有效 `GeometryEntity.id`。未選時 edge button disabled，title 為 `Select initial geometry first`。
+- Step output edge 需要 upstream step complete。未完成時 disabled，title 為 `Complete upstream fields first`。
+- 若 selected geometry 後來不存在，disabled title 為 `Selected geometry no longer exists`。
+- 若 selected template schema 不合法，disabled title 使用 schema validation message。
 
 ## Step Instance Editing
 
@@ -319,12 +354,12 @@ Step dialog 沿用 custom editor 的 step instance dialog 行為與 field contro
 - 關閉 dialog 不 rollback 已編輯 values。
 - 全頁 Save 才是將 draft instance 寫入 localStorage 的動作。
 
-此頁 step dialog 不提供 geometryRef field picker。所有 geometryRef 欄位由 graph topology 與 initial geometry circle 管理。
+此頁 step dialog 不提供 geometry input field picker。所有 geometry input 欄位由 graph topology 與 initial geometry circle 管理。
 
 Step dialog 內可顯示 read-only input mapping：
 
-- `geometryRef` field 由 initial geometry circle 提供時，顯示 selected geometry 或未選狀態。
-- `geometryRef` field 由 upstream step output 提供時，顯示 graph-provided mapping，並說明 saved `FieldValue.value` 為 `null`。
+- Geometry input field 由 initial geometry circle 提供時，顯示 selected geometry 或未選狀態。
+- Geometry input field 由 upstream step output 提供時，顯示 graph-provided mapping，並說明 saved `FieldValue.value` 為 `null`。
 - 不提供 unlink、change source 或 geometry picker 操作。
 
 ## Completion And Validation
@@ -349,20 +384,20 @@ Save disabled 條件包含：
 - 任一 template `stepRefs[].processStepTemplateId` 無法 resolve 到 `processStepTemplates[]`。
 - 任一 flow edge target step ref 不存在。
 - 任一 flow edge target field id 不存在於 target process step template。
-- 任一 flow edge target field 不是 top-level `valueType: "geometryRef"` field。
-- 任一 selected template step 的 top-level `geometryRef` field 沒有 incoming edge。
+- 任一 flow edge target field 不是 top-level geometry-compatible field (`geometryRef` / `geometry`)。
+- 任一 selected template step 的 top-level geometry input field 沒有 incoming edge。
 - Template graph 有 cycle。
-- 任一 target geometryRef field 有多條 incoming edges。
+- 任一 target geometry input field 有多條 incoming edges。
 - 任一 process step required field 尚未 complete。
 
 Field completion 規則以 `docs/data-model.md` 的 `FieldDefinition`、`StepValueSet` 與 `FieldValue` 定義為準。
 
-Top-level `geometryRef` completion 規則：
+Top-level geometry input field completion 規則：
 
 - 若 incoming edge source 是 `geometryRef`，使用者必須在對應 initial geometry circle 選到明確 `GeometryEntity.id`。
 - 若 incoming edge source 是 `stepOutput`，該 field 的 `FieldValue.value` 保存 `null`，且 upstream step 必須 complete。
 - `FieldValue.value: null` 不代表沒有 incoming edge；它只代表該欄位由 incoming `stepOutput` edge 從上游 process step output resolve geometry。
-- 此頁不支援沒有 incoming edge 的 template geometryRef field；若 template 中存在這種情況，視為 template validation error，Save disabled。
+- 此頁不支援沒有 incoming edge 的 template geometry input field；若 template 中存在這種情況，視為 template validation error，Save disabled。
 
 ## Status Strip
 
@@ -507,21 +542,21 @@ Save 轉換規則：
 - `stepValueSets[]` 依 `selectedTemplate.stepRefs[]` 建立，不依 graph layout 或 React Flow node order 建立。
 - 對 `sourceType: "geometryRef"` 的 template edge，找到對應 `DraftInitialGeometryNode.selectedGeometryEntityId`，寫入 target step 對應 `FieldValue.value`。
 - 對 `sourceType: "stepOutput"` 的 template edge，target step 對應 `FieldValue.value` 寫入 `null`。
-- 所有非 `geometryRef` field values 使用 step dialog live edited draft values。
+- 所有非 geometry input field values 使用 step dialog live edited draft values。
 - Save 成功後 append 新 instance 到 `localStorage.processFlowInstances`，再導回 `/`。
 
 ## Implementation Notes
 
-此文件只定義 from-template instance editor UI。實作時可以重用 custom editor 中的以下能力：
+此文件只定義 from-template instance editor UI。實作時應使用共用 Graph UI 的 readonly topology 能力，並可沿用 editor family 中的共用 helper：
 
-- `@xyflow/react` graph rendering。
+- Graph canvas rendering。
 - Process step node styling。
-- Edge geometry preview button。
+- Edge geometry preview button styling。
 - Step instance dialog primitive field controls。
 - Field completion / validation helper。
 - localStorage array read/write helper。
 
-但此頁需要與 custom editor 區分：
+此頁需要與 Flow Template Editor / custom flow editor 區分：
 
 - 不提供 geometry palette drag/drop。
 - 不提供 process step template palette。

@@ -1,10 +1,10 @@
 export { GeometryKernel } from "./geometry-kernel.js";
 export { GeometryKernelExecutionResult } from "./execution-result.js";
 export {
-  containerToGeometryDocument,
-  geometryDocumentToContainer,
-  geometryDocumentToStatus,
-  statusToGeometryDocument,
+  containerToGeometryStructure,
+  geometryStructureToContainer,
+  geometryStructureToStatus,
+  statusToGeometryStructure,
 } from "./geometry-hydration.js";
 export { ProcessStepModuleResolver } from "./process-step-module-resolver.js";
 export {

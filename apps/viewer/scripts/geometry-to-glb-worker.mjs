@@ -13,10 +13,10 @@ if (!inputPath || !outputPath || !exporterPath) {
 }
 
 try {
-  const geometryDocument = JSON.parse(await readFile(inputPath, "utf8"));
+  const geometryStructure = JSON.parse(await readFile(inputPath, "utf8"));
   const exporterUrl = pathToFileURL(exporterPath).href;
   const { convertCad } = await import(exporterUrl);
-  const result = await convertCad(geometryDocument, { formats: ["glb"] });
+  const result = await convertCad(geometryStructure, { formats: ["glb"] });
   const glb = result.files?.glb;
 
   if (!glb) {

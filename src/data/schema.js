@@ -1,13 +1,13 @@
 export const GEOMETRY_SCHEMA_VERSION = "1.0.0";
 export const DEFAULT_UNIT_SYSTEM = "um";
 
-export function normalizeGeometryDocument(
+export function normalizeGeometryStructure(
   payload,
   schemaVersion = GEOMETRY_SCHEMA_VERSION,
   unitSystem = DEFAULT_UNIT_SYSTEM,
 ) {
   const copied = deepCopy(payload);
-  const document = isDocument(copied)
+  const structure = isStructure(copied)
     ? copied
     : {
         schemaVersion,
@@ -15,15 +15,15 @@ export function normalizeGeometryDocument(
         root: copied,
       };
 
-  if (document.schemaVersion === undefined) {
-    document.schemaVersion = schemaVersion;
+  if (structure.schemaVersion === undefined) {
+    structure.schemaVersion = schemaVersion;
   }
-  if (document.unitSystem === undefined) {
-    document.unitSystem = unitSystem;
+  if (structure.unitSystem === undefined) {
+    structure.unitSystem = unitSystem;
   }
 
-  assignContainerIds(document.root, ["root"]);
-  return document;
+  assignContainerIds(structure.root, ["root"]);
+  return structure;
 }
 
 export function stableId(kind, path, payload = null) {
@@ -45,7 +45,7 @@ export function deepCopy(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function isDocument(payload) {
+function isStructure(payload) {
   return (
     isPlainObject(payload) &&
     Object.hasOwn(payload, "root") &&

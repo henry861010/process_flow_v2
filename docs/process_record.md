@@ -10,14 +10,14 @@
 2. Request body 會包含 `previewEdgeId`、draft flow template、draft flow instance、process step templates、available geometries，以及 optional `sourceLabel`。
 3. `apps/viewer/app/api/geometry-preview/route.js` 先 normalize request，接著 validate selected edge。這些檢查會在任何 CAD export 工作開始前完成。
 4. API route 建立 in-memory repositories，並呼叫 `GeometryKernel.executePreview()`。
-5. Kernel 回傳 preview `geometryDocument`，以及 `sourceKind`、`outputStepRefId` 等 preview context。
-6. API route 在 Next.js 主程序中組出下載用的 `geometryJson`。
-7. 只有最重的 `geometryDocument -> GLB` 匯出會交給 child process 執行。
-8. API route 讀回 child process 產生的 GLB，轉成 base64，最後回傳 `{ geometryJson, glbBase64 }` 給前端。
+5. Kernel 回傳 preview `geometryStructure`，以及 `sourceKind`、`outputStepRefId` 等 preview context。
+6. API route 在 Next.js 主程序中組出下載用的 `geometryEntityJson`。
+7. 只有最重的 `geometryStructure -> GLB` 匯出會交給 child process 執行。
+8. API route 讀回 child process 產生的 GLB，轉成 base64，最後回傳 `{ geometryEntityJson, glbBase64 }` 給前端。
 
 ### Child process export design
 
-`geometryToGlb()` 會在 OS temp folder 建立一次性的工作目錄，將 preview geometry document 寫入 `geometry.json`，然後啟動：
+`geometryToGlb()` 會在 OS temp folder 建立一次性的工作目錄，將 preview geometry structure 寫入 `geometry-structure.json`，然後啟動：
 
 ```txt
 node apps/viewer/scripts/geometry-to-glb-worker.mjs <input-json> <output-glb> <cad-exporter-js>
@@ -27,7 +27,7 @@ Worker 的責任很窄，只做 GLB export：
 
 1. 讀取 `<input-json>`。
 2. import `src/exporters/cad.js`。
-3. 呼叫 `convertCad(geometryDocument, { formats: ["glb"] })`。
+3. 呼叫 `convertCad(geometryStructure, { formats: ["glb"] })`。
 4. 將產生的 GLB 寫到 `<output-glb>`。
 5. 結束 process。
 

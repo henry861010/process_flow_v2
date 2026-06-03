@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "JavaScript geometry kernel and OpenCascade.js CAD exporter for process-flow geometry documents.",
+  "description": "JavaScript geometry kernel and OpenCascade.js CAD exporter for process-flow geometry structures.",
   "main": "./index.js",
   "exports": {
     ".": "./index.js",

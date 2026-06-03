@@ -11,7 +11,7 @@ import {
 import {
   DEFAULT_UNIT_SYSTEM,
   GEOMETRY_SCHEMA_VERSION,
-  normalizeGeometryDocument,
+  normalizeGeometryStructure,
 } from "./schema.js";
 import { Via } from "./via.js";
 
@@ -259,7 +259,7 @@ export class Container {
     schemaVersion = GEOMETRY_SCHEMA_VERSION,
     unitSystem = DEFAULT_UNIT_SYSTEM,
   ) {
-    return normalizeGeometryDocument(this.treeJson(), schemaVersion, unitSystem);
+    return normalizeGeometryStructure(this.treeJson(), schemaVersion, unitSystem);
   }
 
   toJSON() {

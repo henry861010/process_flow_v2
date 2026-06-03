@@ -1,4 +1,4 @@
-import { normalizeGeometryDocument, stableId } from "../data/schema.js";
+import { normalizeGeometryStructure, stableId } from "../data/schema.js";
 import { classifyPolygonLoops } from "../utils/polygon.js";
 
 const MATERIAL_COLOR_RULES = [
@@ -152,8 +152,8 @@ export class OpenCascadeConverter {
   }
 
   convert(payload) {
-    const document = normalizeGeometryDocument(payload);
-    const root = document.root;
+    const structure = normalizeGeometryStructure(payload);
+    const root = structure.root;
     const bodies = this._convertContainer(root);
     const visibleBodies = bodies.filter(
       (body) =>
@@ -167,13 +167,13 @@ export class OpenCascadeConverter {
       files[normalizedFormat] = this._exportBodies(
         visibleBodies,
         normalizedFormat,
-        document,
+        structure,
       );
     }
 
     return new CadExportResult({
       files,
-      manifest: this._buildManifest(document, bodies),
+      manifest: this._buildManifest(structure, bodies),
       bodies,
     });
   }
@@ -388,12 +388,12 @@ export class OpenCascadeConverter {
     return prism.Shape();
   }
 
-  _exportBodies(bodies, exportFormat, document) {
+  _exportBodies(bodies, exportFormat, structure) {
     if (exportFormat === "step" || exportFormat === "stp") {
-      return this._exportStep(bodies, document);
+      return this._exportStep(bodies, structure);
     }
     if (exportFormat === "glb" || exportFormat === "gltf") {
-      return this._exportGlb(bodies, document);
+      return this._exportGlb(bodies);
     }
     if (exportFormat === "stl") {
       return this._exportStl(bodies);
@@ -401,10 +401,10 @@ export class OpenCascadeConverter {
     throw new CadExportError(`Unsupported CAD export format: ${exportFormat}`);
   }
 
-  _exportStep(bodies, document) {
+  _exportStep(bodies, structure) {
     const filename = this._virtualFileName("export.step");
     const writer = new this.oc.STEPControl_Writer_1();
-    this._setStepUnit(document.unitSystem);
+    this._setStepUnit(structure.unitSystem);
     bodies.forEach((body) => {
       writer.Transfer(
         body.shape,
@@ -531,11 +531,11 @@ export class OpenCascadeConverter {
     return new this.oc.Quantity_Color_3(red, green, blue, colorType);
   }
 
-  _buildManifest(document, bodies) {
+  _buildManifest(structure, bodies) {
     const manifest = {
-      schemaVersion: document.schemaVersion,
-      unitSystem: document.unitSystem,
-      rootId: document.root.id,
+      schemaVersion: structure.schemaVersion,
+      unitSystem: structure.unitSystem,
+      rootId: structure.root.id,
       bodies: bodies.map((body) => ({
         id: body.id,
         sourceIds: body.sourceIds,
@@ -547,7 +547,7 @@ export class OpenCascadeConverter {
     };
 
     if (this.options.includeFeaturePlaceholders) {
-      this._appendFeaturePlaceholders(document.root, manifest);
+      this._appendFeaturePlaceholders(structure.root, manifest);
     }
 
     return manifest;

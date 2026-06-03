@@ -228,7 +228,7 @@ type GeometryPreviewInput = {
 };
 
 type GeometryPreviewResult = {
-  geometryDocument: GeometryStructure;
+  geometryStructure: GeometryStructure;
   sourceKind: "geometryRef" | "stepOutput";
   outputStepRefId: string | null;
 };
@@ -292,7 +292,7 @@ Server response：
 
 ```ts
 type GeometryPreviewResponse = {
-  geometryJson: GeometryEntityDownload;
+  geometryEntityJson: GeometryEntityDownload;
   glbBase64: string;
 };
 ```
@@ -331,7 +331,7 @@ type GeometryEntityDownload = {
 | `description` | 包含 edge id 與 source kind 的簡短 preview context |
 | `category` | `"preview.generated"` |
 | `structureFormat` | `"standard"` |
-| `structure` | Kernel preview output geometry document |
+| `structure` | Kernel preview output geometry structure |
 
 重要 schema note：
 
@@ -378,7 +378,7 @@ flowchart TD
   preflow["Build preview pre-flow template and instance"]
   kernel["GeometryKernel.executePreview"]
   export["Export preview geometry to GLB"]
-  response["Return geometryJson and glbBase64"]
+  response["Return geometryEntityJson and glbBase64"]
   show["Load GLB into viewer and show ready state"]
   downloads["Enable Save JSON and Save GLB"]
   error["Show error inside preview panel"]
@@ -420,9 +420,9 @@ sequenceDiagram
   Panel->>API: POST preview request
   API->>API: Validate request and build in-memory repositories
   API->>Kernel: executePreview(previewEdgeId)
-  Kernel-->>API: Geometry document
+  Kernel-->>API: Geometry structure
   API->>API: Export GLB and build download JSON
-  API-->>Panel: geometryJson + glbBase64
+  API-->>Panel: geometryEntityJson + glbBase64
   Panel->>Viewer: Load GLB blob
   Panel->>Panel: Enable downloads
 ```
@@ -433,7 +433,7 @@ sequenceDiagram
 
 - Preview source 是連到該 edge 的 selected geometry。
 - `executePreview()` 透過 geometry repository resolve 該 geometry。
-- 回傳的 geometry document 仍然經過 kernel preview path，讓 UI 對所有 edge types
+- 回傳的 geometry structure 仍然經過 kernel preview path，讓 UI 對所有 edge types
   都只面對同一個 execution interface。
 
 對 `stepOutput` preview edge：
@@ -496,7 +496,7 @@ type GeometryPreviewPanelState =
       edgeId: string;
       sourceLabel: string;
       slotLabel: string;
-      geometryJson: GeometryEntityDownload;
+      geometryEntityJson: GeometryEntityDownload;
       glbBlob: Blob;
     }
   | {

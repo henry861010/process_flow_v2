@@ -419,7 +419,7 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     entityType: "wafer",
     summary: "Cylinder wafer, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredCylinderDocument("example-wafer", "Si", 500, 775),
+    structure: centeredCylinderStructure("example-wafer", "Si", 500, 775),
   },
   {
     id: "geom_example_panel",
@@ -431,7 +431,7 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     entityType: "panel",
     summary: "10000 x 10000 x 500 um panel, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredBoxDocument("example-panel", "glass", 500, 500, 500),
+    structure: centeredBoxStructure("example-panel", "glass", 500, 500, 500),
   },
   {
     id: "geom_example_hbm",
@@ -443,7 +443,7 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     entityType: "die",
     summary: "1400 x 1000 x 50 um HBM block, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredBoxDocument("example-hbm", "Si-HBM", 1400, 1000, 50),
+    structure: centeredBoxStructure("example-hbm", "Si-HBM", 1400, 1000, 50),
   },
   {
     id: "geom_example_soc",
@@ -455,7 +455,7 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     entityType: "die",
     summary: "2000 x 1600 x 70 um SoC block, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredBoxDocument("example-soc", "Si-SoC", 2000, 1600, 70),
+    structure: centeredBoxStructure("example-soc", "Si-SoC", 2000, 1600, 70),
   },
 ];
 
@@ -514,14 +514,14 @@ function coordinateItem(
   };
 }
 
-function centeredBoxDocument(
+function centeredBoxStructure(
   key: string,
   material: string,
   width: number,
   height: number,
   thk: number,
 ) {
-  return geometryDocument(key, [
+  return geometryStructure(key, [
     {
       geometry: {
         type: "BoxGeometry",
@@ -534,13 +534,13 @@ function centeredBoxDocument(
   ]);
 }
 
-function centeredCylinderDocument(
+function centeredCylinderStructure(
   key: string,
   material: string,
   radius: number,
   thk: number,
 ) {
-  return geometryDocument(key, [
+  return geometryStructure(key, [
     {
       geometry: {
         type: "CylinderGeometry",
@@ -553,7 +553,7 @@ function centeredCylinderDocument(
   ]);
 }
 
-function geometryDocument(
+function geometryStructure(
   key: string,
   bodies: Array<{ geometry: unknown; material: string }>,
 ) {
