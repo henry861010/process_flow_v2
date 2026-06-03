@@ -243,6 +243,9 @@ Graph UI 提供共用的 edge-level geometry preview button style 與位置。
 
 Button 必須可以透過 pointer click 觸發，並提供可讀的 title / accessible label。
 點擊 button 時呼叫上層 editor 擁有的 preview action；Graph UI 不擁有 preview dialog content 或 geometry kernel request。
+上層 preview path 的命名必須與 geometry data model 對齊：kernel preview output 是
+`geometryStructure: GeometryStructure`；API response 中可下載的 JSON 欄位是
+`geometryEntityJson: GeometryEntityDownload`，不是 raw geometry structure。
 
 ## Status 語彙
 
@@ -845,6 +848,9 @@ Geometry picker：
 Geometry preview panel：
 
 - 由 edge 上的 Eye button 觸發。
+- Preview request 由上層 editor 建立，送到 `POST /api/geometry-preview`。
+- Kernel 回傳 `geometryStructure: GeometryStructure`；API route 以此產生 GLB，並包成
+  `geometryEntityJson: GeometryEntityDownload` 供 `Save JSON` 使用。
 - Panel 是全畫面 overlay，`fixed inset-0 z-50 p-3 sm:p-6`。
 - Header 顯示：
   - `Geometry Preview`

@@ -328,6 +328,11 @@ Picker 行為：
 使用者點擊 geometry preview button 時：
 
 - 開啟共用 `GeometryPreviewPanel` 全螢幕 overlay。
+- Preview request 送到 `POST /api/geometry-preview`，由 kernel preview path 回傳
+  `geometryStructure: GeometryStructure`。
+- API response 回傳 `{ geometryEntityJson, glbBase64 }`。`geometryEntityJson`
+  是下載用的 `GeometryEntityDownload`，其中 `structure` 才是該 preview 的
+  `GeometryStructure`。
 - Header 顯示 `Geometry Preview`、狀態 badge (`Loading` / `Ready` / `Error`)、source kind badge (`Initial geometry` 或 `Step output`) 與 `${sourceLabel} -> ${slotLabel}`。
 - Loading 時顯示 `Generating geometry preview...`。
 - Ready 時左側顯示 3D CAD viewer，右側顯示 Section、Measure、View、Model controls。
