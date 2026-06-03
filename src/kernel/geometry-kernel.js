@@ -153,13 +153,17 @@ export class GeometryKernel {
    * @param {object} input
    * @param {object} input.processFlowTemplate
    * @param {object} input.processFlowInstance
-   * @param {string} input.previewEdgeId
+   * @param {object} input.previewTarget
+   * @param {"edge"|"stepOutput"} input.previewTarget.type
+   * @param {?string} input.previewTarget.previewEdgeId
+   * @param {?string} input.previewTarget.stepRefId
+   * @param {?string} input.previewEdgeId - Backward-compatible edge preview id.
    * @returns {Promise<{geometryStructure: object, sourceKind: string, outputStepRefId: ?string}>}
    */
   async executePreview(input = {}) {
     const processFlowTemplate = input.processFlowTemplate;
     const processFlowInstance = input.processFlowInstance;
-    const previewEdgeId = input.previewEdgeId;
+    const previewTarget = normalizePreviewTarget(input);
 
     if (!processFlowTemplate || typeof processFlowTemplate !== "object") {
       throw new Error("processFlowTemplate is required for geometry preview");
@@ -167,10 +171,46 @@ export class GeometryKernel {
     if (!processFlowInstance || typeof processFlowInstance !== "object") {
       throw new Error("processFlowInstance is required for geometry preview");
     }
-    if (!previewEdgeId) {
-      throw new Error("previewEdgeId is required");
+    if (!previewTarget) {
+      throw new Error("preview target is required");
     }
 
+    if (previewTarget.type === "stepOutput") {
+      const outputStepRefId = previewTarget.stepRefId;
+      const previewId = `step-output-${outputStepRefId}`;
+      const includedStepRefIds = upstreamClosureStepRefIds(
+        processFlowTemplate,
+        outputStepRefId,
+      );
+      const previewTemplate = buildPreviewFlowTemplate(
+        processFlowTemplate,
+        includedStepRefIds,
+        previewId,
+      );
+      const previewInstance = buildPreviewFlowInstance(
+        processFlowInstance,
+        previewTemplate,
+        previewId,
+      );
+      const previewKernel = new GeometryKernel({
+        geometryRepository: this._geometryRepository,
+        processStepRepository: this._processStepRepository,
+        processFlowTemplateRepository: objectRepository(previewTemplate),
+        processFlowInstanceRepository: objectRepository(previewInstance),
+        moduleResolver: this._moduleResolver,
+      });
+      const result = await previewKernel.execute(previewInstance, {
+        outputStepRefId,
+      });
+
+      return {
+        geometryStructure: result.geometry(),
+        sourceKind: "stepOutput",
+        outputStepRefId,
+      };
+    }
+
+    const previewEdgeId = previewTarget.previewEdgeId;
     const previewEdge = (processFlowTemplate.flowEdges ?? []).find(
       (edge) => edge.edgeId === previewEdgeId,
     );
@@ -521,6 +561,23 @@ function firstMapValue(map) {
 function normalizeStepOutput(output, fallbackStatus) {
   const resolvedOutput = output === undefined || output === null ? fallbackStatus : output;
   return statusToGeometryStructure(resolvedOutput);
+}
+
+function normalizePreviewTarget(input) {
+  const target = input.previewTarget;
+  if (target?.type === "edge" && target.previewEdgeId) {
+    return { type: "edge", previewEdgeId: target.previewEdgeId };
+  }
+  if (target?.type === "stepOutput" && target.stepRefId) {
+    return { type: "stepOutput", stepRefId: target.stepRefId };
+  }
+  if (input.previewEdgeId) {
+    return { type: "edge", previewEdgeId: input.previewEdgeId };
+  }
+  if (input.outputStepRefId) {
+    return { type: "stepOutput", stepRefId: input.outputStepRefId };
+  }
+  return null;
 }
 
 /**

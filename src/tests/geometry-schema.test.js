@@ -222,6 +222,16 @@ test("example pnp demo flow runs through station outputs", async () => {
   assert.equal(geometry.root.bumps[0].material, "SAC305");
   assert.equal(geometry.root.bumps[0].density, 0.55);
   assert.equal(geometry.root.bumps[0].geometry.thk, 40);
+
+  const terminalPreview = await kernel.executePreview({
+    processFlowTemplate: exampleFlowTemplate(),
+    processFlowInstance: exampleFlowInstance(),
+    previewTarget: { type: "stepOutput", stepRefId: "molding2" },
+  });
+  assert.equal(terminalPreview.sourceKind, "stepOutput");
+  assert.equal(terminalPreview.outputStepRefId, "molding2");
+  assert.equal(terminalPreview.geometryStructure.root.bodies.length, 3);
+  assert.equal(terminalPreview.geometryStructure.root.bumps.length, 1);
 });
 
 test("bga and c4 bump processes overlap existing uncontained bumps", () => {
