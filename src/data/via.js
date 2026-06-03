@@ -1,11 +1,13 @@
 import { Geometry, moveArgs } from "./geometry.js";
 
 export class Via extends Geometry {
-  constructor(geometry, density, material) {
+  constructor(geometry, density, material, direction) {
     super();
+    assertDirection(direction);
     this._geometry = geometry;
     this._density = density;
     this._material = material;
+    this._direction = direction;
   }
 
   zMin() {
@@ -32,8 +34,17 @@ export class Via extends Geometry {
     return this._material;
   }
 
+  direction() {
+    return this._direction;
+  }
+
   copy() {
-    return new Via(this._geometry.copy(), this._density, this._material);
+    return new Via(
+      this._geometry.copy(),
+      this._density,
+      this._material,
+      this._direction,
+    );
   }
 
   copyWithThk(thk) {
@@ -41,6 +52,7 @@ export class Via extends Geometry {
       this._geometry.copyWithThk(thk),
       this._density,
       this._material,
+      this._direction,
     );
   }
 
@@ -55,6 +67,7 @@ export class Via extends Geometry {
 
   flip(aroundZ = 0) {
     this._geometry.flip(aroundZ);
+    this._direction = reverseDirection(this._direction);
   }
 
   json() {
@@ -62,6 +75,17 @@ export class Via extends Geometry {
       geometry: this._geometry.json(),
       material: this._material,
       density: this._density,
+      direction: this._direction,
     };
   }
+}
+
+function assertDirection(direction) {
+  if (direction !== "+z" && direction !== "-z") {
+    throw new Error(`Via direction must be "+z" or "-z"; received ${direction}`);
+  }
+}
+
+function reverseDirection(direction) {
+  return direction === "+z" ? "-z" : "+z";
 }

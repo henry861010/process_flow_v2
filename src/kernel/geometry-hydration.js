@@ -67,7 +67,9 @@ function containerFromJson(container) {
     result.addBody(new Body(geometryFromJson(body.geometry), body.material));
   }
   for (const via of container.vias ?? []) {
-    result.addVia(new Via(geometryFromJson(via.geometry), via.density, via.material));
+    result.addVia(
+      new Via(geometryFromJson(via.geometry), via.density, via.material, via.direction),
+    );
   }
   for (const circuit of container.circuits ?? []) {
     result.addCircuit(
@@ -75,7 +77,14 @@ function containerFromJson(container) {
     );
   }
   for (const bump of container.bumps ?? []) {
-    result.addBump(new Bump(geometryFromJson(bump.geometry), bump.density, bump.material));
+    result.addBump(
+      new Bump(
+        geometryFromJson(bump.geometry),
+        bump.density,
+        bump.material,
+        bump.direction,
+      ),
+    );
   }
   for (const child of container.children ?? []) {
     result.addChild(containerFromJson(child));

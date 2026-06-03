@@ -13,6 +13,7 @@ import {
 import { classifyPolygonLoops } from "../utils/polygon.js";
 import { Body } from "../data/body.js";
 import { Via } from "../data/via.js";
+import { normalizeGeometryStructure } from "../data/schema.js";
 import { processBgaBump } from "../process/process-bgaBump.js";
 import { processC4Bump } from "../process/process-c4Bump.js";
 import { processMolding } from "../process/process-molding.js";
@@ -58,7 +59,7 @@ test("geometry primitives serialize explicit type", () => {
     new Body(new BoxGeometry([0, 0, 0], [10, 10, 0], 1), "box"),
   );
   root.addVia(
-    new Via(new CylinderGeometry([0, 0, 0], 1, 2), 0.5, "via"),
+    new Via(new CylinderGeometry([0, 0, 0], 1, 2), 0.5, "via", "+z"),
   );
   root.addCircuit(
     new Circuit(
@@ -71,15 +72,44 @@ test("geometry primitives serialize explicit type", () => {
     ),
   );
   root.addBump(
-    new Bump(new ConeGeometry([0, 0, 0], 2, 1, 3), 0.7, "bump"),
+    new Bump(new ConeGeometry([0, 0, 0], 2, 1, 3), 0.7, "bump", "-z"),
   );
 
   const output = root.json();
 
   assert.equal(output.root.bodies[0].geometry.type, "BoxGeometry");
   assert.equal(output.root.vias[0].geometry.type, "CylinderGeometry");
+  assert.equal(output.root.vias[0].direction, "+z");
   assert.equal(output.root.circuits[0].geometry.type, "PolygonGeometry");
+  assert.equal(output.root.circuits[0].direction, undefined);
   assert.equal(output.root.bumps[0].geometry.type, "ConeGeometry");
+  assert.equal(output.root.bumps[0].direction, "-z");
+});
+
+test("via and bump require explicit direction and flip with geometry", () => {
+  assert.throws(
+    () => new Via(new CylinderGeometry([0, 0, 0], 1, 2), 0.5, "via"),
+    /Via direction must be "\+z" or "-z"; received undefined/,
+  );
+  assert.throws(
+    () => new Bump(new ConeGeometry([0, 0, 0], 2, 1, 3), 0.7, "bump", "z"),
+    /Bump direction must be "\+z" or "-z"; received z/,
+  );
+
+  const root = new Container({ key: "direction-flip" });
+  root.addVia(
+    new Via(new CylinderGeometry([0, 0, 0], 1, 2), 0.5, "via", "+z"),
+  );
+  root.addBump(
+    new Bump(new ConeGeometry([0, 0, 0], 2, 1, 3), 0.7, "bump", "-z"),
+  );
+
+  root.flip(0);
+
+  assert.equal(root.vias()[0].direction(), "-z");
+  assert.equal(root.bumps()[0].direction(), "+z");
+  assert.equal(root.json().root.vias[0].direction, "-z");
+  assert.equal(root.json().root.bumps[0].direction, "+z");
 });
 
 test("geometry hydration requires explicit primitive type", () => {
@@ -106,6 +136,65 @@ test("geometry hydration requires explicit primitive type", () => {
         }),
       ),
     /Geometry PolygonGeometry missing field polys/,
+  );
+});
+
+test("geometry hydration requires via and bump direction", () => {
+  assert.throws(
+    () =>
+      geometryStructureToStatus({
+        schemaVersion: "1.0.0",
+        unitSystem: "um",
+        root: {
+          key: "missing-via-direction",
+          bodies: [],
+          vias: [
+            {
+              geometry: {
+                type: "CylinderGeometry",
+                center: [0, 0, 0],
+                bottom_radius: 1,
+                thk: 2,
+              },
+              material: "Cu",
+              density: 0.4,
+            },
+          ],
+          circuits: [],
+          bumps: [],
+          children: [],
+        },
+      }),
+    /Via direction must be "\+z" or "-z"; received undefined/,
+  );
+
+  assert.throws(
+    () =>
+      geometryStructureToStatus({
+        schemaVersion: "1.0.0",
+        unitSystem: "um",
+        root: {
+          key: "missing-bump-direction",
+          bodies: [],
+          vias: [],
+          circuits: [],
+          bumps: [
+            {
+              geometry: {
+                type: "ConeGeometry",
+                center: [0, 0, 0],
+                bottom_radius: 2,
+                top_radius: 1,
+                thk: 3,
+              },
+              material: "SnAg",
+              density: 0.7,
+            },
+          ],
+          children: [],
+        },
+      }),
+    /Bump direction must be "\+z" or "-z"; received undefined/,
   );
 });
 
@@ -163,6 +252,7 @@ test("process step modules compose status independently", () => {
   assert.equal(status.zNow(), 18);
   assert.equal(status.container().bodies().length, 3);
   assert.equal(status.container().vias().length, 1);
+  assert.equal(status.container().vias()[0].direction(), "-z");
 });
 
 test("process pnp places die copies at fieldGroupArray bottom-left points", () => {
@@ -221,6 +311,7 @@ test("example pnp demo flow runs through station outputs", async () => {
   assert.equal(geometry.root.bodies[2].geometry.thk, 80);
   assert.equal(geometry.root.bumps[0].material, "SAC305");
   assert.equal(geometry.root.bumps[0].density, 0.55);
+  assert.equal(geometry.root.bumps[0].direction, "-z");
   assert.equal(geometry.root.bumps[0].geometry.thk, 40);
 
   const terminalPreview = await kernel.executePreview({
@@ -241,6 +332,7 @@ test("bga and c4 bump processes overlap existing uncontained bumps", () => {
       new BoxGeometry([-80, -80, -20], [80, 80, -20], 20),
       0.1,
       "old bump",
+      "-z",
     ),
   );
 
@@ -259,6 +351,10 @@ test("bga and c4 bump processes overlap existing uncontained bumps", () => {
   );
   assert.deepEqual(bumps[1].geometry().bottomLeft(), [-50, -50, -20]);
   assert.deepEqual(bumps[2].geometry().bottomLeft(), [-50, -50, -20]);
+  assert.deepEqual(
+    bumps.map((bump) => bump.direction()),
+    ["-z", "-z", "-z"],
+  );
 });
 
 test("CAD converter reports missing OpenCascade instance clearly", () => {
@@ -306,6 +402,77 @@ test("CAD converter exports a box with OpenCascade.js", async () => {
 
   assert.ok(result.files.glb.byteLength > 0);
   assert.equal(result.manifest.bodies.length, 1);
+});
+
+test("CAD converter manifest preserves via and bump directions", () => {
+  const converter = new OpenCascadeConverter({});
+  const structure = normalizeGeometryStructure({
+    key: "root",
+    bodies: [
+      {
+        geometry: {
+          type: "BoxGeometry",
+          bottom_left: [0, 0, 0],
+          top_right: [10, 10, 0],
+          thk: 1,
+        },
+        material: "carrier",
+      },
+    ],
+    vias: [
+      {
+        geometry: {
+          type: "CylinderGeometry",
+          center: [2, 2, 0],
+          bottom_radius: 0.5,
+          thk: 1,
+        },
+        material: "Cu",
+        density: 0.4,
+        direction: "+z",
+      },
+    ],
+    circuits: [
+      {
+        geometry: {
+          type: "BoxGeometry",
+          bottom_left: [0, 0, 1],
+          top_right: [10, 10, 1],
+          thk: 0.1,
+        },
+        material: "Cu",
+        density: 0.2,
+      },
+    ],
+    bumps: [
+      {
+        geometry: {
+          type: "ConeGeometry",
+          center: [5, 5, -1],
+          bottom_radius: 1,
+          top_radius: 0.5,
+          thk: 1,
+        },
+        material: "SnAg",
+        density: 0.8,
+        direction: "-z",
+      },
+    ],
+    children: [],
+  });
+  const manifest = converter._buildManifest(structure, []);
+
+  assert.deepEqual(
+    manifest.features.map((feature) => [
+      feature.featureType,
+      feature.direction,
+    ]),
+    [
+      ["via", "+z"],
+      ["circuit", undefined],
+      ["bump", "-z"],
+    ],
+  );
 });
 
 test("CAD converter writes GLB colors from body materials", async () => {
@@ -526,6 +693,7 @@ test("geometry kernel normalizes repeater values before executing handler", asyn
   assert.equal(geometry.root.vias.length, 1);
   assert.equal(geometry.root.vias[0].material, "Cu");
   assert.equal(geometry.root.vias[0].density, 0.25);
+  assert.equal(geometry.root.vias[0].direction, "-z");
   assert.equal(geometry.root.vias[0].geometry.thk, 3);
 });
 

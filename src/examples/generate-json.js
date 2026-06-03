@@ -27,6 +27,7 @@ export function createLogicDie(timing = null) {
         new BoxGeometry([-700.0, -700.0, 0.0], [700.0, 700.0, 0.0], 40.0),
         0.18,
         "SnAg",
+        "-z",
       ),
     ),
   );
@@ -70,6 +71,7 @@ export function buildExampleStatus(timing = null) {
         ),
         0.08,
         "Cu",
+        "+z",
       ),
     ),
   );

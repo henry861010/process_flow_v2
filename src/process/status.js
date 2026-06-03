@@ -129,7 +129,7 @@ export class Status {
     }
 
     const geometry = baseGeometry.copyWithThk(thk);
-    const viaLayer = new Via(geometry, density, material);
+    const viaLayer = new Via(geometry, density, material, "-z");
     viaLayer.move({ z: this._zNow - thk });
     return this._container.addVia(viaLayer);
   }
@@ -145,7 +145,7 @@ export class Status {
     }
 
     const geometry = baseGeometry.copyWithThk(thk);
-    const viaLayer = new Via(geometry, density, material);
+    const viaLayer = new Via(geometry, density, material, "+z");
     viaLayer.move({ z: this._zNow });
     return this._container.addVia(viaLayer);
   }

@@ -44,7 +44,7 @@ export function addBumpBelowLowestDirectBody(
   const geometry = body.geometry();
   geometry.move({ z: body.zMin() - geometry.thk() - geometry.zMin() });
 
-  return container.addBump(new Bump(geometry, density, material));
+  return container.addBump(new Bump(geometry, density, material, "-z"));
 }
 
 function lowestDirectBody(bodies) {

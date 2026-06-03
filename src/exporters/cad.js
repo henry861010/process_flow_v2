@@ -556,7 +556,7 @@ export class OpenCascadeConverter {
   _appendFeaturePlaceholders(container, manifest) {
     ["vias", "circuits", "bumps"].forEach((featureType) => {
       container[featureType].forEach((feature) => {
-        manifest.features.push({
+        const manifestFeature = {
           id: feature.id,
           containerId: container.id,
           containerKey: container.key ?? "",
@@ -564,7 +564,11 @@ export class OpenCascadeConverter {
           material: feature.material,
           density: feature.density,
           conversion: "placeholder",
-        });
+        };
+        if (featureType === "vias" || featureType === "bumps") {
+          manifestFeature.direction = feature.direction;
+        }
+        manifest.features.push(manifestFeature);
       });
     });
 

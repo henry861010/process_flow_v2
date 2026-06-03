@@ -24,7 +24,7 @@ export function addExampleBump(status, { material, density, thk }) {
 
   const geometry = body.geometry().copyWithThk(thk);
   geometry.move({ z: body.zMin() - thk - geometry.zMin() });
-  container.addBump(new Bump(geometry, density, material));
+  container.addBump(new Bump(geometry, density, material, "-z"));
   return status;
 }
 
