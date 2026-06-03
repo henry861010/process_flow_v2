@@ -202,7 +202,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     name: "Molding 2",
     category: "example",
     description:
-      "Second demo molding/modeling station with the requested modeling2 process id.",
+      "Second demo molding station that adds the final full-footprint layer.",
     owner: "demo.example",
     fieldDefinitions: [MAIN_GEOMETRY_FIELD, DENSITY_FIELD, MATERIAL_FIELD],
   },
@@ -290,14 +290,14 @@ export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [
     name: "Example PnP Molding Demo",
     version: "V1.0.0",
     description:
-      "Linear demo flow for previewing pnp, molding1, bump, and modeling2 station outputs.",
+      "Linear demo flow for previewing pnp, molding1, bump, and molding2 station outputs.",
     owner: "demo.example",
     stepRefs: [
       { stepRefId: "pnp_hbm", processStepTemplateId: "pnp" },
       { stepRefId: "pnp_soc", processStepTemplateId: "pnp" },
       { stepRefId: "molding1", processStepTemplateId: "molding1" },
       { stepRefId: "bump", processStepTemplateId: "bump" },
-      { stepRefId: "modeling2", processStepTemplateId: "modeling2" },
+      { stepRefId: "molding2", processStepTemplateId: "molding2" },
     ],
     flowEdges: [
       {
@@ -331,9 +331,9 @@ export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [
         target: { stepRefId: "bump", targetFieldId: "main_geometry" },
       },
       {
-        edgeId: "edge_bump_to_modeling2",
+        edgeId: "edge_bump_to_molding2",
         source: { sourceType: "stepOutput", stepRefId: "bump" },
-        target: { stepRefId: "modeling2", targetFieldId: "main_geometry" },
+        target: { stepRefId: "molding2", targetFieldId: "main_geometry" },
       },
     ],
   },
@@ -396,8 +396,8 @@ export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
         ],
       },
       {
-        stepRefId: "modeling2",
-        processStepTemplateId: "modeling2",
+        stepRefId: "molding2",
+        processStepTemplateId: "molding2",
         fieldValues: [
           { fieldId: "main_geometry", value: null },
           { fieldId: "density", value: 1.75 },
