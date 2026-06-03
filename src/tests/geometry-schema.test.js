@@ -24,6 +24,7 @@ import {
   CadExportError,
   OpenCascadeConverter,
   convertCad,
+  materialColorHex,
 } from "../exporters/cad.js";
 import {
   GeometryKernel,
@@ -295,6 +296,53 @@ test("CAD converter exports a box with OpenCascade.js", async () => {
 
   assert.ok(result.files.glb.byteLength > 0);
   assert.equal(result.manifest.bodies.length, 1);
+});
+
+test("CAD converter writes GLB colors from body materials", async () => {
+  const result = await convertCad(
+    {
+      key: "root",
+      bodies: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [0, 0, 0],
+            top_right: [1, 1, 0],
+            thk: 1,
+          },
+          material: "Cu",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [2, 0, 0],
+            top_right: [3, 1, 0],
+            thk: 1,
+          },
+          material: "Si die",
+        },
+      ],
+      children: [],
+    },
+    { formats: ["glb"] },
+  );
+
+  const glbJson = readGlbJson(result.files.glb);
+  const baseColors = (glbJson.materials ?? []).map(
+    (material) => material.pbrMetallicRoughness?.baseColorFactor?.slice(0, 3),
+  );
+
+  assert.equal(baseColors.length, 2);
+  assertColorClose(baseColors[0], linearBaseColorForHex(materialColorHex("Cu")));
+  assertColorClose(
+    baseColors[1],
+    linearBaseColorForHex(materialColorHex("Si die")),
+  );
+  assert.deepEqual(
+    (glbJson.nodes ?? []).map((node) => node.name),
+    ["Cu body 1", "Si die body 2"],
+  );
+  assert.equal(materialColorHex("SAC305"), materialColorHex("SnAg"));
 });
 
 test("example CLI parses output format options", () => {
@@ -814,7 +862,7 @@ function exampleStepTemplates() {
       ],
     },
     {
-      id: "modeling2",
+      id: "molding2",
       category: "example",
       fieldDefinitions: [
         geometryField("main_geometry"),
@@ -833,7 +881,7 @@ function exampleFlowTemplate() {
       { stepRefId: "pnp_soc", processStepTemplateId: "pnp" },
       { stepRefId: "molding1", processStepTemplateId: "molding1" },
       { stepRefId: "bump", processStepTemplateId: "bump" },
-      { stepRefId: "modeling2", processStepTemplateId: "modeling2" },
+      { stepRefId: "molding2", processStepTemplateId: "molding2" },
     ],
     flowEdges: [
       {
@@ -867,9 +915,9 @@ function exampleFlowTemplate() {
         target: { stepRefId: "bump", targetFieldId: "main_geometry" },
       },
       {
-        edgeId: "edge_bump_to_modeling2",
+        edgeId: "edge_bump_to_molding2",
         source: { sourceType: "stepOutput", stepRefId: "bump" },
-        target: { stepRefId: "modeling2", targetFieldId: "main_geometry" },
+        target: { stepRefId: "molding2", targetFieldId: "main_geometry" },
       },
     ],
   };
@@ -931,8 +979,8 @@ function exampleFlowInstance() {
         ],
       },
       {
-        stepRefId: "modeling2",
-        processStepTemplateId: "modeling2",
+        stepRefId: "molding2",
+        processStepTemplateId: "molding2",
         fieldValues: [
           { fieldId: "main_geometry", value: null },
           { fieldId: "density", value: 1.75 },
@@ -989,4 +1037,33 @@ function centeredBoxDocument(key, material, width, height, thk) {
       children: [],
     },
   };
+}
+
+function readGlbJson(glbBytes) {
+  const buffer = Buffer.from(glbBytes);
+  assert.equal(buffer.toString("utf8", 0, 4), "glTF");
+  const jsonLength = buffer.readUInt32LE(12);
+  const jsonType = buffer.readUInt32LE(16);
+  assert.equal(jsonType, 0x4e4f534a);
+  return JSON.parse(buffer.subarray(20, 20 + jsonLength).toString("utf8").trim());
+}
+
+function linearBaseColorForHex(hex) {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+  assert.ok(match);
+  return [0, 2, 4].map((offset) => {
+    const channel = Number.parseInt(match[1].slice(offset, offset + 2), 16) / 255;
+    if (channel <= 0.04045) return channel / 12.92;
+    return ((channel + 0.055) / 1.055) ** 2.4;
+  });
+}
+
+function assertColorClose(actual, expected) {
+  assert.equal(actual.length, expected.length);
+  actual.forEach((channel, index) => {
+    assert.ok(
+      Math.abs(channel - expected[index]) < 1e-6,
+      `color channel ${index} expected ${expected[index]} but received ${channel}`,
+    );
+  });
 }

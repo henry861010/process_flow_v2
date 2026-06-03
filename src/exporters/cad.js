@@ -1,6 +1,48 @@
 import { normalizeGeometryDocument, stableId } from "../data/schema.js";
 import { classifyPolygonLoops } from "../utils/polygon.js";
 
+const MATERIAL_COLOR_RULES = [
+  {
+    tests: ["cu", "copper", "metal", "rdl", "via"],
+    color: "#d29b2a",
+  },
+  {
+    tests: ["solder", "snag", "sac", "bga", "c4", "ubump", "bump"],
+    color: "#d8dee2",
+  },
+  {
+    tests: ["silicon", "si", "die", "logic", "hbm", "interposer"],
+    color: "#7f8788",
+  },
+  {
+    tests: ["bt", "abf", "substrate", "panel", "carrier"],
+    color: "#2e7d5b",
+  },
+  {
+    tests: ["dielectric", "polyimide", "pi", "photo", "pm", "underfill"],
+    color: "#2aa6b8",
+  },
+  {
+    tests: ["mold", "molding", "emc", "epoxy", "resin"],
+    color: "#b9c0bd",
+  },
+  {
+    tests: ["glass", "wafer"],
+    color: "#94c9cf",
+  },
+];
+
+const MATERIAL_FALLBACK_COLORS = [
+  "#8f9894",
+  "#7b72b8",
+  "#bc5f58",
+  "#3b82a0",
+  "#8a9741",
+  "#b77935",
+  "#5d8f73",
+  "#a15786",
+];
+
 export class CadExportError extends Error {
   constructor(message) {
     super(message);
@@ -405,6 +447,13 @@ export class OpenCascadeConverter {
       new this.oc.TCollection_AsciiString_2(filename),
       true,
     );
+    const nameFormat =
+      this.oc.RWMesh_NameFormat?.RWMesh_NameFormat_ProductOrInstance ??
+      this.oc.RWMesh_NameFormat?.RWMesh_NameFormat_InstanceOrProduct;
+    if (nameFormat !== undefined) {
+      cafWriter.SetNodeNameFormat(nameFormat);
+      cafWriter.SetMeshNameFormat(nameFormat);
+    }
     cafWriter.Perform_2(
       new this.oc.Handle_TDocStd_Document_2(doc),
       new this.oc.TColStd_IndexedDataMapOfStringString_1(),
@@ -428,8 +477,9 @@ export class OpenCascadeConverter {
       new this.oc.TCollection_ExtendedString_1(),
     );
     const shapeTool = this.oc.XCAFDoc_DocumentTool.ShapeTool(doc.Main()).get();
+    const colorTool = this.oc.XCAFDoc_DocumentTool.ColorTool?.(doc.Main())?.get?.();
 
-    bodies.forEach((body) => {
+    bodies.forEach((body, index) => {
       new this.oc.BRepMesh_IncrementalMesh_2(
         body.shape,
         this.options.linearDeflection,
@@ -439,9 +489,46 @@ export class OpenCascadeConverter {
       );
       const label = shapeTool.NewShape();
       shapeTool.SetShape(label, body.shape);
+      this._setBodyLabelMetadata(label, body, index, colorTool);
     });
 
     return doc;
+  }
+
+  _setBodyLabelMetadata(label, body, index, colorTool) {
+    const material = normalizeMaterialName(body.material);
+    if (this.oc.TDataStd_Name?.Set_1) {
+      this.oc.TDataStd_Name.Set_1(
+        label,
+        new this.oc.TCollection_ExtendedString_2(
+          bodyLabelName(body, index),
+          true,
+        ),
+      );
+    }
+
+    if (!colorTool?.SetColor_2) return;
+
+    const color = this._quantityColor(materialColorHex(material));
+    [
+      this.oc.XCAFDoc_ColorType?.XCAFDoc_ColorGen,
+      this.oc.XCAFDoc_ColorType?.XCAFDoc_ColorSurf,
+    ]
+      .filter((colorType) => colorType !== undefined)
+      .forEach((colorType) => {
+        colorTool.SetColor_2(label, color, colorType);
+      });
+  }
+
+  _quantityColor(hex) {
+    const [red, green, blue] = hexToSrgb(hex);
+    const colorType =
+      this.oc.Quantity_TypeOfColor?.Quantity_TOC_sRGB ??
+      this.oc.Quantity_TypeOfColor?.Quantity_TOC_RGB;
+    if (colorType === undefined) {
+      throw new CadExportError("OpenCascade Quantity_TypeOfColor is unavailable.");
+    }
+    return new this.oc.Quantity_Color_3(red, green, blue, colorType);
   }
 
   _buildManifest(document, bodies) {
@@ -706,4 +793,60 @@ async function writeBinaryFile(path, bytes) {
 async function writeTextFile(path, text) {
   const { writeFile } = await import("node:fs/promises");
   await writeFile(path, text, "utf8");
+}
+
+export function materialColorHex(material) {
+  const normalized = normalizeMaterialName(material).toLowerCase();
+  const matchedRule = MATERIAL_COLOR_RULES.find((rule) =>
+    rule.tests.some((token) => materialMatches(normalized, token)),
+  );
+  if (matchedRule) return matchedRule.color;
+
+  const index = stableHash(normalized) % MATERIAL_FALLBACK_COLORS.length;
+  return MATERIAL_FALLBACK_COLORS[index];
+}
+
+function bodyLabelName(body, index) {
+  const material = normalizeMaterialName(body.material);
+  return `${material} body ${index + 1}`;
+}
+
+function normalizeMaterialName(material) {
+  const value = material === null || material === undefined ? "" : String(material);
+  return value.trim() || "generic";
+}
+
+function materialMatches(material, token) {
+  if (token === "sac") {
+    return /(^|[^a-z0-9])sac([0-9]|[^a-z0-9]|$)/.test(material);
+  }
+  if (token.length <= 3) {
+    return new RegExp(`(^|[^a-z0-9])${escapeRegExp(token)}([^a-z0-9]|$)`).test(
+      material,
+    );
+  }
+  return material.includes(token);
+}
+
+function hexToSrgb(hex) {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!match) {
+    throw new CadExportError(`Invalid material color: ${hex}`);
+  }
+  const value = match[1];
+  return [0, 2, 4].map((offset) =>
+    Number.parseInt(value.slice(offset, offset + 2), 16) / 255,
+  );
+}
+
+function stableHash(value) {
+  let hash = 0;
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
