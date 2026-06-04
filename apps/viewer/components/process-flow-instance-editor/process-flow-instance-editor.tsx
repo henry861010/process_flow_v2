@@ -127,6 +127,7 @@ type ProcessStepTemplate = {
   version: string;
   name: string;
   category: string;
+  program: string;
   description: string;
   owner: string;
   fieldDefinitions: FieldDefinition[];

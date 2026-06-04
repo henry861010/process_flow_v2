@@ -1,12 +1,7 @@
 /**
  * Resolves a process step template to the JavaScript module that implements it.
  *
- * The default convention is:
- *   src/process/<category path>/<step template id>.js
- *
- * Example: category `encapsulation.molding` and id
- * `step_tpl_molding_encapsulation` resolves to
- * `src/process/encapsulation/molding/step_tpl_molding_encapsulation.js`.
+ * `program` is an extensionless module path relative to `src/process`.
  */
 export class ProcessStepModuleResolver {
   /**
@@ -24,13 +19,10 @@ export class ProcessStepModuleResolver {
     if (!stepTemplate?.id) {
       throw new Error("Process step template is missing id");
     }
-    if (!stepTemplate?.category) {
-      throw new Error(`Process step template ${stepTemplate.id} is missing category`);
-    }
+    const program = validateProgramPath(stepTemplate);
 
-    const categoryPath = stepTemplate.category.split(".").join("/");
     return new URL(
-      `../process/${categoryPath}/${stepTemplate.id}.js`,
+      `../process/${program}.js`,
       import.meta.url,
     ).href;
   }
@@ -65,4 +57,48 @@ export class ProcessStepModuleResolver {
  */
 function defaultImportModule(specifier) {
   return Function("specifier", "return import(specifier)")(specifier);
+}
+
+const PROCESS_PROGRAM_SEGMENT_RE = /^[A-Za-z0-9_-]+$/;
+
+function validateProgramPath(stepTemplate) {
+  const program = stepTemplate?.program;
+  if (typeof program !== "string" || program.trim() === "") {
+    throw new Error(`Process step template ${stepTemplate.id} is missing program`);
+  }
+  if (program !== program.trim()) {
+    throw new Error(
+      `Process step template ${stepTemplate.id} program must be an extensionless path relative to src/process`,
+    );
+  }
+  if (
+    program.startsWith("/") ||
+    program.startsWith("\\") ||
+    /^[A-Za-z]:[\\/]/.test(program)
+  ) {
+    throw new Error(
+      `Process step template ${stepTemplate.id} program must be relative to src/process`,
+    );
+  }
+  if (program.endsWith(".js")) {
+    throw new Error(
+      `Process step template ${stepTemplate.id} program must not include .js`,
+    );
+  }
+
+  const segments = program.split("/");
+  if (
+    segments.some((segment) => {
+      return (
+        segment === "" ||
+        segment === ".." ||
+        !PROCESS_PROGRAM_SEGMENT_RE.test(segment)
+      );
+    })
+  ) {
+    throw new Error(
+      `Process step template ${stepTemplate.id} program must be an extensionless path relative to src/process`,
+    );
+  }
+  return program;
 }

@@ -45,242 +45,12 @@ Export 行為：
 
 當 `localStorage` 尚未存在 `processStepTemplates` key 時，由 home page 初始化 sample templates。此頁只讀取與寫入既有 key，不負責 seed。若使用者刪除全部 templates，不自動重新建立 seed data。完整 seed 清單以 `docs/ui/home.md` 與 `apps/viewer/lib/home-local-storage.ts` 為準。
 
-```json
-[
-  {
-    "id": "step_tpl_bonding_micro_bump",
-    "version": "V1.0.0",
-    "name": "Micro bump bonding",
-    "category": "bonding.micro_bump",
-    "description": "Define micro bump bonding process parameters and resulting bonded package state.",
-    "owner": "integration.platform",
-    "fieldDefinitions": [
-      {
-        "id": "main_geometry",
-        "name": "main_geometry",
-        "description": "Complete geometry state consumed by this process step.",
-        "scope": "inputState",
-        "valueType": "geometryRef",
-        "controlType": null,
-        "selectionMode": null,
-        "unit": null
-      },
-      {
-        "id": "incoming_pad_finish",
-        "name": "Incoming pad finish",
-        "description": "Pad finish before micro bump bonding starts.",
-        "scope": "inputState",
-        "valueType": "string",
-        "controlType": "select",
-        "selectionMode": "single",
-        "unit": null,
-        "optionSource": {
-          "type": "static",
-          "options": [
-            {
-              "value": "cu",
-              "name": "Cu"
-            },
-            {
-              "value": "ni_au",
-              "name": "Ni/Au"
-            }
-          ]
-        }
-      },
-      {
-        "id": "bonding_profile",
-        "name": "Bonding profile",
-        "description": "Named bonding recipe or process profile family.",
-        "scope": "processParameter",
-        "valueType": "string",
-        "controlType": "select",
-        "selectionMode": "single",
-        "unit": null,
-        "optionSource": {
-          "type": "static",
-          "options": [
-            {
-              "value": "baseline_thermal_compression",
-              "name": "Baseline thermal compression"
-            },
-            {
-              "value": "low_temperature",
-              "name": "Low temperature"
-            }
-          ]
-        }
-      },
-      {
-        "id": "bump_pitch",
-        "name": "Bump pitch",
-        "description": "Nominal micro bump pitch used by this bonding process.",
-        "scope": "processParameter",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": null,
-        "validation": {
-          "min": 0
-        }
-      }
-    ]
-  },
-  {
-    "id": "step_tpl_molding_encapsulation",
-    "version": "V1.0.0",
-    "name": "Molding encapsulation",
-    "category": "encapsulation.molding",
-    "description": "Define mold compound, mold thickness, and cure condition.",
-    "owner": "assembly.process",
-    "fieldDefinitions": [
-      {
-        "id": "main_geometry",
-        "name": "main_geometry",
-        "description": "Complete geometry state consumed by this process step.",
-        "scope": "inputState",
-        "valueType": "geometryRef",
-        "controlType": null,
-        "selectionMode": null,
-        "unit": null
-      },
-      {
-        "id": "mold_compound",
-        "name": "Mold compound",
-        "description": "Mold compound material used for encapsulation.",
-        "scope": "processParameter",
-        "valueType": "materialRef",
-        "controlType": "select",
-        "selectionMode": "single",
-        "unit": null,
-        "optionSource": {
-          "type": "static",
-          "options": [
-            {
-              "value": "EMC-A",
-              "name": "EMC-A"
-            },
-            {
-              "value": "EMC-B",
-              "name": "EMC-B"
-            }
-          ]
-        }
-      },
-      {
-        "id": "mold_thickness",
-        "name": "Mold thickness",
-        "description": "Target encapsulation thickness after molding.",
-        "scope": "processParameter",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": null,
-        "validation": {
-          "min": 0
-        }
-      },
-      {
-        "id": "cure_required",
-        "name": "Cure required",
-        "description": "Whether the process requires a dedicated post mold cure step.",
-        "scope": "processParameter",
-        "valueType": "boolean",
-        "controlType": "checkbox",
-        "selectionMode": null,
-        "unit": null
-      }
-    ]
-  },
-  {
-    "id": "step_tpl_rdl_build_up",
-    "version": "V1.0.0",
-    "name": "RDL build up",
-    "category": "interconnect.rdl",
-    "description": "Define repeatable PM and RDL layer parameters.",
-    "owner": "interconnect.integration",
-    "fieldDefinitions": [
-      {
-        "id": "main_geometry",
-        "name": "main_geometry",
-        "description": "Complete geometry state consumed by this process step.",
-        "scope": "inputState",
-        "valueType": "geometryRef",
-        "controlType": null,
-        "selectionMode": null,
-        "unit": null
-      },
-      {
-        "id": "rdl_layers",
-        "name": "RDL layers",
-        "description": "Repeatable PM and RDL layer definitions.",
-        "scope": "processParameter",
-        "valueType": "fieldGroupArray",
-        "controlType": "repeater",
-        "selectionMode": null,
-        "unit": null,
-        "repeatDefinition": {
-          "itemNameTemplate": "RDL layer {{index}}",
-          "indexBase": 1,
-          "minItems": 1,
-          "maxItems": 12,
-          "itemFieldDefinitions": [
-            {
-              "id": "pm_material",
-              "name": "PM material",
-              "description": "Photo-material used before this RDL layer.",
-              "scope": "processParameter",
-              "valueType": "materialRef",
-              "controlType": "select",
-              "selectionMode": "single",
-              "unit": null,
-              "optionSource": {
-                "type": "static",
-                "options": [
-                  {
-                    "value": "PM-001",
-                    "name": "Baseline photo-material"
-                  },
-                  {
-                    "value": "PM-002",
-                    "name": "Low-stress photo-material"
-                  }
-                ]
-              }
-            },
-            {
-              "id": "pm_thickness",
-              "name": "PM thickness",
-              "description": "Photo-material thickness for this layer.",
-              "scope": "processParameter",
-              "valueType": "float",
-              "controlType": "number",
-              "selectionMode": null,
-              "unit": null,
-              "validation": {
-                "min": 0
-              }
-            },
-            {
-              "id": "rdl_thickness",
-              "name": "RDL thickness",
-              "description": "Copper RDL thickness for this layer.",
-              "scope": "processParameter",
-              "valueType": "float",
-              "controlType": "number",
-              "selectionMode": null,
-              "unit": null,
-              "validation": {
-                "min": 0
-              }
-            }
-          ]
-        }
-      }
-    ]
-  }
-]
-```
+| id | name | category | program | field ids |
+|---|---|---|---|---|
+| `molding1` | Molding 1 | `example` | `example/molding1` | `main_geometry`, `density`, `material` |
+| `molding2` | Molding 2 | `example` | `example/molding2` | `main_geometry`, `density`, `material` |
+| `bump` | Bump | `example` | `example/bump` | `main_geometry`, `density`, `thk`, `material` |
+| `pnp` | PnP | `example` | `example/pnp` | `main_geometry`, `die_geometry`, `coordinates` |
 
 ### Editor Scope
 
@@ -304,7 +74,7 @@ Export 行為：
 - Delete：直接從 localStorage 刪除該 template。
 - Duplicate as new：以既有 template 為基礎建立新 draft，再另存為新的 template。
 
-Duplicate as new 會複製原 template 的 `version`、`name`、`category`、`description`、`owner` 與 `fieldDefinitions`，但會清空 template `id`。使用者必須填入新的 unique `id` 後才能 save。
+Duplicate as new 會複製原 template 的 `version`、`name`、`category`、`program`、`description`、`owner` 與 `fieldDefinitions`，但會清空 template `id`。使用者必須填入新的 unique `id` 後才能 save。
 
 ### Required System Field
 
@@ -376,7 +146,7 @@ Header:
 
 Body:
 
-- Metadata section：`id`、`owner`、`description`
+- Metadata section：`id`、`name`、`category`、`program`、`version`、`owner`、`description`
 - Field definitions section：
   - 依 `scope` 分組：`inputState`、`processParameter`、`outputState`
   - 每個 field 顯示 `name`、`id`、`valueType`、`controlType`、`selectionMode`、`unit`
@@ -402,6 +172,7 @@ Step metadata fields:
 - `version`
 - `name`
 - `category`
+- `program`
 - `description`
 - `owner`
 
@@ -443,6 +214,14 @@ Draft lifecycle:
 - 必填。
 - 使用者直接輸入完整 path，例如 `category1.category2.category3`。
 - UI 不自動拆分儲存；儲存值就是原始 category string。
+
+`program`:
+
+- 必填。
+- 使用者直接輸入相對 `src/process/` 的 extensionless path，例如 `encapsulation/molding/step_tpl_molding_encapsulation`。
+- 不可使用絕對路徑、`..`、空 segment 或 `.js` 副檔名。
+- Path segment 只可包含英文字母、數字、`_` 與 `-`。
+- 不要求唯一。
 
 `description`:
 
@@ -618,9 +397,10 @@ Rules:
 
 Save 前必須驗證：
 
-- Step metadata 中 `id`、`version`、`name`、`category`、`owner` 必填；`description` 可留空並儲存為 `""`。
+- Step metadata 中 `id`、`version`、`name`、`category`、`program`、`owner` 必填；`description` 可留空並儲存為 `""`。
 - Step `id` 符合 snake_case 且全域唯一。
 - `version` 符合 `Vx.y.z` 格式。
+- `program` 符合相對 `src/process/` 的 extensionless path 格式。
 - 必須包含 locked `main_geometry` field。
 - 所有 field id 符合 snake_case。
 - 所有 field name 必填。

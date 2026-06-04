@@ -73,6 +73,7 @@ type ProcessStepTemplate = {
   version: string;
   name: string;
   category: string;
+  program: string;
   description: string;
   owner: string;
   fieldDefinitions: FieldDefinition[];
@@ -191,6 +192,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     version: "V1.0.0",
     name: "Molding 1",
     category: "example",
+    program: "example/molding1",
     description:
       "Demo molding station that adds a visible full-footprint layer above the current geometry.",
     owner: "demo.example",
@@ -201,6 +203,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     version: "V1.0.0",
     name: "Molding 2",
     category: "example",
+    program: "example/molding2",
     description:
       "Second demo molding station that adds the final full-footprint layer.",
     owner: "demo.example",
@@ -211,6 +214,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     version: "V1.0.0",
     name: "Bump",
     category: "example",
+    program: "example/bump",
     description:
       "Demo bump station that adds a bump feature using geometry, density, thickness, and material.",
     owner: "demo.example",
@@ -236,6 +240,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     version: "V1.0.0",
     name: "PnP",
     category: "example",
+    program: "example/pnp",
     description:
       "Demo pick-and-place station that copies one die geometry into a target geometry at coordinate rows.",
     owner: "demo.example",

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 
 const SNAKE_CASE_RE = /^[a-z][a-z0-9_]*$/;
 const VERSION_RE = /^V\d+\.\d+\.\d+$/;
+const PROGRAM_SEGMENT_RE = /^[A-Za-z0-9_-]+$/;
 
 type FieldScope = "inputState" | "outputState" | "processParameter";
 type ValueType =
@@ -96,6 +97,7 @@ type ProcessStepTemplate = {
   version: string;
   name: string;
   category: string;
+  program: string;
   description: string;
   owner: string;
   fieldDefinitions: FieldDefinition[];
@@ -225,6 +227,7 @@ export function ProcessStepTemplateEditor() {
       version: "V1.0.0",
       name: "",
       category: "",
+      program: "",
       description: "",
       owner: "",
       fieldDefinitions: [clone(MAIN_GEOMETRY_FIELD)],
@@ -614,6 +617,18 @@ export function ProcessStepTemplateEditor() {
                     }
                   />
                 </FormField>
+                <FormField label="program" error={draftErrors["template.program"]}>
+                  <input
+                    className={inputClass}
+                    value={draft.program}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        program: event.target.value,
+                      }))
+                    }
+                  />
+                </FormField>
                 <FormField label="description" className="col-span-3">
                   <textarea
                     className={textareaClass}
@@ -755,6 +770,10 @@ function ReviewTemplate({ template }: { template: ProcessStepTemplate }) {
         </h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <ReviewItem label="id" value={template.id} />
+          <ReviewItem label="name" value={template.name} />
+          <ReviewItem label="category" value={template.category} />
+          <ReviewItem label="program" value={template.program} />
+          <ReviewItem label="version" value={template.version} />
           <ReviewItem label="owner" value={template.owner} />
           <ReviewItem label="description" value={template.description || "-"} wide />
         </div>
@@ -2205,6 +2224,10 @@ function validateTemplateDraft(
   if (!draft.category.trim()) {
     errors["template.category"] = "Required.";
   }
+  const programError = validateProgramPath(draft.program);
+  if (programError) {
+    errors["template.program"] = programError;
+  }
   if (!draft.owner.trim()) {
     errors["template.owner"] = "Required.";
   }
@@ -2233,6 +2256,39 @@ function validateTemplateDraft(
   });
 
   return errors;
+}
+
+function validateProgramPath(program: string) {
+  if (!program.trim()) {
+    return "Required.";
+  }
+  if (program !== program.trim()) {
+    return "Use a relative path without leading or trailing spaces.";
+  }
+  if (
+    program.startsWith("/") ||
+    program.startsWith("\\") ||
+    /^[A-Za-z]:[\\/]/.test(program)
+  ) {
+    return "Use a relative path under src/process.";
+  }
+  if (program.endsWith(".js")) {
+    return "Do not include .js.";
+  }
+
+  const segments = program.split("/");
+  if (
+    segments.some((segment) => {
+      return (
+        segment === "" ||
+        segment === ".." ||
+        !PROGRAM_SEGMENT_RE.test(segment)
+      );
+    })
+  ) {
+    return "Use path segments with letters, numbers, _, or -.";
+  }
+  return "";
 }
 
 function validateStandaloneChildField(
@@ -2512,6 +2568,7 @@ function normalizeTemplate(template: ProcessStepTemplate): ProcessStepTemplate {
     version: template.version.trim(),
     name: template.name.trim(),
     category: template.category.trim(),
+    program: template.program.trim(),
     description: template.description ?? "",
     owner: template.owner.trim(),
     fieldDefinitions: template.fieldDefinitions.map(normalizeField),

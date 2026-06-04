@@ -164,6 +164,7 @@ function moldingStepTemplate() {
     version: "V1.0.0",
     name: "Molding encapsulation",
     category: "encapsulation.molding",
+    program: "encapsulation/molding/step_tpl_molding_encapsulation",
     description: "Adds a molding layer above the current geometry state.",
     owner: "example",
     fieldDefinitions: [
@@ -196,6 +197,7 @@ function rdlStepTemplate() {
     version: "V1.0.0",
     name: "RDL build up",
     category: "interconnect.rdl",
+    program: "interconnect/rdl/step_tpl_rdl_build_up",
     description: "Adds repeatable RDL dielectric and metal regions.",
     owner: "example",
     fieldDefinitions: [

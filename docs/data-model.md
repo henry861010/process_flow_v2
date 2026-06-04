@@ -369,8 +369,12 @@ overlap 的 ownership 語意。
 2. `version`：人閱讀以及UI顯示 version
 3. `name`：人閱讀以及UI顯示 process name
 4. `category`：階層式 category，用來描述這個 process step 是什麼種類，例如 Bounding.TCP。Category 是給 UI 搜尋、瀏覽與建立 template 時使用的主要分類。
-5. `description`：用於描述此物件來源用途等資訊，並且提供在UI顯示。
-6. `owner`：負責此 process step 的 owner 或 owning team。
+5. `program`：runtime process program 的 module path，格式為相對 `src/process/` 的 extensionless path，例如 `bonding/micro_bump/step_tpl_bonding_micro_bump`。
+    - `program` 不使用絕對路徑、`..`、空 segment 或 `.js` 副檔名。
+    - Path segment 只使用英文字母、數字、`_` 與 `-`。
+    - 多個 process step template 可以共用同一個 `program`。
+6. `description`：用於描述此物件來源用途等資訊，並且提供在UI顯示。
+7. `owner`：負責此 process step 的 owner 或 owning team。
 8. `fieldDefinitions`： 用於描述此process step所需要的參數有哪些，每個參數 definition 以 FieldDefinition 結構來描述。 
     - 每個 FieldDefinition 直接內嵌在 `fieldDefinitions[]` 中，不透過 id 間接 reference。
 
@@ -395,6 +399,7 @@ ProcessStepTemplate JSON 範本：
   "version": "V1.0.0",
   "name": "Micro bump bonding",
   "category": "bonding.micro_bump",
+  "program": "bonding/micro_bump/step_tpl_bonding_micro_bump",
   "description": "Define micro bump bonding process parameters and resulting bonded package state.",
   "owner": "integration.platform",
   "fieldDefinitions": [

@@ -30,6 +30,7 @@ import {
 import {
   GeometryKernel,
   InMemoryRepository,
+  ProcessStepModuleResolver,
   geometryStructureToStatus,
 } from "../kernel/index.js";
 import { parseExampleArgs } from "../examples/generate-json.js";
@@ -550,7 +551,7 @@ test("geometry hydration restores process status from geometry structure", () =>
   assert.equal(output.root.bodies[1].geometry.thk, 5);
 });
 
-test("geometry kernel resolves step definition by id and category path", async () => {
+test("geometry kernel resolves step definition by program path", async () => {
   const kernel = createTestKernel();
 
   const result = await kernel.execute("flow_inst_kernel_test");
@@ -563,6 +564,39 @@ test("geometry kernel resolves step definition by id and category path", async (
   assert.equal(geometry.root.bodies[1].geometry.thk, 5);
   assert.deepEqual(result.terminalStepRefIds(), ["molding"]);
   assert.ok(result.stepOutput("molding"));
+});
+
+test("process step module resolver validates program paths", () => {
+  const resolver = new ProcessStepModuleResolver();
+  const template = {
+    id: "step_tpl_molding_encapsulation",
+    program: "encapsulation/molding/step_tpl_molding_encapsulation",
+  };
+
+  assert.match(
+    resolver.moduleSpecifier(template),
+    /\/process\/encapsulation\/molding\/step_tpl_molding_encapsulation\.js$/,
+  );
+  assert.throws(
+    () => resolver.moduleSpecifier({ ...template, program: "" }),
+    /missing program/,
+  );
+  assert.throws(
+    () => resolver.moduleSpecifier({ ...template, program: "/absolute/path" }),
+    /relative to src\/process/,
+  );
+  assert.throws(
+    () => resolver.moduleSpecifier({ ...template, program: "example/pnp.js" }),
+    /must not include \.js/,
+  );
+  assert.throws(
+    () => resolver.moduleSpecifier({ ...template, program: "example/../pnp" }),
+    /relative to src\/process/,
+  );
+  assert.throws(
+    () => resolver.moduleSpecifier({ ...template, program: "example/pnp.v1" }),
+    /relative to src\/process/,
+  );
 });
 
 test("geometry kernel passes step output geometry to downstream steps", async () => {
@@ -704,6 +738,7 @@ test("geometry kernel reports unsupported process step modules clearly", async (
         ...moldingStepTemplate(),
         id: "missing_process_step",
         category: "missing.category",
+        program: "missing/category/missing_process_step",
       },
     ],
     flowTemplate: {
@@ -784,6 +819,7 @@ function moldingStepTemplate() {
     version: "V1.0.0",
     name: "Molding encapsulation",
     category: "encapsulation.molding",
+    program: "encapsulation/molding/step_tpl_molding_encapsulation",
     description: "Define mold compound and mold thickness.",
     owner: "test",
     fieldDefinitions: [
@@ -824,6 +860,7 @@ function rdlStepTemplate() {
     version: "V1.0.0",
     name: "RDL build up",
     category: "interconnect.rdl",
+    program: "interconnect/rdl/step_tpl_rdl_build_up",
     description: "Define repeatable PM and RDL layer parameters.",
     owner: "test",
     fieldDefinitions: [
@@ -1005,6 +1042,7 @@ function exampleStepTemplates() {
     {
       id: "pnp",
       category: "example",
+      program: "example/pnp",
       fieldDefinitions: [
         geometryField("target_geometry"),
         geometryField("die_geometry"),
@@ -1023,6 +1061,7 @@ function exampleStepTemplates() {
     {
       id: "molding1",
       category: "example",
+      program: "example/molding1",
       fieldDefinitions: [
         geometryField("main_geometry"),
         floatField("density"),
@@ -1032,6 +1071,7 @@ function exampleStepTemplates() {
     {
       id: "bump",
       category: "example",
+      program: "example/bump",
       fieldDefinitions: [
         geometryField("main_geometry"),
         floatField("density"),
@@ -1042,6 +1082,7 @@ function exampleStepTemplates() {
     {
       id: "molding2",
       category: "example",
+      program: "example/molding2",
       fieldDefinitions: [
         geometryField("main_geometry"),
         floatField("density"),
