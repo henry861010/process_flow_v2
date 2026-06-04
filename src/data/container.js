@@ -43,12 +43,8 @@ export class Container {
     return this._parent;
   }
 
-  setParent(parent) {
+  _setParent(parent) {
     this._parent = parent;
-  }
-
-  set_parent(parent) {
-    this.setParent(parent);
   }
 
   children() {
@@ -146,14 +142,44 @@ export class Container {
     return this.addBodyCone(material, center, bottomRadius, topRadius, thk);
   }
 
-  addChild(child) {
-    child.setParent(this);
+  attachChild(child) {
+    if (!(child instanceof Container)) {
+      throw new Error("attachChild requires a Container child");
+    }
+    if (child === this) {
+      throw new Error("attachChild cannot attach a container to itself");
+    }
+    if (this._isDescendantOf(child)) {
+      throw new Error("attachChild cannot create a container cycle");
+    }
+    if (this._children.includes(child)) {
+      throw new Error("attachChild cannot attach the same child twice");
+    }
+    const parent = child.parent();
+    if (parent !== null) {
+      parent.detachChild(child);
+    }
+    child._setParent(this);
     this._children.push(child);
     return child;
   }
 
+  detachChild(child) {
+    const index = this._children.indexOf(child);
+    if (index === -1) {
+      throw new Error("detachChild child is not attached to this container");
+    }
+    const [removed] = this._children.splice(index, 1);
+    removed._setParent(null);
+    return removed;
+  }
+
+  addChild(child) {
+    return this.attachChild(child);
+  }
+
   add_child(child) {
-    return this.addChild(child);
+    return this.attachChild(child);
   }
 
   thk() {
@@ -189,7 +215,7 @@ export class Container {
       copyContainer.addCircuit(circuit.copy());
     });
     this._bumps.forEach((bump) => copyContainer.addBump(bump.copy()));
-    this._children.forEach((child) => copyContainer.addChild(child.copy()));
+    this._children.forEach((child) => copyContainer.attachChild(child.copy()));
 
     return copyContainer;
   }
@@ -277,6 +303,15 @@ export class Container {
 
   _featuresAfterClip(features, toZ) {
     return features.filter((feature) => feature.clipTopTo(toZ));
+  }
+
+  _isDescendantOf(container) {
+    let current = this;
+    while (current !== null) {
+      if (current === container) return true;
+      current = current.parent();
+    }
+    return false;
   }
 }
 

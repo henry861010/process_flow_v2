@@ -2,15 +2,12 @@ import { writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 
-import {
-  BoxGeometry,
-  Bump,
-  Circuit,
-  Container,
-  Via,
-} from "../data/index.js";
 import { OpenCascadeConverter } from "../exporters/cad.js";
-import { processMolding, processPanel, Status } from "../process/index.js";
+import {
+  ProcessGeometryState,
+  processMolding,
+  processPanel,
+} from "../process/index.js";
 
 const CAD_FORMATS = ["step", "glb", "stl"];
 const ALL_FORMATS = ["json", ...CAD_FORMATS, "stp", "gltf", "cad", "all"];
@@ -18,98 +15,107 @@ const ALL_FORMATS = ["json", ...CAD_FORMATS, "stp", "gltf", "cad", "all"];
 export function createLogicDie(timing = null) {
   const die = timeStep(
     timing,
-    "create logic die container",
-    () => new Container({ key: "logic-die" }),
+    "create logic die state",
+    () => ProcessGeometryState.create({ key: "logic-die" }),
   );
   timeStep(timing, "add logic die bumps", () =>
-    die.addBump(
-      new Bump(
-        new BoxGeometry([-700.0, -700.0, 0.0], [700.0, 700.0, 0.0], 40.0),
-        0.18,
-        "SnAg",
-        "-z",
-      ),
-    ),
+    die.addBump({
+      material: "SnAg",
+      density: 0.18,
+      direction: "-z",
+      geometry: {
+        type: "box",
+        bottomLeft: [-700.0, -700.0, 0.0],
+        topRight: [700.0, 700.0, 0.0],
+        thickness: 40.0,
+      },
+    }),
   );
   timeStep(timing, "add logic die body", () =>
-    die.addBodyBox(
-      "Si die",
-      [-800.0, -800.0, 40.0],
-      [800.0, 800.0, 40.0],
-      200.0,
-    ),
+    die.depositBoxLayer({
+      material: "Si die",
+      bottomLeft: [-800.0, -800.0, 40.0],
+      topRight: [800.0, 800.0, 40.0],
+      thickness: 200.0,
+    }),
   );
   timeStep(timing, "add logic die circuit", () =>
-    die.addCircuit(
-      new Circuit(
-        new BoxGeometry(
-          [-750.0, -750.0, 240.0],
-          [750.0, 750.0, 240.0],
-          10.0,
-        ),
-        0.35,
-        "Cu",
-      ),
-    ),
+    die.addCircuit({
+      material: "Cu",
+      density: 0.35,
+      geometry: {
+        type: "box",
+        bottomLeft: [-750.0, -750.0, 240.0],
+        topRight: [750.0, 750.0, 240.0],
+        thickness: 10.0,
+      },
+    }),
   );
   return die;
 }
 
-export function buildExampleStatus(timing = null) {
-  const status = timeStep(timing, "create status", () => new Status());
+export function buildExampleState(timing = null) {
+  const state = timeStep(timing, "create state", () =>
+    ProcessGeometryState.create(),
+  );
 
   timeStep(timing, "process BT substrate panel", () =>
-    processPanel(status, "BT substrate", 300.0, 5000.0),
+    processPanel(state, "BT substrate", 300.0, 5000.0),
   );
   timeStep(timing, "add substrate vias", () =>
-    status.container().addVia(
-      new Via(
-        new BoxGeometry(
-          [-2200.0, -2200.0, 0.0],
-          [2200.0, 2200.0, 0.0],
-          300.0,
-        ),
-        0.08,
-        "Cu",
-        "+z",
-      ),
-    ),
+    state.addVia({
+      material: "Cu",
+      density: 0.08,
+      direction: "+z",
+      geometry: {
+        type: "box",
+        bottomLeft: [-2200.0, -2200.0, 0.0],
+        topRight: [2200.0, 2200.0, 0.0],
+        thickness: 300.0,
+      },
+    }),
   );
 
   timeStep(timing, "fill RDL dielectric", () =>
-    status.fill("RDL dielectric", 360.0),
+    state.fillTo({ material: "RDL dielectric", z: 360.0 }),
   );
   timeStep(timing, "add RDL circuit", () =>
-    status.container().addCircuit(
-      new Circuit(
-        new BoxGeometry(
-          [-2300.0, -2300.0, 300.0],
-          [2300.0, 2300.0, 300.0],
-          60.0,
-        ),
-        0.25,
-        "Cu",
-      ),
-    ),
+    state.addCircuit({
+      material: "Cu",
+      density: 0.25,
+      geometry: {
+        type: "box",
+        bottomLeft: [-2300.0, -2300.0, 300.0],
+        topRight: [2300.0, 2300.0, 300.0],
+        thickness: 60.0,
+      },
+    }),
   );
 
   const logicDie = timeStep(timing, "build logic die", () =>
     createLogicDie(timing),
   );
-  timeStep(timing, "place logic die", () => status.addContainers([logicDie]));
+  timeStep(timing, "place logic die", () =>
+    state.placeGeometryState(logicDie, {
+      x: -800.0,
+      y: -800.0,
+      bottomZ: state.cursorZ(),
+      anchor: "bottomLeft",
+    }),
+  );
   timeStep(timing, "process epoxy mold", () =>
-    processMolding(status, "epoxy mold", 340.0),
+    processMolding(state, "epoxy mold", 340.0),
   );
 
-  return status;
+  return state;
 }
 
 export function buildExampleJson(timing = null) {
-  const status = timeStep(timing, "build example status", () =>
-    buildExampleStatus(timing),
+  const state = timeStep(timing, "build example state", () =>
+    buildExampleState(timing),
   );
-  return timeStep(timing, "serialize container to JSON object", () =>
-    status.container().json(),
+  return timeStep(timing, "serialize geometry structure", () =>
+    state.toGeometryStructure(),
   );
 }
 

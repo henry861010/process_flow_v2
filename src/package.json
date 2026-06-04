@@ -19,8 +19,8 @@
     "./process/process-pnp": "./process/process-pnp.js",
     "./process/process-rdl": "./process/process-rdl.js",
     "./process/process-wafer": "./process/process-wafer.js",
+    "./process/process-geometry-state": "./process/process-geometry-state.js",
     "./process/rdl-layer-thickness": "./process/rdl-layer-thickness.js",
-    "./process/status": "./process/status.js",
     "./utils/math": "./utils/math.js",
     "./utils/polygon": "./utils/polygon.js"
   },

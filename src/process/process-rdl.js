@@ -1,20 +1,20 @@
 import { rdlLayerThickness } from "./rdl-layer-thickness.js";
 
 /**
- * Add an odd-count RDL stack to the current process status.
+ * Add an odd-count RDL stack to the current process state.
  *
  * Even-index layers create dielectric and a downward via region. Odd-index
  * layers create an upward circuit region followed by dielectric fill.
  *
- * @param {import("./status.js").Status} status - Process status to update.
+ * @param {import("./process-geometry-state.js").ProcessGeometryState} state - Process state to update.
  * @param {object[]} rdlLayers - RDL layer definitions. Each layer must provide
  *   `pm_material`, `metal_material`, `density`, and a thickness via `thk` or
  *   matching `pm_thickness` and `rdl_thickness`.
- * @returns {import("./status.js").Status} The same status object after the RDL
+ * @returns {import("./process-geometry-state.js").ProcessGeometryState} The same state object after the RDL
  *   stack is added.
  * @throws {Error} If the layer count is even or thickness fields are invalid.
  */
-export function processRdl(status, rdlLayers = []) {
+export function processRdl(state, rdlLayers = []) {
   if (rdlLayers.length % 2 === 0) {
     throw new Error("rdl_layers must contain an odd number of layers");
   }
@@ -26,15 +26,23 @@ export function processRdl(status, rdlLayers = []) {
     const density = rdlLayer.density;
 
     if (index % 2 === 0) {
-      status.fillThk(pmMaterial, thk);
-      status.digVia(thk, metalMaterial, density);
+      state.depositLayer({ material: pmMaterial, thickness: thk });
+      state.addViaBelowCursor({
+        material: metalMaterial,
+        density,
+        thickness: thk,
+      });
     } else {
-      status.growCircuit(thk, metalMaterial, density);
-      status.fillThk(pmMaterial, thk);
+      state.addCircuitAtCursor({
+        material: metalMaterial,
+        density,
+        thickness: thk,
+      });
+      state.depositLayer({ material: pmMaterial, thickness: thk });
     }
   });
 
-  return status;
+  return state;
 }
 
 export const process_rdl = processRdl;

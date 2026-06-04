@@ -1,7 +1,7 @@
 import { normalizeGeometryStructure } from "../data/schema.js";
 import {
-  geometryStructureToStatus,
-  statusToGeometryStructure,
+  geometryStructureToProcessGeometryState,
+  processGeometryStateToGeometryStructure,
 } from "./geometry-hydration.js";
 import { GeometryKernelExecutionResult } from "./execution-result.js";
 import { ProcessStepModuleResolver } from "./process-step-module-resolver.js";
@@ -10,7 +10,7 @@ import { ProcessStepModuleResolver } from "./process-step-module-resolver.js";
  * High-level facade for running a process flow against geometry data.
  *
  * The kernel loads flow definitions and geometry structures from repositories,
- * converts geometry JSON into a mutable Status, executes each process-step
+ * converts geometry JSON into a mutable ProcessGeometryState, executes each process-step
  * module, and returns a serializable result.
  */
 export class GeometryKernel {
@@ -47,7 +47,7 @@ export class GeometryKernel {
    * Execute all steps in a process flow instance.
    *
    * Steps run in dependency order based on `stepOutput` edges. Each process
-   * module receives a context object containing `status`, normalized `values`,
+   * module receives a context object containing `state`, normalized `values`,
    * metadata, and resolved geometry inputs.
    *
    * @param {string|object} processFlowInstanceOrId - Instance id or instance object.
@@ -96,14 +96,14 @@ export class GeometryKernel {
         stepOutputs,
       });
       const inputGeometry = firstMapValue(geometryInputs);
-      const status = inputGeometry
-        ? geometryStructureToStatus(inputGeometry)
-        : newStatus();
+      const state = inputGeometry
+        ? geometryStructureToProcessGeometryState(inputGeometry)
+        : newProcessGeometryState();
       const values = buildValues(stepTemplate.fieldDefinitions ?? [], fieldValues);
       const processModule = await this._moduleResolver.resolve(stepTemplate);
       const context = {
         kernel: this,
-        status,
+        state,
         values,
         rawFieldValues: fieldValues,
         stepRef,
@@ -116,14 +116,16 @@ export class GeometryKernel {
         value(fieldId) {
           return values[fieldId];
         },
-        geometryStatus(fieldId) {
+        geometryState(fieldId) {
           const geometry = geometryInputs.get(fieldId);
-          return geometry === undefined ? null : geometryStructureToStatus(geometry);
+          return geometry === undefined
+            ? null
+            : geometryStructureToProcessGeometryState(geometry);
         },
       };
 
       const output = await processModule.execute(context);
-      stepOutputs.set(stepRef.stepRefId, normalizeStepOutput(output, status));
+      stepOutputs.set(stepRef.stepRefId, normalizeStepOutput(output, state));
     }
 
     const terminalStepRefIds = findTerminalStepRefIds(stepRefsById, processFlowTemplate.flowEdges ?? []);
@@ -470,7 +472,7 @@ function findStepValueSet(stepValueSets, stepRefId) {
 }
 
 /**
- * Geometry fields are handled separately because they become Status inputs.
+ * Geometry fields are handled separately because they become state inputs.
  */
 function isGeometryField(field) {
   return field.valueType === "geometry" || field.valueType === "geometryRef";
@@ -490,7 +492,7 @@ function isGeometryStructure(value) {
 /**
  * Build the `values` object passed to a process-step module.
  *
- * Geometry fields are skipped because they are provided through `status` and
+ * Geometry fields are skipped because they are provided through `state` and
  * `geometryInputs`. Other fields are normalized by declared value type.
  */
 function buildValues(fieldDefinitions, fieldValues) {
@@ -556,11 +558,11 @@ function firstMapValue(map) {
 /**
  * Convert a process module return value into a normalized geometry structure.
  *
- * If the module returns nothing, the mutated fallback Status is used as output.
+ * If the module returns nothing, the mutated fallback state is used as output.
  */
-function normalizeStepOutput(output, fallbackStatus) {
-  const resolvedOutput = output === undefined || output === null ? fallbackStatus : output;
-  return statusToGeometryStructure(resolvedOutput);
+function normalizeStepOutput(output, fallbackState) {
+  const resolvedOutput = output === undefined || output === null ? fallbackState : output;
+  return processGeometryStateToGeometryStructure(resolvedOutput);
 }
 
 function normalizePreviewTarget(input) {
@@ -581,16 +583,18 @@ function normalizePreviewTarget(input) {
 }
 
 /**
- * Create an empty Status for steps that do not require geometry input.
+ * Create an empty ProcessGeometryState for steps that do not require geometry input.
  */
-function newStatus() {
-  return geometryStructureToStatus({
+function newProcessGeometryState() {
+  return geometryStructureToProcessGeometryState({
     key: "main",
     bodies: [],
     vias: [],
     circuits: [],
     bumps: [],
     children: [],
+  }, {
+    footprint: null,
   });
 }
 

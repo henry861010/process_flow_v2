@@ -1,9 +1,9 @@
 import { processPnp } from "../process-pnp.js";
 
-export async function execute({ status, values, geometryStatus }) {
-  const dieStatus = geometryStatus("die_geometry");
-  if (!dieStatus) {
+export async function execute({ state, values, geometryState }) {
+  const dieState = geometryState("die_geometry");
+  if (!dieState) {
     throw new Error("example pnp requires die_geometry");
   }
-  return processPnp(status, dieStatus, values.coordinates);
+  return processPnp(state, dieState, values.coordinates);
 }

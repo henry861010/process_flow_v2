@@ -20,7 +20,7 @@ import { processMolding } from "../process/process-molding.js";
 import { processPanel } from "../process/process-panel.js";
 import { processPnp } from "../process/process-pnp.js";
 import { processRdl } from "../process/process-rdl.js";
-import { Status } from "../process/status.js";
+import { ProcessGeometryState } from "../process/process-geometry-state.js";
 import {
   CadExportError,
   OpenCascadeConverter,
@@ -31,7 +31,7 @@ import {
   GeometryKernel,
   InMemoryRepository,
   ProcessStepModuleResolver,
-  geometryStructureToStatus,
+  geometryStructureToProcessGeometryState,
 } from "../kernel/index.js";
 import { parseExampleArgs } from "../examples/generate-json.js";
 
@@ -116,7 +116,7 @@ test("via and bump require explicit direction and flip with geometry", () => {
 test("geometry hydration requires explicit primitive type", () => {
   assert.throws(
     () =>
-      geometryStructureToStatus(
+      geometryStructureToProcessGeometryState(
         singleBodyGeometryStructure({
           bottom_left: [0, 0, 0],
           top_right: [1, 1, 0],
@@ -128,7 +128,7 @@ test("geometry hydration requires explicit primitive type", () => {
 
   assert.throws(
     () =>
-      geometryStructureToStatus(
+      geometryStructureToProcessGeometryState(
         singleBodyGeometryStructure({
           type: "PolygonGeometry",
           bottom_left: [0, 0, 0],
@@ -143,7 +143,7 @@ test("geometry hydration requires explicit primitive type", () => {
 test("geometry hydration requires via and bump direction", () => {
   assert.throws(
     () =>
-      geometryStructureToStatus({
+      geometryStructureToProcessGeometryState({
         schemaVersion: "1.0.0",
         unitSystem: "um",
         root: {
@@ -171,7 +171,7 @@ test("geometry hydration requires via and bump direction", () => {
 
   assert.throws(
     () =>
-      geometryStructureToStatus({
+      geometryStructureToProcessGeometryState({
         schemaVersion: "1.0.0",
         unitSystem: "um",
         root: {
@@ -221,27 +221,41 @@ test("polygon loop odd even classification", () => {
   assert.deepEqual(regions.map((region) => region.holes.length), [1, 0]);
 });
 
-test("status fill and add containers track process z", () => {
-  const status = new Status();
-  status.initialBody(
-    new Body(new BoxGeometry([0, 0, 2], [10, 10, 2], 3), "template"),
-  );
+test("process geometry state deposit and placement track cursor z", () => {
+  const state = ProcessGeometryState.create();
+  state.initializeBoxLayer({
+    material: "base",
+    bottomLeft: [0, 0, 0],
+    topRight: [10, 10, 0],
+    thickness: 5,
+  });
 
-  status.fillThk("base", 5);
-  const die = new Container({ key: "die" });
-  die.addBodyBox("silicon", [2, 2, 1], [8, 8, 1], 2);
-  status.addContainers([die]);
+  const die = ProcessGeometryState.create({ key: "die" });
+  die.initializeBoxLayer({
+    material: "silicon",
+    bottomLeft: [2, 2, 1],
+    topRight: [8, 8, 1],
+    thickness: 2,
+    setFootprint: false,
+  });
+  state.placeGeometryState(die, {
+    x: 2,
+    y: 2,
+    bottomZ: state.cursorZ(),
+    anchor: "bottomLeft",
+  });
 
-  assert.equal(status.zNow(), 5);
-  assert.equal(status.container().zMin(), 0);
-  assert.equal(status.container().zMax(), 7);
-  assert.equal(status.container().children()[0].zMin(), 5);
+  const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 5);
+  assert.equal(output.root.bodies[0].geometry.bottom_left[2], 0);
+  assert.equal(output.root.children[0].bodies[0].geometry.bottom_left[2], 5);
+  assert.equal(output.root.children[0].bodies[0].geometry.thk, 2);
 });
 
-test("process step modules compose status independently", () => {
-  const status = processPanel(new Status(), "panel", 10, 100);
-  processMolding(status, "dielectric", 5);
-  processRdl(status, [
+test("process step modules compose process state independently", () => {
+  const state = processPanel(ProcessGeometryState.create(), "panel", 10, 100);
+  processMolding(state, "dielectric", 5);
+  processRdl(state, [
     {
       pm_material: "PI",
       metal_material: "Cu",
@@ -250,35 +264,38 @@ test("process step modules compose status independently", () => {
     },
   ]);
 
-  assert.equal(status.zNow(), 18);
-  assert.equal(status.container().bodies().length, 3);
-  assert.equal(status.container().vias().length, 1);
-  assert.equal(status.container().vias()[0].direction(), "-z");
+  const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 18);
+  assert.equal(output.root.bodies.length, 3);
+  assert.equal(output.root.vias.length, 1);
+  assert.equal(output.root.vias[0].direction, "-z");
 });
 
 test("process pnp places die copies at fieldGroupArray bottom-left points", () => {
-  const targetStatus = processPanel(new Status(), "carrier", 10, 1000);
-  const dieStatus = processPanel(new Status(), "silicon", 20, 100);
+  const targetState = processPanel(ProcessGeometryState.create(), "carrier", 10, 1000);
+  const dieState = processPanel(ProcessGeometryState.create(), "silicon", 20, 100);
 
-  processPnp(targetStatus, dieStatus, [
+  processPnp(targetState, dieState, [
     { bottomLeft_x: 100, bottomLeft_y: 200 },
     { bottomLeft_x: -25, bottomLeft_y: 50 },
   ]);
 
-  const children = targetStatus.container().children();
+  const targetOutput = targetState.toGeometryStructure();
+  const dieOutput = dieState.toGeometryStructure();
+  const children = targetOutput.root.children;
   assert.equal(children.length, 2);
-  assert.deepEqual(children[0].bodies()[0].geometry().bottomLeft(), [
+  assert.deepEqual(children[0].bodies[0].geometry.bottom_left, [
     100,
     200,
     10,
   ]);
-  assert.deepEqual(children[1].bodies()[0].geometry().bottomLeft(), [
+  assert.deepEqual(children[1].bodies[0].geometry.bottom_left, [
     -25,
     50,
     10,
   ]);
-  assert.equal(targetStatus.zNow(), 10);
-  assert.deepEqual(dieStatus.container().bodies()[0].geometry().bottomLeft(), [
+  assert.equal(targetState.cursorZ(), 10);
+  assert.deepEqual(dieOutput.root.bodies[0].geometry.bottom_left, [
     -50,
     -50,
     0,
@@ -327,33 +344,40 @@ test("example pnp demo flow runs through station outputs", async () => {
 });
 
 test("bga and c4 bump processes overlap existing uncontained bumps", () => {
-  const status = processPanel(new Status(), "silicon", 20, 100);
-  status.container().addBump(
-    new Bump(
-      new BoxGeometry([-80, -80, -20], [80, 80, -20], 20),
-      0.1,
-      "old bump",
-      "-z",
-    ),
-  );
+  const state = processPanel(ProcessGeometryState.create(), "silicon", 20, 100);
+  state.addBump({
+    material: "old bump",
+    density: 0.1,
+    direction: "-z",
+    geometry: {
+      type: "box",
+      bottomLeft: [-80, -80, -20],
+      topRight: [80, 80, -20],
+      thickness: 20,
+    },
+  });
 
-  processBgaBump(status, "BGA", 0.2);
-  processC4Bump(status, "C4", 0.3);
+  processBgaBump(state, "BGA", 0.2);
+  processC4Bump(state, "C4", 0.3);
 
-  const bumps = status.container().bumps();
+  const bumps = state.toGeometryStructure().root.bumps;
   assert.equal(bumps.length, 3);
   assert.deepEqual(
-    bumps.map((bump) => [bump.material(), bump.zMin(), bump.zMax()]),
+    bumps.map((bump) => [
+      bump.material,
+      bump.geometry.bottom_left[2],
+      bump.geometry.bottom_left[2] + bump.geometry.thk,
+    ]),
     [
       ["old bump", -20, 0],
       ["BGA", -20, 0],
       ["C4", -20, 0],
     ],
   );
-  assert.deepEqual(bumps[1].geometry().bottomLeft(), [-50, -50, -20]);
-  assert.deepEqual(bumps[2].geometry().bottomLeft(), [-50, -50, -20]);
+  assert.deepEqual(bumps[1].geometry.bottom_left, [-50, -50, -20]);
+  assert.deepEqual(bumps[2].geometry.bottom_left, [-50, -50, -20]);
   assert.deepEqual(
-    bumps.map((bump) => bump.direction()),
+    bumps.map((bump) => bump.direction),
     ["-z", "-z", "-z"],
   );
 });
@@ -540,12 +564,12 @@ test("example CLI parses output format options", () => {
   assert.throws(() => parseExampleArgs(["--format", "iges"]), /Unsupported/);
 });
 
-test("geometry hydration restores process status from geometry structure", () => {
-  const status = geometryStructureToStatus(kernelInputGeometry());
+test("geometry hydration restores process state from geometry structure", () => {
+  const state = geometryStructureToProcessGeometryState(kernelInputGeometry());
 
-  processMolding(status, "EMC-A", 5);
+  processMolding(state, "EMC-A", 5);
 
-  const output = status.container().json();
+  const output = state.toGeometryStructure();
   assert.equal(output.root.bodies.length, 2);
   assert.deepEqual(output.root.bodies[1].geometry.bottom_left, [-50, -50, 10]);
   assert.equal(output.root.bodies[1].geometry.thk, 5);

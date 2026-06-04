@@ -1,7 +1,7 @@
 import { addExampleBump } from "./shared.js";
 
-export async function execute({ status, values }) {
-  return addExampleBump(status, {
+export async function execute({ state, values }) {
+  return addExampleBump(state, {
     material: values.material,
     density: values.density,
     thk: values.thk,
