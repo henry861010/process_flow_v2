@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:core": "npm --prefix ../.. --workspace process-flow-geometry-js run build",
+    "build:worker": "tsc -p tsconfig.scripts.json",
+    "predev": "npm run build:core && npm run build:worker",
     "dev": "next dev",
+    "prebuild": "npm run build:core && npm run build:worker",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

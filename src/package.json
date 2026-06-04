@@ -3,36 +3,93 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "JavaScript geometry kernel and OpenCascade.js CAD exporter for process-flow geometry structures.",
-  "main": "./index.js",
+  "description": "TypeScript geometry kernel and OpenCascade.js CAD exporter for process-flow geometry structures.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./index.js",
-    "./data": "./data/index.js",
-    "./exporters/cad": "./exporters/cad.js",
-    "./kernel": "./kernel/index.js",
-    "./process": "./process/index.js",
-    "./process/process-bgaBump": "./process/process-bgaBump.js",
-    "./process/process-c4Bump": "./process/process-c4Bump.js",
-    "./process/process-ubump": "./process/process-ubump.js",
-    "./process/process-molding": "./process/process-molding.js",
-    "./process/process-panel": "./process/process-panel.js",
-    "./process/process-pnp": "./process/process-pnp.js",
-    "./process/process-rdl": "./process/process-rdl.js",
-    "./process/process-wafer": "./process/process-wafer.js",
-    "./process/rdl-layer-thickness": "./process/rdl-layer-thickness.js",
-    "./process/status": "./process/status.js",
-    "./utils/math": "./utils/math.js",
-    "./utils/polygon": "./utils/polygon.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./data": {
+      "types": "./dist/data/index.d.ts",
+      "default": "./dist/data/index.js"
+    },
+    "./exporters/cad": {
+      "types": "./dist/exporters/cad.d.ts",
+      "default": "./dist/exporters/cad.js"
+    },
+    "./kernel": {
+      "types": "./dist/kernel/index.d.ts",
+      "default": "./dist/kernel/index.js"
+    },
+    "./process": {
+      "types": "./dist/process/index.d.ts",
+      "default": "./dist/process/index.js"
+    },
+    "./process/process-bgaBump": {
+      "types": "./dist/process/process-bgaBump.d.ts",
+      "default": "./dist/process/process-bgaBump.js"
+    },
+    "./process/process-c4Bump": {
+      "types": "./dist/process/process-c4Bump.d.ts",
+      "default": "./dist/process/process-c4Bump.js"
+    },
+    "./process/process-ubump": {
+      "types": "./dist/process/process-ubump.d.ts",
+      "default": "./dist/process/process-ubump.js"
+    },
+    "./process/process-molding": {
+      "types": "./dist/process/process-molding.d.ts",
+      "default": "./dist/process/process-molding.js"
+    },
+    "./process/process-panel": {
+      "types": "./dist/process/process-panel.d.ts",
+      "default": "./dist/process/process-panel.js"
+    },
+    "./process/process-pnp": {
+      "types": "./dist/process/process-pnp.d.ts",
+      "default": "./dist/process/process-pnp.js"
+    },
+    "./process/process-rdl": {
+      "types": "./dist/process/process-rdl.d.ts",
+      "default": "./dist/process/process-rdl.js"
+    },
+    "./process/process-wafer": {
+      "types": "./dist/process/process-wafer.d.ts",
+      "default": "./dist/process/process-wafer.js"
+    },
+    "./process/rdl-layer-thickness": {
+      "types": "./dist/process/rdl-layer-thickness.d.ts",
+      "default": "./dist/process/rdl-layer-thickness.js"
+    },
+    "./process/process-geometry-state": {
+      "types": "./dist/process/process-geometry-state.d.ts",
+      "default": "./dist/process/process-geometry-state.js"
+    },
+    "./utils/math": {
+      "types": "./dist/utils/math.d.ts",
+      "default": "./dist/utils/math.js"
+    },
+    "./utils/polygon": {
+      "types": "./dist/utils/polygon.d.ts",
+      "default": "./dist/utils/polygon.js"
+    }
   },
   "scripts": {
-    "example": "node ./examples/generate-json.js",
-    "test": "node --test",
-    "example:json": "node ./examples/generate-json.js --format json",
-    "example:cad": "node ./examples/generate-json.js --format all --output /tmp/process-flow-example",
-    "example:kernel": "node ./examples/geometry-kernel-usage.js"
+    "build": "tsc -p tsconfig.json",
+    "example": "npm run build && node ./dist/examples/generate-json.js",
+    "test": "npm run build && node --test ./dist/tests/geometry-schema.test.js",
+    "example:json": "npm run build && node ./dist/examples/generate-json.js --format json",
+    "example:cad": "npm run build && node ./dist/examples/generate-json.js --format all --output /tmp/process-flow-example",
+    "example:kernel": "npm run build && node ./dist/examples/geometry-kernel-usage.js"
   },
   "dependencies": {
     "opencascade.js": "beta"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
   },
   "engines": {
     "node": ">=20"

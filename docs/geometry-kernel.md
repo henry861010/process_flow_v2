@@ -914,7 +914,7 @@ Parameters:
 | --- | --- | --- | --- | --- |
 | `material` | string | yes | none | Material name or id. |
 | `density` | number | yes | none | Effective bump density. |
-| `thickness` | number | yes | none | Bump envelope thickness. |
+| `thickness` | number | no | lowest direct body thickness | Bump envelope thickness. |
 | `direction` | `"+z"` or `"-z"` | no | `"-z"` | Bump direction. |
 | `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Scope whose lowest direct body is used. |
 | `footprintSource` | string | no | `"lowestDirectBody"` | Source for bump XY envelope. |
@@ -924,6 +924,7 @@ Behavior:
 - Finds the lowest direct body in the target scope.
 - Uses that body's XY footprint.
 - Places the bump immediately below that body.
+- Uses the lowest direct body thickness when `thickness` is omitted.
 - Does not move `cursorZ`.
 
 This method exists because bump placement is a common process operation and

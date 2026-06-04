@@ -1,0 +1,17 @@
+{
+  "name": "process-flow-v2",
+  "private": true,
+  "workspaces": [
+    "src",
+    "apps/viewer"
+  ],
+  "scripts": {
+    "dev": "npm --workspace @process-flow/cad-viewer run dev --",
+    "build": "npm --workspace @process-flow/cad-viewer run build",
+    "test": "npm --workspace process-flow-geometry-js run test",
+    "build:core": "npm --workspace process-flow-geometry-js run build"
+  },
+  "dependencies": {
+    "src": "^1.1.2"
+  }
+}
