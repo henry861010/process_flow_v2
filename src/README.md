@@ -1,8 +1,10 @@
 ```
 cd process_flow_v2
 
-npm --prefix src install
-npm --prefix apps/viewer install
+cd src
+npm install
 
+cd ../apps/viewer
+npm install
 npm run dev
 ```

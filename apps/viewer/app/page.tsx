@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { GitBranch, ListChecks, Workflow } from "lucide-react";
 
 import {
@@ -43,14 +42,14 @@ export default function Home() {
         className="grid w-full max-w-xl gap-3 sm:grid-cols-3"
       >
         {entries.map(({ href, label, icon: Icon }) => (
-          <Link
+          <a
             key={href}
             href={href}
             className="flex h-24 flex-col items-center justify-center gap-3 rounded-md border bg-white text-center text-sm font-semibold shadow-sm transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Icon className="h-5 w-5" />
             <span>{label}</span>
-          </Link>
+          </a>
         ))}
       </nav>
       <button

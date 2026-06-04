@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:core": "npm --prefix ../.. --workspace process-flow-geometry-js run build",
+    "clean:next": "node ./scripts/clean-next-cache.mjs",
+    "build:core": "npm --prefix ../../src run build",
     "build:worker": "tsc -p tsconfig.scripts.json",
-    "predev": "npm run build:core && npm run build:worker",
+    "predev": "npm run clean:next && npm run build:core && npm run build:worker",
     "dev": "next dev",
-    "prebuild": "npm run build:core && npm run build:worker",
+    "prebuild": "npm run clean:next && npm run build:core && npm run build:worker",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
