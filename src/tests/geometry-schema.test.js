@@ -484,6 +484,112 @@ test("geometry kernel imports and executes real molding process step", async () 
   assert.equal(geometry.root.bodies[1].geometry.thk, 5);
 });
 
+test("geometry kernel imports and executes real RDL process step", async () => {
+  const kernel = createTestKernel({
+    processStepTemplates: [realRdlStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "rdl",
+          processStepTemplateId: "step_tpl_rdl_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_rdl",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "rdl",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "rdl",
+          processStepTemplateId: "step_tpl_rdl_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            {
+              fieldId: "layers",
+              value: {
+                items: [
+                  {
+                    itemId: "rdl_layer_1",
+                    index: 1,
+                    fieldValues: [
+                      { fieldId: "Dielectric", value: "PI-1" },
+                      { fieldId: "Conductivity", value: "Cu" },
+                      { fieldId: "thk", value: 2 },
+                      { fieldId: "density", value: 45 },
+                    ],
+                  },
+                  {
+                    itemId: "rdl_layer_2",
+                    index: 2,
+                    fieldValues: [
+                      { fieldId: "Dielectric", value: "PI-2" },
+                      { fieldId: "Conductivity", value: "Cu" },
+                      { fieldId: "thk", value: 3 },
+                      { fieldId: "density", value: 60 },
+                    ],
+                  },
+                  {
+                    itemId: "rdl_layer_3",
+                    index: 3,
+                    fieldValues: [
+                      { fieldId: "Dielectric", value: "PI-3" },
+                      { fieldId: "Conductivity", value: "Cu-Ni" },
+                      { fieldId: "thk", value: 4 },
+                      { fieldId: "density", value: 75 },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
+
+  assert.equal(geometry.root.bodies.length, 4);
+  assert.equal(geometry.root.bodies[1].material, "PI-1");
+  assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-50, -50, 10]);
+  assert.equal(geometry.root.bodies[1].geometry.thk, 2);
+  assert.equal(geometry.root.bodies[2].material, "PI-2");
+  assert.deepEqual(geometry.root.bodies[2].geometry.bottom_left, [-50, -50, 12]);
+  assert.equal(geometry.root.bodies[2].geometry.thk, 3);
+  assert.equal(geometry.root.bodies[3].material, "PI-3");
+  assert.deepEqual(geometry.root.bodies[3].geometry.bottom_left, [-50, -50, 15]);
+  assert.equal(geometry.root.bodies[3].geometry.thk, 4);
+
+  assert.equal(geometry.root.circuits.length, 2);
+  assert.equal(geometry.root.circuits[0].material, "Cu");
+  assert.equal(geometry.root.circuits[0].density, 45);
+  assert.deepEqual(geometry.root.circuits[0].geometry.bottom_left, [-50, -50, 10]);
+  assert.equal(geometry.root.circuits[0].geometry.thk, 2);
+  assert.equal(geometry.root.circuits[1].material, "Cu-Ni");
+  assert.equal(geometry.root.circuits[1].density, 75);
+  assert.deepEqual(geometry.root.circuits[1].geometry.bottom_left, [-50, -50, 15]);
+  assert.equal(geometry.root.circuits[1].geometry.thk, 4);
+
+  assert.equal(geometry.root.vias.length, 1);
+  assert.equal(geometry.root.vias[0].material, "Cu");
+  assert.equal(geometry.root.vias[0].density, 60);
+  assert.equal(geometry.root.vias[0].direction, "-z");
+  assert.deepEqual(geometry.root.vias[0].geometry.bottom_left, [-50, -50, 12]);
+  assert.equal(geometry.root.vias[0].geometry.thk, 3);
+});
+
 test("geometry kernel imports and executes real PnP process step", async () => {
   const kernel = createTestKernel({
     geometryEntities: [
@@ -1000,6 +1106,81 @@ function realMoldingStepTemplate() {
         controlType: "number",
         selectionMode: null,
         unit: "um",
+      },
+    ],
+  };
+}
+
+function realRdlStepTemplate() {
+  return {
+    id: "step_tpl_rdl_1_0_0",
+    version: "V1.0.0",
+    name: "RDL layer",
+    category: "layer",
+    program: "layer/rdl",
+    description: "Build RDL dielectric layers with circuit and via features.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "layers",
+        name: "layers",
+        scope: "processParameter",
+        valueType: "fieldGroupArray",
+        controlType: "repeater",
+        selectionMode: null,
+        unit: null,
+        repeatDefinition: {
+          itemNameTemplate: "RDL layer {{index}}",
+          indexBase: 1,
+          minItems: 1,
+          itemFieldDefinitions: [
+            {
+              id: "Dielectric",
+              name: "Dielectric",
+              scope: "processParameter",
+              valueType: "materialRef",
+              controlType: "text",
+              selectionMode: null,
+              unit: null,
+            },
+            {
+              id: "Conductivity",
+              name: "Conductivity",
+              scope: "processParameter",
+              valueType: "materialRef",
+              controlType: "text",
+              selectionMode: null,
+              unit: null,
+            },
+            {
+              id: "thk",
+              name: "thk",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: "um",
+            },
+            {
+              id: "density",
+              name: "density",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: null,
+            },
+          ],
+        },
       },
     ],
   };

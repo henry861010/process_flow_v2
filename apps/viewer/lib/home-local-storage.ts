@@ -184,6 +184,97 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
+    id: "step_tpl_rdl_1_0_0",
+    version: "V1.0.0",
+    name: "RDL layer",
+    category: "layer",
+    program: "layer/rdl",
+    description:
+      "Builds RDL dielectric layers with alternating circuit and downward via conductivity features over the current process footprint.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Complete geometry state consumed by RDL. The state must already carry a process footprint.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "layers",
+        name: "layers",
+        description:
+          "RDL layer stack. Odd-numbered layers create circuit features before dielectric deposit; even-numbered layers create downward via features after dielectric deposit.",
+        scope: "processParameter",
+        valueType: "fieldGroupArray",
+        controlType: "repeater",
+        selectionMode: null,
+        unit: null,
+        repeatDefinition: {
+          itemNameTemplate: "RDL layer {{index}}",
+          indexBase: 1,
+          minItems: 1,
+          itemFieldDefinitions: [
+            {
+              id: "Dielectric",
+              name: "Dielectric",
+              description: "Dielectric material name or material entity id.",
+              scope: "processParameter",
+              valueType: "materialRef",
+              controlType: "text",
+              selectionMode: null,
+              unit: null,
+            },
+            {
+              id: "Conductivity",
+              name: "Conductivity",
+              description: "Conductivity material name or material entity id.",
+              scope: "processParameter",
+              valueType: "materialRef",
+              controlType: "text",
+              selectionMode: null,
+              unit: null,
+            },
+            {
+              id: "thk",
+              name: "thk",
+              description:
+                "Positive thickness for this dielectric layer and its conductivity feature envelope.",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: "um",
+              validation: {
+                min: 0,
+                exclusiveMin: true,
+              },
+            },
+            {
+              id: "density",
+              name: "density",
+              description:
+                "Conductivity feature density recorded as a 0 to 100 percentage value.",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: null,
+              validation: {
+                min: 0,
+                max: 100,
+              },
+            },
+          ],
+        },
+      },
+    ],
+  },
+  {
     id: "step_tpl_pnp_1_0_0",
     version: "V1.0.0",
     name: "PnP",
