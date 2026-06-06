@@ -4,6 +4,7 @@ import {
   processGeometryStateToGeometryStructure,
 } from "./geometry-hydration.js";
 import { GeometryKernelExecutionResult } from "./execution-result.js";
+import { ProcessGeometryState } from "./process-geometry-state.js";
 import { ProcessStepModuleResolver } from "./process-step-module-resolver.js";
 
 /**
@@ -88,17 +89,18 @@ export class GeometryKernel {
       }
 
       const fieldValues = stepValueSet.fieldValues ?? [];
-      const geometryInputs = await this._resolveGeometryInputs({
+      const runtimeGeometryInputs = await this._resolveGeometryInputs({
         stepRef,
         stepTemplate,
         stepValueSet,
         processFlowTemplate,
         stepOutputs,
       });
-      const inputGeometry = firstMapValue(geometryInputs);
+      const inputGeometry = firstMapValue(runtimeGeometryInputs);
       const state = inputGeometry
-        ? geometryStructureToProcessGeometryState(inputGeometry)
+        ? geometryInputToProcessGeometryState(inputGeometry)
         : newProcessGeometryState();
+      const geometryInputs = serializeGeometryInputMap(runtimeGeometryInputs);
       const values = buildValues(stepTemplate.fieldDefinitions ?? [], fieldValues);
       const processModule = await this._moduleResolver.resolve(stepTemplate);
       const context = {
@@ -112,20 +114,20 @@ export class GeometryKernel {
         processFlowTemplate,
         processFlowInstance,
         geometryInputs,
-        inputGeometry,
+        inputGeometry: firstMapValue(geometryInputs),
         value(fieldId) {
           return values[fieldId];
         },
         geometryState(fieldId) {
-          const geometry = geometryInputs.get(fieldId);
+          const geometry = runtimeGeometryInputs.get(fieldId);
           return geometry === undefined
             ? null
-            : geometryStructureToProcessGeometryState(geometry);
+            : geometryInputToProcessGeometryState(geometry);
         },
       };
 
       const output = await processModule.execute(context);
-      stepOutputs.set(stepRef.stepRefId, normalizeStepOutput(output, state));
+      stepOutputs.set(stepRef.stepRefId, normalizeStepOutputState(output, state));
     }
 
     const terminalStepRefIds = findTerminalStepRefIds(stepRefsById, processFlowTemplate.flowEdges ?? []);
@@ -133,14 +135,15 @@ export class GeometryKernel {
     if (!selectedStepRefId) {
       throw new Error("Process flow does not contain an executable terminal step");
     }
-    const geometryStructure = stepOutputs.get(selectedStepRefId);
-    if (geometryStructure === undefined) {
+    const selectedOutput = stepOutputs.get(selectedStepRefId);
+    if (selectedOutput === undefined) {
       throw new Error(`No geometry output for terminal step ${selectedStepRefId}`);
     }
+    const geometryStructure = processGeometryStateToGeometryStructure(selectedOutput);
 
     return new GeometryKernelExecutionResult({
       geometryStructure,
-      stepOutputs,
+      stepOutputs: serializeStepOutputs(stepOutputs),
       terminalStepRefIds,
     });
   }
@@ -556,13 +559,39 @@ function firstMapValue(map) {
 }
 
 /**
- * Convert a process module return value into a normalized geometry structure.
+ * Convert a process module return value into a runtime state.
  *
  * If the module returns nothing, the mutated fallback state is used as output.
  */
-function normalizeStepOutput(output, fallbackState) {
+function normalizeStepOutputState(output, fallbackState) {
   const resolvedOutput = output === undefined || output === null ? fallbackState : output;
-  return processGeometryStateToGeometryStructure(resolvedOutput);
+  return geometryInputToProcessGeometryState(resolvedOutput);
+}
+
+function geometryInputToProcessGeometryState(value) {
+  if (value instanceof ProcessGeometryState) {
+    return value.clone();
+  }
+  if (value?.toGeometryStructure && typeof value.toGeometryStructure === "function") {
+    return geometryStructureToProcessGeometryState(value.toGeometryStructure());
+  }
+  return geometryStructureToProcessGeometryState(value);
+}
+
+function serializeStepOutputs(stepOutputs) {
+  const result = new Map();
+  for (const [stepRefId, output] of stepOutputs) {
+    result.set(stepRefId, processGeometryStateToGeometryStructure(output));
+  }
+  return result;
+}
+
+function serializeGeometryInputMap(geometryInputs) {
+  const result = new Map();
+  for (const [fieldId, input] of geometryInputs) {
+    result.set(fieldId, processGeometryStateToGeometryStructure(input));
+  }
+  return result;
 }
 
 function normalizePreviewTarget(input) {

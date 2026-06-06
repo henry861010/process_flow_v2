@@ -183,6 +183,80 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
       },
     ],
   },
+  {
+    id: "step_tpl_pnp_1_0_0",
+    version: "V1.0.0",
+    name: "PnP",
+    category: "PnP",
+    program: "pnp/pnp",
+    description:
+      "Places one or more copied die geometry states onto the main geometry at the main cursorZ plane.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Main package geometry state that receives placed die child scopes.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "die_geometry",
+        name: "die_geometry",
+        description:
+          "Die geometry state copied once for each coordinate item before placement.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "coordinates",
+        name: "coordinates",
+        description:
+          "Placement coordinates. Each item gives the target lower-left XY point for one die copy.",
+        scope: "processParameter",
+        valueType: "fieldGroupArray",
+        controlType: "repeater",
+        selectionMode: null,
+        unit: null,
+        repeatDefinition: {
+          itemNameTemplate: "Die {{index}}",
+          indexBase: 1,
+          minItems: 1,
+          itemFieldDefinitions: [
+            {
+              id: "bottemLeftX",
+              name: "bottemLeftX",
+              description:
+                "Target X coordinate for the lower-left corner of the die copy.",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: "um",
+            },
+            {
+              id: "bottemLeftY",
+              name: "bottemLeftY",
+              description:
+                "Target Y coordinate for the lower-left corner of the die copy.",
+              scope: "processParameter",
+              valueType: "float",
+              controlType: "number",
+              selectionMode: null,
+              unit: "um",
+            },
+          ],
+        },
+      },
+    ],
+  },
 ];
 
 export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [];
