@@ -10,6 +10,7 @@ type ValueType =
   | "float"
   | "boolean"
   | "materialRef"
+  | "geometryRef"
   | "geometry"
   | "fieldGroupArray"
   | "string[]"
@@ -22,7 +23,8 @@ type ControlType =
   | "checkbox"
   | "select"
   | "geometry"
-  | "repeater";
+  | "repeater"
+  | null;
 type SelectionMode = "single" | "multiple" | null;
 
 type StaticOption = {
@@ -62,7 +64,7 @@ type FieldDefinition = {
   valueType: ValueType;
   controlType: ControlType;
   selectionMode: SelectionMode;
-  unit: null;
+  unit: string | null;
   optionSource?: OptionSource;
   validation?: ValidationRule;
   repeatDefinition?: RepeatDefinition;
@@ -132,7 +134,56 @@ type GeometryEntity = {
   structure?: unknown;
 };
 
-export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [];
+export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
+  {
+    id: "step_tpl_molding_1_0_0",
+    version: "V1.0.0",
+    name: "molding",
+    category: "layer",
+    program: "layer/molding",
+    description:
+      "Deposits a molding material layer over the current process footprint from cursorZ to cursorZ + thickness.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Complete geometry state consumed by molding. The state must already carry a process footprint.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "material",
+        name: "material",
+        description: "Molding material name or material entity id.",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "text",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thickness",
+        name: "thickness",
+        description:
+          "Molding thickness deposited from the current process cursor plane.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+          exclusiveMin: true,
+        },
+      },
+    ],
+  },
+];
 
 export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [];
 

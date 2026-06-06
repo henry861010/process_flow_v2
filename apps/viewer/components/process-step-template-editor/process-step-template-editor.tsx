@@ -34,6 +34,7 @@ type ValueType =
   | "float"
   | "boolean"
   | "materialRef"
+  | "geometryRef"
   | "geometry"
   | "fieldGroupArray"
   | "string[]"
@@ -46,7 +47,8 @@ type ControlType =
   | "checkbox"
   | "select"
   | "geometry"
-  | "repeater";
+  | "repeater"
+  | null;
 type SelectionMode = "single" | "multiple" | null;
 
 type StaticOption = {
@@ -86,7 +88,7 @@ type FieldDefinition = {
   valueType: ValueType;
   controlType: ControlType;
   selectionMode: SelectionMode;
-  unit: null;
+  unit: string | null;
   optionSource?: OptionSource;
   validation?: ValidationRule;
   repeatDefinition?: RepeatDefinition;
@@ -110,8 +112,8 @@ const MAIN_GEOMETRY_FIELD: FieldDefinition = {
   name: "main_geometry",
   description: "Complete geometry state consumed by this process step.",
   scope: "inputState",
-  valueType: "geometry",
-  controlType: "geometry",
+  valueType: "geometryRef",
+  controlType: null,
   selectionMode: null,
   unit: null,
 };
@@ -126,12 +128,16 @@ const valueTypes: ValueType[] = [
   "boolean",
   "materialRef",
   "materialRef[]",
+  "geometryRef",
   "geometry",
   "fieldGroupArray",
 ];
 
 const childValueTypes: ValueType[] = valueTypes.filter(
-  (valueType) => valueType !== "geometry" && valueType !== "fieldGroupArray",
+  (valueType) =>
+    valueType !== "geometryRef" &&
+    valueType !== "geometry" &&
+    valueType !== "fieldGroupArray",
 );
 
 const scopes: FieldScope[] = ["inputState", "processParameter", "outputState"];
@@ -849,7 +855,7 @@ function ReviewField({ field }: { field: FieldDefinition }) {
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
           <Badge variant="signal">{field.valueType}</Badge>
-          <Badge variant="secondary">{field.controlType}</Badge>
+          <Badge variant="secondary">{field.controlType ?? "null"}</Badge>
           <Badge variant="outline">{field.selectionMode ?? "null"}</Badge>
           <Badge variant="outline">{field.unit ?? "unit:null"}</Badge>
         </div>
@@ -885,7 +891,7 @@ function ReviewField({ field }: { field: FieldDefinition }) {
                 </div>
                 <div className="flex gap-2">
                   <Badge variant="signal">{child.valueType}</Badge>
-                  <Badge variant="secondary">{child.controlType}</Badge>
+                  <Badge variant="secondary">{child.controlType ?? "null"}</Badge>
                 </div>
               </div>
             ))}
@@ -953,7 +959,7 @@ function FieldListRow({
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             <Badge variant="signal">{field.valueType}</Badge>
-            <Badge variant="secondary">{field.controlType}</Badge>
+            <Badge variant="secondary">{field.controlType ?? "null"}</Badge>
           </div>
         </div>
       </button>
@@ -1141,8 +1147,22 @@ function BasicSection({
             ))}
           </select>
         </FormField>
-        <FormField label="unit">
-          <input className={inputClass} disabled value="null" />
+        <FormField label="unit" error={errors[`${path}.unit`]}>
+          <input
+            className={inputClass}
+            disabled={locked}
+            placeholder="null"
+            value={field.unit ?? ""}
+            onChange={(event) =>
+              onChange({
+                ...field,
+                unit:
+                  event.target.value.trim() === ""
+                    ? null
+                    : event.target.value,
+              })
+            }
+          />
         </FormField>
         <FormField label="description" className="col-span-2">
           <textarea
@@ -1213,14 +1233,18 @@ function TypeSection({
           <select
             className={selectClass}
             disabled={locked || controls.length <= 1}
-            value={field.controlType}
+            value={field.controlType ?? "null"}
             onChange={(event) =>
-              changeControlType(event.target.value as ControlType)
+              changeControlType(
+                event.target.value === "null"
+                  ? null
+                  : (event.target.value as ControlType),
+              )
             }
           >
             {controls.map((controlType) => (
-              <option key={controlType} value={controlType}>
-                {controlType}
+              <option key={controlType ?? "null"} value={controlType ?? "null"}>
+                {controlType ?? "null"}
               </option>
             ))}
           </select>
@@ -2012,6 +2036,8 @@ function defaultControlForValueType(valueType: ValueType): ControlType {
       return "number";
     case "boolean":
       return "checkbox";
+    case "geometryRef":
+      return null;
     case "geometry":
       return "geometry";
     case "fieldGroupArray":
@@ -2041,6 +2067,8 @@ function legalControlsForValueType(valueType: ValueType): ControlType[] {
       return ["text", "select"];
     case "materialRef[]":
       return ["select", "checkbox"];
+    case "geometryRef":
+      return [null];
     case "geometry":
       return ["geometry"];
     case "fieldGroupArray":
@@ -2338,13 +2366,18 @@ function validateFieldDefinition({
     errors[`${path}.scope`] = "Invalid scope.";
   }
 
-  if (unit !== null) {
-    errors[`${path}.unit`] = "Unit must be null.";
+  if (unit !== null && typeof unit !== "string") {
+    errors[`${path}.unit`] = "Unit must be a string or null.";
   }
 
-  if (isChild && (valueType === "geometry" || valueType === "fieldGroupArray")) {
+  if (
+    isChild &&
+    (valueType === "geometryRef" ||
+      valueType === "geometry" ||
+      valueType === "fieldGroupArray")
+  ) {
     errors[`${path}.valueType`] =
-      "Repeater child fields cannot use geometry or fieldGroupArray.";
+      "Repeater child fields cannot use geometryRef, geometry, or fieldGroupArray.";
   }
 
   if (!isLegalCombination(valueType, controlType, selectionMode)) {
@@ -2554,8 +2587,8 @@ function isLockedMainGeometry(field: FieldDefinition) {
     field.id === "main_geometry" &&
     field.name === "main_geometry" &&
     field.scope === "inputState" &&
-    field.valueType === "geometry" &&
-    field.controlType === "geometry" &&
+    field.valueType === "geometryRef" &&
+    field.controlType === null &&
     field.selectionMode === null &&
     field.unit === null
   );
@@ -2584,7 +2617,7 @@ function normalizeField(field: FieldDefinition): FieldDefinition {
     valueType: field.valueType,
     controlType: field.controlType,
     selectionMode: field.selectionMode,
-    unit: null,
+    unit: field.unit ?? null,
   };
 
   if (usesOptions(field) && field.optionSource) {
