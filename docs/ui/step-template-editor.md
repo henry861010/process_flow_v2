@@ -43,14 +43,7 @@ Export 行為：
 
 ### Seed Templates
 
-當 `localStorage` 尚未存在 `processStepTemplates` key 時，由 home page 初始化 sample templates。此頁只讀取與寫入既有 key，不負責 seed。若使用者刪除全部 templates，不自動重新建立 seed data。完整 seed 清單以 `docs/ui/home.md` 與 `apps/viewer/lib/home-local-storage.ts` 為準。
-
-| id | name | category | program | field ids |
-|---|---|---|---|---|
-| `molding1` | Molding 1 | `example` | `example/molding1` | `main_geometry`, `density`, `material` |
-| `molding2` | Molding 2 | `example` | `example/molding2` | `main_geometry`, `density`, `material` |
-| `bump` | Bump | `example` | `example/bump` | `main_geometry`, `density`, `thk`, `material` |
-| `pnp` | PnP | `example` | `example/pnp` | `main_geometry`, `die_geometry`, `coordinates` |
+當 `localStorage` 尚未存在 `processStepTemplates` key 時，由 home page 初始化為空陣列。此頁只讀取與寫入既有 key，不負責 seed。若使用者刪除全部 templates，不自動重新建立 seed data。完整 seed policy 以 `docs/ui/home.md` 與 `apps/viewer/lib/home-local-storage.ts` 為準。
 
 ### Editor Scope
 
@@ -218,7 +211,7 @@ Draft lifecycle:
 `program`:
 
 - 必填。
-- 使用者直接輸入相對 `src/process/` 的 extensionless path，例如 `encapsulation/molding/step_tpl_molding_encapsulation`。
+- 使用者直接輸入相對 `src/process/` 的 extensionless path，例如 `assembly/die_attach/step_tpl_die_attach`。
 - 不可使用絕對路徑、`..`、空 segment 或 `.js` 副檔名。
 - Path segment 只可包含英文字母、數字、`_` 與 `-`。
 - 不要求唯一。

@@ -14,12 +14,6 @@ import { classifyPolygonLoops } from "../utils/polygon.js";
 import { Body } from "../data/body.js";
 import { Via } from "../data/via.js";
 import { normalizeGeometryStructure } from "../data/schema.js";
-import { processBgaBump } from "../process/process-bgaBump.js";
-import { processC4Bump } from "../process/process-c4Bump.js";
-import { processMolding } from "../process/process-molding.js";
-import { processPanel } from "../process/process-panel.js";
-import { processPnp } from "../process/process-pnp.js";
-import { processRdl } from "../process/process-rdl.js";
 import { ProcessGeometryState } from "../kernel/process-geometry-state.js";
 import {
   CadExportError,
@@ -33,7 +27,6 @@ import {
   ProcessStepModuleResolver,
   geometryStructureToProcessGeometryState,
 } from "../kernel/index.js";
-import { parseExampleArgs } from "../examples/generate-json.js";
 
 test("container json has schema unit and stable ids", () => {
   const root = new Container({ key: "package-root" });
@@ -252,136 +245,6 @@ test("process geometry state deposit and placement track cursor z", () => {
   assert.equal(output.root.children[0].bodies[0].geometry.thk, 2);
 });
 
-test("process step modules compose process state independently", () => {
-  const state = processPanel(ProcessGeometryState.create(), "panel", 10, 100);
-  processMolding(state, "dielectric", 5);
-  processRdl(state, [
-    {
-      pm_material: "PI",
-      metal_material: "Cu",
-      density: 0.2,
-      thk: 3,
-    },
-  ]);
-
-  const output = state.toGeometryStructure();
-  assert.equal(state.cursorZ(), 18);
-  assert.equal(output.root.bodies.length, 3);
-  assert.equal(output.root.vias.length, 1);
-  assert.equal(output.root.vias[0].direction, "-z");
-});
-
-test("process pnp places die copies at fieldGroupArray bottom-left points", () => {
-  const targetState = processPanel(ProcessGeometryState.create(), "carrier", 10, 1000);
-  const dieState = processPanel(ProcessGeometryState.create(), "silicon", 20, 100);
-
-  processPnp(targetState, dieState, [
-    { bottomLeft_x: 100, bottomLeft_y: 200 },
-    { bottomLeft_x: -25, bottomLeft_y: 50 },
-  ]);
-
-  const targetOutput = targetState.toGeometryStructure();
-  const dieOutput = dieState.toGeometryStructure();
-  const children = targetOutput.root.children;
-  assert.equal(children.length, 2);
-  assert.deepEqual(children[0].bodies[0].geometry.bottom_left, [
-    100,
-    200,
-    10,
-  ]);
-  assert.deepEqual(children[1].bodies[0].geometry.bottom_left, [
-    -25,
-    50,
-    10,
-  ]);
-  assert.equal(targetState.cursorZ(), 10);
-  assert.deepEqual(dieOutput.root.bodies[0].geometry.bottom_left, [
-    -50,
-    -50,
-    0,
-  ]);
-});
-
-test("example pnp demo flow runs through station outputs", async () => {
-  const kernel = createExampleDemoKernel();
-
-  const pnpPreview = await kernel.execute("flow_inst_example_demo", {
-    outputStepRefId: "pnp_hbm",
-  });
-  const pnpGeometry = pnpPreview.geometry();
-  assert.equal(pnpGeometry.root.children.length, 2);
-  assert.deepEqual(
-    pnpGeometry.root.children[0].bodies[0].geometry.bottom_left,
-    [-1750, -700, 250],
-  );
-
-  const result = await kernel.execute("flow_inst_example_demo");
-  const geometry = result.geometry();
-
-  assert.equal(geometry.root.bodies.length, 3);
-  assert.equal(geometry.root.children.length, 3);
-  assert.equal(geometry.root.bumps.length, 1);
-  assert.equal(geometry.root.bodies[1].material, "EMC-A");
-  assert.equal(geometry.root.bodies[1].geometry.bottom_left[2], 370);
-  assert.equal(geometry.root.bodies[1].geometry.thk, 120);
-  assert.equal(geometry.root.bodies[2].material, "EMC-B");
-  assert.equal(geometry.root.bodies[2].geometry.bottom_left[2], 490);
-  assert.equal(geometry.root.bodies[2].geometry.thk, 80);
-  assert.equal(geometry.root.bumps[0].material, "SAC305");
-  assert.equal(geometry.root.bumps[0].density, 0.55);
-  assert.equal(geometry.root.bumps[0].direction, "-z");
-  assert.equal(geometry.root.bumps[0].geometry.thk, 40);
-
-  const terminalPreview = await kernel.executePreview({
-    processFlowTemplate: exampleFlowTemplate(),
-    processFlowInstance: exampleFlowInstance(),
-    previewTarget: { type: "stepOutput", stepRefId: "molding2" },
-  });
-  assert.equal(terminalPreview.sourceKind, "stepOutput");
-  assert.equal(terminalPreview.outputStepRefId, "molding2");
-  assert.equal(terminalPreview.geometryStructure.root.bodies.length, 3);
-  assert.equal(terminalPreview.geometryStructure.root.bumps.length, 1);
-});
-
-test("bga and c4 bump processes overlap existing uncontained bumps", () => {
-  const state = processPanel(ProcessGeometryState.create(), "silicon", 20, 100);
-  state.addBump({
-    material: "old bump",
-    density: 0.1,
-    direction: "-z",
-    geometry: {
-      type: "box",
-      bottomLeft: [-80, -80, -20],
-      topRight: [80, 80, -20],
-      thickness: 20,
-    },
-  });
-
-  processBgaBump(state, "BGA", 0.2);
-  processC4Bump(state, "C4", 0.3);
-
-  const bumps = state.toGeometryStructure().root.bumps;
-  assert.equal(bumps.length, 3);
-  assert.deepEqual(
-    bumps.map((bump) => [
-      bump.material,
-      bump.geometry.bottom_left[2],
-      bump.geometry.bottom_left[2] + bump.geometry.thk,
-    ]),
-    [
-      ["old bump", -20, 0],
-      ["BGA", -20, 0],
-      ["C4", -20, 0],
-    ],
-  );
-  assert.deepEqual(bumps[1].geometry.bottom_left, [-50, -50, -20]);
-  assert.deepEqual(bumps[2].geometry.bottom_left, [-50, -50, -20]);
-  assert.deepEqual(
-    bumps.map((bump) => bump.direction),
-    ["-z", "-z", "-z"],
-  );
-});
-
 test("CAD converter reports missing OpenCascade instance clearly", () => {
   assert.throws(
     () => new OpenCascadeConverter(null),
@@ -547,27 +410,10 @@ test("CAD converter writes GLB colors from body materials", async () => {
   assert.equal(materialColorHex("SAC305"), materialColorHex("SnAg"));
 });
 
-test("example CLI parses output format options", () => {
-  assert.deepEqual(
-    parseExampleArgs(["--format", "stp", "--output", "/tmp/example"]),
-    {
-      format: "step",
-      output: "/tmp/example",
-      help: false,
-    },
-  );
-  assert.deepEqual(parseExampleArgs(["all"]), {
-    format: "all",
-    output: null,
-    help: false,
-  });
-  assert.throws(() => parseExampleArgs(["--format", "iges"]), /Unsupported/);
-});
-
 test("geometry hydration restores process state from geometry structure", () => {
   const state = geometryStructureToProcessGeometryState(kernelInputGeometry());
 
-  processMolding(state, "EMC-A", 5);
+  state.depositLayer({ material: "EMC-A", thickness: 5 });
 
   const output = state.toGeometryStructure();
   assert.equal(output.root.bodies.length, 2);
@@ -593,13 +439,13 @@ test("geometry kernel resolves step definition by program path", async () => {
 test("process step module resolver validates program paths", () => {
   const resolver = new ProcessStepModuleResolver();
   const template = {
-    id: "step_tpl_molding_encapsulation",
-    program: "encapsulation/molding/step_tpl_molding_encapsulation",
+    id: "step_tpl_test_molding",
+    program: "test/molding",
   };
 
   assert.match(
     resolver.moduleSpecifier(template),
-    /\/process\/encapsulation\/molding\/step_tpl_molding_encapsulation\.js$/,
+    /\/process\/test\/molding\.js$/,
   );
   assert.throws(
     () => resolver.moduleSpecifier({ ...template, program: "" }),
@@ -610,15 +456,15 @@ test("process step module resolver validates program paths", () => {
     /relative to src\/process/,
   );
   assert.throws(
-    () => resolver.moduleSpecifier({ ...template, program: "example/pnp.js" }),
+    () => resolver.moduleSpecifier({ ...template, program: "test/molding.js" }),
     /must not include \.js/,
   );
   assert.throws(
-    () => resolver.moduleSpecifier({ ...template, program: "example/../pnp" }),
+    () => resolver.moduleSpecifier({ ...template, program: "test/../molding" }),
     /relative to src\/process/,
   );
   assert.throws(
-    () => resolver.moduleSpecifier({ ...template, program: "example/pnp.v1" }),
+    () => resolver.moduleSpecifier({ ...template, program: "test/molding.v1" }),
     /relative to src\/process/,
   );
 });
@@ -630,11 +476,11 @@ test("geometry kernel passes step output geometry to downstream steps", async ()
       stepRefs: [
         {
           stepRefId: "molding_1",
-          processStepTemplateId: "step_tpl_molding_encapsulation",
+          processStepTemplateId: "step_tpl_test_molding",
         },
         {
           stepRefId: "molding_2",
-          processStepTemplateId: "step_tpl_molding_encapsulation",
+          processStepTemplateId: "step_tpl_test_molding",
         },
       ],
       flowEdges: [
@@ -662,7 +508,7 @@ test("geometry kernel passes step output geometry to downstream steps", async ()
       stepValueSets: [
         {
           stepRefId: "molding_1",
-          processStepTemplateId: "step_tpl_molding_encapsulation",
+          processStepTemplateId: "step_tpl_test_molding",
           fieldValues: [
             { fieldId: "main_geometry", value: "geom_kernel_input" },
             { fieldId: "mold_compound", value: "EMC-A" },
@@ -671,7 +517,7 @@ test("geometry kernel passes step output geometry to downstream steps", async ()
         },
         {
           stepRefId: "molding_2",
-          processStepTemplateId: "step_tpl_molding_encapsulation",
+          processStepTemplateId: "step_tpl_test_molding",
           fieldValues: [
             { fieldId: "main_geometry", value: null },
             { fieldId: "mold_compound", value: "EMC-B" },
@@ -698,7 +544,7 @@ test("geometry kernel normalizes repeater values before executing handler", asyn
       stepRefs: [
         {
           stepRefId: "rdl",
-          processStepTemplateId: "step_tpl_rdl_build_up",
+          processStepTemplateId: "step_tpl_test_rdl",
         },
       ],
       flowEdges: [
@@ -718,7 +564,7 @@ test("geometry kernel normalizes repeater values before executing handler", asyn
       stepValueSets: [
         {
           stepRefId: "rdl",
-          processStepTemplateId: "step_tpl_rdl_build_up",
+          processStepTemplateId: "step_tpl_test_rdl",
           fieldValues: [
             { fieldId: "main_geometry", value: "geom_kernel_input" },
             {
@@ -828,22 +674,76 @@ function createTestKernel({
   processStepTemplates = [moldingStepTemplate()],
   flowTemplate = kernelFlowTemplate(),
   flowInstance = kernelFlowInstance(),
+  moduleResolver = new TestProcessModuleResolver(),
 } = {}) {
   return new GeometryKernel({
     geometryRepository: new InMemoryRepository(geometryEntities),
     processFlowInstanceRepository: new InMemoryRepository([flowInstance]),
     processFlowTemplateRepository: new InMemoryRepository([flowTemplate]),
     processStepRepository: new InMemoryRepository(processStepTemplates),
+    moduleResolver,
   });
+}
+
+class TestProcessModuleResolver {
+  constructor() {
+    this._resolver = new ProcessStepModuleResolver({
+      importModule: async () => ({ execute() {} }),
+    });
+    this._handlers = new Map([
+      ["test/molding", executeTestMolding],
+      ["test/rdl", executeTestRdl],
+    ]);
+  }
+
+  moduleSpecifier(stepTemplate) {
+    return this._resolver.moduleSpecifier(stepTemplate);
+  }
+
+  async resolve(stepTemplate) {
+    const execute = this._handlers.get(stepTemplate.program);
+    if (!execute) {
+      throw new Error(
+        `Unable to load process step module for ${stepTemplate.id}`,
+      );
+    }
+    return {
+      execute,
+      specifier: this.moduleSpecifier(stepTemplate),
+    };
+  }
+}
+
+function executeTestMolding({ state, values }) {
+  state.depositLayer({
+    material: values.mold_compound,
+    thickness: values.mold_thickness,
+  });
+  return state;
+}
+
+function executeTestRdl({ state, values }) {
+  for (const layer of values.rdl_layers ?? []) {
+    state.depositLayer({
+      material: layer.pm_material,
+      thickness: layer.thk,
+    });
+    state.addViaBelowCursor({
+      material: layer.metal_material,
+      density: layer.density,
+      thickness: layer.thk,
+    });
+  }
+  return state;
 }
 
 function moldingStepTemplate() {
   return {
-    id: "step_tpl_molding_encapsulation",
+    id: "step_tpl_test_molding",
     version: "V1.0.0",
     name: "Molding encapsulation",
-    category: "encapsulation.molding",
-    program: "encapsulation/molding/step_tpl_molding_encapsulation",
+    category: "test.molding",
+    program: "test/molding",
     description: "Define mold compound and mold thickness.",
     owner: "test",
     fieldDefinitions: [
@@ -880,11 +780,11 @@ function moldingStepTemplate() {
 
 function rdlStepTemplate() {
   return {
-    id: "step_tpl_rdl_build_up",
+    id: "step_tpl_test_rdl",
     version: "V1.0.0",
     name: "RDL build up",
-    category: "interconnect.rdl",
-    program: "interconnect/rdl/step_tpl_rdl_build_up",
+    category: "test.rdl",
+    program: "test/rdl",
     description: "Define repeatable PM and RDL layer parameters.",
     owner: "test",
     fieldDefinitions: [
@@ -958,7 +858,7 @@ function kernelFlowTemplate() {
     stepRefs: [
       {
         stepRefId: "molding",
-        processStepTemplateId: "step_tpl_molding_encapsulation",
+        processStepTemplateId: "step_tpl_test_molding",
       },
     ],
     flowEdges: [
@@ -981,7 +881,7 @@ function kernelFlowInstance() {
     stepValueSets: [
       {
         stepRefId: "molding",
-        processStepTemplateId: "step_tpl_molding_encapsulation",
+        processStepTemplateId: "step_tpl_test_molding",
         fieldValues: [
           { fieldId: "main_geometry", value: "geom_kernel_input" },
           { fieldId: "mold_compound", value: "EMC-A" },
@@ -1027,251 +927,6 @@ function kernelInputGeometry() {
             thk: 10,
           },
           material: "carrier",
-        },
-      ],
-      vias: [],
-      circuits: [],
-      bumps: [],
-      children: [],
-    },
-  };
-}
-
-function createExampleDemoKernel() {
-  const geometryEntities = [
-    {
-      id: "geom_example_panel",
-      structure: centeredBoxStructure("example-panel", "glass", 10000, 10000, 500),
-    },
-    {
-      id: "geom_example_hbm",
-      structure: centeredBoxStructure("example-hbm", "Si-HBM", 1400, 1000, 50),
-    },
-    {
-      id: "geom_example_soc",
-      structure: centeredBoxStructure("example-soc", "Si-SoC", 2000, 1600, 70),
-    },
-  ];
-
-  return new GeometryKernel({
-    geometryRepository: new InMemoryRepository(geometryEntities),
-    processStepRepository: new InMemoryRepository(exampleStepTemplates()),
-    processFlowTemplateRepository: new InMemoryRepository([exampleFlowTemplate()]),
-    processFlowInstanceRepository: new InMemoryRepository([exampleFlowInstance()]),
-  });
-}
-
-function exampleStepTemplates() {
-  return [
-    {
-      id: "pnp",
-      category: "example",
-      program: "example/pnp",
-      fieldDefinitions: [
-        geometryField("target_geometry"),
-        geometryField("die_geometry"),
-        {
-          id: "coordinates",
-          valueType: "fieldGroupArray",
-          repeatDefinition: {
-            itemFieldDefinitions: [
-              floatField("bottomLeft_x"),
-              floatField("bottomLeft_y"),
-            ],
-          },
-        },
-      ],
-    },
-    {
-      id: "molding1",
-      category: "example",
-      program: "example/molding1",
-      fieldDefinitions: [
-        geometryField("main_geometry"),
-        floatField("density"),
-        materialField("material"),
-      ],
-    },
-    {
-      id: "bump",
-      category: "example",
-      program: "example/bump",
-      fieldDefinitions: [
-        geometryField("main_geometry"),
-        floatField("density"),
-        floatField("thk"),
-        materialField("material"),
-      ],
-    },
-    {
-      id: "molding2",
-      category: "example",
-      program: "example/molding2",
-      fieldDefinitions: [
-        geometryField("main_geometry"),
-        floatField("density"),
-        materialField("material"),
-      ],
-    },
-  ];
-}
-
-function exampleFlowTemplate() {
-  return {
-    id: "flow_tpl_example_demo",
-    stepRefs: [
-      { stepRefId: "pnp_hbm", processStepTemplateId: "pnp" },
-      { stepRefId: "pnp_soc", processStepTemplateId: "pnp" },
-      { stepRefId: "molding1", processStepTemplateId: "molding1" },
-      { stepRefId: "bump", processStepTemplateId: "bump" },
-      { stepRefId: "molding2", processStepTemplateId: "molding2" },
-    ],
-    flowEdges: [
-      {
-        edgeId: "edge_panel_to_pnp_hbm_target",
-        source: { sourceType: "geometryRef" },
-        target: { stepRefId: "pnp_hbm", targetFieldId: "target_geometry" },
-      },
-      {
-        edgeId: "edge_hbm_to_pnp_hbm_die",
-        source: { sourceType: "geometryRef" },
-        target: { stepRefId: "pnp_hbm", targetFieldId: "die_geometry" },
-      },
-      {
-        edgeId: "edge_pnp_hbm_to_pnp_soc_target",
-        source: { sourceType: "stepOutput", stepRefId: "pnp_hbm" },
-        target: { stepRefId: "pnp_soc", targetFieldId: "target_geometry" },
-      },
-      {
-        edgeId: "edge_soc_to_pnp_soc_die",
-        source: { sourceType: "geometryRef" },
-        target: { stepRefId: "pnp_soc", targetFieldId: "die_geometry" },
-      },
-      {
-        edgeId: "edge_pnp_soc_to_molding1",
-        source: { sourceType: "stepOutput", stepRefId: "pnp_soc" },
-        target: { stepRefId: "molding1", targetFieldId: "main_geometry" },
-      },
-      {
-        edgeId: "edge_molding1_to_bump",
-        source: { sourceType: "stepOutput", stepRefId: "molding1" },
-        target: { stepRefId: "bump", targetFieldId: "main_geometry" },
-      },
-      {
-        edgeId: "edge_bump_to_molding2",
-        source: { sourceType: "stepOutput", stepRefId: "bump" },
-        target: { stepRefId: "molding2", targetFieldId: "main_geometry" },
-      },
-    ],
-  };
-}
-
-function exampleFlowInstance() {
-  return {
-    id: "flow_inst_example_demo",
-    processFlowTemplateId: "flow_tpl_example_demo",
-    stepValueSets: [
-      {
-        stepRefId: "pnp_hbm",
-        processStepTemplateId: "pnp",
-        fieldValues: [
-          { fieldId: "target_geometry", value: "geom_example_panel" },
-          { fieldId: "die_geometry", value: "geom_example_hbm" },
-          {
-            fieldId: "coordinates",
-            value: {
-              items: [
-                coordinateItem("coordinates_item_1", 1, -1750, -700),
-                coordinateItem("coordinates_item_2", 2, 350, -700),
-              ],
-            },
-          },
-        ],
-      },
-      {
-        stepRefId: "pnp_soc",
-        processStepTemplateId: "pnp",
-        fieldValues: [
-          { fieldId: "target_geometry", value: null },
-          { fieldId: "die_geometry", value: "geom_example_soc" },
-          {
-            fieldId: "coordinates",
-            value: {
-              items: [coordinateItem("coordinates_item_1", 1, -1000, 550)],
-            },
-          },
-        ],
-      },
-      {
-        stepRefId: "molding1",
-        processStepTemplateId: "molding1",
-        fieldValues: [
-          { fieldId: "main_geometry", value: null },
-          { fieldId: "density", value: 1.85 },
-          { fieldId: "material", value: "EMC-A" },
-        ],
-      },
-      {
-        stepRefId: "bump",
-        processStepTemplateId: "bump",
-        fieldValues: [
-          { fieldId: "main_geometry", value: null },
-          { fieldId: "density", value: 0.55 },
-          { fieldId: "thk", value: 40 },
-          { fieldId: "material", value: "SAC305" },
-        ],
-      },
-      {
-        stepRefId: "molding2",
-        processStepTemplateId: "molding2",
-        fieldValues: [
-          { fieldId: "main_geometry", value: null },
-          { fieldId: "density", value: 1.75 },
-          { fieldId: "material", value: "EMC-B" },
-        ],
-      },
-    ],
-  };
-}
-
-function geometryField(id) {
-  return { id, valueType: "geometry" };
-}
-
-function floatField(id) {
-  return { id, valueType: "float" };
-}
-
-function materialField(id) {
-  return { id, valueType: "materialRef" };
-}
-
-function coordinateItem(itemId, index, bottomLeftX, bottomLeftY) {
-  return {
-    itemId,
-    index,
-    fieldValues: [
-      { fieldId: "bottomLeft_x", value: bottomLeftX },
-      { fieldId: "bottomLeft_y", value: bottomLeftY },
-    ],
-  };
-}
-
-function centeredBoxStructure(key, material, width, height, thk) {
-  return {
-    schemaVersion: "1.0.0",
-    unitSystem: "um",
-    root: {
-      key,
-      bodies: [
-        {
-          geometry: {
-            type: "BoxGeometry",
-            bottom_left: [-width / 2, -height / 2, -thk / 2],
-            top_right: [width / 2, height / 2, -thk / 2],
-            thk,
-          },
-          material,
         },
       ],
       vias: [],

@@ -11,27 +11,11 @@
     "./exporters/cad": "./exporters/cad.js",
     "./kernel": "./kernel/index.js",
     "./kernel/process-geometry-state": "./kernel/process-geometry-state.js",
-    "./process": "./process/index.js",
-    "./process/process-bgaBump": "./process/process-bgaBump.js",
-    "./process/process-c4Bump": "./process/process-c4Bump.js",
-    "./process/process-ubump": "./process/process-ubump.js",
-    "./process/process-molding": "./process/process-molding.js",
-    "./process/process-panel": "./process/process-panel.js",
-    "./process/process-pnp": "./process/process-pnp.js",
-    "./process/process-rdl": "./process/process-rdl.js",
-    "./process/process-wafer": "./process/process-wafer.js",
-    "./process/_utils/rdl-layer-thickness": "./process/_utils/rdl-layer-thickness.js",
-    "./process/process-geometry-state": "./process/process-geometry-state.js",
-    "./process/rdl-layer-thickness": "./process/rdl-layer-thickness.js",
     "./utils/math": "./utils/math.js",
     "./utils/polygon": "./utils/polygon.js"
   },
   "scripts": {
-    "example": "node ./examples/generate-json.js",
-    "test": "node --test",
-    "example:json": "node ./examples/generate-json.js --format json",
-    "example:cad": "node ./examples/generate-json.js --format all --output /tmp/process-flow-example",
-    "example:kernel": "node ./examples/geometry-kernel-usage.js"
+    "test": "node --test"
   },
   "dependencies": {
     "opencascade.js": "beta"

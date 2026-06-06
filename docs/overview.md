@@ -138,7 +138,7 @@ flowchart TD
   "processStepTemplate": {
     "id": "step_tpl_molding_1_0_0",
     "name": "Molding / Encapsulation",
-    "program": "encapsulation/molding/step_tpl_molding_1_0_0",
+    "program": "docs_sample/molding/step_tpl_molding_1_0_0",
     "fieldDefinitions": [
       {
         "id": "main_geometry",
