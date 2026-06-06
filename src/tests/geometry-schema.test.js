@@ -27,6 +27,7 @@ import {
   ProcessStepModuleResolver,
   geometryStructureToProcessGeometryState,
 } from "../kernel/index.js";
+import { execute as executeGrinding } from "../process/grinding/grinding.js";
 
 test("container json has schema unit and stable ids", () => {
   const root = new Container({ key: "package-root" });
@@ -588,6 +589,99 @@ test("geometry kernel imports and executes real RDL process step", async () => {
   assert.equal(geometry.root.vias[0].direction, "-z");
   assert.deepEqual(geometry.root.vias[0].geometry.bottom_left, [-50, -50, 12]);
   assert.equal(geometry.root.vias[0].geometry.thk, 3);
+});
+
+test("Grinding process step can grind geometry flat while retaining footprint", () => {
+  const state = ProcessGeometryState.create({ key: "grind-flat" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [-50, -50, 0],
+    topRight: [50, 50, 0],
+    thickness: 10,
+  });
+  const footprint = state.processFootprint();
+
+  executeGrinding({
+    state,
+    values: { thk: 15 },
+    geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
+  });
+
+  assert.equal(state.inspect().bodyCount, 0);
+  assert.deepEqual(state.processFootprint(), footprint);
+});
+
+test("geometry kernel imports real Grinding step and preserves footprint for downstream steps", async () => {
+  const kernel = createTestKernel({
+    processStepTemplates: [realGrindingStepTemplate(), realMoldingStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "grinding",
+          processStepTemplateId: "step_tpl_grinding_1_0_0",
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_grinding",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "grinding",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_grinding_to_molding",
+          source: { sourceType: "stepOutput", stepRefId: "grinding" },
+          target: {
+            stepRefId: "molding",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "grinding",
+          processStepTemplateId: "step_tpl_grinding_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            { fieldId: "thk", value: 4 },
+          ],
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "material", value: "EMC-A" },
+            { fieldId: "thickness", value: 2 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const result = await kernel.execute("flow_inst_kernel_test");
+  const grindingOutput = result.stepOutput("grinding");
+  const geometry = result.geometry();
+
+  assert.equal(grindingOutput.root.bodies.length, 1);
+  assert.equal(grindingOutput.root.bodies[0].geometry.thk, 6);
+  assert.equal(geometry.root.bodies.length, 2);
+  assert.equal(geometry.root.bodies[0].geometry.thk, 6);
+  assert.equal(geometry.root.bodies[1].material, "EMC-A");
+  assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-50, -50, 6]);
+  assert.equal(geometry.root.bodies[1].geometry.thk, 2);
 });
 
 test("geometry kernel imports and executes real PnP process step", async () => {
@@ -1181,6 +1275,38 @@ function realRdlStepTemplate() {
             },
           ],
         },
+      },
+    ],
+  };
+}
+
+function realGrindingStepTemplate() {
+  return {
+    id: "step_tpl_grinding_1_0_0",
+    version: "V1.0.0",
+    name: "Grinding",
+    category: "grinding",
+    program: "grinding/grinding",
+    description: "Remove geometry from the full geometry top downward.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
       },
     ],
   };

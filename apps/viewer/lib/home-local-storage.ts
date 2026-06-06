@@ -275,6 +275,44 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
+    id: "step_tpl_grinding_1_0_0",
+    version: "V1.0.0",
+    name: "Grinding",
+    category: "grinding",
+    program: "grinding/grinding",
+    description:
+      "Removes geometry from the current full geometry top downward by thk while preserving the runtime process footprint.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Complete geometry state consumed by grinding. The operation uses the full geometry top, not cursorZ.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        description:
+          "Positive grinding thickness removed downward from the highest Z in the full geometry tree.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+          exclusiveMin: true,
+        },
+      },
+    ],
+  },
+  {
     id: "step_tpl_pnp_1_0_0",
     version: "V1.0.0",
     name: "PnP",

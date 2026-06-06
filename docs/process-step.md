@@ -102,6 +102,51 @@ Template metadata：
 - `layers` 至少需要一個 item；每層 `Dielectric` / `Conductivity` 必須是非空字串，
   `thk` 必須為正值。
 
+## Grinding
+
+`Grinding` 是 `grinding` 類別的 process step，用來從目前完整 geometry
+最高點向下移除指定厚度。此 step 的參考 top Z 是 `main_geometry`
+中整棵 geometry tree 的最高點，不是 runtime `cursorZ()`。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `Grinding` |
+| Category | `grinding` |
+| Program | `grinding/grinding` |
+| Template id | `step_tpl_grinding_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `thk` | `float` | `processParameter` | 正值 grinding 厚度，單位依照 geometry state 的 unit system 解讀。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry`
+   `ProcessGeometryState`。
+2. 呼叫 `main_geometry.geometryZMax()` 取得目前完整 geometry tree 的最高 Z。
+3. 計算 `targetZ = geometryZMax - thk`。
+4. 呼叫 `main_geometry.grindTo({ z: targetZ })`，透過 kernel public API
+   遞迴裁切 root scope、child scopes、bodies、vias、circuits 與 bumps。
+5. 若 `targetZ` 低於目前 `cursorZ()`，`ProcessGeometryState.grindTo()`
+   會同步把 cursor 更新到 `targetZ`。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body`、`Via`、`Circuit`、`Bump`
+  或 raw geometry object。
+- Grinding 的 top reference 是完整 geometry top，因此 PnP 放上的 child die
+  或其他高於 cursor 的 feature 也會納入裁切判斷。
+- `thk` 必須為正值。
+- 允許 `targetZ` 低於目前 geometry bottom；此時被完全磨掉的 geometry
+  會從 structure 中移除。
+- Grinding 不清除 runtime process footprint。即使 geometry 被磨平，後續
+  full-area operation 仍可沿用原本 footprint。
+
 ## PnP
 
 `PnP` 是 `PnP` 類別的 process step，用來模擬 die pick and place。此 step
