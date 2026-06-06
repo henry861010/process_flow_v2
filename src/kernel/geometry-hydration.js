@@ -1,5 +1,5 @@
 import { normalizeGeometryStructure } from "../data/schema.js";
-import { ProcessGeometryState } from "../process/process-geometry-state.js";
+import { ProcessGeometryState } from "./process-geometry-state.js";
 
 /**
  * Rebuild a mutable process geometry state from a stored geometry structure.

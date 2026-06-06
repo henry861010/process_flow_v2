@@ -6,10 +6,10 @@
  * `bottomLeft_x` / `bottomLeft_y`, and its bottom Z is aligned to
  * `targetState.cursorZ()`.
  *
- * @param {import("./process-geometry-state.js").ProcessGeometryState} targetState
- * @param {import("./process-geometry-state.js").ProcessGeometryState} sourceState
+ * @param {import("../kernel/process-geometry-state.js").ProcessGeometryState} targetState
+ * @param {import("../kernel/process-geometry-state.js").ProcessGeometryState} sourceState
  * @param {Array<{bottomLeft_x: number, bottomLeft_y: number}>} fieldGroupArray
- * @returns {import("./process-geometry-state.js").ProcessGeometryState}
+ * @returns {import("../kernel/process-geometry-state.js").ProcessGeometryState}
  */
 export function processPnp(targetState, sourceState, fieldGroupArray = []) {
   if (!Array.isArray(fieldGroupArray)) {

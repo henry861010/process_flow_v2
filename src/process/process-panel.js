@@ -2,12 +2,12 @@
  * Initialize a process state with a square panel and add the panel body as the
  * first full-footprint material layer.
  *
- * @param {import("./process-geometry-state.js").ProcessGeometryState} state - Process state to initialize
+ * @param {import("../kernel/process-geometry-state.js").ProcessGeometryState} state - Process state to initialize
  *   and update.
  * @param {string} material - Material name or identifier for the panel layer.
  * @param {number} thk - Panel thickness.
  * @param {number} width - Panel side length.
- * @returns {import("./process-geometry-state.js").ProcessGeometryState} The same state object after the
+ * @returns {import("../kernel/process-geometry-state.js").ProcessGeometryState} The same state object after the
  *   panel layer is added.
  */
 export function processPanel(state, material, thk, width) {

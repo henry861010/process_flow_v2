@@ -20,7 +20,7 @@ import { processMolding } from "../process/process-molding.js";
 import { processPanel } from "../process/process-panel.js";
 import { processPnp } from "../process/process-pnp.js";
 import { processRdl } from "../process/process-rdl.js";
-import { ProcessGeometryState } from "../process/process-geometry-state.js";
+import { ProcessGeometryState } from "../kernel/process-geometry-state.js";
 import {
   CadExportError,
   OpenCascadeConverter,

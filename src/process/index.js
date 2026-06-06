@@ -1,4 +1,4 @@
-export { ProcessGeometryState } from "./process-geometry-state.js";
+export { ProcessGeometryState } from "../kernel/process-geometry-state.js";
 export {
   processBgaBump,
   process_bgaBump,
@@ -18,4 +18,4 @@ export { processWafer, process_wafer } from "./process-wafer.js";
 export {
   rdlLayerThickness,
   _rdl_layer_thickness,
-} from "./rdl-layer-thickness.js";
+} from "./_utils/rdl-layer-thickness.js";

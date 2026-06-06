@@ -4,12 +4,12 @@
  * Existing bumps are ignored for placement, so repeated bump steps overlap
  * earlier bumps instead of stacking underneath them.
  *
- * @param {import("./process-geometry-state.js").ProcessGeometryState} state
+ * @param {import("../kernel/process-geometry-state.js").ProcessGeometryState} state
  * @param {string} material - Material name or identifier for the bump.
  * @param {number} density - Effective bump density inside the bump geometry.
  * @param {?number} thickness - Optional bump thickness. Defaults to the lowest
  *   direct body thickness.
- * @returns {import("./process-geometry-state.js").ProcessGeometryState}
+ * @returns {import("../kernel/process-geometry-state.js").ProcessGeometryState}
  */
 export function processUbump(state, material, density, thickness = undefined) {
   addBumpBelowLowestDirectBody(

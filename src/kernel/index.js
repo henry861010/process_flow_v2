@@ -1,5 +1,6 @@
 export { GeometryKernel } from "./geometry-kernel.js";
 export { GeometryKernelExecutionResult } from "./execution-result.js";
+export { ProcessGeometryState } from "./process-geometry-state.js";
 export {
   geometryStructureToProcessGeometryState,
   processGeometryStateToGeometryStructure,

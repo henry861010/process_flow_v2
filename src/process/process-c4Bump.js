@@ -7,10 +7,10 @@ import { addBumpBelowLowestDirectBody } from "./process-ubump.js";
  * footprint and z anchor, while existing bumps are ignored so repeated bump
  * steps overlap instead of stacking.
  *
- * @param {import("./process-geometry-state.js").ProcessGeometryState} state - Die process state to update.
+ * @param {import("../kernel/process-geometry-state.js").ProcessGeometryState} state - Die process state to update.
  * @param {string} material - Material name or identifier for the bump.
  * @param {number} density - Effective bump density inside the bump geometry.
- * @returns {import("./process-geometry-state.js").ProcessGeometryState} The same state object after the
+ * @returns {import("../kernel/process-geometry-state.js").ProcessGeometryState} The same state object after the
  *   bump is added.
  */
 export function processC4Bump(state, material, density) {

@@ -1,4 +1,4 @@
-import { rdlLayerThickness } from "./rdl-layer-thickness.js";
+import { rdlLayerThickness } from "./_utils/rdl-layer-thickness.js";
 
 /**
  * Add an odd-count RDL stack to the current process state.
@@ -6,11 +6,11 @@ import { rdlLayerThickness } from "./rdl-layer-thickness.js";
  * Even-index layers create dielectric and a downward via region. Odd-index
  * layers create an upward circuit region followed by dielectric fill.
  *
- * @param {import("./process-geometry-state.js").ProcessGeometryState} state - Process state to update.
+ * @param {import("../kernel/process-geometry-state.js").ProcessGeometryState} state - Process state to update.
  * @param {object[]} rdlLayers - RDL layer definitions. Each layer must provide
  *   `pm_material`, `metal_material`, `density`, and a thickness via `thk` or
  *   matching `pm_thickness` and `rdl_thickness`.
- * @returns {import("./process-geometry-state.js").ProcessGeometryState} The same state object after the RDL
+ * @returns {import("../kernel/process-geometry-state.js").ProcessGeometryState} The same state object after the RDL
  *   stack is added.
  * @throws {Error} If the layer count is even or thickness fields are invalid.
  */
