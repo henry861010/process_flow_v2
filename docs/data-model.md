@@ -519,19 +519,27 @@ ProcessStepTemplate JSON 範本：
         - `geometryRef` value 為 `null` 時，表示此欄位使用上游 process step output geometry；此欄位必須有且只能有一條 incoming `flowEdges[]`，且 edge source 必須是 `stepOutput`。
         - Initial geometry 或沒有 incoming `stepOutput` edge 的 `geometryRef` 欄位不可使用 `null`。
         - `geometryRef` 沒有使用者可編輯的 control type，實際來源由 `ProcessFlowTemplate.flowEdges[]` 與 instance value 決定。
-    7. `fieldGroupArray`：用來定義一種特殊 valueType。依據現有 fieldDefinition 定義一組 參數組 。
+    7. `coordinates`：表示一組 2D placement coordinates。Instance value 是 `number[][]`，每個 item 必須是固定長度為 2 的 `[x, y]` number tuple。
+        - 每個 `[x, y]` 代表一個 die 在 global coordinate system 中的 bottom-left coordinate；`x` 為 `bottomLeft_x`，`y` 為 `bottomLeft_y`。
+        - `coordinates` 欄位可使用 `unit` 表示 canonical unit，例如 `"um"`。Instance value 中保存的數值必須已轉換為該 canonical unit。
+        - Coordinate array 的順序沒有語意，process program 不應依賴 item order。
+        - 空 array `[]` 是合法 value。
+        - 不允許重複 coordinate pair；相同 `[x, y]` 只可保存一次。
+        - `coordinates` 只支援 `controlType: "gds"` 或 `controlType: "coordinateList"`。
+        - `coordinates` 目前不使用 `validation`；`minItems`、`maxItems`、coordinate range 或其他座標限制不由目前 schema 表達。
+    8. `fieldGroupArray`：用來定義一種特殊 valueType。依據現有 fieldDefinition 定義一組 參數組 。
         - 此欄位設計目的主要是用於像 RDL layer，會有好幾層，每層有個別 厚度、材料 與 metal density (或 real pattern)。如果一層一層建 RDL 會帶來兩個問題，一是這讓 engineer感覺很煩，二則是只要有不同 RDL layer 就需要產生不同 process flow template，但往往不同 tech 我們才建立不同 flow template。因此引入此可以讓使用者調整參數組數量的 valueType
         - 此 valueType 必須搭配 `controlType: repeater` 使用
         - 此 valueType 必須搭配 `repeatDefinition` 欄位使用，作為描述每一組 fields 的 FieldDefinition。
         - 此 valueType 參數組不可以再使用 fieldGroupArray，只允許第一層使用 fieldGroupArray
-    8. 以及 array value type：`string[]`、`integer[]`、`float[]`、`materialRef[]`。但是 `boolean[]`、`fieldGroupArray[]` 不支援。
-6. `controlType`：此欄位在 UI 表現方式。支援值為 `text`、`number`、`checkbox`、`select`、`repeater`；`geometryRef` 欄位使用 `null` 或省略。
+    9. 以及 array value type：`string[]`、`integer[]`、`float[]`、`materialRef[]`。但是 `boolean[]`、`coordinates[]`、`fieldGroupArray[]` 不支援。
+6. `controlType`：此欄位在 UI 表現方式。支援值為 `text`、`number`、`checkbox`、`select`、`repeater`、`gds`、`coordinateList`；`geometryRef` 欄位使用 `null` 或省略。
 7. `selectionMode`：當 controlType 是選項型欄位 (`checkbox` 與 `select`) 須透過此設定使來決定為 `single` 或 `multiple`；非選項型欄位使用 `null` 或省略。
     - `"single"`：表示只能選一個。必須搭配非 array `valueType`
     - `"multiple"`：可以選擇多個。必須搭配 array `valueType`。
 8. `optionSource`：選擇性欄位 (`checkbox` 與 `select`) primitive 選項來源，可為 static options 或外部 primitive option catalog。
-9. `unit`：欄位的 canonical unit；`integer` 或 `float` 欄位若有單位應使用此欄位，無單位欄位使用 `null`，不要使用空字串。
-10. `validation`：欄位限制規則，例如 `min`、`max`、`exclusiveMin`、`exclusiveMax`、`regex`、`minLength`、`maxLength`。
+9. `unit`：欄位的 canonical unit；`integer`、`float` 或 `coordinates` 欄位若有單位應使用此欄位，無單位欄位使用 `null`，不要使用空字串。
+10. `validation`：欄位限制規則，例如 `min`、`max`、`exclusiveMin`、`exclusiveMax`、`regex`、`minLength`、`maxLength`。`coordinates` 目前不使用 `validation` 表達座標數量、範圍或去重規則。
 11. `repeatDefinition`：`repeater` 欄位的重複群組定義。用於 RDL build-up 這類需要在單一欄位內建立多組 PM + RDL repeat items 的情境；repeat item 數量由 `fieldGroupArray.value.items.length` 表示。
 
 ### Control type behavior：
@@ -543,6 +551,8 @@ ProcessStepTemplate JSON 範本：
 | `checkbox` | 單一 yes/no 核取方塊，或多個核取方塊直接展開在畫面上。 | `boolean`、`string`、`string[]`、`integer[]`、`float[]`、`materialRef[]` | 單一 yes/no checkbox 使用 `boolean`；選項型 checkbox 使用 `selectionMode` 與 `optionSource.options`，多選時使用 array `valueType`。 |
 | `select` | 下拉選單或 compact list。 | `string`、`integer`、`float`、`materialRef`、`string[]`、`integer[]`、`float[]`、`materialRef[]` | 使用 `selectionMode` 控制單選或多選，選項放在 `optionSource.options` 或由 `externalReference` 指定；多選時使用 array `valueType`。 |
 | `repeater` | 在單一欄位中動態新增、縮減或移除多組子欄位。 | `fieldGroupArray` | 必須提供 `repeatDefinition`；`itemFieldDefinitions[]` 定義每個 repeat item 內的 child fields，`minItems` 與 `maxItems` 可限制 `items.length`。 |
+| `gds` | 由 GDS 匯入 2D placement coordinates。UI 讓使用者提供 GDS path 並指定 layer / datatype，importer 在 user side 解析 GDS 後只保存座標 array。 | `coordinates` | GDS path、layer 與 datatype 是匯入操作中的暫時輸入，不保存到 `FieldValue.value`。Importer 必須 resolve hierarchy、cell reference 與 transform 成 global coordinates，並對符合 layer/datatype 的 object 取 global bounding box bottom-left。 |
+| `coordinateList` | 手動新增、移除與編輯多組 `[x, y]` coordinates。UI 可用 `+` 新增一列 x/y number inputs。 | `coordinates` | Instance value 直接保存 `number[][]`，不使用 `fieldGroupArray` 的 nested `items[].fieldValues[]` 結構。 |
 | `null` 或省略 | 不由一般 UI control 直接輸入。 | `geometryRef` | Instance value 為 geometry DB id string 或符合 flow edge 規則的 `null`。 |
 
 ### Numeric validation 
@@ -721,8 +731,68 @@ Geometry input field：
   }
   ```
 
+Coordinates field using GDS import：
+
+```json
+{
+  "id": "die_coordinates",
+  "name": "Die coordinates",
+  "description": "Global bottom-left placement coordinates for dies placed by this PnP step.",
+  "scope": "processParameter",
+  "valueType": "coordinates",
+  "controlType": "gds",
+  "selectionMode": null,
+  "unit": "um"
+}
+```
+
+GDS import UI 會要求使用者提供 GDS path、layer 與 datatype。這些值只存在於
+匯入操作中，不保存到 `FieldValue.value`。Importer 需在 user side 解析 GDS、
+將 GDS DB unit / user unit 轉成 `unit` 指定的 canonical unit、resolve hierarchy /
+cell reference / transform 成 global coordinates，並對符合 layer/datatype 的
+object 取 global bounding box bottom-left。若 GDS 匯入結果包含重複 coordinates，
+importer 應只保留一筆。
+
+- Instance
+  ```json
+  {
+    "fieldId": "die_coordinates",
+    "value": [
+      [100.0, 200.0],
+      [300.5, 200.0]
+    ]
+  }
+  ```
+
+Coordinates field using manual coordinate list：
+
+```json
+{
+  "id": "die_coordinates",
+  "name": "Die coordinates",
+  "description": "Global bottom-left placement coordinates for dies placed by this PnP step.",
+  "scope": "processParameter",
+  "valueType": "coordinates",
+  "controlType": "coordinateList",
+  "selectionMode": null,
+  "unit": "um"
+}
+```
+
+Manual coordinate list UI 可提供 `+` 新增一列 x/y number inputs，但 instance
+payload 仍直接保存 `number[][]`，不使用 `fieldGroupArray` 的 nested
+`items[].fieldValues[]` 結構。
+
+- Instance with no coordinates
+  ```json
+  {
+    "fieldId": "die_coordinates",
+    "value": []
+  }
+  ```
+
 *** Repeatable field group 規則：
-- `repeatDefinition.itemFieldDefinitions[]` 內的 child field 不可以使用 `valueType: "geometryRef"` 或 `valueType: "fieldGroupArray"`。
+- `repeatDefinition.itemFieldDefinitions[]` 內的 child field 不可以使用 `valueType: "geometryRef"`、`valueType: "coordinates"` 或 `valueType: "fieldGroupArray"`。
 - `controlType: "repeater"` 必須搭配 `valueType: "fieldGroupArray"` 與 `repeatDefinition`。
 - `repeatDefinition.itemFieldDefinitions[]` 使用完整 `FieldDefinition` shape，描述每一個 repeat item 內會出現的 child fields。
 - Repeat item 數量由 `fieldGroupArray.value.items.length` 表示，不另外建立或保存 count `FieldDefinition`。
@@ -878,6 +948,7 @@ RDL repeatable field group 範例：
 | `materialRef` | N/A 或 `single` | `string`，代表材料名稱、材料代碼或 material DB entity id；若提供 `optionSource`，必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
 | `materialRef[]` | `multiple` | `string[]`，每個值都代表材料名稱、材料代碼或 material DB entity id；若提供 `optionSource`，必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
 | `geometryRef` | N/A | `string` 或 `null`。`string` 必須是 `GeometryEntity.id`；`null` 只允許用在有 incoming `stepOutput` edge 的 geometry input field。 |
+| `coordinates` | N/A | `number[][]`。每個 item 必須是固定長度為 2 的 `[x, y]` number tuple，代表 global bottom-left coordinate；空 array 合法，重複 coordinate pair 不合法，array order 沒有語意。 |
 | `fieldGroupArray` | N/A | `RepeatableGroupValue`，包含 `items[]`，每個 item 內保存一組 child `FieldValue[]`。 |
 
 `materialRef` 的 payload 是 string，不是 reference object。若需要透過 UI 選取 material，可使用 `optionSource` 提供 static options 或 external option catalog。
@@ -909,9 +980,11 @@ FieldDefinition editor 與資料驗證應只允許下列 `valueType`、`controlT
 | `materialRef[]` | `select` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
 | `materialRef[]` | `checkbox` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
 | `geometryRef` | `null` 或省略 | `null` 或省略 | 不使用 `optionSource`、`validation` 或 `unit`；instance value 為 geometry DB id string 或符合 flow edge 規則的 `null`。 |
-| `fieldGroupArray` | `repeater` | `null` 或省略 | 必須提供 `repeatDefinition`；child field 不可使用 `geometryRef` 或 `fieldGroupArray`。 |
+| `coordinates` | `gds` | `null` 或省略 | 不使用 `optionSource` 或 `validation`；可使用 `unit`。GDS path、layer 與 datatype 只作為 import UI 的暫時輸入，instance value 只保存 `number[][]`。 |
+| `coordinates` | `coordinateList` | `null` 或省略 | 不使用 `optionSource` 或 `validation`；可使用 `unit`。Manual UI 可新增多列 x/y inputs，instance value 只保存 `number[][]`。 |
+| `fieldGroupArray` | `repeater` | `null` 或省略 | 必須提供 `repeatDefinition`；child field 不可使用 `geometryRef`、`coordinates` 或 `fieldGroupArray`。 |
 
-不支援的組合不可存入 process step template。特別是 `boolean[]`、`referenceSelect` 與巢狀 `fieldGroupArray` 均不屬於目前 FieldDefinition schema。
+不支援的組合不可存入 process step template。特別是 `boolean[]`、`coordinates[]`、`fieldGroupArray[]`、`referenceSelect` 與巢狀 `fieldGroupArray` 均不屬於目前 FieldDefinition schema。
 
 
 ## ProcessFlowTemplate
@@ -1013,11 +1086,12 @@ FieldDefinition editor 與資料驗證應只允許下列 `valueType`、`controlT
         - `value`
           - `value` 必須符合對應 `FieldDefinition` 的 `valueType`、`controlType`、`unit`、`validation`、`optionSource` 與 `repeatDefinition` 規則。
           - `valueType: "geometryRef"` 時，`value` 必須是 geometry DB id string，或符合 flow edge resolve 規則的 `null`。
+          - `valueType: "coordinates"` 時，`value` 必須是 `number[][]`；每個 item 必須是固定長度為 2 的 `[x, y]`，代表 global bottom-left coordinate，且不可包含重複 coordinate pair。
 
 Field completion 規則：
 
 - 若某個 `FieldDefinition` 出現在 process step template 中，UI 需讓使用者填寫或選取對應 value。
-- `FieldValue.value` 需符合對應 `FieldDefinition` 的 value type 與 validation rule，才算 complete。
+- `FieldValue.value` 需符合對應 `FieldDefinition` 的 value type 與 validation rule，才算 complete。`coordinates` 目前不使用 `validation`；空 array 合法，符合 `number[][]` shape 且沒有重複 coordinate pair 即可視為 complete。
 - `computed` 欄位需由前端依 `derivedRule` 計算出 value，才算 complete。
 - `repeater` 欄位需符合 `repeatDefinition.minItems` / `maxItems`，且每個 repeat item 的 child fields 都需 complete。
 - geometryRef payload 規則如下：`string`：geometry database 中的 `GeometryEntity.id`。`null`：不在此欄位手動指定 geometry DB id，runtime 必須依`ProcessFlowTemplate.flowEdges[]` 從上游 process step output 取得 geometry DB id。
