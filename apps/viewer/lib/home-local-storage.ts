@@ -640,9 +640,404 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
   },
 ];
 
-export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [];
+export const PROCESS_FLOW_TEMPLATE_SEED: ProcessFlowTemplate[] = [
+  {
+    id: "flow_tpl_cowosl_demo_1_0_0",
+    name: "CoWoS-L Demo",
+    version: "V1.0.0",
+    description:
+      "Demo CoWoS-L style package flow with die placement, molding, RDL, and C4 bump formation.",
+    owner: "demo.example",
+    stepRefs: [
+      {
+        stepRefId: "pnp_hbm",
+        processStepTemplateId: "step_tpl_pnp_1_0_0",
+      },
+      {
+        stepRefId: "mold_cap",
+        processStepTemplateId: "step_tpl_molding_1_0_0",
+      },
+      {
+        stepRefId: "rdl_build",
+        processStepTemplateId: "step_tpl_rdl_1_0_0",
+      },
+      {
+        stepRefId: "c4_bump",
+        processStepTemplateId: "step_tpl_c4_bump_formation_1_0_0",
+      },
+    ],
+    flowEdges: [
+      {
+        edgeId: "edge_cowosl_panel_to_pnp_main",
+        source: { sourceType: "geometryRef" },
+        target: {
+          stepRefId: "pnp_hbm",
+          targetFieldId: "main_geometry",
+        },
+      },
+      {
+        edgeId: "edge_cowosl_hbm_to_pnp_die",
+        source: { sourceType: "geometryRef" },
+        target: {
+          stepRefId: "pnp_hbm",
+          targetFieldId: "die_geometry",
+        },
+      },
+      {
+        edgeId: "edge_cowosl_pnp_to_mold",
+        source: {
+          sourceType: "stepOutput",
+          stepRefId: "pnp_hbm",
+        },
+        target: {
+          stepRefId: "mold_cap",
+          targetFieldId: "main_geometry",
+        },
+      },
+      {
+        edgeId: "edge_cowosl_mold_to_rdl",
+        source: {
+          sourceType: "stepOutput",
+          stepRefId: "mold_cap",
+        },
+        target: {
+          stepRefId: "rdl_build",
+          targetFieldId: "main_geometry",
+        },
+      },
+      {
+        edgeId: "edge_cowosl_rdl_to_c4",
+        source: {
+          sourceType: "stepOutput",
+          stepRefId: "rdl_build",
+        },
+        target: {
+          stepRefId: "c4_bump",
+          targetFieldId: "main_geometry",
+        },
+      },
+    ],
+  },
+  {
+    id: "flow_tpl_fanout_demo_1_0_0",
+    name: "Fan-Out Demo",
+    version: "V1.0.0",
+    description:
+      "Demo fan-out package flow with SoC placement, micro bump formation, flip, and BGA bump formation.",
+    owner: "demo.example",
+    stepRefs: [
+      {
+        stepRefId: "pnp_soc",
+        processStepTemplateId: "step_tpl_pnp_1_0_0",
+      },
+      {
+        stepRefId: "micro_bump",
+        processStepTemplateId: "step_tpl_ubump_formation_1_0_0",
+      },
+      {
+        stepRefId: "flip_package",
+        processStepTemplateId: "step_tpl_flip_1_0_0",
+      },
+      {
+        stepRefId: "bga_array",
+        processStepTemplateId: "step_tpl_bga_bump_formation_1_0_0",
+      },
+    ],
+    flowEdges: [
+      {
+        edgeId: "edge_fanout_panel_to_pnp_main",
+        source: { sourceType: "geometryRef" },
+        target: {
+          stepRefId: "pnp_soc",
+          targetFieldId: "main_geometry",
+        },
+      },
+      {
+        edgeId: "edge_fanout_soc_to_pnp_die",
+        source: { sourceType: "geometryRef" },
+        target: {
+          stepRefId: "pnp_soc",
+          targetFieldId: "die_geometry",
+        },
+      },
+      {
+        edgeId: "edge_fanout_pnp_to_micro_bump",
+        source: {
+          sourceType: "stepOutput",
+          stepRefId: "pnp_soc",
+        },
+        target: {
+          stepRefId: "micro_bump",
+          targetFieldId: "main_geometry",
+        },
+      },
+      {
+        edgeId: "edge_fanout_micro_bump_to_flip",
+        source: {
+          sourceType: "stepOutput",
+          stepRefId: "micro_bump",
+        },
+        target: {
+          stepRefId: "flip_package",
+          targetFieldId: "main_geometry",
+        },
+      },
+      {
+        edgeId: "edge_fanout_flip_to_bga",
+        source: {
+          sourceType: "stepOutput",
+          stepRefId: "flip_package",
+        },
+        target: {
+          stepRefId: "bga_array",
+          targetFieldId: "main_geometry",
+        },
+      },
+    ],
+  },
+];
 
-export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [];
+export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
+  {
+    id: "flow_inst_cowosl_demo_hbm4_alpha",
+    name: "HBM4 Alpha Build",
+    processFlowTemplateId: "flow_tpl_cowosl_demo_1_0_0",
+    stepValueSets: [
+      {
+        stepRefId: "pnp_hbm",
+        processStepTemplateId: "step_tpl_pnp_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: "geom_example_panel" },
+          { fieldId: "die_geometry", value: "geom_example_hbm" },
+          {
+            fieldId: "coordinates",
+            value: {
+              items: [
+                {
+                  itemId: "coordinates_item_1",
+                  index: 1,
+                  fieldValues: [
+                    { fieldId: "bottemLeftX", value: -760 },
+                    { fieldId: "bottemLeftY", value: -520 },
+                  ],
+                },
+                {
+                  itemId: "coordinates_item_2",
+                  index: 2,
+                  fieldValues: [
+                    { fieldId: "bottemLeftX", value: 760 },
+                    { fieldId: "bottemLeftY", value: -520 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "mold_cap",
+        processStepTemplateId: "step_tpl_molding_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "material", value: "EMC-G700" },
+          { fieldId: "thickness", value: 180 },
+        ],
+      },
+      {
+        stepRefId: "rdl_build",
+        processStepTemplateId: "step_tpl_rdl_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          {
+            fieldId: "layers",
+            value: {
+              items: [
+                {
+                  itemId: "layers_item_1",
+                  index: 1,
+                  fieldValues: [
+                    { fieldId: "Dielectric", value: "PI-2611" },
+                    { fieldId: "Conductivity", value: "Cu" },
+                    { fieldId: "thk", value: 8 },
+                    { fieldId: "density", value: 0.62 },
+                  ],
+                },
+                {
+                  itemId: "layers_item_2",
+                  index: 2,
+                  fieldValues: [
+                    { fieldId: "Dielectric", value: "PI-2611" },
+                    { fieldId: "Conductivity", value: "Cu" },
+                    { fieldId: "thk", value: 6 },
+                    { fieldId: "density", value: 0.48 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "c4_bump",
+        processStepTemplateId: "step_tpl_c4_bump_formation_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "material", value: "SAC305" },
+          { fieldId: "thk", value: 65 },
+          { fieldId: "density", value: 0.58 },
+          { fieldId: "koz", value: 18 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "flow_inst_cowosl_demo_hbm4_beta",
+    name: "HBM4 Beta Reliability",
+    processFlowTemplateId: "flow_tpl_cowosl_demo_1_0_0",
+    stepValueSets: [
+      {
+        stepRefId: "pnp_hbm",
+        processStepTemplateId: "step_tpl_pnp_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: "geom_example_panel" },
+          { fieldId: "die_geometry", value: "geom_example_hbm" },
+          {
+            fieldId: "coordinates",
+            value: {
+              items: [
+                {
+                  itemId: "coordinates_item_1",
+                  index: 1,
+                  fieldValues: [
+                    { fieldId: "bottemLeftX", value: -820 },
+                    { fieldId: "bottemLeftY", value: -560 },
+                  ],
+                },
+                {
+                  itemId: "coordinates_item_2",
+                  index: 2,
+                  fieldValues: [
+                    { fieldId: "bottemLeftX", value: 0 },
+                    { fieldId: "bottemLeftY", value: -560 },
+                  ],
+                },
+                {
+                  itemId: "coordinates_item_3",
+                  index: 3,
+                  fieldValues: [
+                    { fieldId: "bottemLeftX", value: 820 },
+                    { fieldId: "bottemLeftY", value: -560 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "mold_cap",
+        processStepTemplateId: "step_tpl_molding_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "material", value: "EMC-R920" },
+          { fieldId: "thickness", value: 210 },
+        ],
+      },
+      {
+        stepRefId: "rdl_build",
+        processStepTemplateId: "step_tpl_rdl_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          {
+            fieldId: "layers",
+            value: {
+              items: [
+                {
+                  itemId: "layers_item_1",
+                  index: 1,
+                  fieldValues: [
+                    { fieldId: "Dielectric", value: "ABF-GX92" },
+                    { fieldId: "Conductivity", value: "Cu" },
+                    { fieldId: "thk", value: 10 },
+                    { fieldId: "density", value: 0.56 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "c4_bump",
+        processStepTemplateId: "step_tpl_c4_bump_formation_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "material", value: "SAC405" },
+          { fieldId: "thk", value: 72 },
+          { fieldId: "density", value: 0.53 },
+          { fieldId: "koz", value: 20 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "flow_inst_fanout_demo_soc_ev1",
+    name: "SoC EV1",
+    processFlowTemplateId: "flow_tpl_fanout_demo_1_0_0",
+    stepValueSets: [
+      {
+        stepRefId: "pnp_soc",
+        processStepTemplateId: "step_tpl_pnp_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: "geom_example_panel" },
+          { fieldId: "die_geometry", value: "geom_example_soc" },
+          {
+            fieldId: "coordinates",
+            value: {
+              items: [
+                {
+                  itemId: "coordinates_item_1",
+                  index: 1,
+                  fieldValues: [
+                    { fieldId: "bottemLeftX", value: -1000 },
+                    { fieldId: "bottemLeftY", value: -800 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stepRefId: "micro_bump",
+        processStepTemplateId: "step_tpl_ubump_formation_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "material", value: "Cu/Ni/SnAg" },
+          { fieldId: "thk", value: 28 },
+          { fieldId: "density", value: 0.42 },
+          { fieldId: "koz", value: 12 },
+        ],
+      },
+      {
+        stepRefId: "flip_package",
+        processStepTemplateId: "step_tpl_flip_1_0_0",
+        fieldValues: [{ fieldId: "main_geometry", value: null }],
+      },
+      {
+        stepRefId: "bga_array",
+        processStepTemplateId: "step_tpl_bga_bump_formation_1_0_0",
+        fieldValues: [
+          { fieldId: "main_geometry", value: null },
+          { fieldId: "material", value: "SAC305" },
+          { fieldId: "thk", value: 240 },
+          { fieldId: "density", value: 0.36 },
+          { fieldId: "koz", value: 35 },
+        ],
+      },
+    ],
+  },
+];
 
 export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
   {
