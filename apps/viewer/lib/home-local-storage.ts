@@ -313,6 +313,83 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
+    id: "step_tpl_ubump_formation_1_0_0",
+    version: "V1.0.0",
+    name: "Micro Bump",
+    category: "bump",
+    program: "bump/uBump_formation",
+    description:
+      "Forms downward micro bump features below the lowest body using the current process footprint after applying koz.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Die geometry state consumed by micro bump formation. The state must already carry a process footprint.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "material",
+        name: "material",
+        description: "Micro bump material name or material entity id.",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "text",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        description:
+          "Positive micro bump thickness. The bump top is aligned to the lowest body bottom and extends downward.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+          exclusiveMin: true,
+        },
+      },
+      {
+        id: "density",
+        name: "density",
+        description:
+          "Micro bump density recorded as a 0 to 100 percentage value.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: null,
+        validation: {
+          min: 0,
+          max: 100,
+        },
+      },
+      {
+        id: "koz",
+        name: "koz",
+        description:
+          "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+        },
+      },
+    ],
+  },
+  {
     id: "step_tpl_pnp_1_0_0",
     version: "V1.0.0",
     name: "PnP",

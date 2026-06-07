@@ -28,6 +28,7 @@ import {
   geometryStructureToProcessGeometryState,
 } from "../kernel/index.js";
 import { execute as executeGrinding } from "../process/grinding/grinding.js";
+import { execute as executeMicroBump } from "../process/bump/uBump_formation.js";
 
 test("container json has schema unit and stable ids", () => {
   const root = new Container({ key: "package-root" });
@@ -215,6 +216,29 @@ test("polygon loop odd even classification", () => {
   assert.deepEqual(regions.map((region) => region.holes.length), [1, 0]);
 });
 
+test("geometry primitives copy with XY inset", () => {
+  const box = new BoxGeometry([0, 0, 1], [10, 20, 1], 5).copyWithXYInset(2);
+  assert.deepEqual(box.bottomLeft(), [2, 2, 1]);
+  assert.deepEqual(box.topRight(), [8, 18, 1]);
+
+  const cylinder = new CylinderGeometry([0, 0, 0], 10, 5).copyWithXYInset(3);
+  assert.equal(cylinder.bottomRadius(), 7);
+
+  const cone = new ConeGeometry([0, 0, 0], 10, 6, 5).copyWithXYInset(-2);
+  assert.equal(cone.bottomRadius(), 12);
+  assert.equal(cone.topRadius(), 8);
+
+  const polygon = new PolygonGeometry(
+    [[[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]]],
+    1,
+  );
+  assert.deepEqual(polygon.copyWithXYInset(0).polygons(), polygon.polygons());
+  assert.throws(
+    () => polygon.copyWithXYInset(1),
+    /PolygonGeometry does not support non-zero XY inset/,
+  );
+});
+
 test("process geometry state deposit and placement track cursor z", () => {
   const state = ProcessGeometryState.create();
   state.initializeBoxLayer({
@@ -244,6 +268,49 @@ test("process geometry state deposit and placement track cursor z", () => {
   assert.equal(output.root.bodies[0].geometry.bottom_left[2], 0);
   assert.equal(output.root.children[0].bodies[0].geometry.bottom_left[2], 5);
   assert.equal(output.root.children[0].bodies[0].geometry.thk, 2);
+});
+
+test("micro bump formation uses process footprint and recursive lowest body", () => {
+  const state = ProcessGeometryState.create({ key: "bump-root" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [-100, -100, 10],
+    topRight: [100, 100, 10],
+    thickness: 10,
+  });
+  const child = ProcessGeometryState.create({ key: "die-child" });
+  child.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [-20, -20, 5],
+    topRight: [20, 20, 5],
+    thickness: 5,
+  });
+  state.placeGeometryState(child, {
+    x: 0,
+    y: 0,
+    bottomZ: 0,
+    anchor: "center",
+  });
+
+  executeMicroBump({
+    state,
+    values: {
+      material: "SnAg",
+      thk: 2,
+      density: 80,
+      koz: 10,
+    },
+    geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
+  });
+
+  const output = state.toGeometryStructure();
+  assert.equal(output.root.bumps.length, 1);
+  assert.equal(output.root.bumps[0].material, "SnAg");
+  assert.equal(output.root.bumps[0].density, 80);
+  assert.equal(output.root.bumps[0].direction, "-z");
+  assert.deepEqual(output.root.bumps[0].geometry.bottom_left, [-90, -90, -2]);
+  assert.deepEqual(output.root.bumps[0].geometry.top_right, [90, 90, -2]);
+  assert.equal(output.root.bumps[0].geometry.thk, 2);
 });
 
 test("CAD converter reports missing OpenCascade instance clearly", () => {
@@ -589,6 +656,59 @@ test("geometry kernel imports and executes real RDL process step", async () => {
   assert.equal(geometry.root.vias[0].direction, "-z");
   assert.deepEqual(geometry.root.vias[0].geometry.bottom_left, [-50, -50, 12]);
   assert.equal(geometry.root.vias[0].geometry.thk, 3);
+});
+
+test("geometry kernel imports and executes real Micro Bump process step", async () => {
+  const kernel = createTestKernel({
+    processStepTemplates: [realMicroBumpStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "micro_bump",
+          processStepTemplateId: "step_tpl_ubump_formation_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_micro_bump",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "micro_bump",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "micro_bump",
+          processStepTemplateId: "step_tpl_ubump_formation_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            { fieldId: "material", value: "SnAg" },
+            { fieldId: "thk", value: 3 },
+            { fieldId: "density", value: 75 },
+            { fieldId: "koz", value: 5 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
+
+  assert.equal(geometry.root.bumps.length, 1);
+  assert.equal(geometry.root.bumps[0].material, "SnAg");
+  assert.equal(geometry.root.bumps[0].density, 75);
+  assert.equal(geometry.root.bumps[0].direction, "-z");
+  assert.deepEqual(geometry.root.bumps[0].geometry.bottom_left, [-45, -45, -3]);
+  assert.deepEqual(geometry.root.bumps[0].geometry.top_right, [45, 45, -3]);
+  assert.equal(geometry.root.bumps[0].geometry.thk, 3);
 });
 
 test("Grinding process step can grind geometry flat while retaining footprint", () => {
@@ -1275,6 +1395,65 @@ function realRdlStepTemplate() {
             },
           ],
         },
+      },
+    ],
+  };
+}
+
+function realMicroBumpStepTemplate() {
+  return {
+    id: "step_tpl_ubump_formation_1_0_0",
+    version: "V1.0.0",
+    name: "Micro Bump",
+    category: "bump",
+    program: "bump/uBump_formation",
+    description: "Form downward micro bumps below the lowest body.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "material",
+        name: "material",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "text",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+      {
+        id: "density",
+        name: "density",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "koz",
+        name: "koz",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
       },
     ],
   };

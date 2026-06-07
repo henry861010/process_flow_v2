@@ -147,6 +147,59 @@ Template metadata：
 - Grinding 不清除 runtime process footprint。即使 geometry 被磨平，後續
   full-area operation 仍可沿用原本 footprint。
 
+## Micro Bump
+
+`Micro Bump` 是 `bump` 類別的 process step，用來在 die geometry 下方形成
+朝 `"-z"` 方向的 micro bump density feature。此 step 預期用在 die geometry，
+不作為 wafer-level bump formation 使用。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `Micro Bump` |
+| Category | `bump` |
+| Program | `bump/uBump_formation` |
+| Template id | `step_tpl_ubump_formation_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 輸入的 die `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `material` | `materialRef` | `processParameter` | Micro bump material 名稱或 material DB entity id。 |
+| `thk` | `float` | `processParameter` | 正值 micro bump 厚度，單位依照 geometry state 的 unit system 解讀。 |
+| `density` | `float` | `processParameter` | Micro bump density，保存為 0 到 100 的 percentage value。 |
+| `koz` | `float` | `processParameter` | Keep out zone，表示 bump footprint 相對 process footprint 的 XY 內縮距離。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry`
+   `ProcessGeometryState`。
+2. 驗證 `material` 為非空字串、`thk` 為正值、`density` 為 0 到 100 的 finite
+   number、`koz` 為非負 finite number。
+3. 呼叫 `main_geometry.addBumpBelowLowestBody({ material, density,
+   thickness: thk, direction: "-z", footprintSource: "processFootprint",
+   xyInset: koz })`。
+4. `addBumpBelowLowestBody()` 會 recursive 搜尋 `main_geometry` target scope
+   tree 內所有 body，使用最低 body 的 `zMin()` 作為 bump top Z。
+5. Bump geometry 使用 `main_geometry` 目前的 process footprint，並依 `koz`
+   做 XY 內縮。Bump bottom Z 為 `lowestBody.zMin() - thk`，top Z 為
+   `lowestBody.zMin()`。
+6. 新增的 bump feature 會加入 `main_geometry` root scope 的 `bumps`。
+7. 此 step 不會推進或修改 `main_geometry.cursorZ()`。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body`、`Bump` 或 raw geometry object。
+- `koz` 內縮透過 geometry primitive 的 public copy API 執行；Box、Cylinder 與
+  Cone footprint 支援此操作。Polygon footprint 不支援非零 `koz`。
+- Bump direction 固定為 `"-z"`，不由 geometry envelope 的 Z 位置推論。
+- Recursive lowest-body 搜尋會把 child scopes 內的 body 納入 Z placement 參考，
+  避免 sub geometry 的最低結構低於 root direct body 時 bump 放置錯誤。
+- Feature scope 仍由 root `bumps` array 決定；bump 不會自動向 child container
+  或 parent container 傳播。
+
 ## PnP
 
 `PnP` 是 `PnP` 類別的 process step，用來模擬 die pick and place。此 step

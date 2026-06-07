@@ -905,6 +905,8 @@ state.addBumpBelowLowestBody({
   density: 0.55,
   thickness: 40,
   direction: "-z",
+  footprintSource: "processFootprint",
+  xyInset: 20,
 });
 ```
 
@@ -914,17 +916,25 @@ Parameters:
 | --- | --- | --- | --- | --- |
 | `material` | string | yes | none | Material name or id. |
 | `density` | number | yes | none | Effective bump density. |
-| `thickness` | number | no | lowest direct body thickness | Bump envelope thickness. |
+| `thickness` | number | no | lowest body thickness | Bump envelope thickness. |
 | `direction` | `"+z"` or `"-z"` | no | `"-z"` | Bump direction. |
-| `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Scope whose lowest direct body is used. |
-| `footprintSource` | string | no | `"lowestDirectBody"` | Source for bump XY envelope. |
+| `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Scope tree whose lowest body is used for Z placement. |
+| `footprintSource` | string | no | `"lowestBody"` | Source for bump XY envelope. Supported values are `"lowestBody"` and `"processFootprint"`. `"lowestDirectBody"` is accepted as an alias for `"lowestBody"`. |
+| `xyInset` | number | no | `0` | XY inset applied to the selected footprint before creating the bump. Positive values shrink the footprint; negative values expand it. |
 
 Behavior:
 
-- Finds the lowest direct body in the target scope.
-- Uses that body's XY footprint.
+- Finds the lowest body in the target scope tree, including child scopes.
+- Uses that body only for Z placement when `footprintSource` is
+  `"processFootprint"`.
+- Uses the lowest body's XY footprint when `footprintSource` is `"lowestBody"`.
+- Uses the runtime process footprint when `footprintSource` is
+  `"processFootprint"`.
 - Places the bump immediately below that body.
-- Uses the lowest direct body thickness when `thickness` is omitted.
+- Uses the lowest body thickness when `thickness` is omitted.
+- Applies `xyInset` through geometry primitive copy methods. Box, cylinder, and
+  cone footprints support positive inset and negative outset. Polygon footprints
+  only support `xyInset: 0`; non-zero polygon inset/outset is not supported.
 - Does not move `cursorZ`.
 
 This method exists because bump placement is a common process operation and
@@ -1622,7 +1632,7 @@ Examples:
 | Invalid direction | `via direction must be "+z" or "-z".` |
 | Missing geometry input | `geometryState("die_geometry") returned null.` |
 | Invalid placement | `placeGeometryState requires finite x and y.` |
-| No body for bump | `addBumpBelowLowestBody requires at least one direct body in the target scope.` |
+| No body for bump | `addBumpBelowLowestBody requires at least one body in the target scope tree.` |
 
 Guidelines:
 

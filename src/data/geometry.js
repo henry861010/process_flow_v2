@@ -23,6 +23,10 @@ export class Geometry {
     throw new Error("copyWithThk must be implemented by subclasses");
   }
 
+  copyWithXYInset() {
+    throw new Error("copyWithXYInset must be implemented by subclasses");
+  }
+
   move() {
     throw new Error("move must be implemented by subclasses");
   }
@@ -53,6 +57,10 @@ export class Geometry {
 
   copy_with_thk(thk) {
     return this.copyWithThk(thk);
+  }
+
+  copy_with_xy_inset(inset) {
+    return this.copyWithXYInset(inset);
   }
 
   clip_top_to(toZ) {
@@ -108,6 +116,20 @@ export class BoxGeometry extends Geometry {
 
   copyWithThk(thk) {
     return new BoxGeometry(this._bottomLeft, this._topRight, thk);
+  }
+
+  copyWithXYInset(inset) {
+    const amount = finiteNumber(inset, "inset");
+    const xMin = Math.min(this._bottomLeft[0], this._topRight[0]) + amount;
+    const xMax = Math.max(this._bottomLeft[0], this._topRight[0]) - amount;
+    const yMin = Math.min(this._bottomLeft[1], this._topRight[1]) + amount;
+    const yMax = Math.max(this._bottomLeft[1], this._topRight[1]) - amount;
+
+    if (xMin >= xMax || yMin >= yMax) {
+      throw new Error("BoxGeometry XY inset collapses the footprint");
+    }
+
+    return new BoxGeometry([xMin, yMin, this.zMin()], [xMax, yMax, this.zMin()], this._thk);
   }
 
   move(...args) {
@@ -178,6 +200,14 @@ export class PolygonGeometry extends Geometry {
 
   copyWithThk(thk) {
     return new PolygonGeometry(this._polys, thk);
+  }
+
+  copyWithXYInset(inset) {
+    const amount = finiteNumber(inset, "inset");
+    if (amount === 0) {
+      return this.copy();
+    }
+    throw new Error("PolygonGeometry does not support non-zero XY inset");
   }
 
   move(...args) {
@@ -259,6 +289,14 @@ export class CylinderGeometry extends Geometry {
 
   copyWithThk(thk) {
     return new CylinderGeometry(this._center, this._bottomRadius, thk);
+  }
+
+  copyWithXYInset(inset) {
+    const radius = this._bottomRadius - finiteNumber(inset, "inset");
+    if (radius <= 0) {
+      throw new Error("CylinderGeometry XY inset collapses the footprint");
+    }
+    return new CylinderGeometry(this._center, radius, this._thk);
   }
 
   move(...args) {
@@ -353,6 +391,16 @@ export class ConeGeometry extends Geometry {
     );
   }
 
+  copyWithXYInset(inset) {
+    const amount = finiteNumber(inset, "inset");
+    const bottomRadius = this._bottomRadius - amount;
+    const topRadius = this._topRadius - amount;
+    if (bottomRadius <= 0 || topRadius <= 0) {
+      throw new Error("ConeGeometry XY inset collapses the footprint");
+    }
+    return new ConeGeometry(this._center, bottomRadius, topRadius, this._thk);
+  }
+
   move(...args) {
     const { x, y, z } = moveArgs(args);
     this._center[0] += x;
@@ -406,4 +454,12 @@ export function moveArgs(args) {
   }
   const [x = 0, y = 0, z = 0] = args;
   return { x, y, z };
+}
+
+function finiteNumber(value, label) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+  return number;
 }

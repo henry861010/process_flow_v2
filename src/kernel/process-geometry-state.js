@@ -438,18 +438,32 @@ export class ProcessGeometryState {
     thickness,
     direction = "-z",
     scope = ROOT_SCOPE,
+    footprintSource = "lowestBody",
+    xyInset = 0,
   } = {}) {
     const targetScope = this._resolveScope(scope);
-    const body = lowestDirectBody(targetScope);
+    const body = lowestBody(targetScope);
     if (body === null) {
       throw new Error(
-        "addBumpBelowLowestBody requires at least one direct body in the target scope",
+        "addBumpBelowLowestBody requires at least one body in the target scope tree",
       );
     }
     const bumpThickness =
       thickness === undefined ? body.thk() : positiveNumber(thickness, "thickness");
-    const geometry = body.geometry().copyWithThk(bumpThickness);
-    geometry.move({ z: body.zMin() - bumpThickness - geometry.zMin() });
+    const source = normalizeBumpFootprintSource(footprintSource);
+    const geometry =
+      source === "processFootprint"
+        ? geometryFromFootprint(
+            this.requireProcessFootprint(),
+            body.zMin() - bumpThickness,
+            bumpThickness,
+          ).copyWithXYInset(xyInset)
+        : body.geometry().copyWithThk(bumpThickness).copyWithXYInset(xyInset);
+
+    if (source !== "processFootprint") {
+      geometry.move({ z: body.zMin() - bumpThickness - geometry.zMin() });
+    }
+
     return this._addFeatureObject(
       new Bump(
         geometry,
@@ -991,12 +1005,30 @@ function walkContainer(container, visitor) {
   container.children().forEach((child) => walkContainer(child, visitor));
 }
 
-function lowestDirectBody(container) {
-  const bodies = container.bodies();
+function lowestBody(container) {
+  const bodies = [];
+  walkContainer(container, (current) => {
+    bodies.push(...current.bodies());
+  });
   if (bodies.length === 0) return null;
   return bodies.reduce((lowest, body) =>
     body.zMin() < lowest.zMin() ? body : lowest,
   );
+}
+
+function normalizeBumpFootprintSource(value) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "lowestBody" ||
+    value === "lowestDirectBody"
+  ) {
+    return "lowestBody";
+  }
+  if (value === "processFootprint") {
+    return "processFootprint";
+  }
+  throw new Error(`Unsupported bump footprintSource: ${value}`);
 }
 
 function anchorPoint(bounds, anchor) {
