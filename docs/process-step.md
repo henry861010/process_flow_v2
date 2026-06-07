@@ -147,29 +147,30 @@ Template metadata：
 - Grinding 不清除 runtime process footprint。即使 geometry 被磨平，後續
   full-area operation 仍可沿用原本 footprint。
 
-## Micro Bump
+## Bounding Bump Formation
 
-`Micro Bump` 是 `bump` 類別的 process step，用來在 die geometry 下方形成
-朝 `"-z"` 方向的 micro bump density feature。此 step 預期用在 die geometry，
-不作為 wafer-level bump formation 使用。
+`Micro Bump`、`BGA Bump` 與 `C4 Bump` 是 `bounding` 類別的 process
+steps，用來在 die geometry 下方形成朝 `"-z"` 方向的 bump density feature。
+這三個 step 的幾何行為相同，只透過 template id、name 與 program path 區分不同
+bump type。這些 step 預期用在 die geometry，不作為 wafer-level bump formation
+使用。
 
 Template metadata：
 
-| Field | Value |
-| --- | --- |
-| Name | `Micro Bump` |
-| Category | `bump` |
-| Program | `bump/uBump_formation` |
-| Template id | `step_tpl_ubump_formation_1_0_0` |
+| Name | Category | Program | Template id |
+| --- | --- | --- | --- |
+| `Micro Bump` | `bounding` | `bump/uBump_formation` | `step_tpl_ubump_formation_1_0_0` |
+| `BGA Bump` | `bounding` | `bump/bga_bump_formation` | `step_tpl_bga_bump_formation_1_0_0` |
+| `C4 Bump` | `bounding` | `bump/c4_bump_formation` | `step_tpl_c4_bump_formation_1_0_0` |
 
 參數：
 
 | Field id | Value type | Scope | Description |
 | --- | --- | --- | --- |
 | `main_geometry` | `geometryRef` | `inputState` | 輸入的 die `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
-| `material` | `materialRef` | `processParameter` | Micro bump material 名稱或 material DB entity id。 |
-| `thk` | `float` | `processParameter` | 正值 micro bump 厚度，單位依照 geometry state 的 unit system 解讀。 |
-| `density` | `float` | `processParameter` | Micro bump density，保存為 0 到 100 的 percentage value。 |
+| `material` | `materialRef` | `processParameter` | Bump material 名稱或 material DB entity id。 |
+| `thk` | `float` | `processParameter` | 正值 bump 厚度，單位依照 geometry state 的 unit system 解讀。 |
+| `density` | `float` | `processParameter` | Bump density，保存為 0 到 100 的 percentage value。 |
 | `koz` | `float` | `processParameter` | Keep out zone，表示 bump footprint 相對 process footprint 的 XY 內縮距離。 |
 
 實作行為：

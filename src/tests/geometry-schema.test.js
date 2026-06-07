@@ -658,57 +658,77 @@ test("geometry kernel imports and executes real RDL process step", async () => {
   assert.equal(geometry.root.vias[0].geometry.thk, 3);
 });
 
-test("geometry kernel imports and executes real Micro Bump process step", async () => {
-  const kernel = createTestKernel({
-    processStepTemplates: [realMicroBumpStepTemplate()],
-    flowTemplate: {
-      id: "flow_tpl_kernel_test",
-      stepRefs: [
-        {
-          stepRefId: "micro_bump",
-          processStepTemplateId: "step_tpl_ubump_formation_1_0_0",
-        },
-      ],
-      flowEdges: [
-        {
-          edgeId: "edge_input_to_micro_bump",
-          source: { sourceType: "geometryRef" },
-          target: {
-            stepRefId: "micro_bump",
-            targetFieldId: "main_geometry",
+test("geometry kernel imports and executes real bounding bump process steps", async () => {
+  const variants = [
+    {
+      id: "step_tpl_ubump_formation_1_0_0",
+      name: "Micro Bump",
+      program: "bump/uBump_formation",
+    },
+    {
+      id: "step_tpl_bga_bump_formation_1_0_0",
+      name: "BGA Bump",
+      program: "bump/bga_bump_formation",
+    },
+    {
+      id: "step_tpl_c4_bump_formation_1_0_0",
+      name: "C4 Bump",
+      program: "bump/c4_bump_formation",
+    },
+  ];
+
+  for (const variant of variants) {
+    const kernel = createTestKernel({
+      processStepTemplates: [realBumpStepTemplate(variant)],
+      flowTemplate: {
+        id: "flow_tpl_kernel_test",
+        stepRefs: [
+          {
+            stepRefId: "bump",
+            processStepTemplateId: variant.id,
           },
-        },
-      ],
-    },
-    flowInstance: {
-      id: "flow_inst_kernel_test",
-      processFlowTemplateId: "flow_tpl_kernel_test",
-      stepValueSets: [
-        {
-          stepRefId: "micro_bump",
-          processStepTemplateId: "step_tpl_ubump_formation_1_0_0",
-          fieldValues: [
-            { fieldId: "main_geometry", value: "geom_kernel_input" },
-            { fieldId: "material", value: "SnAg" },
-            { fieldId: "thk", value: 3 },
-            { fieldId: "density", value: 75 },
-            { fieldId: "koz", value: 5 },
-          ],
-        },
-      ],
-    },
-    moduleResolver: new ProcessStepModuleResolver(),
-  });
+        ],
+        flowEdges: [
+          {
+            edgeId: "edge_input_to_bump",
+            source: { sourceType: "geometryRef" },
+            target: {
+              stepRefId: "bump",
+              targetFieldId: "main_geometry",
+            },
+          },
+        ],
+      },
+      flowInstance: {
+        id: "flow_inst_kernel_test",
+        processFlowTemplateId: "flow_tpl_kernel_test",
+        stepValueSets: [
+          {
+            stepRefId: "bump",
+            processStepTemplateId: variant.id,
+            fieldValues: [
+              { fieldId: "main_geometry", value: "geom_kernel_input" },
+              { fieldId: "material", value: "SnAg" },
+              { fieldId: "thk", value: 3 },
+              { fieldId: "density", value: 75 },
+              { fieldId: "koz", value: 5 },
+            ],
+          },
+        ],
+      },
+      moduleResolver: new ProcessStepModuleResolver(),
+    });
 
-  const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
+    const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
 
-  assert.equal(geometry.root.bumps.length, 1);
-  assert.equal(geometry.root.bumps[0].material, "SnAg");
-  assert.equal(geometry.root.bumps[0].density, 75);
-  assert.equal(geometry.root.bumps[0].direction, "-z");
-  assert.deepEqual(geometry.root.bumps[0].geometry.bottom_left, [-45, -45, -3]);
-  assert.deepEqual(geometry.root.bumps[0].geometry.top_right, [45, 45, -3]);
-  assert.equal(geometry.root.bumps[0].geometry.thk, 3);
+    assert.equal(geometry.root.bumps.length, 1);
+    assert.equal(geometry.root.bumps[0].material, "SnAg");
+    assert.equal(geometry.root.bumps[0].density, 75);
+    assert.equal(geometry.root.bumps[0].direction, "-z");
+    assert.deepEqual(geometry.root.bumps[0].geometry.bottom_left, [-45, -45, -3]);
+    assert.deepEqual(geometry.root.bumps[0].geometry.top_right, [45, 45, -3]);
+    assert.equal(geometry.root.bumps[0].geometry.thk, 3);
+  }
 });
 
 test("Grinding process step can grind geometry flat while retaining footprint", () => {
@@ -1400,14 +1420,14 @@ function realRdlStepTemplate() {
   };
 }
 
-function realMicroBumpStepTemplate() {
+function realBumpStepTemplate({ id, name, program }) {
   return {
-    id: "step_tpl_ubump_formation_1_0_0",
+    id,
     version: "V1.0.0",
-    name: "Micro Bump",
-    category: "bump",
-    program: "bump/uBump_formation",
-    description: "Form downward micro bumps below the lowest body.",
+    name,
+    category: "bounding",
+    program,
+    description: "Form downward bumps below the lowest body.",
     owner: "test",
     fieldDefinitions: [
       {
