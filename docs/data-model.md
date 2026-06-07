@@ -526,7 +526,8 @@ ProcessStepTemplate JSON 範本：
         - 空 array `[]` 是合法 value。
         - 不允許重複 coordinate pair；相同 `[x, y]` 只可保存一次。
         - `coordinates` 只支援 `controlType: "coordinateList"`。
-        - `coordinateList` UI 可提供不同輸入方式，例如手動新增 x/y rows，或由 GDS 匯入後填入同一份 coordinate list。
+        - `coordinateList` UI 可提供不同輸入方式，例如手動新增 x/y rows，或由 browser 端 GDS file import 填入同一份 coordinate list。
+        - GDS import 使用 browser File API 讀取使用者選取的本機檔案，並在 user side 完成解析與轉換；GDS file 不上傳 server，也不保存到 localStorage。
         - `coordinates` 目前不使用 `validation`；`minItems`、`maxItems`、coordinate range 或其他座標限制不由目前 schema 表達。
     8. `fieldGroupArray`：用來定義一種特殊 valueType。依據現有 fieldDefinition 定義一組 參數組 。
         - 此欄位設計目的主要是用於像 RDL layer，會有好幾層，每層有個別 厚度、材料 與 metal density (或 real pattern)。如果一層一層建 RDL 會帶來兩個問題，一是這讓 engineer感覺很煩，二則是只要有不同 RDL layer 就需要產生不同 process flow template，但往往不同 tech 我們才建立不同 flow template。因此引入此可以讓使用者調整參數組數量的 valueType
@@ -552,7 +553,7 @@ ProcessStepTemplate JSON 範本：
 | `checkbox` | 單一 yes/no 核取方塊，或多個核取方塊直接展開在畫面上。 | `boolean`、`string`、`string[]`、`integer[]`、`float[]`、`materialRef[]` | 單一 yes/no checkbox 使用 `boolean`；選項型 checkbox 使用 `selectionMode` 與 `optionSource.options`，多選時使用 array `valueType`。 |
 | `select` | 下拉選單或 compact list。 | `string`、`integer`、`float`、`materialRef`、`string[]`、`integer[]`、`float[]`、`materialRef[]` | 使用 `selectionMode` 控制單選或多選，選項放在 `optionSource.options` 或由 `externalReference` 指定；多選時使用 array `valueType`。 |
 | `repeater` | 在單一欄位中動態新增、縮減或移除多組子欄位。 | `fieldGroupArray` | 必須提供 `repeatDefinition`；`itemFieldDefinitions[]` 定義每個 repeat item 內的 child fields，`minItems` 與 `maxItems` 可限制 `items.length`。 |
-| `coordinateList` | 新增、移除與編輯多組 `[x, y]` coordinates。UI 可提供手動 x/y rows，也可提供 GDS import action 將 GDS 解析結果填入 coordinate list。 | `coordinates` | Instance value 直接保存 `number[][]`，不使用 `fieldGroupArray` 的 nested `items[].fieldValues[]` 結構。GDS path、layer 與 datatype 是 import action 的暫時輸入，不保存到 `FieldValue.value`。 |
+| `coordinateList` | 新增、移除與編輯多組 `[x, y]` coordinates。UI 可提供手動 x/y rows，也可提供 browser-side GDS import action 將 GDS 解析結果填入 coordinate list。 | `coordinates` | Instance value 直接保存 `number[][]`，不使用 `fieldGroupArray` 的 nested `items[].fieldValues[]` 結構。GDS file、layer 與 datatype 是 import action 的暫時輸入，不保存到 `FieldValue.value`。 |
 | `null` 或省略 | 不由一般 UI control 直接輸入。 | `geometryRef` | Instance value 為 geometry DB id string 或符合 flow edge 規則的 `null`。 |
 
 ### Numeric validation 
@@ -746,17 +747,25 @@ Coordinates field：
 }
 ```
 
-`coordinateList` UI 可提供多種輸入方式。手動輸入時，UI 可提供 `+` 新增一列
-x/y number inputs。GDS 匯入時，UI 會要求使用者提供 GDS path、layer 與
-datatype。這些 GDS import inputs 只存在於匯入操作中，不保存到
+`coordinateList` UI 可提供多種輸入方式。手動輸入時，UI 提供 `+` 新增一列
+x/y number inputs。GDS 匯入時，UI 讓使用者選取本機 GDS file，並輸入 layer
+與 datatype。GDS file、layer 與 datatype 只存在於匯入操作中，不保存到
 `FieldValue.value`。
 
-GDS importer 需在 user side 解析 GDS、將 GDS DB unit / user unit 轉成 `unit`
-指定的 canonical unit、resolve hierarchy / cell reference / transform 成
-global coordinates，並對符合 layer/datatype 的 object 取 global bounding box
-bottom-left。若 GDS 匯入結果包含重複 coordinates，importer 應只保留一筆。
-不論使用手動輸入或 GDS 匯入，instance payload 都直接保存 `number[][]`，
-不使用 `fieldGroupArray` 的 nested `items[].fieldValues[]` 結構。
+GDS importer 在 browser / user side 解析 GDS，不上傳 GDS file 到 server。Importer
+將 GDS DB unit / user unit 轉成 `unit` 指定的 canonical unit、resolve hierarchy /
+cell reference / transform 成 global coordinates，並讀取每一個 top cell。符合
+layer/datatype 的 drawing object 會取 global bounding box bottom-left 作為
+coordinate。`BOUNDARY` 以 `DATATYPE` 比對；`BOX` 以 `BOXTYPE` 比對同一個 UI
+datatype input。支援的 GDS drawing element 為 `BOUNDARY` 與 `BOX`。`PATH`、
+`TEXT`、`NODE` 與其他未列入支援的 drawing elements 不轉成 coordinates；若它們
+符合 layer/datatype，UI 需在 import summary 顯示 unsupported count。`SREF` 與
+`AREF` 用於 hierarchy traversal 與 transform，不直接產生 coordinate。
+
+若 GDS 匯入結果包含重複 coordinates，importer 只保留一筆。去重比對使用 canonical
+unit 下的 numeric tolerance；`unit: "um"` 時 tolerance 為 `1e-6 um`。不論使用手動輸入
+或 GDS 匯入，instance payload 都直接保存 `number[][]`，不使用 `fieldGroupArray` 的
+nested `items[].fieldValues[]` 結構。
 
 - Instance
   ```json
@@ -966,7 +975,7 @@ FieldDefinition editor 與資料驗證應只允許下列 `valueType`、`controlT
 | `materialRef[]` | `select` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
 | `materialRef[]` | `checkbox` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
 | `geometryRef` | `null` 或省略 | `null` 或省略 | 不使用 `optionSource`、`validation` 或 `unit`；instance value 為 geometry DB id string 或符合 flow edge 規則的 `null`。 |
-| `coordinates` | `coordinateList` | `null` 或省略 | 不使用 `optionSource` 或 `validation`；可使用 `unit`。UI 可提供手動 x/y rows 或 GDS import action，instance value 只保存 `number[][]`。 |
+| `coordinates` | `coordinateList` | `null` 或省略 | 不使用 `optionSource` 或 `validation`；可使用 `unit`。UI 可提供手動 x/y rows 或 browser-side GDS import action，instance value 只保存 `number[][]`。 |
 | `fieldGroupArray` | `repeater` | `null` 或省略 | 必須提供 `repeatDefinition`；child field 不可使用 `geometryRef`、`coordinates` 或 `fieldGroupArray`。 |
 
 不支援的組合不可存入 process step template。特別是 `boolean[]`、`coordinates[]`、`fieldGroupArray[]`、`referenceSelect` 與巢狀 `fieldGroupArray` 均不屬於目前 FieldDefinition schema。

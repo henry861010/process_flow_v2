@@ -36,6 +36,7 @@ type ValueType =
   | "materialRef"
   | "geometryRef"
   | "geometry"
+  | "coordinates"
   | "fieldGroupArray"
   | "string[]"
   | "integer[]"
@@ -48,6 +49,7 @@ type ControlType =
   | "select"
   | "geometry"
   | "repeater"
+  | "coordinateList"
   | null;
 type SelectionMode = "single" | "multiple" | null;
 
@@ -130,6 +132,7 @@ const valueTypes: ValueType[] = [
   "materialRef[]",
   "geometryRef",
   "geometry",
+  "coordinates",
   "fieldGroupArray",
 ];
 
@@ -137,6 +140,7 @@ const childValueTypes: ValueType[] = valueTypes.filter(
   (valueType) =>
     valueType !== "geometryRef" &&
     valueType !== "geometry" &&
+    valueType !== "coordinates" &&
     valueType !== "fieldGroupArray",
 );
 
@@ -2040,6 +2044,8 @@ function defaultControlForValueType(valueType: ValueType): ControlType {
       return null;
     case "geometry":
       return "geometry";
+    case "coordinates":
+      return "coordinateList";
     case "fieldGroupArray":
       return "repeater";
     default:
@@ -2071,6 +2077,8 @@ function legalControlsForValueType(valueType: ValueType): ControlType[] {
       return [null];
     case "geometry":
       return ["geometry"];
+    case "coordinates":
+      return ["coordinateList"];
     case "fieldGroupArray":
       return ["repeater"];
   }
@@ -2374,10 +2382,11 @@ function validateFieldDefinition({
     isChild &&
     (valueType === "geometryRef" ||
       valueType === "geometry" ||
+      valueType === "coordinates" ||
       valueType === "fieldGroupArray")
   ) {
     errors[`${path}.valueType`] =
-      "Repeater child fields cannot use geometryRef, geometry, or fieldGroupArray.";
+      "Repeater child fields cannot use geometryRef, geometry, coordinates, or fieldGroupArray.";
   }
 
   if (!isLegalCombination(valueType, controlType, selectionMode)) {
@@ -2513,7 +2522,10 @@ function validateValidationRule(
     ) {
       errors[`${path}.validation.max`] = "max must be >= min.";
     }
+    return;
   }
+
+  errors[`${path}.validation`] = "This value type cannot use validation.";
 }
 
 function validateRepeatDefinition(
@@ -2631,7 +2643,11 @@ function normalizeField(field: FieldDefinition): FieldDefinition {
     };
   }
 
-  if (field.validation && Object.keys(field.validation).length > 0) {
+  if (
+    field.validation &&
+    Object.keys(field.validation).length > 0 &&
+    showsValidationSection(field)
+  ) {
     next.validation = field.validation;
   }
 

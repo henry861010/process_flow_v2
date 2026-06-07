@@ -1,5 +1,14 @@
 # Process Step Template Editor UI Design
 
+## Known Schema Misalignment
+
+目前 viewer implementation 仍保留 legacy `valueType: "geometry"` 與
+`controlType: "geometry"` 作為相容舊資料/舊畫面的暫時支援；但
+`docs/data-model.md` 的新規格已改以 `valueType: "geometryRef"` 搭配
+`controlType: null` 表示 geometry 欄位。這次 `coordinates` 實作不移除 legacy
+`geometry`，下次 schema cleanup 時需要同步處理 viewer types、flow editors、seed
+data 與 runtime 相容性。
+
 ## Route
 
 `/admin/processStepEditor`
@@ -289,6 +298,7 @@ Auto behavior:
 
 - `boolean` 自動使用 `controlType: "checkbox"`，`selectionMode: null`。
 - `geometryRef` 自動使用 `controlType: null`，`selectionMode: null`。
+- `coordinates` 自動使用 `controlType: "coordinateList"`，`selectionMode: null`。
 - `fieldGroupArray` 自動使用 `controlType: "repeater"`，`selectionMode: null`。
 - `materialRef` 可使用 string-like controls；`materialRef[]` 可使用 multiple option controls。
 - Array value type 自動使用 `selectionMode: "multiple"`。
@@ -354,7 +364,7 @@ Integer fields 額外驗證：
 - number input 不允許小數。
 - static options 的 numeric value 不允許小數。
 
-Boolean, geometryRef, and fieldGroupArray 不顯示一般 validation section。
+Boolean, geometryRef, coordinates, and fieldGroupArray 不顯示一般 validation section。
 
 ### Repeater Section
 
@@ -382,7 +392,7 @@ Rules:
 - `minItems` 與 `maxItems` 可為空；若有值，必須為正整數；若兩者都有值，`minItems <= maxItems`。
 - Add child field 不建立 default child field；使用者需在 child field editor 中填完 required fields 後才加入 `itemFieldDefinitions[]`。
 - Child fields 可排序，排序結果即為 `repeatDefinition.itemFieldDefinitions[]` 順序。
-- Child field 使用同一套 field editor，但不能選 `valueType: "geometryRef"` 或 `valueType: "fieldGroupArray"`。
+- Child field 使用同一套 field editor，但不能選 `valueType: "geometryRef"`、`valueType: "coordinates"` 或 `valueType: "fieldGroupArray"`。
 - Child field 不直接出現在 top-level `fieldDefinitions[]`。
 - Template editor 只定義 repeat item schema，不建立 instance `items[]` value。
 
@@ -410,7 +420,7 @@ Save 前必須驗證：
 - `fieldGroupArray.repeatDefinition.itemNameTemplate` 必填且包含 `{{index}}`。
 - `fieldGroupArray.repeatDefinition.indexBase` 必須為正整數。
 - `fieldGroupArray.repeatDefinition.minItems` 與 `maxItems` 若有值必須為正整數，且 `minItems <= maxItems`。
-- Repeater child fields 不使用 `geometryRef` 或 `fieldGroupArray`。
+- Repeater child fields 不使用 `geometryRef`、`coordinates` 或 `fieldGroupArray`。
 
 Validation error 顯示在對應欄位旁邊，Save button 在有 blocking error 時 disabled。
 

@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 
 import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-graph";
+import { CoordinateListControl } from "@/components/process-flow-fields/coordinate-list-control";
+import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +68,7 @@ type ValueType =
   | "materialRef"
   | "geometryRef"
   | "geometry"
+  | "coordinates"
   | "fieldGroupArray"
   | "string[]"
   | "integer[]"
@@ -77,6 +80,7 @@ type ControlType =
   | "checkbox"
   | "select"
   | "repeater"
+  | "coordinateList"
   | "geometry"
   | null;
 type SelectionMode = "single" | "multiple" | null;
@@ -1562,6 +1566,12 @@ function PrimitiveControl({
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
+  if (field.valueType === "coordinates" || field.controlType === "coordinateList") {
+    return (
+      <CoordinateListControl value={value} unit={field.unit} onChange={onChange} />
+    );
+  }
+
   if (field.controlType === "select" && field.optionSource?.options) {
     if (isArrayValueType(field.valueType)) {
       const selectedValues = Array.isArray(value) ? value.map(String) : [];
@@ -2374,6 +2384,9 @@ function createDefaultFieldValue(field: FieldDefinition): FieldValue {
   if (isGeometryField(field)) {
     return { fieldId: field.id, value: "" };
   }
+  if (field.valueType === "coordinates") {
+    return { fieldId: field.id, value: [] };
+  }
   if (field.valueType === "boolean") {
     return { fieldId: field.id, value: false };
   }
@@ -2441,6 +2454,9 @@ function updateRepeatChildValue(
 function isFieldValueComplete(field: FieldDefinition, value: unknown): boolean {
   if (field.valueType === "boolean") {
     return typeof value === "boolean";
+  }
+  if (field.valueType === "coordinates") {
+    return coordinateListValueIsComplete(value);
   }
   if (field.valueType === "fieldGroupArray") {
     if (!isRepeatableGroupValue(value)) {

@@ -12,6 +12,7 @@ type ValueType =
   | "materialRef"
   | "geometryRef"
   | "geometry"
+  | "coordinates"
   | "fieldGroupArray"
   | "string[]"
   | "integer[]"
@@ -24,6 +25,7 @@ type ControlType =
   | "select"
   | "geometry"
   | "repeater"
+  | "coordinateList"
   | null;
 type SelectionMode = "single" | "multiple" | null;
 
@@ -602,39 +604,10 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
         description:
           "Placement coordinates. Each item gives the target lower-left XY point for one die copy.",
         scope: "processParameter",
-        valueType: "fieldGroupArray",
-        controlType: "repeater",
+        valueType: "coordinates",
+        controlType: "coordinateList",
         selectionMode: null,
-        unit: null,
-        repeatDefinition: {
-          itemNameTemplate: "Die {{index}}",
-          indexBase: 1,
-          minItems: 1,
-          itemFieldDefinitions: [
-            {
-              id: "bottemLeftX",
-              name: "bottemLeftX",
-              description:
-                "Target X coordinate for the lower-left corner of the die copy.",
-              scope: "processParameter",
-              valueType: "float",
-              controlType: "number",
-              selectionMode: null,
-              unit: "um",
-            },
-            {
-              id: "bottemLeftY",
-              name: "bottemLeftY",
-              description:
-                "Target Y coordinate for the lower-left corner of the die copy.",
-              scope: "processParameter",
-              valueType: "float",
-              controlType: "number",
-              selectionMode: null,
-              unit: "um",
-            },
-          ],
-        },
+        unit: "um",
       },
     ],
   },
@@ -811,26 +784,10 @@ export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
           { fieldId: "die_geometry", value: "geom_example_hbm" },
           {
             fieldId: "coordinates",
-            value: {
-              items: [
-                {
-                  itemId: "coordinates_item_1",
-                  index: 1,
-                  fieldValues: [
-                    { fieldId: "bottemLeftX", value: -760 },
-                    { fieldId: "bottemLeftY", value: -520 },
-                  ],
-                },
-                {
-                  itemId: "coordinates_item_2",
-                  index: 2,
-                  fieldValues: [
-                    { fieldId: "bottemLeftX", value: 760 },
-                    { fieldId: "bottemLeftY", value: -520 },
-                  ],
-                },
-              ],
-            },
+            value: [
+              [-760, -520],
+              [760, -520],
+            ],
           },
         ],
       },
@@ -903,34 +860,11 @@ export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
           { fieldId: "die_geometry", value: "geom_example_hbm" },
           {
             fieldId: "coordinates",
-            value: {
-              items: [
-                {
-                  itemId: "coordinates_item_1",
-                  index: 1,
-                  fieldValues: [
-                    { fieldId: "bottemLeftX", value: -820 },
-                    { fieldId: "bottemLeftY", value: -560 },
-                  ],
-                },
-                {
-                  itemId: "coordinates_item_2",
-                  index: 2,
-                  fieldValues: [
-                    { fieldId: "bottemLeftX", value: 0 },
-                    { fieldId: "bottemLeftY", value: -560 },
-                  ],
-                },
-                {
-                  itemId: "coordinates_item_3",
-                  index: 3,
-                  fieldValues: [
-                    { fieldId: "bottemLeftX", value: 820 },
-                    { fieldId: "bottemLeftY", value: -560 },
-                  ],
-                },
-              ],
-            },
+            value: [
+              [-820, -560],
+              [0, -560],
+              [820, -560],
+            ],
           },
         ],
       },
@@ -993,18 +927,7 @@ export const PROCESS_FLOW_INSTANCE_SEED: ProcessFlowInstance[] = [
           { fieldId: "die_geometry", value: "geom_example_soc" },
           {
             fieldId: "coordinates",
-            value: {
-              items: [
-                {
-                  itemId: "coordinates_item_1",
-                  index: 1,
-                  fieldValues: [
-                    { fieldId: "bottemLeftX", value: -1000 },
-                    { fieldId: "bottemLeftY", value: -800 },
-                  ],
-                },
-              ],
-            },
+            value: [[-1000, -800]],
           },
         ],
       },

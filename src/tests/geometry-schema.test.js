@@ -1082,26 +1082,10 @@ test("geometry kernel imports and executes real PnP process step", async () => {
             { fieldId: "die_geometry", value: "geom_kernel_die" },
             {
               fieldId: "coordinates",
-              value: {
-                items: [
-                  {
-                    itemId: "die_1",
-                    index: 1,
-                    fieldValues: [
-                      { fieldId: "bottemLeftX", value: 10 },
-                      { fieldId: "bottemLeftY", value: 20 },
-                    ],
-                  },
-                  {
-                    itemId: "die_2",
-                    index: 2,
-                    fieldValues: [
-                      { fieldId: "bottemLeftX", value: -5 },
-                      { fieldId: "bottemLeftY", value: 0 },
-                    ],
-                  },
-                ],
-              },
+              value: [
+                [10, 20],
+                [-5, 0],
+              ],
             },
           ],
         },
@@ -1748,35 +1732,10 @@ function realPnpStepTemplate() {
         id: "coordinates",
         name: "coordinates",
         scope: "processParameter",
-        valueType: "fieldGroupArray",
-        controlType: "repeater",
+        valueType: "coordinates",
+        controlType: "coordinateList",
         selectionMode: null,
-        unit: null,
-        repeatDefinition: {
-          itemNameTemplate: "Die {{index}}",
-          indexBase: 1,
-          minItems: 1,
-          itemFieldDefinitions: [
-            {
-              id: "bottemLeftX",
-              name: "bottemLeftX",
-              scope: "processParameter",
-              valueType: "float",
-              controlType: "number",
-              selectionMode: null,
-              unit: "um",
-            },
-            {
-              id: "bottemLeftY",
-              name: "bottemLeftY",
-              scope: "processParameter",
-              valueType: "float",
-              controlType: "number",
-              selectionMode: null,
-              unit: "um",
-            },
-          ],
-        },
+        unit: "um",
       },
     ],
   };

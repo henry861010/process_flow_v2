@@ -353,11 +353,18 @@ Preview availability：
 Step dialog 沿用 custom editor 的 step instance dialog 行為與 field controls：
 
 - 依 `ProcessStepTemplate.fieldDefinitions[]` 動態產生 fields。
-- 支援 text、number、checkbox、select、repeater。
+- 支援 text、number、checkbox、select、repeater、coordinateList。
 - 支援 fieldGroupArray repeater 的 add/remove item 與 child fields。
 - 欄位編輯採用 live update。
 - 關閉 dialog 不 rollback 已編輯 values。
 - 全頁 Save 才是將 draft instance 寫入 localStorage 的動作。
+
+`valueType: "coordinates"` 且 `controlType: "coordinateList"` 的欄位在 dialog 內顯示 coordinate list editor。此 editor 支援兩種輸入模式，兩種模式都寫入同一個 `FieldValue.value: number[][]`：
+
+- Manual：使用者可新增或移除 die coordinate rows，並以 x/y number inputs 編輯每個 `[x, y]` pair。`unit` 顯示為欄位的 canonical unit。空 list 是合法完成值；若任一 row 不是兩個 finite numbers，或存在重複 coordinate pair，該 field 不算 complete。
+- GDS：使用者選取本機 GDS file，輸入 layer 與 datatype，然後由 browser 端解析 GDS 並 replace 目前 coordinate list。GDS file 透過 File API 讀取並在 Web Worker 中解析，不上傳 server、不寫入 localStorage，也不保存到 `FieldValue.value`。
+
+GDS import 會讀取每一個 top cell，resolve hierarchy、cell reference 與 transform，並將符合 layer/datatype 的 `BOUNDARY` 與 `BOX` object 轉成 global bounding box bottom-left coordinates。`BOUNDARY` 使用 `DATATYPE` 比對，`BOX` 使用 `BOXTYPE` 比對同一個 datatype input。`PATH`、`TEXT`、`NODE` 與其他未支援 drawing elements 不轉成 coordinates；若這些 elements 符合 layer/datatype，import summary 顯示 unsupported count。重複 coordinates 以 canonical unit tolerance 去重；`unit: "um"` 時 tolerance 為 `1e-6 um`。
 
 此頁 step dialog 不提供 geometry input field picker。所有 geometry input 欄位由 graph topology 與 initial geometry circle 管理。
 
@@ -378,6 +385,7 @@ Save button 只有在所有 required data complete 時 enabled。
 - 每個 `FieldValue.value` 都必須符合對應 `FieldDefinition.valueType`、`controlType`、`validation`、`optionSource` 與 `repeatDefinition` 規則，才算 complete。
 - `false` 是合法 boolean value，不可被視為 empty。
 - `0` 是合法 number value，不可被視為 empty。
+- `coordinates` 欄位的空 array `[]` 是合法完成值，但 invalid row 或重複 coordinate pair 不合法。
 - `fieldGroupArray` 必須符合 `repeatDefinition.minItems` / `maxItems`，且每個 repeat item 的 child fields 都必須 complete。
 
 Save disabled 條件包含：
