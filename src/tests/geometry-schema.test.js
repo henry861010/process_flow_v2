@@ -29,6 +29,7 @@ import {
 } from "../kernel/index.js";
 import { execute as executeGrinding } from "../process/grinding/grinding.js";
 import { execute as executeMicroBump } from "../process/bump/uBump_formation.js";
+import { execute as executeFlip } from "../process/flip/flip.js";
 
 test("container json has schema unit and stable ids", () => {
   const root = new Container({ key: "package-root" });
@@ -268,6 +269,97 @@ test("process geometry state deposit and placement track cursor z", () => {
   assert.equal(output.root.bodies[0].geometry.bottom_left[2], 0);
   assert.equal(output.root.children[0].bodies[0].geometry.bottom_left[2], 5);
   assert.equal(output.root.children[0].bodies[0].geometry.thk, 2);
+});
+
+test("rootBodyZMax reports only direct root body top", () => {
+  const state = ProcessGeometryState.create();
+  state.initializeBoxLayer({
+    material: "base",
+    bottomLeft: [0, 0, 0],
+    topRight: [10, 10, 0],
+    thickness: 5,
+  });
+  state.addViaAboveCursor({
+    material: "Cu",
+    density: 0.5,
+    thickness: 3,
+  });
+
+  const child = ProcessGeometryState.create({ key: "child" });
+  child.initializeBoxLayer({
+    material: "silicon",
+    bottomLeft: [0, 0, 0],
+    topRight: [2, 2, 0],
+    thickness: 10,
+  });
+  state.placeGeometryState(child, {
+    x: 0,
+    y: 0,
+    bottomZ: 20,
+    anchor: "bottomLeft",
+  });
+
+  assert.equal(state.rootBodyZMax(), 5);
+  assert.equal(state.geometryZMax(), 30);
+});
+
+test("Flip process step flips directions and sets cursor from root bodies only", () => {
+  const state = ProcessGeometryState.create({ key: "flip-root" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [-10, -10, 0],
+    topRight: [10, 10, 0],
+    thickness: 10,
+  });
+  state.addViaAboveCursor({
+    material: "Cu",
+    density: 0.5,
+    thickness: 2,
+    direction: "+z",
+  });
+  state.addBump({
+    material: "SnAg",
+    density: 0.8,
+    direction: "-z",
+    geometry: {
+      type: "box",
+      bottomLeft: [-5, -5, -2],
+      topRight: [5, 5, -2],
+      thickness: 2,
+    },
+  });
+
+  const child = ProcessGeometryState.create({ key: "die" });
+  child.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [0, 0, 0],
+    topRight: [4, 4, 0],
+    thickness: 5,
+  });
+  state.placeGeometryState(child, {
+    x: 0,
+    y: 0,
+    bottomZ: 20,
+    anchor: "bottomLeft",
+  });
+
+  executeFlip({
+    state,
+    geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
+  });
+
+  const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 25);
+  assert.equal(state.geometryZMin(), 0);
+  assert.equal(state.geometryZMax(), 27);
+  assert.equal(output.root.vias[0].direction, "-z");
+  assert.equal(output.root.bumps[0].direction, "+z");
+  assert.deepEqual(output.root.bodies[0].geometry.bottom_left, [-10, -10, 15]);
+  assert.equal(output.root.bodies[0].geometry.thk, 10);
+  assert.deepEqual(
+    output.root.children[0].bodies[0].geometry.bottom_left,
+    [0, 0, 0],
+  );
 });
 
 test("micro bump formation uses process footprint and recursive lowest body", () => {
@@ -822,6 +914,96 @@ test("geometry kernel imports real Grinding step and preserves footprint for dow
   assert.equal(geometry.root.bodies[1].material, "EMC-A");
   assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-50, -50, 6]);
   assert.equal(geometry.root.bodies[1].geometry.thk, 2);
+});
+
+test("geometry kernel imports real Flip step and passes root-body cursor downstream", async () => {
+  const kernel = createTestKernel({
+    geometryEntities: [
+      {
+        id: "geom_kernel_flip",
+        category: "carrier.panel",
+        name: "Kernel flip input",
+        version: "v1",
+        owner: "test",
+        description: "Geometry kernel flip test input",
+        structureFormat: "standard",
+        structure: kernelFlipGeometry(),
+      },
+    ],
+    processStepTemplates: [realFlipStepTemplate(), realMoldingStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "flip",
+          processStepTemplateId: "step_tpl_flip_1_0_0",
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_flip",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "flip",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_flip_to_molding",
+          source: { sourceType: "stepOutput", stepRefId: "flip" },
+          target: {
+            stepRefId: "molding",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "flip",
+          processStepTemplateId: "step_tpl_flip_1_0_0",
+          fieldValues: [{ fieldId: "main_geometry", value: "geom_kernel_flip" }],
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "material", value: "EMC-A" },
+            { fieldId: "thickness", value: 3 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const result = await kernel.execute("flow_inst_kernel_test");
+  const flipOutput = result.stepOutput("flip");
+  const geometry = result.geometry();
+
+  assert.equal(flipOutput.root.bodies.length, 1);
+  assert.deepEqual(flipOutput.root.bodies[0].geometry.bottom_left, [-10, -10, 15]);
+  assert.equal(flipOutput.root.bodies[0].geometry.thk, 10);
+  assert.equal(flipOutput.root.vias[0].direction, "-z");
+  assert.deepEqual(flipOutput.root.vias[0].geometry.bottom_left, [-10, -10, 13]);
+  assert.equal(flipOutput.root.bumps[0].direction, "+z");
+  assert.deepEqual(
+    flipOutput.root.children[0].bodies[0].geometry.bottom_left,
+    [0, 0, 0],
+  );
+
+  assert.equal(geometry.root.bodies.length, 2);
+  assert.equal(geometry.root.bodies[1].material, "EMC-A");
+  assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-10, -10, 25]);
+  assert.equal(geometry.root.bodies[1].geometry.thk, 3);
 });
 
 test("geometry kernel imports and executes real PnP process step", async () => {
@@ -1511,6 +1693,29 @@ function realGrindingStepTemplate() {
   };
 }
 
+function realFlipStepTemplate() {
+  return {
+    id: "step_tpl_flip_1_0_0",
+    version: "V1.0.0",
+    name: "Flip",
+    category: "flip",
+    program: "flip/flip",
+    description: "Flip geometry around Z=0 and update cursor from root bodies.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+    ],
+  };
+}
+
 function realPnpStepTemplate() {
   return {
     id: "step_tpl_pnp_1_0_0",
@@ -1732,6 +1937,74 @@ function kernelInputGeometry() {
       circuits: [],
       bumps: [],
       children: [],
+    },
+  };
+}
+
+function kernelFlipGeometry() {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key: "kernel-flip",
+      bodies: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-10, -10, 0],
+            top_right: [10, 10, 0],
+            thk: 10,
+          },
+          material: "carrier",
+        },
+      ],
+      vias: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-10, -10, 10],
+            top_right: [10, 10, 10],
+            thk: 2,
+          },
+          material: "Cu",
+          density: 0.5,
+          direction: "+z",
+        },
+      ],
+      circuits: [],
+      bumps: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-5, -5, -2],
+            top_right: [5, 5, -2],
+            thk: 2,
+          },
+          material: "SnAg",
+          density: 0.8,
+          direction: "-z",
+        },
+      ],
+      children: [
+        {
+          key: "die",
+          bodies: [
+            {
+              geometry: {
+                type: "BoxGeometry",
+                bottom_left: [0, 0, 20],
+                top_right: [4, 4, 20],
+                thk: 5,
+              },
+              material: "Si",
+            },
+          ],
+          vias: [],
+          circuits: [],
+          bumps: [],
+          children: [],
+        },
+      ],
     },
   };
 }

@@ -306,6 +306,7 @@ Rules:
 
 ```js
 const zMax = state.geometryZMax();
+const rootBodyTop = state.rootBodyZMax();
 const bounds = state.bounds();
 ```
 
@@ -315,6 +316,7 @@ Methods:
 | --- | --- | --- |
 | `geometryZMin()` | number | Minimum Z in the geometry tree. |
 | `geometryZMax()` | number | Maximum Z in the geometry tree. |
+| `rootBodyZMax()` | number | Maximum Z among direct root bodies only. Does not inspect root vias, circuits, bumps, or child scopes. Returns `0` when the root has no direct bodies. |
 | `zBounds()` | `{ min: number, max: number }` | Z bounds of the geometry tree. |
 | `bounds()` | `Bounds3D` | XYZ bounds of the geometry tree. |
 
@@ -986,6 +988,9 @@ Behavior:
 - Flips bodies, vias, circuits, bumps, and child scopes.
 - Reverses via and bump direction.
 - Keeps all geometry represented with positive thickness.
+- If `updateCursor` is true, cursor uses the selected scope's full geometry top.
+  For root-direct-body cursor semantics, call `flipAroundZ()` with
+  `updateCursor: false`, then set `cursorZ` from `rootBodyZMax()`.
 
 ### 12.3 Grind To Z
 
@@ -1655,6 +1660,7 @@ Preferred:
 - `placeGeometryState`
 - `cursorZ`
 - `geometryZMax`
+- `rootBodyZMax`
 - `setProcessFootprint`
 
 Avoid:
@@ -1708,6 +1714,7 @@ state.setCursorZ(z)
 state.advanceCursorBy(thickness)
 state.advanceCursorTo(z)
 state.geometryZMax()
+state.rootBodyZMax()
 state.bounds()
 
 state.setProcessFootprint(footprint)

@@ -147,6 +147,52 @@ Template metadata：
 - Grinding 不清除 runtime process footprint。即使 geometry 被磨平，後續
   full-area operation 仍可沿用原本 footprint。
 
+## Flip
+
+`Flip` 是 `flip` 類別的 process step，用來把 `main_geometry` 沿 Z axis
+做上下翻轉。此 step 會翻轉整棵 geometry tree，包含 root direct geometry、
+features 與 child scopes。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `Flip` |
+| Category | `flip` |
+| Program | `flip/flip` |
+| Template id | `step_tpl_flip_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry`
+   `ProcessGeometryState`。
+2. 呼叫 `main_geometry.flipAroundZ({ z: 0, normalizeZMinToZero: true,
+   updateCursor: false })`。
+3. `flipAroundZ()` 會翻轉 bodies、vias、circuits、bumps 與 child scopes，
+   並保持所有 geometry primitive 使用正厚度表示。
+4. 被翻轉範圍內的 directional features 會同步反轉方向：
+   via 與 bump 的 `"+z"` / `"-z"` 會互換。
+5. 翻轉後會把整體 geometry normalize，使完整 tree 的 `zMin` 成為 `0`。
+6. 呼叫 `main_geometry.setCursorZ(main_geometry.rootBodyZMax())`，將
+   `cursorZ` 更新為 root container direct bodies 的最高 top Z。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body`、`Via`、`Circuit`、`Bump`
+  或 raw geometry object。
+- `rootBodyZMax()` 只看 root container 的 direct bodies，不會把 child scopes、
+  root vias、root circuits 或 root bumps 納入 cursor 計算。
+- `geometryZMax()` 是完整 geometry tree 的最高點；Flip 不使用它更新 cursor，
+  避免 PnP child 或翻轉後位於上方的 feature 改變 root process cursor。
+- 若 root container 沒有 direct body，`rootBodyZMax()` 依 kernel bounds API
+  的空集合慣例回傳 `0`。
+
 ## Bounding Bump Formation
 
 `Micro Bump`、`BGA Bump` 與 `C4 Bump` 是 `bounding` 類別的 process

@@ -313,6 +313,29 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
+    id: "step_tpl_flip_1_0_0",
+    version: "V1.0.0",
+    name: "Flip",
+    category: "flip",
+    program: "flip/flip",
+    description:
+      "Flips the main geometry around Z=0, normalizes the flipped structure to zMin 0, reverses directional via and bump features, and sets cursorZ to the highest direct root body top.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Complete geometry state consumed by Flip. The operation mirrors the full geometry tree but derives the output cursor only from direct root bodies.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+    ],
+  },
+  {
     id: "step_tpl_ubump_formation_1_0_0",
     version: "V1.0.0",
     name: "Micro Bump",

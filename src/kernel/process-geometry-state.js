@@ -114,6 +114,10 @@ export class ProcessGeometryState {
     return this._root.zMax();
   }
 
+  rootBodyZMax() {
+    return directBodyZMax(this._root);
+  }
+
   zBounds() {
     return { min: this.geometryZMin(), max: this.geometryZMax() };
   }
@@ -1014,6 +1018,12 @@ function lowestBody(container) {
   return bodies.reduce((lowest, body) =>
     body.zMin() < lowest.zMin() ? body : lowest,
   );
+}
+
+function directBodyZMax(container) {
+  const bodies = container.bodies();
+  if (bodies.length === 0) return 0;
+  return Math.max(...bodies.map((body) => body.zMax()));
 }
 
 function normalizeBumpFootprintSource(value) {
