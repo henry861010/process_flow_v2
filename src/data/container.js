@@ -72,6 +72,15 @@ export class Container {
     return body;
   }
 
+  removeTopBodies() {
+    if (this._bodies.length === 0) return 0;
+
+    const topZ = Math.max(...this._bodies.map((body) => body.zMax()));
+    const originalLength = this._bodies.length;
+    this._bodies = this._bodies.filter((body) => body.zMax() !== topZ);
+    return originalLength - this._bodies.length;
+  }
+
   add_body(body) {
     return this.addBody(body);
   }

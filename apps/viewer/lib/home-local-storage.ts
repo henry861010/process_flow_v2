@@ -315,6 +315,29 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
+    id: "step_tpl_debound_1_0_0",
+    version: "V1.0.0",
+    name: "Debound",
+    category: "debound",
+    program: "debound/debound",
+    description:
+      "Removes the highest direct root body or bodies from the main geometry, leaving child scopes and non-body features unchanged.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Complete geometry state consumed by Debound. The operation removes only direct root bodies at the highest direct root body top.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+    ],
+  },
+  {
     id: "step_tpl_flip_1_0_0",
     version: "V1.0.0",
     name: "Flip",

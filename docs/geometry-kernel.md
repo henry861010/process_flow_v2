@@ -1014,6 +1014,38 @@ Behavior:
 - Removes features and bodies entirely above the clipped region.
 - If `updateCursor` is true, sets `cursorZ` to `min(cursorZ(), z)`.
 
+### 12.4 Remove Top Root Bodies
+
+```js
+state.removeTopRootBodies();
+```
+
+Removes the direct root body or bodies whose `zMax()` equals the highest direct
+root body top.
+
+Parameters:
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `updateCursor` | boolean | no | `true` | Whether to update `cursorZ` after removing bodies. |
+
+Returns:
+
+```js
+{ removedCount: number }
+```
+
+Behavior:
+
+- Only inspects bodies directly owned by the root scope.
+- Does not inspect or remove bodies in child scopes.
+- Does not remove vias, circuits, bumps, or child scopes.
+- If several direct root bodies share the highest `zMax()`, all of them are
+  removed.
+- If the root scope has no direct bodies, this method is a no-op.
+- If `updateCursor` is true and at least one body was removed, sets `cursorZ`
+  to `rootBodyZMax()`.
+
 ## 13. Component and Placement API
 
 Process steps often combine geometry from multiple inputs, such as placing die

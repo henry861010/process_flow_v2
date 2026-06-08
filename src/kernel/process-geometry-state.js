@@ -118,6 +118,14 @@ export class ProcessGeometryState {
     return directBodyZMax(this._root);
   }
 
+  removeTopRootBodies({ updateCursor = true } = {}) {
+    const removedCount = this._root.removeTopBodies();
+    if (updateCursor && removedCount > 0) {
+      this._cursorZ = this.rootBodyZMax();
+    }
+    return { removedCount };
+  }
+
   zBounds() {
     return { min: this.geometryZMin(), max: this.geometryZMax() };
   }

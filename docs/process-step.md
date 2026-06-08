@@ -147,6 +147,49 @@ Template metadata：
 - Grinding 不清除 runtime process footprint。即使 geometry 被磨平，後續
   full-area operation 仍可沿用原本 footprint。
 
+## Debound
+
+`Debound` 是 `debound` 類別的 process step，用來模擬製程中 carrier
+debound。此 step 只移除 `main_geometry` root container 直接持有的最上方
+body，不會移除 child scope 內的 body。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `Debound` |
+| Category | `debound` |
+| Program | `debound/debound` |
+| Template id | `step_tpl_debound_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry`
+   `ProcessGeometryState`。
+2. 呼叫 `main_geometry.removeTopRootBodies()`。
+3. Kernel public API 只檢查 root container 直接持有的 bodies，找出最高的
+   `zMax()`。
+4. 若多個 root direct body 有相同最高 `zMax()`，這些 body 會全部移除。
+5. 若 root container 沒有 direct body，此 step 為 no-op，不丟出錯誤。
+6. 移除後 `cursorZ` 更新為新的 `rootBodyZMax()`；若沒有移除任何 body，
+   `cursorZ` 維持不變。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body` 或 raw geometry object。
+- Debound 只移除 root container direct bodies；child scopes 內的 bodies
+  不受影響。
+- Debound 不移除 root direct vias、circuits、bumps，也不移除 child scopes
+  內的 vias、circuits、bumps。
+- Debound 不清除 runtime process footprint。後續 full-area operation 仍可沿用
+  原本 footprint。
+
 ## Flip
 
 `Flip` 是 `flip` 類別的 process step，用來把 `main_geometry` 沿 Z axis

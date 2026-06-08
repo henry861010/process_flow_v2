@@ -30,6 +30,7 @@ import {
 import { execute as executeGrinding } from "../process/grinding/grinding.js";
 import { execute as executeMicroBump } from "../process/bump/uBump_formation.js";
 import { execute as executeFlip } from "../process/flip/flip.js";
+import { execute as executeDebound } from "../process/debound/debound.js";
 
 test("container json has schema unit and stable ids", () => {
   const root = new Container({ key: "package-root" });
@@ -301,6 +302,110 @@ test("rootBodyZMax reports only direct root body top", () => {
 
   assert.equal(state.rootBodyZMax(), 5);
   assert.equal(state.geometryZMax(), 30);
+});
+
+test("removeTopRootBodies removes all highest direct root bodies only", () => {
+  const state = ProcessGeometryState.create({ key: "debound-root" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [-10, -10, 0],
+    topRight: [10, 10, 0],
+    thickness: 5,
+  });
+  state.depositBoxLayer({
+    material: "adhesive",
+    bottomLeft: [-10, -10, 5],
+    topRight: [10, 10, 5],
+    thickness: 2,
+    advanceCursor: true,
+  });
+  state.depositBoxLayer({
+    material: "temporary-carrier-a",
+    bottomLeft: [-10, -10, 10],
+    topRight: [0, 10, 10],
+    thickness: 2,
+    advanceCursor: true,
+  });
+  state.depositBoxLayer({
+    material: "temporary-carrier-b",
+    bottomLeft: [0, -10, 9],
+    topRight: [10, 10, 9],
+    thickness: 3,
+    advanceCursor: true,
+  });
+  state.addViaAboveCursor({
+    material: "Cu",
+    density: 0.5,
+    thickness: 1,
+  });
+
+  const child = ProcessGeometryState.create({ key: "die" });
+  child.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [0, 0, 0],
+    topRight: [4, 4, 0],
+    thickness: 20,
+  });
+  state.placeGeometryState(child, {
+    x: 0,
+    y: 0,
+    bottomZ: 30,
+    anchor: "bottomLeft",
+  });
+
+  const result = state.removeTopRootBodies();
+  const output = state.toGeometryStructure();
+
+  assert.deepEqual(result, { removedCount: 2 });
+  assert.equal(state.cursorZ(), 7);
+  assert.equal(state.geometryZMax(), 50);
+  assert.deepEqual(
+    output.root.bodies.map((body) => body.material),
+    ["carrier", "adhesive"],
+  );
+  assert.equal(output.root.vias.length, 1);
+  assert.equal(output.root.children.length, 1);
+  assert.equal(output.root.children[0].bodies[0].material, "Si");
+});
+
+test("removeTopRootBodies is a no-op when root has no direct body", () => {
+  const state = ProcessGeometryState.create({ key: "empty-debound-root" });
+  state.setCursorZ(42);
+
+  const result = state.removeTopRootBodies();
+
+  assert.deepEqual(result, { removedCount: 0 });
+  assert.equal(state.cursorZ(), 42);
+  assert.equal(state.inspect().bodyCount, 0);
+});
+
+test("Debound process step removes top root bodies and updates cursor", () => {
+  const state = ProcessGeometryState.create({ key: "debound-step-root" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [-10, -10, 0],
+    topRight: [10, 10, 0],
+    thickness: 5,
+  });
+  state.depositBoxLayer({
+    material: "temporary-carrier",
+    bottomLeft: [-10, -10, 5],
+    topRight: [10, 10, 5],
+    thickness: 10,
+    advanceCursor: true,
+  });
+
+  executeDebound({
+    state,
+    geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
+  });
+
+  const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 5);
+  assert.deepEqual(
+    output.root.bodies.map((body) => body.material),
+    ["carrier"],
+  );
 });
 
 test("Flip process step flips directions and sets cursor from root bodies only", () => {
@@ -914,6 +1019,96 @@ test("geometry kernel imports real Grinding step and preserves footprint for dow
   assert.equal(geometry.root.bodies[1].material, "EMC-A");
   assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-50, -50, 6]);
   assert.equal(geometry.root.bodies[1].geometry.thk, 2);
+});
+
+test("geometry kernel imports real Debound step and passes root-body cursor downstream", async () => {
+  const kernel = createTestKernel({
+    geometryEntities: [
+      {
+        id: "geom_kernel_debound",
+        category: "carrier.panel",
+        name: "Kernel debound input",
+        version: "v1",
+        owner: "test",
+        description: "Geometry kernel debound test input",
+        structureFormat: "standard",
+        structure: kernelDeboundGeometry(),
+      },
+    ],
+    processStepTemplates: [realDeboundStepTemplate(), realMoldingStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "debound",
+          processStepTemplateId: "step_tpl_debound_1_0_0",
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_debound",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "debound",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_debound_to_molding",
+          source: { sourceType: "stepOutput", stepRefId: "debound" },
+          target: {
+            stepRefId: "molding",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "debound",
+          processStepTemplateId: "step_tpl_debound_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_debound" },
+          ],
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "material", value: "EMC-A" },
+            { fieldId: "thickness", value: 2 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const result = await kernel.execute("flow_inst_kernel_test");
+  const deboundOutput = result.stepOutput("debound");
+  const geometry = result.geometry();
+
+  assert.deepEqual(
+    deboundOutput.root.bodies.map((body) => body.material),
+    ["carrier", "adhesive"],
+  );
+  assert.equal(deboundOutput.root.vias.length, 1);
+  assert.equal(deboundOutput.root.children.length, 1);
+  assert.deepEqual(
+    geometry.root.bodies.map((body) => body.material),
+    ["carrier", "adhesive", "EMC-A"],
+  );
+  assert.deepEqual(geometry.root.bodies[2].geometry.bottom_left, [-20, -20, 7]);
+  assert.equal(geometry.root.bodies[2].geometry.thk, 2);
+  assert.equal(geometry.root.children.length, 1);
 });
 
 test("geometry kernel imports real Flip step and passes root-body cursor downstream", async () => {
@@ -1677,6 +1872,29 @@ function realGrindingStepTemplate() {
   };
 }
 
+function realDeboundStepTemplate() {
+  return {
+    id: "step_tpl_debound_1_0_0",
+    version: "V1.0.0",
+    name: "Debound",
+    category: "debound",
+    program: "debound/debound",
+    description: "Remove the highest direct root body or bodies.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+    ],
+  };
+}
+
 function realFlipStepTemplate() {
   return {
     id: "step_tpl_flip_1_0_0",
@@ -1954,6 +2172,89 @@ function kernelFlipGeometry() {
                 bottom_left: [0, 0, 20],
                 top_right: [4, 4, 20],
                 thk: 5,
+              },
+              material: "Si",
+            },
+          ],
+          vias: [],
+          circuits: [],
+          bumps: [],
+          children: [],
+        },
+      ],
+    },
+  };
+}
+
+function kernelDeboundGeometry() {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key: "kernel-debound",
+      bodies: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-20, -20, 0],
+            top_right: [20, 20, 0],
+            thk: 5,
+          },
+          material: "carrier",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-10, -10, 5],
+            top_right: [10, 10, 5],
+            thk: 2,
+          },
+          material: "adhesive",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-20, -20, 10],
+            top_right: [0, 20, 10],
+            thk: 2,
+          },
+          material: "temporary-carrier-a",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [0, -20, 9],
+            top_right: [20, 20, 9],
+            thk: 3,
+          },
+          material: "temporary-carrier-b",
+        },
+      ],
+      vias: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-20, -20, 12],
+            top_right: [20, 20, 12],
+            thk: 1,
+          },
+          material: "Cu",
+          density: 0.5,
+          direction: "+z",
+        },
+      ],
+      circuits: [],
+      bumps: [],
+      children: [
+        {
+          key: "die",
+          bodies: [
+            {
+              geometry: {
+                type: "BoxGeometry",
+                bottom_left: [0, 0, 30],
+                top_right: [4, 4, 30],
+                thk: 20,
               },
               material: "Si",
             },
