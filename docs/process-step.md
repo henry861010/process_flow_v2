@@ -236,6 +236,66 @@ Template metadata：
 - 若 root container 沒有 direct body，`rootBodyZMax()` 依 kernel bounds API
   的空集合慣例回傳 `0`。
 
+## Under Fill
+
+`Under Fill` 是 `UF` 類別的 process step，用來模擬 underfill material
+流入 bump 與 die 之間，以及 root scope 下 die-to-die gap 的填充。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `Under Fill` |
+| Category | `UF` |
+| Program | `uf/under_fill` |
+| Template id | `step_tpl_under_fill_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `material` | `materialRef` | `processParameter` | Underfill material 名稱或 material DB entity id。 |
+| `thk` | `float` | `processParameter` | Root die-to-die gap fill 的高度，從 `cursorZ()` 到 `cursorZ() + thk`。 |
+| `gap` | `float` | `processParameter` | 允許填充的最大 die-to-die XY gap 距離。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry`
+   `ProcessGeometryState`。
+2. 呼叫 `main_geometry.applyUnderFill({ material, thk, gap })`。
+3. Kernel 只檢查 root direct child scopes，並以 child bounds 的 `zMax >
+   cursorZ()` 判斷 child 是否位在目前 process plane 以上。
+4. 對每個符合條件的 child scope，recursive 搜尋其內部所有 bump feature。
+   若 child scope 沒有 bump，該 child 不做 bump-side underfill。
+5. 若 child 內已有 body 覆蓋 bump 的完整 Z 區間，且 XY bounds 覆蓋該
+   child 的整體 XY bounds，視為已 fill，避免重複新增 underfill body。
+6. 若需要補 bump-side underfill，kernel 以 child 整體 XY bounds 建立一個
+   underfill body，Z 範圍使用該 child 內所有 bump 的整體
+   `min(zMin)` 到 `max(zMax)`。因此當 child 底部不是單一平面或多個 bump
+   高度不一致時，underfill body 的厚度會是整體 bump Z range，而不是任一顆
+   bump 的單獨厚度。
+7. Root die-to-die gap 使用 `src/process/utils/region.js` 中 reusable
+   `Region` utility。Kernel 將符合條件的 root child 整體 XY bounds 轉成
+   `BOX` faces，呼叫 `Region.setGap(gap, { isRecursive: true })` 找出小於或
+   等於 `gap` 的 grid gap cells，再用 `Region.getOutline()` 轉回 polygon
+   footprint。
+8. 若存在 die-to-die gap polygon，kernel 會在 root scope 下新增一個
+   `underfill-gap` child scope，並在該 scope 中新增 underfill polygon body；
+   其底面 Z 為 `cursorZ()`，厚度為 `thk`。
+9. 此 step 不調整 `main_geometry.cursorZ()`。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body`、`Bump` 或 raw geometry
+  object；process module 只呼叫 `ProcessGeometryState.applyUnderFill()`。
+- `Region` utility 是從舊 Python `Region` class 的 grid/mask-based
+  `set_gap` 流程移植而來，放在 `src/process/utils` 供後續 process steps
+  重用。
+- 目前 Under Fill 只使用 `set_gap`，尚未啟用舊 Python class 中的
+  `set_edge` narrow-edge 補洞流程。
+- `gap` 判斷沿用舊 `set_gap` 行為，使用 `<= gap`。
+
 ## Bounding Bump Formation
 
 `Micro Bump`、`BGA Bump` 與 `C4 Bump` 是 `bounding` 類別的 process

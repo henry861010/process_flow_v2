@@ -15,6 +15,8 @@ import {
   normalizeGeometryStructure,
 } from "../data/schema.js";
 import { Via } from "../data/via.js";
+import { Region, TYPE_DIE, TYPE_TARGET } from "../process/utils/region.js";
+import { math } from "../utils/math.js";
 
 const ROOT_SCOPE = "root";
 
@@ -486,6 +488,76 @@ export class ProcessGeometryState {
       "bump",
       targetScope,
     );
+  }
+
+  applyUnderFill({ material, thickness, thk, gap, scope = ROOT_SCOPE } = {}) {
+    const underfillMaterial = requireString(material, "material");
+    const underfillThickness = positiveNumber(thickness ?? thk, "thickness");
+    const maxGap = nonNegativeNumber(gap, "gap");
+    const targetScope = this._resolveScope(scope);
+    const cursorZ = this._cursorZ;
+    const childScopes = targetScope
+      .children()
+      .map((child) => ({ child, bounds: containerBounds(child) }))
+      .filter(({ bounds }) => bounds.zMax > cursorZ);
+
+    let childFillBodyCount = 0;
+    for (const { child, bounds } of childScopes) {
+      const bumps = recursiveBumps(child);
+      if (bumps.length === 0) continue;
+      const bumpRange = featureRange(bumps);
+      if (bumpRange.zMax <= bumpRange.zMin) continue;
+      if (bodyCoversUnderfillRange(child, bumpRange, bounds)) continue;
+
+      child.addBody(
+        new Body(
+          new BoxGeometry(
+            [bounds.xMin, bounds.yMin, bumpRange.zMin],
+            [bounds.xMax, bounds.yMax, bumpRange.zMin],
+            bumpRange.zMax - bumpRange.zMin,
+          ),
+          underfillMaterial,
+        ),
+      );
+      childFillBodyCount += 1;
+    }
+
+    const gapFaces = childScopes
+      .filter(({ bounds }) => bounds.xMax > bounds.xMin && bounds.yMax > bounds.yMin)
+      .map(({ bounds }) => ({
+        type: "BOX",
+        dim: [bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax],
+      }));
+    const gapPolygons =
+      gapFaces.length < 2
+        ? []
+        : underfillGapPolygons({ faces: gapFaces, gap: maxGap });
+
+    let gapBodyCount = 0;
+    let gapScope = null;
+    if (gapPolygons.length > 0) {
+      gapScope = new Container({ key: "underfill-gap" });
+      gapScope.addBody(
+        new Body(
+          new PolygonGeometry(
+            gapPolygons.map((polygon) =>
+              polygon.map(([x, y]) => [x, y, cursorZ]),
+            ),
+            underfillThickness,
+          ),
+          underfillMaterial,
+        ),
+      );
+      targetScope.attachChild(gapScope);
+      this._registerScopeTree(gapScope);
+      gapBodyCount = 1;
+    }
+
+    return {
+      childFillBodyCount,
+      gapBodyCount,
+      gapScope: gapScope === null ? null : this._scopeRef(gapScope),
+    };
   }
 
   move({ x = 0, y = 0, z = 0, scope = ROOT_SCOPE, moveCursor = false } = {}) {
@@ -1028,6 +1100,67 @@ function lowestBody(container) {
   );
 }
 
+function recursiveBumps(container) {
+  const bumps = [];
+  walkContainer(container, (current) => {
+    bumps.push(...current.bumps());
+  });
+  return bumps;
+}
+
+function recursiveBodies(container) {
+  const bodies = [];
+  walkContainer(container, (current) => {
+    bodies.push(...current.bodies());
+  });
+  return bodies;
+}
+
+function featureRange(features) {
+  return features.reduce(
+    (range, feature) => ({
+      xMin: Math.min(range.xMin, geometryBounds(feature.geometry()).xMin),
+      xMax: Math.max(range.xMax, geometryBounds(feature.geometry()).xMax),
+      yMin: Math.min(range.yMin, geometryBounds(feature.geometry()).yMin),
+      yMax: Math.max(range.yMax, geometryBounds(feature.geometry()).yMax),
+      zMin: Math.min(range.zMin, feature.zMin()),
+      zMax: Math.max(range.zMax, feature.zMax()),
+    }),
+    {
+      xMin: Infinity,
+      xMax: -Infinity,
+      yMin: Infinity,
+      yMax: -Infinity,
+      zMin: Infinity,
+      zMax: -Infinity,
+    },
+  );
+}
+
+function bodyCoversUnderfillRange(container, zRange, xyBounds) {
+  return recursiveBodies(container).some((body) => {
+    const bounds = geometryBounds(body.geometry());
+    return (
+      math.fLe(bounds.zMin, zRange.zMin) &&
+      math.fGe(bounds.zMax, zRange.zMax) &&
+      math.fLe(bounds.xMin, xyBounds.xMin) &&
+      math.fGe(bounds.xMax, xyBounds.xMax) &&
+      math.fLe(bounds.yMin, xyBounds.yMin) &&
+      math.fGe(bounds.yMax, xyBounds.yMax)
+    );
+  });
+}
+
+function underfillGapPolygons({ faces, gap }) {
+  const region = new Region(faces);
+  region.setGap(gap, {
+    setTo: TYPE_TARGET,
+    targetMask: TYPE_DIE,
+    isRecursive: true,
+  });
+  return region.getOutline(TYPE_TARGET);
+}
+
 function directBodyZMax(container) {
   const bodies = container.bodies();
   if (bodies.length === 0) return 0;
@@ -1110,6 +1243,14 @@ function positiveNumber(value, label) {
   const number = finiteNumber(value, label);
   if (number <= 0) {
     throw new Error(`${label} must be positive`);
+  }
+  return number;
+}
+
+function nonNegativeNumber(value, label) {
+  const number = finiteNumber(value, label);
+  if (number < 0) {
+    throw new Error(`${label} must be non-negative`);
   }
   return number;
 }

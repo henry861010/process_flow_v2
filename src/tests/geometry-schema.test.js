@@ -15,6 +15,7 @@ import { Body } from "../data/body.js";
 import { Via } from "../data/via.js";
 import { normalizeGeometryStructure } from "../data/schema.js";
 import { ProcessGeometryState } from "../kernel/process-geometry-state.js";
+import { Region, TYPE_TARGET } from "../process/utils/region.js";
 import {
   CadExportError,
   OpenCascadeConverter,
@@ -31,6 +32,7 @@ import { execute as executeGrinding } from "../process/grinding/grinding.js";
 import { execute as executeMicroBump } from "../process/bump/uBump_formation.js";
 import { execute as executeFlip } from "../process/flip/flip.js";
 import { execute as executeDebound } from "../process/debound/debound.js";
+import { execute as executeUnderFill } from "../process/uf/under_fill.js";
 
 test("container json has schema unit and stable ids", () => {
   const root = new Container({ key: "package-root" });
@@ -216,6 +218,24 @@ test("polygon loop odd even classification", () => {
 
   assert.equal(regions.length, 2);
   assert.deepEqual(regions.map((region) => region.holes.length), [1, 0]);
+});
+
+test("process Region setGap converts die gaps back to polygon outlines", () => {
+  const region = new Region([
+    { type: "BOX", dim: [0, 0, 10, 10] },
+    { type: "BOX", dim: [14, 0, 24, 10] },
+  ]);
+
+  assert.equal(region.setGap(4, { isRecursive: true }), true);
+
+  assert.deepEqual(region.getOutline(TYPE_TARGET), [
+    [
+      [10, 10],
+      [14, 10],
+      [14, 0],
+      [10, 0],
+    ],
+  ]);
 });
 
 test("geometry primitives copy with XY inset", () => {
@@ -508,6 +528,83 @@ test("micro bump formation uses process footprint and recursive lowest body", ()
   assert.deepEqual(output.root.bumps[0].geometry.bottom_left, [-90, -90, -2]);
   assert.deepEqual(output.root.bumps[0].geometry.top_right, [90, 90, -2]);
   assert.equal(output.root.bumps[0].geometry.thk, 2);
+});
+
+test("Under Fill process step fills child bump cavities and root die gaps", () => {
+  const state = ProcessGeometryState.create({ key: "underfill-root" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [0, 0, 0],
+    topRight: [40, 20, 0],
+    thickness: 10,
+  });
+
+  const die = ProcessGeometryState.create({ key: "die" });
+  die.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [0, 0, 2],
+    topRight: [10, 10, 2],
+    thickness: 5,
+    setFootprint: false,
+  });
+  die.addBump({
+    material: "SnAg",
+    density: 80,
+    direction: "-z",
+    geometry: {
+      type: "box",
+      bottomLeft: [1, 1, 0],
+      topRight: [9, 9, 0],
+      thickness: 2,
+    },
+  });
+
+  state.placeGeometryStates(die, [
+    { x: 0, y: 0, bottomZ: state.cursorZ(), anchor: "bottomLeft" },
+    { x: 14, y: 0, bottomZ: state.cursorZ(), anchor: "bottomLeft" },
+  ]);
+  const cursorBefore = state.cursorZ();
+
+  executeUnderFill({
+    state,
+    values: {
+      material: "UF-A",
+      thk: 6,
+      gap: 4,
+    },
+    geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
+  });
+
+  const output = state.toGeometryStructure();
+
+  assert.equal(state.cursorZ(), cursorBefore);
+  assert.equal(output.root.children.length, 3);
+  assert.deepEqual(
+    output.root.children.slice(0, 2).map((child) => child.bodies.at(-1).material),
+    ["UF-A", "UF-A"],
+  );
+  assert.deepEqual(
+    output.root.children[0].bodies.at(-1).geometry.bottom_left,
+    [0, 0, 10],
+  );
+  assert.deepEqual(
+    output.root.children[0].bodies.at(-1).geometry.top_right,
+    [10, 10, 10],
+  );
+  assert.equal(output.root.children[0].bodies.at(-1).geometry.thk, 2);
+  assert.equal(output.root.children[2].key, "underfill-gap");
+  assert.equal(output.root.children[2].bodies.length, 1);
+  assert.equal(output.root.children[2].bodies[0].material, "UF-A");
+  assert.equal(output.root.children[2].bodies[0].geometry.type, "PolygonGeometry");
+  assert.equal(output.root.children[2].bodies[0].geometry.thk, 6);
+  assert.deepEqual(output.root.children[2].bodies[0].geometry.polys, [
+    [
+      [10, 10, 10],
+      [14, 10, 10],
+      [14, 0, 10],
+      [10, 0, 10],
+    ],
+  ]);
 });
 
 test("CAD converter reports missing OpenCascade instance clearly", () => {
@@ -1323,6 +1420,122 @@ test("geometry kernel imports and executes real PnP process step", async () => {
   assert.equal(geometry.root.children.length, 2);
 });
 
+test("geometry kernel imports and executes real Under Fill process step", async () => {
+  const kernel = createTestKernel({
+    geometryEntities: [
+      {
+        id: "geom_kernel_input",
+        category: "carrier.panel",
+        name: "Kernel input panel",
+        version: "v1",
+        owner: "test",
+        description: "Geometry kernel test input",
+        structureFormat: "standard",
+        structure: kernelInputGeometry(),
+      },
+      {
+        id: "geom_kernel_die",
+        category: "initial.die",
+        name: "Kernel test die",
+        version: "v1",
+        owner: "test",
+        description: "Geometry kernel test die with bump bottom",
+        structureFormat: "standard",
+        structure: kernelDieGeometry(),
+      },
+    ],
+    processStepTemplates: [realPnpStepTemplate(), realUnderFillStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "pnp",
+          processStepTemplateId: "step_tpl_pnp_1_0_0",
+        },
+        {
+          stepRefId: "under_fill",
+          processStepTemplateId: "step_tpl_under_fill_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_pnp",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "pnp",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_die_to_pnp",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "pnp",
+            targetFieldId: "die_geometry",
+          },
+        },
+        {
+          edgeId: "edge_pnp_to_underfill",
+          source: { sourceType: "stepOutput", stepRefId: "pnp" },
+          target: {
+            stepRefId: "under_fill",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "pnp",
+          processStepTemplateId: "step_tpl_pnp_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            { fieldId: "die_geometry", value: "geom_kernel_die" },
+            {
+              fieldId: "coordinates",
+              value: [
+                [0, 0],
+                [8, 0],
+              ],
+            },
+          ],
+        },
+        {
+          stepRefId: "under_fill",
+          processStepTemplateId: "step_tpl_under_fill_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "material", value: "UF-K" },
+            { fieldId: "thk", value: 5 },
+            { fieldId: "gap", value: 4 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
+
+  assert.equal(geometry.root.children.length, 3);
+  assert.equal(geometry.root.children[0].bodies.at(-1).material, "UF-K");
+  assert.equal(geometry.root.children[1].bodies.at(-1).material, "UF-K");
+  assert.equal(geometry.root.children[2].key, "underfill-gap");
+  assert.equal(geometry.root.children[2].bodies[0].material, "UF-K");
+  assert.equal(geometry.root.children[2].bodies[0].geometry.thk, 5);
+  assert.deepEqual(geometry.root.children[2].bodies[0].geometry.polys, [
+    [
+      [4, 3, 10],
+      [8, 3, 10],
+      [8, 0, 10],
+      [4, 0, 10],
+    ],
+  ]);
+});
+
 test("process step module resolver validates program paths", () => {
   const resolver = new ProcessStepModuleResolver();
   const template = {
@@ -1952,6 +2165,56 @@ function realPnpStepTemplate() {
         scope: "processParameter",
         valueType: "coordinates",
         controlType: "coordinateList",
+        selectionMode: null,
+        unit: "um",
+      },
+    ],
+  };
+}
+
+function realUnderFillStepTemplate() {
+  return {
+    id: "step_tpl_under_fill_1_0_0",
+    version: "V1.0.0",
+    name: "Under Fill",
+    category: "UF",
+    program: "uf/under_fill",
+    description: "Fill child bump cavities and die-to-die underfill gaps.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "material",
+        name: "material",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "text",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+      {
+        id: "gap",
+        name: "gap",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
         selectionMode: null,
         unit: "um",
       },
