@@ -361,6 +361,68 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
+    id: "step_tpl_under_fill_1_0_0",
+    version: "V1.0.0",
+    name: "Under Fill",
+    category: "UF",
+    program: "uf/under_fill",
+    description:
+      "Fills underfill material into bump-side child cavities and root die-to-die gaps up to gap without moving cursorZ.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Main package geometry state containing root child die scopes to be underfilled.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "material",
+        name: "material",
+        description: "Underfill material name or material entity id.",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "text",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        description:
+          "Positive root die-to-die gap fill height deposited from cursorZ.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+          exclusiveMin: true,
+        },
+      },
+      {
+        id: "gap",
+        name: "gap",
+        description:
+          "Maximum die-to-die XY gap distance that underfill is allowed to fill.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+        },
+      },
+    ],
+  },
+  {
     id: "step_tpl_ubump_formation_1_0_0",
     version: "V1.0.0",
     name: "Micro Bump",
