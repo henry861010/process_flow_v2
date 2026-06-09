@@ -3,7 +3,6 @@
 import * as React from "react";
 import {
   Canvas,
-  type ThreeEvent,
   useFrame,
   useThree,
 } from "@react-three/fiber";
@@ -14,22 +13,10 @@ import type {
   BoundsTuple,
   LoadedCadModel,
 } from "@/components/viewer/model-loader";
-import { DEMO_BOUNDS, formatLength } from "@/components/viewer/model-loader";
+import { DEMO_BOUNDS } from "@/components/viewer/model-loader";
 
 export type SectionPlaneMode = "xz" | "yz";
 export type CameraViewMode = "iso" | "x" | "y" | "z";
-
-export type MeasurePoint = {
-  position: [number, number, number];
-  snapped: boolean;
-};
-
-export type Measurement = {
-  start: MeasurePoint;
-  end: MeasurePoint;
-  distance: number;
-  delta: [number, number, number];
-};
 
 type ViewerSceneProps = {
   model: LoadedCadModel | null;
@@ -42,10 +29,6 @@ type ViewerSceneProps = {
   showAxes: boolean;
   cameraResetKey: number;
   cameraView: CameraViewMode;
-  measureEnabled: boolean;
-  pendingMeasurePoint: MeasurePoint | null;
-  measurement: Measurement | null;
-  onMeasurePoint: (point: MeasurePoint) => void;
   children?: React.ReactNode;
 };
 
@@ -60,10 +43,6 @@ export function ViewerScene({
   showAxes,
   cameraResetKey,
   cameraView,
-  measureEnabled,
-  pendingMeasurePoint,
-  measurement,
-  onMeasurePoint,
   children,
 }: ViewerSceneProps) {
   const contentRef = React.useRef<THREE.Group>(null);
@@ -93,20 +72,7 @@ export function ViewerScene({
       />
       {showGrid ? <SceneGrid bounds={bounds} /> : null}
       {showAxes ? <SceneAxes bounds={bounds} /> : null}
-      <group
-        ref={contentRef}
-        onClick={(event) => {
-          if (!measureEnabled) return;
-          handleMeasureClick(event, {
-            bounds,
-            sectionEnabled,
-            sectionPlane,
-            sectionPosition,
-            sectionFlip,
-            onMeasurePoint,
-          });
-        }}
-      >
+      <group ref={contentRef}>
         {model ? (
           <primitive object={model.object} key={model.id} />
         ) : (
@@ -114,11 +80,6 @@ export function ViewerScene({
         )}
         {children}
       </group>
-      <MeasurementOverlay
-        bounds={bounds}
-        pendingPoint={pendingMeasurePoint}
-        measurement={measurement}
-      />
     </Canvas>
   );
 }
@@ -357,301 +318,6 @@ function setSectionPlaneFromState(
 ) {
   const frame = getSectionPlaneFrame(bounds, mode, position, flip);
   plane.setFromNormalAndCoplanarPoint(frame.normal, frame.position);
-}
-
-function disabledRaycast(
-  _raycaster: THREE.Raycaster,
-  _intersects: THREE.Intersection[],
-) {
-  return undefined;
-}
-
-function handleMeasureClick(
-  event: ThreeEvent<MouseEvent>,
-  options: {
-    bounds: BoundsTuple;
-    sectionEnabled: boolean;
-    sectionPlane: SectionPlaneMode;
-    sectionPosition: number;
-    sectionFlip: boolean;
-    onMeasurePoint: (point: MeasurePoint) => void;
-  },
-) {
-  event.stopPropagation();
-
-  const clipPlane = new THREE.Plane();
-  if (options.sectionEnabled) {
-    setSectionPlaneFromState(
-      clipPlane,
-      options.bounds,
-      options.sectionPlane,
-      options.sectionPosition,
-      options.sectionFlip,
-    );
-  }
-
-  const tolerance = Math.max(Math.max(...options.bounds.size) * 0.0005, 0.001);
-  const intersection = event.intersections.find((candidate) => {
-    if (!isRenderableMesh(candidate.object)) return false;
-    if (!options.sectionEnabled) return true;
-    return clipPlane.distanceToPoint(candidate.point) >= -tolerance;
-  });
-
-  if (!intersection || !isRenderableMesh(intersection.object)) return;
-
-  options.onMeasurePoint(
-    snapIntersectionToNearbyVertex(
-      intersection,
-      intersection.object,
-      options.bounds,
-    ),
-  );
-}
-
-function snapIntersectionToNearbyVertex(
-  intersection: THREE.Intersection,
-  mesh: THREE.Mesh,
-  bounds: BoundsTuple,
-): MeasurePoint {
-  const fallback = vectorTuple(intersection.point);
-  const geometry = mesh.geometry;
-  const positionAttribute = geometry.getAttribute("position");
-  const face = intersection.face;
-
-  if (!positionAttribute || !face) {
-    return { position: fallback, snapped: false };
-  }
-
-  const maxDim = Math.max(...bounds.size, 1);
-  const snapDistance = maxDim * 0.006;
-  const indices = [face.a, face.b, face.c];
-  let nearest: THREE.Vector3 | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  indices.forEach((index) => {
-    const vertex = new THREE.Vector3().fromBufferAttribute(
-      positionAttribute,
-      index,
-    );
-    mesh.localToWorld(vertex);
-    const distance = vertex.distanceTo(intersection.point);
-    if (distance < nearestDistance) {
-      nearest = vertex;
-      nearestDistance = distance;
-    }
-  });
-
-  if (nearest && nearestDistance <= snapDistance) {
-    return { position: vectorTuple(nearest), snapped: true };
-  }
-
-  return { position: fallback, snapped: false };
-}
-
-function MeasurementOverlay({
-  bounds,
-  pendingPoint,
-  measurement,
-}: {
-  bounds: BoundsTuple;
-  pendingPoint: MeasurePoint | null;
-  measurement: Measurement | null;
-}) {
-  const maxDim = Math.max(...bounds.size, 1);
-  const markerRadius = maxDim * 0.012;
-
-  if (!pendingPoint && !measurement) return null;
-
-  return (
-    <group renderOrder={60}>
-      {pendingPoint ? (
-        <MeasureMarker position={pendingPoint.position} radius={markerRadius} />
-      ) : null}
-      {measurement ? (
-        <>
-          <MeasureMarker
-            position={measurement.start.position}
-            radius={markerRadius}
-          />
-          <MeasureMarker
-            position={measurement.end.position}
-            radius={markerRadius}
-          />
-          <MeasureLine measurement={measurement} />
-          <MeasureLabel bounds={bounds} measurement={measurement} />
-        </>
-      ) : null}
-    </group>
-  );
-}
-
-function MeasureMarker({
-  position,
-  radius,
-}: {
-  position: [number, number, number];
-  radius: number;
-}) {
-  return (
-    <mesh position={position} renderOrder={62} raycast={disabledRaycast}>
-      <sphereGeometry args={[radius, 18, 12]} />
-      <meshBasicMaterial
-        color="#0f5f78"
-        depthTest={false}
-        depthWrite={false}
-      />
-    </mesh>
-  );
-}
-
-function MeasureLine({ measurement }: { measurement: Measurement }) {
-  const geometry = React.useMemo(() => {
-    return new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(...measurement.start.position),
-      new THREE.Vector3(...measurement.end.position),
-    ]);
-  }, [measurement]);
-  const line = React.useMemo(() => {
-    const material = new THREE.LineBasicMaterial({
-      color: "#0f5f78",
-      depthTest: false,
-      depthWrite: false,
-    });
-    const object = new THREE.Line(geometry, material);
-    object.renderOrder = 61;
-    object.raycast = disabledRaycast;
-    return object;
-  }, [geometry]);
-
-  React.useEffect(() => {
-    return () => {
-      geometry.dispose();
-      if (line.material instanceof THREE.Material) {
-        line.material.dispose();
-      }
-    };
-  }, [geometry, line]);
-
-  return <primitive object={line} />;
-}
-
-function MeasureLabel({
-  bounds,
-  measurement,
-}: {
-  bounds: BoundsTuple;
-  measurement: Measurement;
-}) {
-  const texture = React.useMemo(
-    () => createMeasureLabelTexture(`${formatLength(measurement.distance)} um`),
-    [measurement],
-  );
-
-  React.useEffect(() => {
-    return () => texture.dispose();
-  }, [texture]);
-
-  const start = new THREE.Vector3(...measurement.start.position);
-  const end = new THREE.Vector3(...measurement.end.position);
-  const midpoint = start.clone().add(end).multiplyScalar(0.5);
-  const maxDim = Math.max(...bounds.size, 1);
-
-  return (
-    <sprite
-      position={vectorTuple(midpoint)}
-      scale={[maxDim * 0.24, maxDim * 0.07, 1]}
-      renderOrder={63}
-      raycast={disabledRaycast}
-    >
-      <spriteMaterial
-        map={texture}
-        transparent
-        depthTest={false}
-        depthWrite={false}
-      />
-    </sprite>
-  );
-}
-
-function createMeasureLabelTexture(label: string) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 256;
-  const context = canvas.getContext("2d");
-  if (!context) return new THREE.CanvasTexture(canvas);
-
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "rgba(255, 255, 255, 0.94)";
-  context.strokeStyle = "rgba(15, 95, 120, 0.62)";
-  context.lineWidth = 6;
-  roundRect(context, 20, 36, canvas.width - 40, canvas.height - 72, 28);
-  context.fill();
-  context.stroke();
-
-  context.fillStyle = "#12303a";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  const fontSize = fitCanvasText(context, label, 58, 32, canvas.width - 120);
-  context.font = `700 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-  context.fillText(label, canvas.width / 2, canvas.height / 2);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.anisotropy = 4;
-  return texture;
-}
-
-function fitCanvasText(
-  context: CanvasRenderingContext2D,
-  text: string,
-  startSize: number,
-  minSize: number,
-  maxWidth: number,
-) {
-  let size = startSize;
-  while (size > minSize) {
-    context.font = `600 ${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-    if (context.measureText(text).width <= maxWidth) break;
-    size -= 2;
-  }
-  return size;
-}
-
-function roundRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  context.beginPath();
-  context.moveTo(x + radius, y);
-  context.lineTo(x + width - radius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + radius);
-  context.lineTo(x + width, y + height - radius);
-  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  context.lineTo(x + radius, y + height);
-  context.quadraticCurveTo(x, y + height, x, y + height - radius);
-  context.lineTo(x, y + radius);
-  context.quadraticCurveTo(x, y, x + radius, y);
-  context.closePath();
-}
-
-function formatSignedLength(value: number) {
-  if (Object.is(value, -0)) return "0";
-  return value > 0 ? `+${formatLength(value)}` : formatLength(value);
-}
-
-function isRenderableMesh(object: THREE.Object3D): object is THREE.Mesh {
-  return (
-    object instanceof THREE.Mesh &&
-    object.visible &&
-    object.geometry instanceof THREE.BufferGeometry
-  );
-}
-
-function vectorTuple(vector: THREE.Vector3): [number, number, number] {
-  return [vector.x, vector.y, vector.z];
 }
 
 function SceneGrid({ bounds }: { bounds: BoundsTuple }) {

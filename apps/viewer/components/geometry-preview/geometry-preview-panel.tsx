@@ -2,15 +2,13 @@
 
 import * as React from "react";
 import {
+  ChevronDown,
   Download,
   Eye,
   FileJson,
   FlipHorizontal2,
   Loader2,
-  Maximize2,
-  Ruler,
   Scissors,
-  Trash2,
   X,
 } from "lucide-react";
 
@@ -32,7 +30,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,11 +44,10 @@ import {
 } from "@/components/viewer/model-loader";
 import {
   type CameraViewMode,
-  type Measurement,
-  type MeasurePoint,
   type SectionPlaneMode,
   ViewerScene,
 } from "@/components/viewer/viewer-scene";
+import { cn } from "@/lib/utils";
 
 export type GeometryPreviewContext = {
   previewId: string;
@@ -214,21 +210,19 @@ function PreviewCadWorkbench({
   const activeModelRef = React.useRef<LoadedCadModel | null>(null);
   const [model, setModel] = React.useState<LoadedCadModel | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [sectionEnabled, setSectionEnabled] = React.useState(true);
+  const [sectionEnabled, setSectionEnabled] = React.useState(false);
+  const [sectionSettingsExpanded, setSectionSettingsExpanded] =
+    React.useState(false);
   const [sectionPlane, setSectionPlane] =
     React.useState<SectionPlaneMode>("xz");
   const [sectionPosition, setSectionPosition] = React.useState(0);
   const [sectionFlip, setSectionFlip] = React.useState(false);
-  const [showGrid, setShowGrid] = React.useState(true);
-  const [showAxes, setShowAxes] = React.useState(true);
   const [cameraResetKey, setCameraResetKey] = React.useState(0);
   const [cameraView, setCameraView] = React.useState<CameraViewMode>("iso");
-  const [measureEnabled, setMeasureEnabled] = React.useState(false);
-  const [pendingMeasurePoint, setPendingMeasurePoint] =
-    React.useState<MeasurePoint | null>(null);
-  const [measurement, setMeasurement] = React.useState<Measurement | null>(null);
   const [featureOverlayEnabled, setFeatureOverlayEnabled] =
     React.useState(true);
+  const [featureSettingsExpanded, setFeatureSettingsExpanded] =
+    React.useState(false);
   const [showBumps, setShowBumps] = React.useState(true);
   const [showVias, setShowVias] = React.useState(true);
   const [showCircuits, setShowCircuits] = React.useState(true);
@@ -340,38 +334,15 @@ function PreviewCadWorkbench({
   }, [bounds, modelKey, sectionPlane]);
 
   React.useEffect(() => {
-    setPendingMeasurePoint(null);
-    setMeasurement(null);
-  }, [modelKey]);
-
-  React.useEffect(() => {
     if (selectedFeatureId && !features.some((feature) => feature.id === selectedFeatureId)) {
       setSelectedFeatureId(null);
     }
   }, [features, selectedFeatureId]);
 
-  function handleMeasurePoint(point: MeasurePoint) {
-    setPendingMeasurePoint((current) => {
-      if (!current || measurement) {
-        setMeasurement(null);
-        return point;
-      }
-      setMeasurement(createMeasurement(current, point));
-      return null;
-    });
-  }
-
-  function clearMeasurement() {
-    setPendingMeasurePoint(null);
-    setMeasurement(null);
-  }
-
   function moveCameraTo(view: CameraViewMode) {
     setCameraView(view);
     setCameraResetKey((value) => value + 1);
   }
-
-  const stats = model?.stats;
 
   return (
     <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -384,14 +355,10 @@ function PreviewCadWorkbench({
             sectionPlane={sectionPlane}
             sectionPosition={sectionPosition}
             sectionFlip={sectionFlip}
-            showGrid={showGrid}
-            showAxes={showAxes}
+            showGrid
+            showAxes
             cameraResetKey={cameraResetKey}
             cameraView={cameraView}
-            measureEnabled={measureEnabled}
-            pendingMeasurePoint={pendingMeasurePoint}
-            measurement={measurement}
-            onMeasurePoint={handleMeasurePoint}
           >
             <GeometryFeatureOverlay
               features={features}
@@ -399,7 +366,7 @@ function PreviewCadWorkbench({
               settings={featureSettings}
               selectedFeatureId={selectedFeatureId}
               hoveredFeatureId={hoveredFeatureId}
-              interactive={!measureEnabled}
+              interactive
               onSelectFeature={setSelectedFeatureId}
               onHoverFeature={setHoveredFeatureId}
             />
@@ -410,12 +377,6 @@ function PreviewCadWorkbench({
               <Scissors className="h-3.5 w-3.5" />
               {sectionEnabled ? sectionPlane.toUpperCase() : "Full"}
             </Badge>
-            {measureEnabled ? (
-              <Badge variant="secondary" className="gap-1">
-                <Ruler className="h-3.5 w-3.5" />
-                {pendingMeasurePoint ? "Pick end" : "Measure"}
-              </Badge>
-            ) : null}
             {featureSummary.total > 0 && featureOverlayEnabled ? (
               <Badge variant="secondary">
                 {formatNumber(featureSummary.total)} features
@@ -428,355 +389,270 @@ function PreviewCadWorkbench({
               Bounds {formatLength(bounds.size[0])} x {formatLength(bounds.size[1])}{" "}
               x {formatLength(bounds.size[2])}
             </span>
-            <span>
-              {formatNumber(stats?.meshCount ?? 0)} meshes /{" "}
-              {formatNumber(stats?.triangleCount ?? 0)} triangles
-            </span>
           </div>
         </div>
       </section>
 
       <aside className="min-h-0 overflow-y-auto border-t bg-white/92 p-4 lg:border-l lg:border-t-0">
-        <div className="space-y-5">
-          <PanelHeader icon={<Scissors />} title="Section" />
-          <ControlRow label="Enabled">
-            <Switch
-              checked={sectionEnabled}
-              onCheckedChange={setSectionEnabled}
-              aria-label="Toggle section"
-            />
-          </ControlRow>
-          <div className="space-y-2">
-            <Label>Plane</Label>
-            <Tabs
-              value={sectionPlane}
-              onValueChange={(value) => setSectionPlane(value as SectionPlaneMode)}
-            >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="xz">XZ</TabsTrigger>
-                <TabsTrigger value="yz">YZ</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <Label>Position</Label>
-              <span className="rounded bg-muted px-2 py-1 font-mono text-xs">
-                {formatLength(sectionPosition)}
-              </span>
-            </div>
-            <Slider
-              value={[clamp(sectionPosition, range.min, range.max)]}
-              min={range.min}
-              max={range.max}
-              step={rangeStep}
-              disabled={!sectionEnabled}
-              onValueChange={([value]) => setSectionPosition(value)}
-            />
-            <div className="flex justify-between font-mono text-[11px] text-muted-foreground">
-              <span>{formatLength(range.min)}</span>
-              <span>{formatLength(range.max)}</span>
-            </div>
-          </div>
-          <ControlRow label="Flip side">
-            <Button
-              type="button"
-              variant={sectionFlip ? "default" : "outline"}
-              size="icon-sm"
-              title="Flip clipped side"
-              onClick={() => setSectionFlip((value) => !value)}
-              disabled={!sectionEnabled}
-            >
-              <FlipHorizontal2 />
-            </Button>
-          </ControlRow>
-
-          <Separator />
-
-          <PanelHeader icon={<Eye />} title="Feature Overlay" />
-          <ControlRow label="Enabled">
-            <Switch
-              checked={featureOverlayEnabled}
-              disabled={featureSummary.total === 0}
-              onCheckedChange={setFeatureOverlayEnabled}
-              aria-label="Toggle feature overlay"
-            />
-          </ControlRow>
-          <ControlRow label="Bumps">
-            <Switch
-              checked={showBumps}
-              disabled={!featureOverlayEnabled || featureSummary.bumps === 0}
-              onCheckedChange={setShowBumps}
-              aria-label="Toggle bumps"
-            />
-          </ControlRow>
-          <ControlRow label="Vias">
-            <Switch
-              checked={showVias}
-              disabled={!featureOverlayEnabled || featureSummary.vias === 0}
-              onCheckedChange={setShowVias}
-              aria-label="Toggle vias"
-            />
-          </ControlRow>
-          <ControlRow label="Circuits">
-            <Switch
-              checked={showCircuits}
-              disabled={!featureOverlayEnabled || featureSummary.circuits === 0}
-              onCheckedChange={setShowCircuits}
-              aria-label="Toggle circuits"
-            />
-          </ControlRow>
-          <div className="space-y-2">
-            <Label>Mode</Label>
-            <Tabs
-              value={featureMode}
-              onValueChange={(value) =>
-                setFeatureMode(value as FeatureOverlayMode)
-              }
-            >
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="auto" disabled={!featureOverlayEnabled}>
-                  Auto
-                </TabsTrigger>
-                <TabsTrigger value="summary" disabled={!featureOverlayEnabled}>
-                  Summary
-                </TabsTrigger>
-                <TabsTrigger value="detail" disabled={!featureOverlayEnabled}>
-                  Detail
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          <SliderControl
-            label="Density scale"
-            value={featureDensityScale}
-            display={`${featureDensityScale.toFixed(2)}x`}
-            min={0.25}
-            max={2}
-            step={0.05}
-            disabled={!featureOverlayEnabled}
-            onChange={setFeatureDensityScale}
-          />
-          <SliderControl
-            label="Glyph size"
-            value={featureGlyphSizeScale}
-            display={`${featureGlyphSizeScale.toFixed(2)}x`}
-            min={0.5}
-            max={3}
-            step={0.05}
-            disabled={!featureOverlayEnabled}
-            onChange={setFeatureGlyphSizeScale}
-          />
-          <SliderControl
-            label="Opacity"
-            value={featureOpacity}
-            display={`${Math.round(featureOpacity * 100)}%`}
-            min={0.15}
-            max={0.85}
-            step={0.01}
-            disabled={!featureOverlayEnabled}
-            onChange={setFeatureOpacity}
-          />
-          <div className="space-y-2">
-            <Label>Max instances</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {[500, 2000, 10000].map((value) => (
+        <div className="space-y-4">
+          <SettingsPanelBlock
+            icon={<Eye />}
+            title="Axis view"
+            summary={formatAxisView(cameraView)}
+          >
+            <div className="grid grid-cols-4 gap-2">
+              {(["iso", "x", "y", "z"] as CameraViewMode[]).map((view) => (
                 <Button
-                  key={value}
+                  key={view}
                   type="button"
-                  variant={featureMaxInstances === value ? "default" : "outline"}
+                  variant={cameraView === view ? "default" : "outline"}
                   size="sm"
-                  disabled={!featureOverlayEnabled}
-                  onClick={() => setFeatureMaxInstances(value)}
+                  title={view === "iso" ? "Isometric view" : `View from +${view.toUpperCase()}`}
+                  onClick={() => moveCameraTo(view)}
                 >
-                  {formatNumber(value)}
+                  {view === "iso" ? "ISO" : view.toUpperCase()}
                 </Button>
               ))}
             </div>
-          </div>
-          <div className="rounded-md border bg-muted/25 p-3">
-            <InfoTable
-              rows={[
-                ["Total", formatNumber(featureSummary.total)],
-                ["Bumps", formatNumber(featureSummary.bumps)],
-                ["Vias", formatNumber(featureSummary.vias)],
-                ["Circuits", formatNumber(featureSummary.circuits)],
-                [
-                  "Density",
-                  formatDensityRange(
-                    featureSummary.densityMin,
-                    featureSummary.densityMax,
-                  ),
-                ],
-              ]}
-            />
-          </div>
-          <div className="rounded-md border bg-muted/25 p-3">
-            {selectedFeature ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-medium">
-                    {formatFeatureKind(selectedFeature.type)}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedFeatureId(null)}
-                  >
-                    Clear
-                  </Button>
-                </div>
-                <InfoTable
-                  rows={[
-                    ["Material", selectedFeature.material],
-                    [
-                      "Density",
-                      `${formatDensityPercent(selectedFeature.density)} (${formatRawDensity(
-                        selectedFeature.density,
-                      )})`,
-                    ],
-                    ["Direction", selectedFeature.direction ?? "n/a"],
-                    ["Container", selectedFeature.containerPath],
-                    ["Bounds", formatFeatureBounds(selectedFeature)],
-                  ]}
-                />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {featureSummary.total === 0
-                  ? "No density features"
-                  : measureEnabled
-                    ? "Feature picking paused"
-                    : "Select a feature envelope"}
-              </p>
-            )}
-          </div>
+          </SettingsPanelBlock>
 
-          <Separator />
-
-          <PanelHeader icon={<Ruler />} title="Measure" />
-          <ControlRow label="Enabled">
-            <Switch
-              checked={measureEnabled}
-              onCheckedChange={(checked) => {
-                setMeasureEnabled(checked);
-                clearMeasurement();
-              }}
-              aria-label="Toggle measurement"
-            />
-          </ControlRow>
-          <div className="rounded-md border bg-muted/25 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground">Distance</p>
-                <p className="mt-1 break-words font-mono text-xs text-foreground">
-                  {!measureEnabled
-                    ? "Enable measurement"
-                    : measurement
-                      ? formatMeasurement(measurement)
-                      : pendingMeasurePoint
-                        ? "Pick second surface point"
-                        : "Pick two surface points"}
-                </p>
+          <ExpandableSettingsBlock
+            icon={<Scissors />}
+            title="Section"
+            summary={formatSectionSummary({
+              enabled: sectionEnabled,
+              plane: sectionPlane,
+              position: sectionPosition,
+            })}
+            expanded={sectionSettingsExpanded}
+            active={sectionEnabled}
+            onExpandedChange={setSectionSettingsExpanded}
+          >
+            <ControlRow label="Enabled">
+              <Switch
+                checked={sectionEnabled}
+                onCheckedChange={setSectionEnabled}
+                aria-label="Toggle section"
+              />
+            </ControlRow>
+            <div className="space-y-2">
+              <Label>Plane</Label>
+              <Tabs
+                value={sectionPlane}
+                onValueChange={(value) =>
+                  setSectionPlane(value as SectionPlaneMode)
+                }
+              >
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="xz">XZ</TabsTrigger>
+                  <TabsTrigger value="yz">YZ</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Position</Label>
+                <span className="rounded bg-muted px-2 py-1 font-mono text-xs">
+                  {formatLength(sectionPosition)}
+                </span>
               </div>
+              <Slider
+                value={[clamp(sectionPosition, range.min, range.max)]}
+                min={range.min}
+                max={range.max}
+                step={rangeStep}
+                disabled={!sectionEnabled}
+                onValueChange={([value]) => setSectionPosition(value)}
+              />
+              <div className="flex justify-between font-mono text-[11px] text-muted-foreground">
+                <span>{formatLength(range.min)}</span>
+                <span>{formatLength(range.max)}</span>
+              </div>
+            </div>
+            <ControlRow label="Flip side">
               <Button
                 type="button"
-                variant="outline"
+                variant={sectionFlip ? "default" : "outline"}
                 size="icon-sm"
-                title="Clear measurement"
-                onClick={clearMeasurement}
-                disabled={!pendingMeasurePoint && !measurement}
+                title="Flip clipped side"
+                onClick={() => setSectionFlip((value) => !value)}
+                disabled={!sectionEnabled}
               >
-                <Trash2 />
+                <FlipHorizontal2 />
               </Button>
+            </ControlRow>
+          </ExpandableSettingsBlock>
+
+          <ExpandableSettingsBlock
+            icon={<Eye />}
+            title="Bump/Via/Circuit View Setting"
+            summary={formatFeatureSummaryLine(featureSummary)}
+            expanded={featureSettingsExpanded}
+            active={featureOverlayEnabled && featureSummary.total > 0}
+            onExpandedChange={setFeatureSettingsExpanded}
+          >
+            <ControlRow label="Enabled">
+              <Switch
+                checked={featureOverlayEnabled}
+                disabled={featureSummary.total === 0}
+                onCheckedChange={setFeatureOverlayEnabled}
+                aria-label="Toggle Bump/Via/Circuit view"
+              />
+            </ControlRow>
+            <ControlRow label="Bumps">
+              <Switch
+                checked={showBumps}
+                disabled={!featureOverlayEnabled || featureSummary.bumps === 0}
+                onCheckedChange={setShowBumps}
+                aria-label="Toggle bumps"
+              />
+            </ControlRow>
+            <ControlRow label="Vias">
+              <Switch
+                checked={showVias}
+                disabled={!featureOverlayEnabled || featureSummary.vias === 0}
+                onCheckedChange={setShowVias}
+                aria-label="Toggle vias"
+              />
+            </ControlRow>
+            <ControlRow label="Circuits">
+              <Switch
+                checked={showCircuits}
+                disabled={!featureOverlayEnabled || featureSummary.circuits === 0}
+                onCheckedChange={setShowCircuits}
+                aria-label="Toggle circuits"
+              />
+            </ControlRow>
+            <div className="space-y-2">
+              <Label>Mode</Label>
+              <Tabs
+                value={featureMode}
+                onValueChange={(value) =>
+                  setFeatureMode(value as FeatureOverlayMode)
+                }
+              >
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="auto" disabled={!featureOverlayEnabled}>
+                    Auto
+                  </TabsTrigger>
+                  <TabsTrigger value="summary" disabled={!featureOverlayEnabled}>
+                    Summary
+                  </TabsTrigger>
+                  <TabsTrigger value="detail" disabled={!featureOverlayEnabled}>
+                    Detail
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
-          </div>
-
-          <Separator />
-
-          <PanelHeader icon={<Eye />} title="View" />
-          <ControlRow label="Grid">
-            <Switch
-              checked={showGrid}
-              onCheckedChange={setShowGrid}
-              aria-label="Toggle grid"
+            <SliderControl
+              label="Density scale"
+              value={featureDensityScale}
+              display={`${featureDensityScale.toFixed(2)}x`}
+              min={0.25}
+              max={2}
+              step={0.05}
+              disabled={!featureOverlayEnabled}
+              onChange={setFeatureDensityScale}
             />
-          </ControlRow>
-          <ControlRow label="Axes">
-            <Switch
-              checked={showAxes}
-              onCheckedChange={setShowAxes}
-              aria-label="Toggle axes"
+            <SliderControl
+              label="Glyph size"
+              value={featureGlyphSizeScale}
+              display={`${featureGlyphSizeScale.toFixed(2)}x`}
+              min={0.5}
+              max={3}
+              step={0.05}
+              disabled={!featureOverlayEnabled}
+              onChange={setFeatureGlyphSizeScale}
             />
-          </ControlRow>
-          <ControlRow label="Camera">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              title="Fit camera"
-              onClick={() => moveCameraTo("iso")}
-            >
-              <Maximize2 />
-            </Button>
-          </ControlRow>
-          <ControlRow label="Axis view">
-            <Button
-              type="button"
-              variant={cameraView === "x" ? "default" : "outline"}
-              size="icon-sm"
-              title="View from +X"
-              onClick={() => moveCameraTo("x")}
-            >
-              X
-            </Button>
-            <Button
-              type="button"
-              variant={cameraView === "y" ? "default" : "outline"}
-              size="icon-sm"
-              title="View from +Y"
-              onClick={() => moveCameraTo("y")}
-            >
-              Y
-            </Button>
-            <Button
-              type="button"
-              variant={cameraView === "z" ? "default" : "outline"}
-              size="icon-sm"
-              title="View from +Z"
-              onClick={() => moveCameraTo("z")}
-            >
-              Z
-            </Button>
-          </ControlRow>
-
-          <Separator />
-
-          <PanelHeader icon={<FileJson />} title="Model" />
-          <div className="rounded-md border bg-muted/25 p-3">
-            <p className="truncate text-sm font-medium">{fileName}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Generated preview / {formatNumber(glbBlob.size)} bytes
+            <SliderControl
+              label="Opacity"
+              value={featureOpacity}
+              display={`${Math.round(featureOpacity * 100)}%`}
+              min={0.15}
+              max={0.85}
+              step={0.01}
+              disabled={!featureOverlayEnabled}
+              onChange={setFeatureOpacity}
+            />
+            <div className="space-y-2">
+              <Label>Max instances</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {[500, 2000, 10000].map((value) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant={featureMaxInstances === value ? "default" : "outline"}
+                    size="sm"
+                    disabled={!featureOverlayEnabled}
+                    onClick={() => setFeatureMaxInstances(value)}
+                  >
+                    {formatNumber(value)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="border-t pt-3">
+              <InfoTable
+                rows={[
+                  ["Total", formatNumber(featureSummary.total)],
+                  ["Bumps", formatNumber(featureSummary.bumps)],
+                  ["Vias", formatNumber(featureSummary.vias)],
+                  ["Circuits", formatNumber(featureSummary.circuits)],
+                  [
+                    "Density",
+                    formatDensityRange(
+                      featureSummary.densityMin,
+                      featureSummary.densityMax,
+                    ),
+                  ],
+                ]}
+              />
+            </div>
+            <div className="border-t pt-3">
+              {selectedFeature ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-medium">
+                      {formatFeatureKind(selectedFeature.type)}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedFeatureId(null)}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                  <InfoTable
+                    rows={[
+                      ["Material", selectedFeature.material],
+                      [
+                        "Density",
+                        `${formatDensityPercent(selectedFeature.density)} (${formatRawDensity(
+                          selectedFeature.density,
+                        )})`,
+                      ],
+                      ["Direction", selectedFeature.direction ?? "n/a"],
+                      ["Container", selectedFeature.containerPath],
+                      ["Bounds", formatFeatureBounds(selectedFeature)],
+                    ]}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {featureSummary.total === 0
+                    ? "No density features"
+                    : "Select a feature envelope"}
+                </p>
+              )}
+            </div>
+          </ExpandableSettingsBlock>
+          {loadError ? (
+            <p className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {loadError}
             </p>
-            {loadError ? (
-              <p className="mt-3 rounded-md border border-destructive/20 bg-destructive/5 px-2 py-1.5 text-xs text-destructive">
-                {loadError}
-              </p>
-            ) : null}
-          </div>
-
-          <InfoTable
-            rows={[
-              ["Meshes", formatNumber(stats?.meshCount ?? 0)],
-              ["Materials", formatNumber(stats?.materialCount ?? 0)],
-              ["Vertices", formatNumber(stats?.vertexCount ?? 0)],
-              ["Triangles", formatNumber(stats?.triangleCount ?? 0)],
-              ["X", formatSpan(bounds.min[0], bounds.max[0])],
-              ["Y", formatSpan(bounds.min[1], bounds.max[1])],
-              ["Z", formatSpan(bounds.min[2], bounds.max[2])],
-            ]}
-          />
+          ) : null}
         </div>
       </aside>
     </div>
@@ -800,19 +676,92 @@ function PreviewMessage({
   );
 }
 
-function PanelHeader({
+function SettingsPanelBlock({
   icon,
   title,
+  summary,
+  children,
 }: {
   icon: React.ReactNode;
   title: string;
+  summary: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2 text-sm font-semibold">
-      <span className="[&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-primary">
-        {icon}
-      </span>
-      <span>{title}</span>
+    <div className="overflow-hidden rounded-md border-2 border-emerald-500 bg-white shadow-sm">
+      <div className="flex items-center gap-3 bg-muted/40 px-3 py-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-primary text-primary-foreground shadow-sm [&_svg]:h-4 [&_svg]:w-4">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">{title}</span>
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            {summary}
+          </span>
+        </span>
+      </div>
+      <div className="px-3 py-3">{children}</div>
+    </div>
+  );
+}
+
+function ExpandableSettingsBlock({
+  icon,
+  title,
+  summary,
+  expanded,
+  active,
+  onExpandedChange,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  summary: string;
+  expanded: boolean;
+  active: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-md border-2 bg-white shadow-sm transition",
+        active ? "border-emerald-500" : "border-amber-500",
+      )}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 bg-muted/40 px-3 py-3 text-left transition hover:bg-muted/60"
+        aria-expanded={expanded}
+        onClick={() => onExpandedChange(!expanded)}
+      >
+        <span
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-white shadow-sm [&_svg]:h-4 [&_svg]:w-4",
+            active ? "bg-emerald-500" : "bg-amber-500",
+          )}
+        >
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">{title}</span>
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            {summary}
+          </span>
+        </span>
+        <Badge variant={active ? "signal" : "secondary"}>
+          {active ? "On" : "Off"}
+        </Badge>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition",
+            !expanded && "-rotate-90",
+          )}
+        />
+      </button>
+      {expanded ? (
+        <div className="space-y-4 border-t px-3 py-3">{children}</div>
+      ) : null}
     </div>
   );
 }
@@ -886,37 +835,6 @@ function InfoTable({ rows }: { rows: [string, string][] }) {
   );
 }
 
-function createMeasurement(
-  start: MeasurePoint,
-  end: MeasurePoint,
-): Measurement {
-  const delta: [number, number, number] = [
-    end.position[0] - start.position[0],
-    end.position[1] - start.position[1],
-    end.position[2] - start.position[2],
-  ];
-  const distance = Math.hypot(delta[0], delta[1], delta[2]);
-
-  return {
-    start,
-    end,
-    delta,
-    distance,
-  };
-}
-
-function formatMeasurement(measurement: Measurement) {
-  const [dx, dy, dz] = measurement.delta;
-  return `${formatLength(measurement.distance)} um (${formatSignedLength(
-    dx,
-  )}, ${formatSignedLength(dy)}, ${formatSignedLength(dz)})`;
-}
-
-function formatSignedLength(value: number) {
-  if (Object.is(value, -0)) return "0";
-  return value > 0 ? `+${formatLength(value)}` : formatLength(value);
-}
-
 function getSectionRange(bounds: BoundsTuple, plane: SectionPlaneMode) {
   const index = plane === "xz" ? 1 : 0;
   const min = bounds.min[index];
@@ -931,8 +849,35 @@ function getSectionCenter(bounds: BoundsTuple, plane: SectionPlaneMode) {
   return plane === "xz" ? bounds.center[1] : bounds.center[0];
 }
 
-function formatSpan(min: number, max: number) {
-  return `${formatLength(min)} .. ${formatLength(max)}`;
+function formatAxisView(view: CameraViewMode) {
+  if (view === "iso") return "Isometric";
+  return `View from +${view.toUpperCase()}`;
+}
+
+function formatSectionSummary({
+  enabled,
+  plane,
+  position,
+}: {
+  enabled: boolean;
+  plane: SectionPlaneMode;
+  position: number;
+}) {
+  return `${enabled ? "Enabled" : "Disabled"} · ${plane.toUpperCase()} · ${formatLength(
+    position,
+  )}`;
+}
+
+function formatFeatureSummaryLine(summary: {
+  total: number;
+  bumps: number;
+  vias: number;
+  circuits: number;
+}) {
+  if (summary.total === 0) return "No density features";
+  return `${formatNumber(summary.total)} total · B ${formatNumber(
+    summary.bumps,
+  )} · V ${formatNumber(summary.vias)} · C ${formatNumber(summary.circuits)}`;
 }
 
 function mergeFeatureBounds(baseBounds: BoundsTuple, features: PreviewFeature[]) {

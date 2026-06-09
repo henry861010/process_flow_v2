@@ -8,10 +8,8 @@ import {
   FlipHorizontal2,
   Layers3,
   Maximize2,
-  Ruler,
   RotateCcw,
   Scissors,
-  Trash2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -33,8 +31,6 @@ import {
 } from "@/components/viewer/model-loader";
 import {
   type CameraViewMode,
-  type Measurement,
-  type MeasurePoint,
   type SectionPlaneMode,
   ViewerScene,
 } from "@/components/viewer/viewer-scene";
@@ -63,12 +59,6 @@ export function CadViewerWorkbench() {
   const [showAxes, setShowAxes] = React.useState(true);
   const [cameraResetKey, setCameraResetKey] = React.useState(0);
   const [cameraView, setCameraView] = React.useState<CameraViewMode>("iso");
-  const [measureEnabled, setMeasureEnabled] = React.useState(false);
-  const [pendingMeasurePoint, setPendingMeasurePoint] =
-    React.useState<MeasurePoint | null>(null);
-  const [measurement, setMeasurement] = React.useState<Measurement | null>(
-    null,
-  );
 
   const bounds = model?.stats.bounds ?? DEMO_BOUNDS;
   const range = getSectionRange(bounds, sectionPlane);
@@ -78,11 +68,6 @@ export function CadViewerWorkbench() {
   React.useEffect(() => {
     setSectionPosition(getSectionCenter(bounds, sectionPlane));
   }, [bounds, modelKey, sectionPlane]);
-
-  React.useEffect(() => {
-    setPendingMeasurePoint(null);
-    setMeasurement(null);
-  }, [modelKey]);
 
   React.useEffect(() => {
     activeModelRef.current = model;
@@ -134,23 +119,6 @@ export function CadViewerWorkbench() {
     });
     setLoadError(null);
     setCameraResetKey((value) => value + 1);
-  }
-
-  function handleMeasurePoint(point: MeasurePoint) {
-    setPendingMeasurePoint((current) => {
-      if (!current || measurement) {
-        setMeasurement(null);
-        return point;
-      }
-
-      setMeasurement(createMeasurement(current, point));
-      return null;
-    });
-  }
-
-  function clearMeasurement() {
-    setPendingMeasurePoint(null);
-    setMeasurement(null);
   }
 
   function moveCameraTo(view: CameraViewMode) {
@@ -235,10 +203,6 @@ export function CadViewerWorkbench() {
               showAxes={showAxes}
               cameraResetKey={cameraResetKey}
               cameraView={cameraView}
-              measureEnabled={measureEnabled}
-              pendingMeasurePoint={pendingMeasurePoint}
-              measurement={measurement}
-              onMeasurePoint={handleMeasurePoint}
             />
 
             <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
@@ -246,12 +210,6 @@ export function CadViewerWorkbench() {
                 <Scissors className="h-3.5 w-3.5" />
                 {sectionEnabled ? sectionPlane.toUpperCase() : "Full"}
               </Badge>
-              {measureEnabled ? (
-                <Badge variant="secondary" className="gap-1">
-                  <Ruler className="h-3.5 w-3.5" />
-                  {pendingMeasurePoint ? "Pick end" : "Measure"}
-                </Badge>
-              ) : null}
               {isLoading ? <Badge variant="secondary">Loading</Badge> : null}
             </div>
 
@@ -325,48 +283,6 @@ export function CadViewerWorkbench() {
                 <FlipHorizontal2 />
               </Button>
             </ControlRow>
-
-            <Separator />
-
-            <PanelHeader icon={<Ruler />} title="Measure" />
-            <ControlRow label="Enabled">
-              <Switch
-                checked={measureEnabled}
-                onCheckedChange={(checked) => {
-                  setMeasureEnabled(checked);
-                  clearMeasurement();
-                }}
-                aria-label="Toggle measurement"
-              />
-            </ControlRow>
-            <div className="rounded-md border bg-muted/25 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Distance
-                  </p>
-                  <p className="mt-1 break-words font-mono text-xs text-foreground">
-                    {!measureEnabled
-                      ? "Enable measurement"
-                      : measurement
-                      ? formatMeasurement(measurement)
-                      : pendingMeasurePoint
-                        ? "Pick second surface point"
-                        : "Pick two surface points"}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  title="Clear measurement"
-                  onClick={clearMeasurement}
-                  disabled={!pendingMeasurePoint && !measurement}
-                >
-                  <Trash2 />
-                </Button>
-              </div>
-            </div>
 
             <Separator />
 
@@ -536,37 +452,6 @@ function InfoTable({ rows }: { rows: [string, string][] }) {
       ))}
     </dl>
   );
-}
-
-function createMeasurement(
-  start: MeasurePoint,
-  end: MeasurePoint,
-): Measurement {
-  const delta: [number, number, number] = [
-    end.position[0] - start.position[0],
-    end.position[1] - start.position[1],
-    end.position[2] - start.position[2],
-  ];
-  const distance = Math.hypot(delta[0], delta[1], delta[2]);
-
-  return {
-    start,
-    end,
-    delta,
-    distance,
-  };
-}
-
-function formatMeasurement(measurement: Measurement) {
-  const [dx, dy, dz] = measurement.delta;
-  return `${formatLength(measurement.distance)} um (${formatSignedLength(
-    dx,
-  )}, ${formatSignedLength(dy)}, ${formatSignedLength(dz)})`;
-}
-
-function formatSignedLength(value: number) {
-  if (Object.is(value, -0)) return "0";
-  return value > 0 ? `+${formatLength(value)}` : formatLength(value);
 }
 
 function getSectionRange(bounds: BoundsTuple, plane: SectionPlaneMode) {
