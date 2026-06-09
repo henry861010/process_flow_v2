@@ -7,8 +7,8 @@
 ## Purpose
 
 Home page 是 process flow tools 的入口與 overview 頁。此頁需要直接顯示目前 browser
-`localStorage` 中所有 process step instances，讓使用者不用進 editor 也能看見目前有哪些
-TV/Product instance 與 step value set。
+`localStorage` 中所有 process flow instances，讓使用者不用進 editor 也能看見目前有哪些
+TV/Product instance。
 
 Home page 同時保留進入下列 tools 的 actions：
 
@@ -23,9 +23,9 @@ Home page 不連接 backend service。所有資料都從 browser `localStorage` 
 
 | localStorage key | Value shape | Home usage |
 |---|---|---|
-| `processStepTemplates` | `ProcessStepTemplate[]` | Resolve step template name, category, version, and expected field count. |
+| `processStepTemplates` | `ProcessStepTemplate[]` | Resolve expected field count and missing-step status. |
 | `processFlowTemplates` | `ProcessFlowTemplate[]` | Resolve template type, template version, and stepRef binding. |
-| `processFlowInstances` | `ProcessFlowInstance[]` | Main table source. Each `stepValueSets[]` item becomes one table row. |
+| `processFlowInstances` | `ProcessFlowInstance[]` | Main table source. Each instance becomes one table row. |
 | `GeometryEntity` | `GeometryEntity[]` | Seeded by home for editor pages; not displayed in the home table. |
 
 ### Template Type Rule
@@ -84,7 +84,7 @@ empty array `[]`, home must not overwrite it.
 
 ### `processFlowInstances` Seed
 
-| id | Instance name | Template type | Step instance count |
+| id | Instance name | Template type | Value set count |
 |---|---|---|---|
 | `flow_inst_cowosl_demo_hbm4_alpha` | HBM4 Alpha Build | CoWoS-L Demo | 4 |
 | `flow_inst_cowosl_demo_hbm4_beta` | HBM4 Beta Reliability | CoWoS-L Demo | 4 |
@@ -108,7 +108,7 @@ upstream process step output use `null`, matching the flow edge resolve rule use
 Home layout is an operational dashboard:
 
 - Header contains the page title, summary badges, and the three editor navigation actions.
-- Primary content is a bordered process step instance table.
+- Primary content is a bordered flow instance table.
 - Filter bar sits directly above the table.
 - POC reset appears as a small monospace system command pinned to the bottom-left corner.
 - No marketing content or editor canvas state appears on this page.
@@ -124,13 +124,13 @@ The filter bar has one select control:
 If an instance references a missing flow template, the row remains visible with template type
 `Unknown template`. This value is also available in the filter options when such rows exist.
 
-## Process Step Instance Table
+## Process Flow Instance Table
 
 Row granularity:
 
-- One row per `ProcessFlowInstance.stepValueSets[]` item.
-- Row key is `${processFlowInstance.id}:${stepValueSet.stepRefId}`.
-- The table must include process step instances from seed data and any instances created by editor pages.
+- One row per `ProcessFlowInstance`.
+- Row key is `ProcessFlowInstance.id`.
+- The table must include process flow instances from seed data and any instances created by editor pages.
 
 Columns:
 
@@ -138,9 +138,7 @@ Columns:
 |---|---|
 | Template type | `ProcessFlowTemplate.name`, or `Unknown template` if unresolved. |
 | Flow instance | `ProcessFlowInstance.name` and `ProcessFlowInstance.id`. |
-| Step instance | `StepValueSet.stepRefId`. |
-| Process step | Resolved `ProcessStepTemplate.name`, category, and version. Falls back to `StepValueSet.processStepTemplateId` if unresolved. |
-| Values | Number of meaningful `fieldValues[]` values over expected field count from `ProcessStepTemplate.fieldDefinitions.length`. |
+| Values | Total meaningful values across all `stepValueSets[].fieldValues[]` over total expected fields resolved from each referenced `ProcessStepTemplate.fieldDefinitions.length`. |
 | Status | `Resolved`, `Missing template`, or `Missing step`. |
 
 Meaningful value count rules:
@@ -153,5 +151,5 @@ Meaningful value count rules:
 
 ## Empty State
 
-If there are no process step instance rows after localStorage initialization, the table body shows an
+If there are no flow instance rows after localStorage initialization, the table body shows an
 empty state with a `Create instance` action linking to `/flow-instance-editor`.

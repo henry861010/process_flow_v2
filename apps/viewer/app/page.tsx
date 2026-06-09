@@ -74,18 +74,13 @@ type HomeData = {
   stepTemplates: ProcessStepTemplate[];
 };
 
-type StepInstanceRow = {
+type FlowInstanceRow = {
   key: string;
   templateType: string;
   templateId: string;
   templateVersion: string | null;
   flowInstanceName: string;
   flowInstanceId: string;
-  stepRefId: string;
-  processStepTemplateName: string;
-  processStepTemplateId: string;
-  processStepTemplateCategory: string | null;
-  processStepTemplateVersion: string | null;
   populatedFieldCount: number;
   expectedFieldCount: number;
   referenceStatus: "resolved" | "missing-template" | "missing-step-template";
@@ -127,14 +122,14 @@ export default function Home() {
     router.prefetch("/flow-template-editor");
   }, [router]);
 
-  const stepRows = React.useMemo(() => buildStepInstanceRows(homeData), [homeData]);
+  const flowRows = React.useMemo(() => buildFlowInstanceRows(homeData), [homeData]);
 
   const templateTypeOptions = React.useMemo(
     () =>
-      Array.from(new Set(stepRows.map((row) => row.templateType))).sort((left, right) =>
+      Array.from(new Set(flowRows.map((row) => row.templateType))).sort((left, right) =>
         left.localeCompare(right),
       ),
-    [stepRows],
+    [flowRows],
   );
 
   React.useEffect(() => {
@@ -146,12 +141,12 @@ export default function Home() {
     }
   }, [selectedTemplateType, templateTypeOptions]);
 
-  const filteredStepRows = React.useMemo(
+  const filteredFlowRows = React.useMemo(
     () =>
       selectedTemplateType === ALL_TEMPLATE_TYPES
-        ? stepRows
-        : stepRows.filter((row) => row.templateType === selectedTemplateType),
-    [selectedTemplateType, stepRows],
+        ? flowRows
+        : flowRows.filter((row) => row.templateType === selectedTemplateType),
+    [selectedTemplateType, flowRows],
   );
 
   const templateCount = new Set(
@@ -172,11 +167,10 @@ export default function Home() {
             <div className="flex min-w-0 items-center gap-2">
               <Table2 className="h-5 w-5 shrink-0 text-primary" />
               <h1 className="truncate text-xl font-semibold tracking-normal">
-                Process Step Instances
+                Flow Instances
               </h1>
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="signal">{stepRows.length} step instances</Badge>
               <Badge variant="outline">
                 {homeData.flowInstances.length} flow instances
               </Badge>
@@ -229,37 +223,31 @@ export default function Home() {
             </label>
 
             <div className="text-sm text-muted-foreground">
-              {filteredStepRows.length} shown
+              {filteredFlowRows.length} shown
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-sm">
+            <table className="w-full min-w-[680px] border-collapse text-sm">
               <thead className="bg-muted/50">
                 <tr className="border-b">
-                  <th className="w-[18%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                  <th className="w-[28%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     Template type
                   </th>
-                  <th className="w-[22%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                  <th className="w-[42%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     Flow instance
                   </th>
-                  <th className="w-[18%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                    Step instance
-                  </th>
-                  <th className="w-[22%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                    Process step
-                  </th>
-                  <th className="w-[10%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                  <th className="w-[15%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     Values
                   </th>
-                  <th className="w-[10%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                  <th className="w-[15%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                     Status
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredStepRows.length > 0 ? (
-                  filteredStepRows.map((row) => (
+                {filteredFlowRows.length > 0 ? (
+                  filteredFlowRows.map((row) => (
                     <tr key={row.key} className="border-b last:border-b-0">
                       <td className="px-4 py-3 align-top">
                         <div className="min-w-0">
@@ -293,36 +281,6 @@ export default function Home() {
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <div
-                          className="truncate font-mono text-xs font-medium"
-                          title={row.stepRefId}
-                        >
-                          {row.stepRefId}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <div className="min-w-0">
-                          <div
-                            className="truncate font-medium"
-                            title={row.processStepTemplateName}
-                          >
-                            {row.processStepTemplateName}
-                          </div>
-                          <div className="mt-1 flex min-w-0 flex-wrap gap-1">
-                            {row.processStepTemplateCategory ? (
-                              <Badge variant="outline">
-                                {row.processStepTemplateCategory}
-                              </Badge>
-                            ) : null}
-                            {row.processStepTemplateVersion ? (
-                              <Badge variant="secondary">
-                                {row.processStepTemplateVersion}
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top">
                         <span className="font-mono text-xs">
                           {row.populatedFieldCount}/{row.expectedFieldCount}
                         </span>
@@ -340,10 +298,10 @@ export default function Home() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="h-52 px-4 py-8 text-center">
+                    <td colSpan={4} className="h-52 px-4 py-8 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
                         <div className="text-sm font-medium">
-                          No process step instances
+                          No flow instances
                         </div>
                         <Button asChild size="sm">
                           <Link href="/flow-instance-editor">
@@ -389,7 +347,7 @@ function readHomeData(): HomeData {
   };
 }
 
-function buildStepInstanceRows(data: HomeData): StepInstanceRow[] {
+function buildFlowInstanceRows(data: HomeData): FlowInstanceRow[] {
   const flowTemplateById = new Map(
     data.flowTemplates.map((template) => [template.id, template]),
   );
@@ -397,45 +355,48 @@ function buildStepInstanceRows(data: HomeData): StepInstanceRow[] {
     data.stepTemplates.map((template) => [template.id, template]),
   );
 
-  return data.flowInstances.flatMap((instance) => {
+  return data.flowInstances.map((instance) => {
     const flowTemplate = flowTemplateById.get(instance.processFlowTemplateId);
     const templateType = flowTemplate?.name ?? "Unknown template";
     const templateId = flowTemplate?.id ?? instance.processFlowTemplateId;
+    let populatedFieldCount = 0;
+    let expectedFieldCount = 0;
+    let hasMissingStepTemplate = false;
 
-    return instance.stepValueSets.map((stepValueSet) => {
+    for (const stepValueSet of instance.stepValueSets) {
       const stepRef = flowTemplate?.stepRefs.find(
         (candidate) => candidate.stepRefId === stepValueSet.stepRefId,
       );
       const processStepTemplateId =
         stepValueSet.processStepTemplateId || stepRef?.processStepTemplateId || "";
       const stepTemplate = stepTemplateById.get(processStepTemplateId);
-      const expectedFieldCount =
+      if (flowTemplate && !stepTemplate) {
+        hasMissingStepTemplate = true;
+      }
+      expectedFieldCount +=
         stepTemplate?.fieldDefinitions.length ?? stepValueSet.fieldValues.length;
-      const referenceStatus: StepInstanceRow["referenceStatus"] = !flowTemplate
-        ? "missing-template"
-        : stepTemplate
-          ? "resolved"
-          : "missing-step-template";
+      populatedFieldCount += stepValueSet.fieldValues.filter((fieldValue) =>
+        isMeaningfulValue(fieldValue.value),
+      ).length;
+    }
 
-      return {
-        key: `${instance.id}:${stepValueSet.stepRefId}`,
-        templateType,
-        templateId,
-        templateVersion: flowTemplate?.version ?? null,
-        flowInstanceName: instance.name,
-        flowInstanceId: instance.id,
-        stepRefId: stepValueSet.stepRefId,
-        processStepTemplateName: stepTemplate?.name ?? processStepTemplateId,
-        processStepTemplateId,
-        processStepTemplateCategory: stepTemplate?.category ?? null,
-        processStepTemplateVersion: stepTemplate?.version ?? null,
-        populatedFieldCount: stepValueSet.fieldValues.filter((fieldValue) =>
-          isMeaningfulValue(fieldValue.value),
-        ).length,
-        expectedFieldCount,
-        referenceStatus,
-      };
-    });
+    const referenceStatus: FlowInstanceRow["referenceStatus"] = !flowTemplate
+      ? "missing-template"
+      : hasMissingStepTemplate
+        ? "missing-step-template"
+        : "resolved";
+
+    return {
+      key: instance.id,
+      templateType,
+      templateId,
+      templateVersion: flowTemplate?.version ?? null,
+      flowInstanceName: instance.name,
+      flowInstanceId: instance.id,
+      populatedFieldCount,
+      expectedFieldCount,
+      referenceStatus,
+    };
   });
 }
 
@@ -468,7 +429,7 @@ function isMeaningfulValue(value: unknown): boolean {
   return false;
 }
 
-function statusLabel(status: StepInstanceRow["referenceStatus"]) {
+function statusLabel(status: FlowInstanceRow["referenceStatus"]) {
   if (status === "missing-template") {
     return "Missing template";
   }
