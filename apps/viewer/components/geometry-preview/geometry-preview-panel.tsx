@@ -19,6 +19,16 @@ import {
   type GeometryEntityDownload,
   type GeometryPreviewRequest,
 } from "@/components/geometry-preview/geometry-preview-client";
+import {
+  GeometryFeatureOverlay,
+  extractPreviewFeatures,
+  formatDensityPercent,
+  formatFeatureKind,
+  summarizeFeatures,
+  type FeatureOverlayMode,
+  type FeatureOverlaySettings,
+  type PreviewFeature,
+} from "@/components/geometry-preview/geometry-feature-overlay";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -172,6 +182,7 @@ export function GeometryPreviewPanel({
             <PreviewCadWorkbench
               glbBlob={state.glbBlob}
               fileName={`geometry-preview-${preview.previewId}.glb`}
+              geometryStructure={state.geometryEntityJson.structure}
             />
           )}
         </div>
@@ -194,9 +205,11 @@ export function GeometryPreviewPanel({
 function PreviewCadWorkbench({
   glbBlob,
   fileName,
+  geometryStructure,
 }: {
   glbBlob: Blob;
   fileName: string;
+  geometryStructure: unknown;
 }) {
   const activeModelRef = React.useRef<LoadedCadModel | null>(null);
   const [model, setModel] = React.useState<LoadedCadModel | null>(null);
@@ -214,11 +227,68 @@ function PreviewCadWorkbench({
   const [pendingMeasurePoint, setPendingMeasurePoint] =
     React.useState<MeasurePoint | null>(null);
   const [measurement, setMeasurement] = React.useState<Measurement | null>(null);
+  const [featureOverlayEnabled, setFeatureOverlayEnabled] =
+    React.useState(true);
+  const [showBumps, setShowBumps] = React.useState(true);
+  const [showVias, setShowVias] = React.useState(true);
+  const [showCircuits, setShowCircuits] = React.useState(true);
+  const [featureMode, setFeatureMode] =
+    React.useState<FeatureOverlayMode>("auto");
+  const [featureDensityScale, setFeatureDensityScale] = React.useState(1);
+  const [featureGlyphSizeScale, setFeatureGlyphSizeScale] = React.useState(1);
+  const [featureOpacity, setFeatureOpacity] = React.useState(0.42);
+  const [featureMaxInstances, setFeatureMaxInstances] = React.useState(2000);
+  const [selectedFeatureId, setSelectedFeatureId] = React.useState<string | null>(
+    null,
+  );
+  const [hoveredFeatureId, setHoveredFeatureId] = React.useState<string | null>(
+    null,
+  );
 
-  const bounds = model?.stats.bounds ?? DEMO_BOUNDS;
+  const modelBounds = model?.stats.bounds ?? DEMO_BOUNDS;
+  const modelKey = model?.id ?? "loading";
+  const features = React.useMemo(
+    () => extractPreviewFeatures(geometryStructure),
+    [geometryStructure],
+  );
+  const bounds = React.useMemo(
+    () => mergeFeatureBounds(modelBounds, features),
+    [features, modelBounds],
+  );
   const range = getSectionRange(bounds, sectionPlane);
   const rangeStep = Math.max((range.max - range.min) / 400, 0.001);
-  const modelKey = model?.id ?? "loading";
+  const featureSummary = React.useMemo(
+    () => summarizeFeatures(features),
+    [features],
+  );
+  const selectedFeature = React.useMemo(
+    () => featureById(features, selectedFeatureId),
+    [features, selectedFeatureId],
+  );
+  const featureSettings = React.useMemo<FeatureOverlaySettings>(
+    () => ({
+      enabled: featureOverlayEnabled,
+      showBumps,
+      showVias,
+      showCircuits,
+      mode: featureMode,
+      densityScale: featureDensityScale,
+      glyphSizeScale: featureGlyphSizeScale,
+      opacity: featureOpacity,
+      maxInstances: featureMaxInstances,
+    }),
+    [
+      featureDensityScale,
+      featureGlyphSizeScale,
+      featureMaxInstances,
+      featureMode,
+      featureOpacity,
+      featureOverlayEnabled,
+      showBumps,
+      showCircuits,
+      showVias,
+    ],
+  );
 
   React.useEffect(() => {
     let disposed = false;
@@ -274,6 +344,12 @@ function PreviewCadWorkbench({
     setMeasurement(null);
   }, [modelKey]);
 
+  React.useEffect(() => {
+    if (selectedFeatureId && !features.some((feature) => feature.id === selectedFeatureId)) {
+      setSelectedFeatureId(null);
+    }
+  }, [features, selectedFeatureId]);
+
   function handleMeasurePoint(point: MeasurePoint) {
     setPendingMeasurePoint((current) => {
       if (!current || measurement) {
@@ -316,7 +392,18 @@ function PreviewCadWorkbench({
             pendingMeasurePoint={pendingMeasurePoint}
             measurement={measurement}
             onMeasurePoint={handleMeasurePoint}
-          />
+          >
+            <GeometryFeatureOverlay
+              features={features}
+              bounds={bounds}
+              settings={featureSettings}
+              selectedFeatureId={selectedFeatureId}
+              hoveredFeatureId={hoveredFeatureId}
+              interactive={!measureEnabled}
+              onSelectFeature={setSelectedFeatureId}
+              onHoverFeature={setHoveredFeatureId}
+            />
+          </ViewerScene>
 
           <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
             <Badge variant="signal" className="gap-1">
@@ -327,6 +414,11 @@ function PreviewCadWorkbench({
               <Badge variant="secondary" className="gap-1">
                 <Ruler className="h-3.5 w-3.5" />
                 {pendingMeasurePoint ? "Pick end" : "Measure"}
+              </Badge>
+            ) : null}
+            {featureSummary.total > 0 && featureOverlayEnabled ? (
+              <Badge variant="secondary">
+                {formatNumber(featureSummary.total)} features
               </Badge>
             ) : null}
           </div>
@@ -398,6 +490,168 @@ function PreviewCadWorkbench({
               <FlipHorizontal2 />
             </Button>
           </ControlRow>
+
+          <Separator />
+
+          <PanelHeader icon={<Eye />} title="Feature Overlay" />
+          <ControlRow label="Enabled">
+            <Switch
+              checked={featureOverlayEnabled}
+              disabled={featureSummary.total === 0}
+              onCheckedChange={setFeatureOverlayEnabled}
+              aria-label="Toggle feature overlay"
+            />
+          </ControlRow>
+          <ControlRow label="Bumps">
+            <Switch
+              checked={showBumps}
+              disabled={!featureOverlayEnabled || featureSummary.bumps === 0}
+              onCheckedChange={setShowBumps}
+              aria-label="Toggle bumps"
+            />
+          </ControlRow>
+          <ControlRow label="Vias">
+            <Switch
+              checked={showVias}
+              disabled={!featureOverlayEnabled || featureSummary.vias === 0}
+              onCheckedChange={setShowVias}
+              aria-label="Toggle vias"
+            />
+          </ControlRow>
+          <ControlRow label="Circuits">
+            <Switch
+              checked={showCircuits}
+              disabled={!featureOverlayEnabled || featureSummary.circuits === 0}
+              onCheckedChange={setShowCircuits}
+              aria-label="Toggle circuits"
+            />
+          </ControlRow>
+          <div className="space-y-2">
+            <Label>Mode</Label>
+            <Tabs
+              value={featureMode}
+              onValueChange={(value) =>
+                setFeatureMode(value as FeatureOverlayMode)
+              }
+            >
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="auto" disabled={!featureOverlayEnabled}>
+                  Auto
+                </TabsTrigger>
+                <TabsTrigger value="summary" disabled={!featureOverlayEnabled}>
+                  Summary
+                </TabsTrigger>
+                <TabsTrigger value="detail" disabled={!featureOverlayEnabled}>
+                  Detail
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <SliderControl
+            label="Density scale"
+            value={featureDensityScale}
+            display={`${featureDensityScale.toFixed(2)}x`}
+            min={0.25}
+            max={2}
+            step={0.05}
+            disabled={!featureOverlayEnabled}
+            onChange={setFeatureDensityScale}
+          />
+          <SliderControl
+            label="Glyph size"
+            value={featureGlyphSizeScale}
+            display={`${featureGlyphSizeScale.toFixed(2)}x`}
+            min={0.5}
+            max={3}
+            step={0.05}
+            disabled={!featureOverlayEnabled}
+            onChange={setFeatureGlyphSizeScale}
+          />
+          <SliderControl
+            label="Opacity"
+            value={featureOpacity}
+            display={`${Math.round(featureOpacity * 100)}%`}
+            min={0.15}
+            max={0.85}
+            step={0.01}
+            disabled={!featureOverlayEnabled}
+            onChange={setFeatureOpacity}
+          />
+          <div className="space-y-2">
+            <Label>Max instances</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {[500, 2000, 10000].map((value) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={featureMaxInstances === value ? "default" : "outline"}
+                  size="sm"
+                  disabled={!featureOverlayEnabled}
+                  onClick={() => setFeatureMaxInstances(value)}
+                >
+                  {formatNumber(value)}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-md border bg-muted/25 p-3">
+            <InfoTable
+              rows={[
+                ["Total", formatNumber(featureSummary.total)],
+                ["Bumps", formatNumber(featureSummary.bumps)],
+                ["Vias", formatNumber(featureSummary.vias)],
+                ["Circuits", formatNumber(featureSummary.circuits)],
+                [
+                  "Density",
+                  formatDensityRange(
+                    featureSummary.densityMin,
+                    featureSummary.densityMax,
+                  ),
+                ],
+              ]}
+            />
+          </div>
+          <div className="rounded-md border bg-muted/25 p-3">
+            {selectedFeature ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-sm font-medium">
+                    {formatFeatureKind(selectedFeature.type)}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedFeatureId(null)}
+                  >
+                    Clear
+                  </Button>
+                </div>
+                <InfoTable
+                  rows={[
+                    ["Material", selectedFeature.material],
+                    [
+                      "Density",
+                      `${formatDensityPercent(selectedFeature.density)} (${formatRawDensity(
+                        selectedFeature.density,
+                      )})`,
+                    ],
+                    ["Direction", selectedFeature.direction ?? "n/a"],
+                    ["Container", selectedFeature.containerPath],
+                    ["Bounds", formatFeatureBounds(selectedFeature)],
+                  ]}
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {featureSummary.total === 0
+                  ? "No density features"
+                  : measureEnabled
+                    ? "Feature picking paused"
+                    : "Select a feature envelope"}
+              </p>
+            )}
+          </div>
 
           <Separator />
 
@@ -578,6 +832,45 @@ function ControlRow({
   );
 }
 
+function SliderControl({
+  label,
+  value,
+  display,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  display: string;
+  min: number;
+  max: number;
+  step: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <Label>{label}</Label>
+        <span className="rounded bg-muted px-2 py-1 font-mono text-xs">
+          {display}
+        </span>
+      </div>
+      <Slider
+        value={[clamp(value, min, max)]}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        onValueChange={([nextValue]) => onChange(nextValue)}
+      />
+    </div>
+  );
+}
+
 function InfoTable({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="grid grid-cols-[minmax(92px,auto)_1fr] gap-x-4 gap-y-2 text-sm">
@@ -640,6 +933,54 @@ function getSectionCenter(bounds: BoundsTuple, plane: SectionPlaneMode) {
 
 function formatSpan(min: number, max: number) {
   return `${formatLength(min)} .. ${formatLength(max)}`;
+}
+
+function mergeFeatureBounds(baseBounds: BoundsTuple, features: PreviewFeature[]) {
+  if (features.length === 0) return baseBounds;
+
+  const min: [number, number, number] = [...baseBounds.min];
+  const max: [number, number, number] = [...baseBounds.max];
+  features.forEach((feature) => {
+    for (let axis = 0; axis < 3; axis += 1) {
+      min[axis] = Math.min(min[axis], feature.bounds.min[axis]);
+      max[axis] = Math.max(max[axis], feature.bounds.max[axis]);
+    }
+  });
+
+  const center: [number, number, number] = [
+    (min[0] + max[0]) / 2,
+    (min[1] + max[1]) / 2,
+    (min[2] + max[2]) / 2,
+  ];
+  const size: [number, number, number] = [
+    Math.max(max[0] - min[0], 0),
+    Math.max(max[1] - min[1], 0),
+    Math.max(max[2] - min[2], 0),
+  ];
+
+  return { min, max, center, size };
+}
+
+function featureById(features: PreviewFeature[], featureId: string | null) {
+  if (!featureId) return null;
+  return features.find((feature) => feature.id === featureId) ?? null;
+}
+
+function formatDensityRange(min: number | null, max: number | null) {
+  if (min === null || max === null) return "n/a";
+  if (min === max) return formatDensityPercent(min);
+  return `${formatDensityPercent(min)} .. ${formatDensityPercent(max)}`;
+}
+
+function formatRawDensity(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(3);
+}
+
+function formatFeatureBounds(feature: PreviewFeature) {
+  const { size } = feature.bounds;
+  return `${formatLength(size[0])} x ${formatLength(size[1])} x ${formatLength(
+    size[2],
+  )}`;
 }
 
 function clamp(value: number, min: number, max: number) {

@@ -46,6 +46,7 @@ type ViewerSceneProps = {
   pendingMeasurePoint: MeasurePoint | null;
   measurement: Measurement | null;
   onMeasurePoint: (point: MeasurePoint) => void;
+  children?: React.ReactNode;
 };
 
 export function ViewerScene({
@@ -63,6 +64,7 @@ export function ViewerScene({
   pendingMeasurePoint,
   measurement,
   onMeasurePoint,
+  children,
 }: ViewerSceneProps) {
   const contentRef = React.useRef<THREE.Group>(null);
 
@@ -110,6 +112,7 @@ export function ViewerScene({
         ) : (
           <DemoPackage />
         )}
+        {children}
       </group>
       <MeasurementOverlay
         bounds={bounds}
