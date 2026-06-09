@@ -220,6 +220,30 @@ test("polygon loop odd even classification", () => {
   assert.deepEqual(regions.map((region) => region.holes.length), [1, 0]);
 });
 
+test("polygon geometry allows multipolygon loops touching at a point only", () => {
+  const regions = classifyPolygonLoops([
+    [[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]],
+    [[10, 10, 0], [20, 10, 0], [20, 20, 0], [10, 20, 0]],
+  ]);
+
+  assert.equal(regions.length, 2);
+  assert.deepEqual(regions.map((region) => region.holes.length), [0, 0]);
+});
+
+test("polygon geometry still rejects loops sharing an edge", () => {
+  assert.throws(
+    () =>
+      new PolygonGeometry(
+        [
+          [[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]],
+          [[10, 0, 0], [20, 0, 0], [20, 10, 0], [10, 10, 0]],
+        ],
+        1,
+      ),
+    /PolygonGeometry loops intersect or touch/,
+  );
+});
+
 test("process Region setGap converts die gaps back to polygon outlines", () => {
   const region = new Region([
     { type: "BOX", dim: [0, 0, 10, 10] },
@@ -598,6 +622,73 @@ test("Under Fill process step fills child bump cavities and root die gaps", () =
   assert.equal(output.root.children[2].bodies[0].geometry.type, "PolygonGeometry");
   assert.equal(output.root.children[2].bodies[0].geometry.thk, 6);
   assert.deepEqual(output.root.children[2].bodies[0].geometry.polys, [
+    [
+      [10, 10, 10],
+      [14, 10, 10],
+      [14, 0, 10],
+      [10, 0, 10],
+    ],
+  ]);
+});
+
+test("Under Fill process step accepts point-touch gap loops from L-shaped children", () => {
+  const state = ProcessGeometryState.create({ key: "underfill-root" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [0, 0, 0],
+    topRight: [40, 40, 0],
+    thickness: 10,
+  });
+
+  const die = ProcessGeometryState.create({ key: "die" });
+  die.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [0, 0, 2],
+    topRight: [10, 10, 2],
+    thickness: 5,
+    setFootprint: false,
+  });
+  die.addBump({
+    material: "SnAg",
+    density: 80,
+    direction: "-z",
+    geometry: {
+      type: "box",
+      bottomLeft: [1, 1, 0],
+      topRight: [9, 9, 0],
+      thickness: 2,
+    },
+  });
+
+  state.placeGeometryStates(die, [
+    { x: 0, y: 0, bottomZ: state.cursorZ(), anchor: "bottomLeft" },
+    { x: 14, y: 0, bottomZ: state.cursorZ(), anchor: "bottomLeft" },
+    { x: 0, y: 14, bottomZ: state.cursorZ(), anchor: "bottomLeft" },
+  ]);
+
+  executeUnderFill({
+    state,
+    values: {
+      material: "UF-A",
+      thk: 6,
+      gap: 4,
+    },
+    geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
+  });
+
+  const output = state.toGeometryStructure();
+  const gapBody = output.root.children.at(-1).bodies[0];
+
+  assert.equal(output.root.children.length, 4);
+  assert.equal(output.root.children.at(-1).key, "underfill-gap");
+  assert.equal(gapBody.geometry.type, "PolygonGeometry");
+  assert.deepEqual(gapBody.geometry.polys, [
+    [
+      [0, 14, 10],
+      [10, 14, 10],
+      [10, 10, 10],
+      [0, 10, 10],
+    ],
     [
       [10, 10, 10],
       [14, 10, 10],

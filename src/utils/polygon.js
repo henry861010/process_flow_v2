@@ -8,6 +8,23 @@ export class PolygonRegion {
   }
 }
 
+/**
+ * Validate polygon loops for PolygonGeometry.
+ *
+ * API contract:
+ * - Each loop must have at least three unique [x, y, z] points.
+ * - All loops must lie on the same XY plane.
+ * - A single loop may not self-intersect, repeat points, have zero-length
+ *   edges, or have zero signed area.
+ * - Multiple outer loops are allowed, so PolygonGeometry can represent a
+ *   multipolygon.
+ * - Different loops may touch only at a single shared endpoint. This supports
+ *   point-touch multipolygons, such as two rectangles meeting at one corner.
+ * - Different loops may not cross, overlap, share an edge, touch at an edge
+ *   interior point, or form nested loops whose boundaries touch.
+ * - Nested non-touching loops are interpreted by classifyPolygonLoops as holes
+ *   using odd-even containment.
+ */
 export function validatePolygonLoops(polys) {
   const loops = polys.map((poly, index) => normalizeLoop(poly, index));
   if (loops.length === 0) {
@@ -30,12 +47,21 @@ export function validatePolygonLoops(polys) {
   return loops;
 }
 
+/**
+ * Classify valid polygon loops into renderable regions.
+ *
+ * Outer loops are loops at even strict-containment depth. Holes are loops one
+ * strict-containment level deeper than their owning outer loop. Points that lie
+ * exactly on another loop boundary are not counted as inside, so point-touch
+ * outer loops remain separate multipolygon regions instead of being mistaken
+ * for holes.
+ */
 export function classifyPolygonLoops(polys) {
   const loops = validatePolygonLoops(polys);
   const depths = loops.map((loop) => {
     const probe = loop[0];
     return loops.filter(
-      (other) => other !== loop && pointInLoop(probe, other),
+      (other) => other !== loop && pointStrictlyInLoop(probe, other),
     ).length;
   });
 
@@ -127,14 +153,24 @@ function validateLoopBoundariesDoNotCross(loops) {
   loops.forEach((left, leftIndex) => {
     loops.forEach((right, rightIndex) => {
       if (rightIndex <= leftIndex) return;
+      let hasPointTouch = false;
       for (const [a1, a2] of edges(left)) {
         for (const [b1, b2] of edges(right)) {
           if (segmentsIntersect(a1, a2, b1, b2)) {
+            if (segmentsTouchOnlyAtEndpoints(a1, a2, b1, b2)) {
+              hasPointTouch = true;
+              continue;
+            }
             throw new Error(
               `PolygonGeometry loops intersect or touch (loops ${leftIndex} and ${rightIndex})`,
             );
           }
         }
+      }
+      if (hasPointTouch && loopsAreNested(left, right)) {
+        throw new Error(
+          `PolygonGeometry loops intersect or touch (loops ${leftIndex} and ${rightIndex})`,
+        );
       }
     });
   });
@@ -163,6 +199,35 @@ function segmentsIntersect(a1, a2, b1, b2) {
   if (o3 === 0 && onSegment(b1, a1, b2)) return true;
   if (o4 === 0 && onSegment(b1, a2, b2)) return true;
   return false;
+}
+
+function segmentsTouchOnlyAtEndpoints(a1, a2, b1, b2) {
+  const sharedEndpoints = [
+    samePoint2(a1, b1) ? a1 : null,
+    samePoint2(a1, b2) ? a1 : null,
+    samePoint2(a2, b1) ? a2 : null,
+    samePoint2(a2, b2) ? a2 : null,
+  ].filter(Boolean);
+  const uniqueSharedEndpoints = uniquePoints(sharedEndpoints);
+  if (uniqueSharedEndpoints.length !== 1) return false;
+
+  const [touchPoint] = uniqueSharedEndpoints;
+  return ![
+    [a1, b1, b2],
+    [a2, b1, b2],
+    [b1, a1, a2],
+    [b2, a1, a2],
+  ].some(([point, edgeStart, edgeEnd]) => {
+    return !samePoint2(point, touchPoint) &&
+      pointOnSegment(edgeStart, point, edgeEnd);
+  });
+}
+
+function loopsAreNested(left, right) {
+  return (
+    left.some((point) => pointStrictlyInLoop(point, right)) ||
+    right.some((point) => pointStrictlyInLoop(point, left))
+  );
 }
 
 function orientation(a, b, c) {
@@ -208,6 +273,20 @@ function pointInLoop(point, loop) {
   return inside;
 }
 
+function pointStrictlyInLoop(point, loop) {
+  if (pointOnLoopBoundary(point, loop)) return false;
+  return pointInLoop(point, loop);
+}
+
+function pointOnLoopBoundary(point, loop) {
+  let previous = loop[loop.length - 1];
+  for (const current of loop) {
+    if (pointOnSegment(previous, point, current)) return true;
+    previous = current;
+  }
+  return false;
+}
+
 function pointOnSegment(a, b, c) {
   return orientation(a, c, b) === 0 && onSegment(a, b, c);
 }
@@ -226,6 +305,20 @@ function samePoint(left, right) {
     math.fEq(left[1], right[1]) &&
     math.fEq(left[2], right[2])
   );
+}
+
+function samePoint2(left, right) {
+  return math.fEq(left[0], right[0]) && math.fEq(left[1], right[1]);
+}
+
+function uniquePoints(points) {
+  const unique = [];
+  for (const point of points) {
+    if (!unique.some((current) => samePoint2(current, point))) {
+      unique.push(point);
+    }
+  }
+  return unique;
 }
 
 export const validate_polygon_loops = validatePolygonLoops;
