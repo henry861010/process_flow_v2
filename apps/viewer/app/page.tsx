@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Filter,
   GitBranch,
@@ -97,6 +98,7 @@ const emptyHomeData: HomeData = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [homeData, setHomeData] = React.useState<HomeData>(emptyHomeData);
   const [selectedTemplateType, setSelectedTemplateType] =
     React.useState(ALL_TEMPLATE_TYPES);
@@ -120,6 +122,10 @@ export default function Home() {
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
+
+  React.useEffect(() => {
+    router.prefetch("/flow-template-editor");
+  }, [router]);
 
   const stepRows = React.useMemo(() => buildStepInstanceRows(homeData), [homeData]);
 

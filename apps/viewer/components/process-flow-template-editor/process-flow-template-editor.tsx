@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -37,10 +38,7 @@ import { CoordinateListControl } from "@/components/process-flow-fields/coordina
 import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  GeometryPreviewPanel,
-  type GeometryPreviewContext,
-} from "@/components/geometry-preview/geometry-preview-panel";
+import type { GeometryPreviewContext } from "@/components/geometry-preview/geometry-preview-panel";
 import {
   GEOMETRY_ENTITIES_STORAGE_KEY,
   PROCESS_FLOW_INSTANCES_STORAGE_KEY,
@@ -58,6 +56,26 @@ const selectClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 const textareaClass =
   "min-h-[78px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20";
+
+type GeometryPreviewPanelProps = {
+  preview: GeometryPreviewContext;
+  onClose: () => void;
+};
+
+const GeometryPreviewPanel = dynamic<GeometryPreviewPanelProps>(
+  () =>
+    import("@/components/geometry-preview/geometry-preview-panel").then(
+      (module) => module.GeometryPreviewPanel,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/45 p-6 text-sm font-medium text-white">
+        Loading geometry preview...
+      </div>
+    ),
+  },
+);
 
 type FieldScope = "inputState" | "outputState" | "processParameter";
 type ValueType =
