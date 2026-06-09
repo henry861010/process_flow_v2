@@ -1096,6 +1096,18 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     structureFormat: "standard",
     structure: centeredBoxStructure("example-soc", "Si-SoC", 2000, 1600, 70),
   },
+  {
+    id: "geom_example_carrier",
+    category: "initial.test.carrier",
+    name: "carrier",
+    version: "v1.0.0",
+    owner: "demo.example",
+    description: "Simple block placeholder for carrier.",
+    entityType: "carrier",
+    summary: "5000 x 5000 x 70 um SoC block, center at 0,0,0.",
+    structureFormat: "standard",
+    structure: centeredBoxStructure("example-soc", "carrier", 5000, 5000, 70),
+  },
 ];
 
 export function initializeHomeLocalStorage(storage: Storage = window.localStorage) {
