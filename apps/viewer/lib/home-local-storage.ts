@@ -1056,9 +1056,9 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     owner: "demo.example",
     description: "Centered circular wafer geometry for demo flow roots.",
     entityType: "wafer",
-    summary: "Cylinder wafer, center at 0,0,0.",
+    summary: "300000 x 500 um wafer, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredCylinderStructure("example-wafer", "Si", 500, 775),
+    structure: centeredCylinderStructure("example-wafer", "Si", 300000, 500),
   },
   {
     id: "geom_example_panel",
@@ -1068,9 +1068,9 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     owner: "demo.example",
     description: "Centered square panel geometry for demo flow roots.",
     entityType: "panel",
-    summary: "10000 x 10000 x 500 um panel, center at 0,0,0.",
+    summary: "310000 x 310000 x 500 um panel, center at 0,0,0.",
     structureFormat: "standard",
-    structure: centeredBoxStructure("example-panel", "glass", 500, 500, 500),
+    structure: centeredBoxStructure("example-panel", "glass", 310000, 310000, 500),
   },
   {
     id: "geom_example_hbm",
