@@ -25,6 +25,7 @@ export type GeometryEntityDownload = {
 export type GeometryPreviewResponse = {
   geometryEntityJson: GeometryEntityDownload;
   glbBase64: string;
+  stepBase64: string;
 };
 
 export async function requestGeometryPreview(
@@ -52,6 +53,7 @@ export async function requestGeometryPreview(
   if (
     !payload ||
     typeof payload.glbBase64 !== "string" ||
+    typeof payload.stepBase64 !== "string" ||
     typeof payload.geometryEntityJson !== "object"
   ) {
     throw new Error("Geometry preview response is malformed.");

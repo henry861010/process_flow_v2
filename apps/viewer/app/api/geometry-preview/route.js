@@ -36,7 +36,7 @@ export async function POST(request) {
       previewTarget: normalized.target,
     });
     const geometryStructure = preview.geometryStructure;
-    const glbBytes = await enqueueGeometryToGlb(geometryStructure);
+    const previewExports = await enqueueGeometryPreviewExport(geometryStructure);
     const geometryEntityJson = buildGeometryEntityDownload({
       geometryStructure,
       previewId: previewIdForTarget(normalized.target),
@@ -47,7 +47,8 @@ export async function POST(request) {
 
     return Response.json({
       geometryEntityJson,
-      glbBase64: Buffer.from(glbBytes).toString("base64"),
+      glbBase64: Buffer.from(previewExports.glbBytes).toString("base64"),
+      stepBase64: Buffer.from(previewExports.stepBytes).toString("base64"),
     });
   } catch (error) {
     const message =
@@ -56,7 +57,7 @@ export async function POST(request) {
   }
 }
 
-function enqueueGeometryToGlb(geometryStructure) {
+function enqueueGeometryPreviewExport(geometryStructure) {
   return new Promise((resolve, reject) => {
     pendingGeometryPreviewExports.push({ geometryStructure, resolve, reject });
     drainGeometryPreviewExportQueue();
@@ -73,7 +74,7 @@ function drainGeometryPreviewExportQueue() {
     const job = pendingGeometryPreviewExports.shift();
     activeGeometryPreviewExports += 1;
 
-    geometryToGlb(job.geometryStructure)
+    geometryToPreviewExports(job.geometryStructure)
       .then(job.resolve, job.reject)
       .finally(() => {
         activeGeometryPreviewExports -= 1;
@@ -82,21 +83,26 @@ function drainGeometryPreviewExportQueue() {
   }
 }
 
-async function geometryToGlb(geometryStructure) {
+async function geometryToPreviewExports(geometryStructure) {
   const workDir = await mkdtemp(join(tmpdir(), "process-flow-preview-"));
   const inputPath = join(workDir, "geometry-structure.json");
-  const outputPath = join(workDir, "preview.glb");
+  const outputGlbPath = join(workDir, "preview.glb");
+  const outputStepPath = join(workDir, "preview.step");
 
   try {
     await writeFile(inputPath, JSON.stringify(geometryStructure), "utf8");
-    await runGeometryExportWorker({ inputPath, outputPath });
-    return await readFile(outputPath);
+    await runGeometryExportWorker({ inputPath, outputGlbPath, outputStepPath });
+    const [glbBytes, stepBytes] = await Promise.all([
+      readFile(outputGlbPath),
+      readFile(outputStepPath),
+    ]);
+    return { glbBytes, stepBytes };
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }
 }
 
-function runGeometryExportWorker({ inputPath, outputPath }) {
+function runGeometryExportWorker({ inputPath, outputGlbPath, outputStepPath }) {
   const workerPath = join(process.cwd(), "scripts/geometry-to-glb-worker.mjs");
   const exporterPath = join(process.cwd(), "../../src/exporters/cad.js");
   const timeoutMs = exportTimeoutMs();
@@ -104,7 +110,7 @@ function runGeometryExportWorker({ inputPath, outputPath }) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [workerPath, inputPath, outputPath, exporterPath],
+      [workerPath, inputPath, outputGlbPath, outputStepPath, exporterPath],
       {
         cwd: process.cwd(),
         env: process.env,
@@ -142,7 +148,7 @@ function runGeometryExportWorker({ inputPath, outputPath }) {
         if (timedOut) {
           reject(
             new Error(
-              `Geometry preview GLB export timed out after ${timeoutMs}ms.`,
+              `Geometry preview CAD export timed out after ${timeoutMs}ms.`,
             ),
           );
           return;
@@ -192,9 +198,9 @@ function workerFailureError({ code, signal, stderr, stdout }) {
   const reason = signal ? `signal ${signal}` : `exit code ${code}`;
   const details = (stderr || stdout).trim();
   if (!details) {
-    return new Error(`Geometry preview GLB export failed with ${reason}.`);
+    return new Error(`Geometry preview CAD export failed with ${reason}.`);
   }
-  return new Error(`Geometry preview GLB export failed with ${reason}: ${details}`);
+  return new Error(`Geometry preview CAD export failed with ${reason}: ${details}`);
 }
 
 function normalizePreviewRequest(payload) {

@@ -2,7 +2,7 @@
 
 ## Geometry preview child process flow
 
-本紀錄說明 geometry preview 從前端發出 request、後端執行 preview、child process 匯出 GLB，到回傳前端的完整技術路徑。
+本紀錄說明 geometry preview 從前端發出 request、後端執行 preview、child process 匯出 GLB 與 STEP AP242，到回傳前端的完整技術路徑。
 
 ### Request path
 
@@ -12,41 +12,42 @@
 4. API route 建立 in-memory repositories，並呼叫 `GeometryKernel.executePreview()`。
 5. Kernel 回傳 preview `geometryStructure`，以及 `sourceKind`、`outputStepRefId` 等 preview context。
 6. API route 在 Next.js 主程序中組出下載用的 `geometryEntityJson`。
-7. 只有最重的 `geometryStructure -> GLB` 匯出會交給 child process 執行。
-8. API route 讀回 child process 產生的 GLB，轉成 base64，最後回傳 `{ geometryEntityJson, glbBase64 }` 給前端。
+7. 只有最重的 `geometryStructure -> GLB / STEP AP242` 匯出會交給 child process 執行。
+8. API route 讀回 child process 產生的 GLB 與 STEP，轉成 base64，最後回傳 `{ geometryEntityJson, glbBase64, stepBase64 }` 給前端。
 
 ### Child process export design
 
-`geometryToGlb()` 會在 OS temp folder 建立一次性的工作目錄，將 preview geometry structure 寫入 `geometry-structure.json`，然後啟動：
+`geometryToPreviewExports()` 會在 OS temp folder 建立一次性的工作目錄，將 preview geometry structure 寫入 `geometry-structure.json`，然後啟動：
 
 ```txt
-node apps/viewer/scripts/geometry-to-glb-worker.mjs <input-json> <output-glb> <cad-exporter-js>
+node apps/viewer/scripts/geometry-to-glb-worker.mjs <input-json> <output-glb> <output-step> <cad-exporter-js>
 ```
 
-Worker 的責任很窄，只做 GLB export：
+Worker 的責任很窄，只做 preview CAD exports：
 
 1. 讀取 `<input-json>`。
 2. import `src/exporters/cad.js`。
 3. 呼叫 `convertCad(geometryStructure, { formats: ["glb"] })`。
-4. 將產生的 GLB 寫到 `<output-glb>`。
-5. 結束 process。
+4. 使用同一個 OpenCascade instance 匯出 `formats: ["step"]`，並以 `includeFeatureBodies: true` 與 `stepSchema: "AP242"` 產生 STEP AP242。
+5. 將產生的 GLB 寫到 `<output-glb>`，STEP 寫到 `<output-step>`。
+6. 結束 process。
 
-Parent route 等 worker 結束後讀取 `preview.glb`，接著刪除 temp directory。這讓 request 過程不需要把大型 binary 透過 stdout 傳回，也避免 stdout buffer 成為另一個不穩定因素。
+Parent route 等 worker 結束後讀取 `preview.glb` 與 `preview.step`，接著刪除 temp directory。這讓 request 過程不需要把大型 binary 透過 stdout 傳回，也避免 stdout buffer 成為另一個不穩定因素。
 
 ### Why use child process
 
-OpenCascade.js 在 GLB export 時會載入大型 WebAssembly CAD kernel。若這段工作直接跑在 `next dev` 的 Node process 中，連續 preview 可能讓 V8/WASM 記憶體壓力累積在同一個長生命週期 process 裡。
+OpenCascade.js 在 GLB / STEP export 時會載入大型 WebAssembly CAD kernel。若這段工作直接跑在 `next dev` 的 Node process 中，連續 preview 可能讓 V8/WASM 記憶體壓力累積在同一個長生命週期 process 裡。
 
 Child process 的重點是隔離記憶體生命週期：
 
 - Next.js 主程序負責 request validation、kernel preview、response assembly。
-- Child process 負責 OpenCascade.js / WASM / GLB export。
+- Child process 負責 OpenCascade.js / WASM / GLB 與 STEP AP242 export。
 - Worker 結束後，作業系統會回收整個 worker process 的 WASM 記憶體。
 - 即使 worker 內部發生 OpenCascade OOM 或 Node fatal error，Next.js 主程序仍可存活並回傳錯誤。
 
 ### Concurrency, timeout, and failure behavior
 
-API route 保留 module-level preview export limiter。Limiter 會記錄目前正在執行的 GLB worker 數量，以及等待中的 preview export jobs。
+API route 保留 module-level preview export limiter。Limiter 會記錄目前正在執行的 CAD export worker 數量，以及等待中的 preview export jobs。
 
 Worker concurrency 由 `GEOMETRY_PREVIEW_EXPORT_CONCURRENCY` 控制，預設是 `1`。如果 env var 缺失、不是正整數、或小於 `1`，會回到預設值 `1`。
 
@@ -71,5 +72,5 @@ Parent 會收集 worker 的 `stderr` 與 `stdout`，但有大小上限，避免 
 ### Files
 
 - `apps/viewer/app/api/geometry-preview/route.js`: request validation、kernel preview execution、export queue、child process orchestration、response assembly。
-- `apps/viewer/scripts/geometry-to-glb-worker.mjs`: isolated OpenCascade GLB export worker。
+- `apps/viewer/scripts/geometry-to-glb-worker.mjs`: isolated OpenCascade GLB / STEP AP242 export worker。
 - `src/exporters/cad.js`: worker 共用的 CAD conversion implementation。

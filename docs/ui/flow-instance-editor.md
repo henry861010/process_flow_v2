@@ -330,13 +330,13 @@ Picker 行為：
 - 開啟共用 `GeometryPreviewPanel` 全螢幕 overlay。
 - Preview request 送到 `POST /api/geometry-preview`，由 kernel preview path 回傳
   `geometryStructure: GeometryStructure`。
-- API response 回傳 `{ geometryEntityJson, glbBase64 }`。`geometryEntityJson`
+- API response 回傳 `{ geometryEntityJson, glbBase64, stepBase64 }`。`geometryEntityJson`
   是下載用的 `GeometryEntityDownload`，其中 `structure` 才是該 preview 的
   `GeometryStructure`。
 - Header 顯示 `Geometry Preview`、狀態 badge (`Loading` / `Ready` / `Error`)、source kind badge (`Initial geometry` 或 `Step output`) 與 `${sourceLabel} -> ${slotLabel}`。
 - Loading 時顯示 `Generating geometry preview...`。
 - Ready 時左側顯示 3D CAD viewer，右側顯示 Section、Measure、View、Model controls。
-- Footer 顯示 `Save JSON` 與 `Save GLB`；ready 前 disabled。
+- Footer 顯示 `Save JSON`、`Save GLB` 與 `Save STEP AP242`；ready 前 disabled。
 - 支援 close button、點擊遮罩與 Escape 關閉。
 
 Preview availability：

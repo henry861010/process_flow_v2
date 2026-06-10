@@ -20,6 +20,7 @@ import {
   CadExportError,
   OpenCascadeConverter,
   convertCad,
+  featureMaterialName,
   materialColorHex,
 } from "../exporters/cad.js";
 import {
@@ -814,6 +815,75 @@ test("CAD converter manifest preserves via and bump directions", () => {
       ["bump", "-z"],
     ],
   );
+});
+
+test("CAD feature material names encode type material and density", () => {
+  assert.equal(featureMaterialName("via", "Cu", 0.4), "via_Cu_0p4");
+  assert.equal(featureMaterialName("bump", "Sn Ag", 0.8), "bump_Sn_Ag_0p8");
+  assert.equal(
+    featureMaterialName("circuit", "Cu/Ni alloy", "45%"),
+    "circuit_Cu_Ni_alloy_45",
+  );
+});
+
+test("CAD converter exports AP242 STEP with feature body priority", async () => {
+  const converter = await OpenCascadeConverter.create({
+    formats: ["step"],
+    includeFeatureBodies: true,
+    stepSchema: "AP242",
+  });
+  const result = converter.convert({
+    key: "root",
+    bodies: [
+      {
+        geometry: {
+          type: "BoxGeometry",
+          bottom_left: [0, 0, 0],
+          top_right: [1, 1, 0],
+          thk: 1,
+        },
+        material: "mold",
+      },
+    ],
+    circuits: [
+      {
+        geometry: {
+          type: "BoxGeometry",
+          bottom_left: [0, 0, 0],
+          top_right: [1, 1, 0],
+          thk: 1,
+        },
+        material: "Cu",
+        density: 0.4,
+      },
+    ],
+    children: [],
+  });
+  const visibleMaterials = result.bodies
+    .filter(
+      (body) =>
+        !converter._isEmptyShape(body.shape) &&
+        converter._shapeVolume(body.shape) > converter.options.volumeTolerance,
+    )
+    .map((body) => body.material);
+
+  assert.match(
+    result.files.step,
+    /AP242_MANAGED_MODEL_BASED_3D_ENGINEERING/i,
+  );
+  assert.match(result.files.step, /MANIFOLD_SOLID_BREP/);
+  assert.match(result.files.step, /circuit_Cu_0p4/);
+  assert.deepEqual(visibleMaterials, ["circuit_Cu_0p4"]);
+  assert.ok(
+    result.manifest.bodies.some(
+      (body) =>
+        body.bodyKind === "feature" &&
+        body.featureType === "circuit" &&
+        body.material === "circuit_Cu_0p4" &&
+        body.density === 0.4,
+    ),
+  );
+  assert.equal(result.manifest.features.length, 0);
 });
 
 test("CAD converter writes GLB colors from body materials", async () => {

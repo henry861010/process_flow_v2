@@ -55,6 +55,8 @@ export class CadExportOptions {
     formats = ["step", "glb"],
     writeManifest = true,
     includeFeaturePlaceholders = true,
+    includeFeatureBodies = false,
+    stepSchema = "AP242",
     volumeTolerance = 1e-6,
     linearDeflection = 0.1,
     angularDeflection = 0.1,
@@ -64,6 +66,8 @@ export class CadExportOptions {
     this.formats = formats;
     this.writeManifest = writeManifest;
     this.includeFeaturePlaceholders = includeFeaturePlaceholders;
+    this.includeFeatureBodies = includeFeatureBodies;
+    this.stepSchema = stepSchema;
     this.volumeTolerance = volumeTolerance;
     this.linearDeflection = linearDeflection;
     this.angularDeflection = angularDeflection;
@@ -80,6 +84,9 @@ export class CadBody {
     containerKey,
     material,
     shape,
+    bodyKind = "body",
+    featureType = null,
+    density = null,
   }) {
     this.id = id;
     this.sourceIds = sourceIds;
@@ -87,6 +94,9 @@ export class CadBody {
     this.containerKey = containerKey;
     this.material = material;
     this.shape = shape;
+    this.bodyKind = bodyKind;
+    this.featureType = featureType;
+    this.density = density;
   }
 }
 
@@ -182,7 +192,25 @@ export class OpenCascadeConverter {
     let directBodies = container.bodies.map((body) =>
       this._bodyToCad(container, body),
     );
+    let directFeatureBodies = this.options.includeFeatureBodies
+      ? this._containerFeaturesToCad(container)
+      : [];
+
+    directFeatureBodies = this._resolveSiblingBodies(container, directFeatureBodies);
+
+    const featureCutTool = this._unionShapes(
+      directFeatureBodies.map((body) => body.shape),
+    );
+    if (featureCutTool !== null) {
+      directBodies.forEach((body) => {
+        if (this._hasOverlap(body.shape, featureCutTool)) {
+          body.shape = this._cut(body.shape, featureCutTool);
+        }
+      });
+    }
+
     directBodies = this._resolveSiblingBodies(container, directBodies);
+    const directSolids = [...directBodies, ...directFeatureBodies];
 
     const descendantBodies = [];
     for (const child of container.children) {
@@ -191,14 +219,14 @@ export class OpenCascadeConverter {
 
     const cutTool = this._unionShapes(descendantBodies.map((body) => body.shape));
     if (cutTool !== null) {
-      directBodies.forEach((body) => {
+      directSolids.forEach((body) => {
         if (this._hasOverlap(body.shape, cutTool)) {
           body.shape = this._cut(body.shape, cutTool);
         }
       });
     }
 
-    return [...directBodies, ...descendantBodies];
+    return [...directSolids, ...descendantBodies];
   }
 
   _bodyToCad(container, body) {
@@ -209,6 +237,38 @@ export class OpenCascadeConverter {
       containerKey: container.key ?? "",
       material: body.material,
       shape: this._geometryToShape(body.geometry),
+    });
+  }
+
+  _containerFeaturesToCad(container) {
+    return [
+      ...container.vias.map((feature) =>
+        this._featureToCad(container, "via", feature),
+      ),
+      ...container.circuits.map((feature) =>
+        this._featureToCad(container, "circuit", feature),
+      ),
+      ...container.bumps.map((feature) =>
+        this._featureToCad(container, "bump", feature),
+      ),
+    ];
+  }
+
+  _featureToCad(container, featureType, feature) {
+    return new CadBody({
+      id: stableId("feature-body", [container.id, featureType, feature.id]),
+      sourceIds: [feature.id],
+      containerId: container.id,
+      containerKey: container.key ?? "",
+      material: featureMaterialName(
+        featureType,
+        feature.material,
+        feature.density,
+      ),
+      shape: this._geometryToShape(feature.geometry),
+      bodyKind: "feature",
+      featureType,
+      density: feature.density,
     });
   }
 
@@ -403,8 +463,30 @@ export class OpenCascadeConverter {
 
   _exportStep(bodies, structure) {
     const filename = this._virtualFileName("export.step");
-    const writer = new this.oc.STEPControl_Writer_1();
+    this._initializeStepControllers();
+    this._setStepSchema(this.options.stepSchema);
     this._setStepUnit(structure.unitSystem);
+
+    if (this.oc.STEPCAFControl_Writer_1 && this.oc.XCAFDoc_DocumentTool) {
+      const doc = this._documentFromBodies(bodies, { includeMaterials: true });
+      const writer = new this.oc.STEPCAFControl_Writer_1();
+      writer.SetNameMode?.(true);
+      writer.SetColorMode?.(true);
+      writer.SetMaterialMode?.(true);
+      writer.SetPropsMode?.(true);
+
+      const exported = writer.Perform_2(
+        new this.oc.Handle_TDocStd_Document_2(doc),
+        filename,
+        new this.oc.Message_ProgressRange_1(),
+      );
+      if (exported === false) {
+        throw new CadExportError("STEP AP242 export failed.");
+      }
+      return this._readVirtualFile(filename, "utf8");
+    }
+
+    const writer = new this.oc.STEPControl_Writer_1();
     bodies.forEach((body) => {
       writer.Transfer(
         body.shape,
@@ -414,12 +496,7 @@ export class OpenCascadeConverter {
       );
     });
     const status = writer.Write(filename);
-    if (status !== undefined && this.oc.IFSelect_ReturnStatus) {
-      const done = this.oc.IFSelect_ReturnStatus.IFSelect_RetDone;
-      if (done !== undefined && status !== done) {
-        throw new CadExportError(`STEP export failed with status ${status}`);
-      }
-    }
+    this._raiseOnExportStatus(status, "STEP");
     return this._readVirtualFile(filename, "utf8");
   }
 
@@ -472,12 +549,16 @@ export class OpenCascadeConverter {
     return compound;
   }
 
-  _documentFromBodies(bodies) {
+  _documentFromBodies(bodies, { includeMaterials = false } = {}) {
     const doc = new this.oc.TDocStd_Document(
       new this.oc.TCollection_ExtendedString_1(),
     );
     const shapeTool = this.oc.XCAFDoc_DocumentTool.ShapeTool(doc.Main()).get();
     const colorTool = this.oc.XCAFDoc_DocumentTool.ColorTool?.(doc.Main())?.get?.();
+    const materialTool = includeMaterials
+      ? this.oc.XCAFDoc_DocumentTool.MaterialTool?.(doc.Main())?.get?.()
+      : null;
+    const materialLabels = new Map();
 
     bodies.forEach((body, index) => {
       new this.oc.BRepMesh_IncrementalMesh_2(
@@ -487,15 +568,28 @@ export class OpenCascadeConverter {
         this.options.angularDeflection,
         false,
       );
-      const label = shapeTool.NewShape();
-      shapeTool.SetShape(label, body.shape);
-      this._setBodyLabelMetadata(label, body, index, colorTool);
+      const label = shapeTool.AddShape(body.shape, false, false);
+      this._setBodyLabelMetadata(
+        label,
+        body,
+        index,
+        colorTool,
+        materialTool,
+        materialLabels,
+      );
     });
 
     return doc;
   }
 
-  _setBodyLabelMetadata(label, body, index, colorTool) {
+  _setBodyLabelMetadata(
+    label,
+    body,
+    index,
+    colorTool,
+    materialTool = null,
+    materialLabels = new Map(),
+  ) {
     const material = normalizeMaterialName(body.material);
     if (this.oc.TDataStd_Name?.Set_1) {
       this.oc.TDataStd_Name.Set_1(
@@ -507,17 +601,32 @@ export class OpenCascadeConverter {
       );
     }
 
-    if (!colorTool?.SetColor_2) return;
+    if (colorTool?.SetColor_2) {
+      const color = this._quantityColor(materialColorHex(material));
+      [
+        this.oc.XCAFDoc_ColorType?.XCAFDoc_ColorGen,
+        this.oc.XCAFDoc_ColorType?.XCAFDoc_ColorSurf,
+      ]
+        .filter((colorType) => colorType !== undefined)
+        .forEach((colorType) => {
+          colorTool.SetColor_2(label, color, colorType);
+        });
+    }
 
-    const color = this._quantityColor(materialColorHex(material));
-    [
-      this.oc.XCAFDoc_ColorType?.XCAFDoc_ColorGen,
-      this.oc.XCAFDoc_ColorType?.XCAFDoc_ColorSurf,
-    ]
-      .filter((colorType) => colorType !== undefined)
-      .forEach((colorType) => {
-        colorTool.SetColor_2(label, color, colorType);
-      });
+    if (!materialTool?.AddMaterial || !materialTool?.SetMaterial_1) return;
+
+    let materialLabel = materialLabels.get(material);
+    if (!materialLabel) {
+      materialLabel = materialTool.AddMaterial(
+        this._hAscii(material),
+        this._hAscii(bodyMaterialDescription(body)),
+        materialDensityValue(body),
+        this._hAscii(body.density === null ? "" : "density"),
+        this._hAscii(body.density === null ? "" : "feature-density"),
+      );
+      materialLabels.set(material, materialLabel);
+    }
+    materialTool.SetMaterial_1(label, materialLabel);
   }
 
   _quantityColor(hex) {
@@ -542,11 +651,17 @@ export class OpenCascadeConverter {
         containerId: body.containerId,
         containerKey: body.containerKey,
         material: body.material,
+        bodyKind: body.bodyKind,
+        featureType: body.featureType,
+        density: body.density,
       })),
       features: [],
     };
 
-    if (this.options.includeFeaturePlaceholders) {
+    if (
+      this.options.includeFeaturePlaceholders &&
+      !this.options.includeFeatureBodies
+    ) {
       this._appendFeaturePlaceholders(structure.root, manifest);
     }
 
@@ -578,7 +693,10 @@ export class OpenCascadeConverter {
   }
 
   _unionShapes(shapes) {
-    const filtered = shapes.filter((shape) => shape !== null && shape !== undefined);
+    const filtered = shapes.filter(
+      (shape) =>
+        shape !== null && shape !== undefined && !this._isEmptyShape(shape),
+    );
     if (filtered.length === 0) return null;
 
     let result = filtered[0];
@@ -589,6 +707,7 @@ export class OpenCascadeConverter {
   }
 
   _hasOverlap(left, right) {
+    if (this._isEmptyShape(left) || this._isEmptyShape(right)) return false;
     if (!this._boundingBoxesOverlap(left, right)) return false;
     const common = this._common(left, right);
     return this._shapeVolume(common) > this.options.volumeTolerance;
@@ -695,6 +814,20 @@ export class OpenCascadeConverter {
     );
   }
 
+  _initializeStepControllers() {
+    this.oc.STEPControl_Controller?.Init?.();
+    this.oc.STEPCAFControl_Controller?.Init?.();
+  }
+
+  _setStepSchema(schema) {
+    if (!schema || !this.oc.Interface_Static?.SetCVal) return;
+    const stepSchema = stepSchemaValue(schema);
+    const ok = this.oc.Interface_Static.SetCVal("write.step.schema", stepSchema);
+    if (ok === false) {
+      throw new CadExportError(`Unsupported STEP schema: ${schema}`);
+    }
+  }
+
   _setStepUnit(unitSystem) {
     if (!this.oc.Interface_Static?.SetCVal) return;
     const stepUnit = this._stepUnit(unitSystem);
@@ -733,6 +866,20 @@ export class OpenCascadeConverter {
       // Best-effort cleanup.
     }
     return file;
+  }
+
+  _raiseOnExportStatus(status, label) {
+    if (status === undefined || !this.oc.IFSelect_ReturnStatus) return;
+    const done = this.oc.IFSelect_ReturnStatus.IFSelect_RetDone;
+    if (done !== undefined && status !== done) {
+      throw new CadExportError(`${label} export failed with status ${status}`);
+    }
+  }
+
+  _hAscii(value) {
+    return new this.oc.Handle_TCollection_HAsciiString_2(
+      new this.oc.TCollection_HAsciiString_2(String(value)),
+    );
   }
 }
 
@@ -810,6 +957,14 @@ export function materialColorHex(material) {
   return MATERIAL_FALLBACK_COLORS[index];
 }
 
+export function featureMaterialName(featureType, material, density) {
+  return [
+    sanitizeMaterialToken(featureType),
+    sanitizeMaterialToken(normalizeMaterialName(material)),
+    sanitizeDensityToken(density),
+  ].join("_");
+}
+
 function bodyLabelName(body, index) {
   const material = normalizeMaterialName(body.material);
   return `${material} body ${index + 1}`;
@@ -818,6 +973,42 @@ function bodyLabelName(body, index) {
 function normalizeMaterialName(material) {
   const value = material === null || material === undefined ? "" : String(material);
   return value.trim() || "generic";
+}
+
+function bodyMaterialDescription(body) {
+  if (body.bodyKind === "feature" && body.featureType) {
+    return `${body.featureType} density feature`;
+  }
+  return "process flow body material";
+}
+
+function materialDensityValue(body) {
+  if (body.density === null || body.density === undefined) return 0;
+  const value = Number(body.density);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function stepSchemaValue(schema) {
+  const normalized = String(schema).trim().toUpperCase();
+  if (normalized === "AP242") return "AP242DIS";
+  return normalized;
+}
+
+function sanitizeDensityToken(density) {
+  if (density === null || density === undefined || density === "") {
+    return "unknown";
+  }
+  const numeric = Number(density);
+  const raw = Number.isFinite(numeric) ? String(numeric) : String(density).trim();
+  return sanitizeMaterialToken(raw.replace(/-/g, "minus").replace(/\./g, "p"));
+}
+
+function sanitizeMaterialToken(value) {
+  const token = String(value)
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return token || "generic";
 }
 
 function materialMatches(material, token) {

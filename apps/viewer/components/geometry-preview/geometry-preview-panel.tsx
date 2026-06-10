@@ -63,6 +63,7 @@ type PanelState =
       status: "ready";
       geometryEntityJson: GeometryEntityDownload;
       glbBlob: Blob;
+      stepBlob: Blob;
     }
   | { status: "error"; message: string };
 
@@ -95,6 +96,7 @@ export function GeometryPreviewPanel({
           status: "ready",
           geometryEntityJson: response.geometryEntityJson,
           glbBlob: base64ToBlob(response.glbBase64, "model/gltf-binary"),
+          stepBlob: base64ToBlob(response.stepBase64, "application/step"),
         });
       })
       .catch((error) => {
@@ -128,6 +130,11 @@ export function GeometryPreviewPanel({
   function saveGlb() {
     if (state.status !== "ready") return;
     downloadBlob(state.glbBlob, `geometry-preview-${preview.previewId}.glb`);
+  }
+
+  function saveStep() {
+    if (state.status !== "ready") return;
+    downloadBlob(state.stepBlob, `geometry-preview-${preview.previewId}.step`);
   }
 
   return (
@@ -188,9 +195,13 @@ export function GeometryPreviewPanel({
             <FileJson />
             Save JSON
           </Button>
-          <Button disabled={!ready} onClick={saveGlb}>
+          <Button variant="outline" disabled={!ready} onClick={saveGlb}>
             <Download />
             Save GLB
+          </Button>
+          <Button disabled={!ready} onClick={saveStep}>
+            <Download />
+            Save STEP AP242
           </Button>
         </footer>
       </section>

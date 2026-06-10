@@ -924,7 +924,8 @@ Geometry preview panel：
   - Model stats 顯示 meshes、materials、vertices、triangles、bounds。
 - Footer buttons：
   - `Save JSON` outline，ready 前 disabled。
-  - `Save GLB` primary，ready 前 disabled。
+  - `Save GLB` outline，ready 前 disabled。
+  - `Save STEP AP242` primary，ready 前 disabled。
 
 ### Rebuild checklist
 

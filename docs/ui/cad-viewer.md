@@ -254,7 +254,7 @@ Panel structure：
 | --- | --- |
 | Header | `Geometry Preview`、status badges、source-to-slot context、close button。 |
 | Body | Shared 3D scene 與 preview-specific right panel。 |
-| Footer | `Save JSON` 與 `Save GLB` actions。 |
+| Footer | `Save JSON`、`Save GLB` 與 `Save STEP AP242` actions。 |
 
 Header badges：
 
@@ -277,7 +277,8 @@ Ready state：
 
 - Generated GLB 被載入 shared scene。
 - Generated geometry JSON 保留在 memory 中供 download。
-- `Save JSON` 與 `Save GLB` enabled。
+- Generated STEP AP242 保留在 memory 中供 download。
+- `Save JSON`、`Save GLB` 與 `Save STEP AP242` enabled。
 
 ### 6.2 Preview Layout
 
@@ -555,6 +556,6 @@ Viewer does not support：
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay shell、preview CAD workbench、download actions、section controls、axis view 與 feature overlay settings。 |
 | `apps/viewer/components/geometry-preview/geometry-feature-overlay.tsx` | Geometry JSON feature extraction、summaries、feature envelopes、hatches 與 instanced density glyphs。 |
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | `/api/geometry-preview` client helper。 |
-| `apps/viewer/app/api/geometry-preview/route.js` | Server-side preview execution 與 GLB export。 |
+| `apps/viewer/app/api/geometry-preview/route.js` | Server-side preview execution 與 GLB / STEP AP242 export。 |
 | `apps/viewer/components/ui/*` | Shared UI primitives。 |
 | `apps/viewer/app/globals.css` | Tailwind base styles 與 viewer surface styling。 |
