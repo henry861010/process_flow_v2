@@ -14,7 +14,7 @@ export function execute({ state, values, geometryState }) {
 
   layers.forEach((layer, index) => {
     const layerNumber = index + 1;
-    if (layerNumber % 2 === 1) {
+    if (layerNumber % 2 === 0) {
       mainState.addCircuitAtCursor({
         material: layer.conductivity,
         density: layer.density,

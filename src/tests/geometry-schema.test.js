@@ -886,6 +886,33 @@ test("CAD converter exports AP242 STEP with feature body priority", async () => 
   assert.equal(result.manifest.features.length, 0);
 });
 
+test("CAD converter exports AP242 STEP for RDL feature stacks", async () => {
+  const converter = await OpenCascadeConverter.create({
+    formats: ["step"],
+    includeFeatureBodies: true,
+    stepSchema: "AP242",
+  });
+  const result = converter.convert(rdlFeatureStackGeometry());
+  const visibleMaterials = result.bodies
+    .filter(
+      (body) =>
+        !converter._isEmptyShape(body.shape) &&
+        converter._shapeVolume(body.shape) > converter.options.volumeTolerance,
+    )
+    .map((body) => body.material);
+
+  assert.match(
+    result.files.step,
+    /AP242_MANAGED_MODEL_BASED_3D_ENGINEERING/i,
+  );
+  assert.deepEqual(visibleMaterials, [
+    "carrier",
+    "via_Cu_60",
+    "circuit_Cu_45",
+    "circuit_Cu_Ni_75",
+  ]);
+});
+
 test("CAD converter writes GLB colors from body materials", async () => {
   const result = await convertCad(
     {
@@ -2536,6 +2563,91 @@ function kernelInputGeometry() {
       ],
       vias: [],
       circuits: [],
+      bumps: [],
+      children: [],
+    },
+  };
+}
+
+function rdlFeatureStackGeometry() {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key: "rdl-stack",
+      bodies: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 0],
+            top_right: [50, 50, 0],
+            thk: 10,
+          },
+          material: "carrier",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 10],
+            top_right: [50, 50, 10],
+            thk: 2,
+          },
+          material: "PI-1",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 12],
+            top_right: [50, 50, 12],
+            thk: 3,
+          },
+          material: "PI-2",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 15],
+            top_right: [50, 50, 15],
+            thk: 4,
+          },
+          material: "PI-3",
+        },
+      ],
+      vias: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 12],
+            top_right: [50, 50, 12],
+            thk: 3,
+          },
+          material: "Cu",
+          density: 60,
+          direction: "-z",
+        },
+      ],
+      circuits: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 10],
+            top_right: [50, 50, 10],
+            thk: 2,
+          },
+          material: "Cu",
+          density: 45,
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 15],
+            top_right: [50, 50, 15],
+            thk: 4,
+          },
+          material: "Cu-Ni",
+          density: 75,
+        },
+      ],
       bumps: [],
       children: [],
     },

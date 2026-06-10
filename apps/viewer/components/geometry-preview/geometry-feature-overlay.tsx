@@ -389,6 +389,7 @@ function CircuitHatchOverlay({
       color: FEATURE_COLORS.circuit,
       transparent: true,
       opacity: clamp(settings.opacity + 0.18, 0.18, 0.9),
+      depthTest: false,
       depthWrite: false,
     });
     const object = new THREE.LineSegments(geometry, material);
@@ -427,6 +428,7 @@ function InstancedFeatureGlyphs({
       color: FEATURE_COLORS[kind],
       transparent: true,
       opacity: clamp(settings.opacity + 0.18, 0.18, 0.92),
+      depthTest: kind === "circuit" ? false : true,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -559,6 +561,8 @@ function createFeatureSamples(
   );
   const glyphRadius = baseRadius * settings.glyphSizeScale * (0.65 + density * 0.45);
   const height = Math.max(featureSize[2], glyphRadius * 1.2);
+  const circuitDepth = circuitGlyphDepth(featureSize[2], glyphRadius);
+  const circuitScale = circuitGlyphScale(featureSize, grid, glyphRadius, circuitDepth);
   const bumpRadius = Math.max(glyphRadius, featureSize[2] / 2);
 
   return positions.map(({ x, y, z }, index) => {
@@ -572,7 +576,7 @@ function createFeatureSamples(
       feature.type === "via"
         ? new THREE.Vector3(glyphRadius, height, glyphRadius)
         : feature.type === "circuit"
-          ? new THREE.Vector3(glyphRadius * 4.2, glyphRadius * 0.72, Math.max(height * 0.22, glyphRadius * 0.2))
+          ? circuitScale
           : new THREE.Vector3(bumpRadius, bumpRadius, bumpRadius);
 
     return {
@@ -612,12 +616,9 @@ function sampleFeatureFootprint(
   yCount: number,
   limit: number,
 ) {
-  const { min, max, center, size } = feature.bounds;
+  const { min, max, center } = feature.bounds;
   const samples: { x: number; y: number; z: number }[] = [];
-  const z =
-    feature.type === "circuit"
-      ? max[2] + Math.max(size[2] * 0.035, 0.001)
-      : center[2];
+  const z = center[2];
 
   for (let yi = 0; yi < yCount; yi += 1) {
     for (let xi = 0; xi < xCount; xi += 1) {
@@ -655,7 +656,12 @@ function pointInsideFeatureFootprint(feature: PreviewFeature, x: number, y: numb
   if (geometry.type === "polygon") {
     return pointInsidePolygonLoops(x, y, geometry.loops);
   }
-  return true;
+  return (
+    x >= feature.bounds.min[0] &&
+    x <= feature.bounds.max[0] &&
+    y >= feature.bounds.min[1] &&
+    y <= feature.bounds.max[1]
+  );
 }
 
 function createCircuitHatchPoints(
@@ -667,7 +673,7 @@ function createCircuitHatchPoints(
   const sceneMaxXY = Math.max(bounds.size[0], bounds.size[1], 1);
   const pitch = sceneMaxXY / (12 + density * 56);
   const { min, max, size } = feature.bounds;
-  const z = max[2] + Math.max(size[2] * 0.055, 0.001);
+  const z = min[2] + size[2] * 0.5;
   const points: THREE.Vector3[] = [];
   const span = Math.max(size[0], size[1], pitch);
   const lineLength = Math.min(span * 0.82, pitch * 5);
@@ -682,14 +688,66 @@ function createCircuitHatchPoints(
       const x = lerp(min[0], max[0], (xi + 0.5) / xCount);
       const y = lerp(min[1], max[1], (yi + 0.5) / yCount);
       if (!pointInsideFeatureFootprint(feature, x, y)) continue;
-      points.push(
-        new THREE.Vector3(x - lineLength * 0.5, y - lineLength * 0.18, z),
-        new THREE.Vector3(x + lineLength * 0.5, y + lineLength * 0.18, z),
-      );
+      points.push(...createClippedCircuitHatchSegment(feature, x, y, z, lineLength));
       lineIndex += 1;
     }
   }
   return points;
+}
+
+function createClippedCircuitHatchSegment(
+  feature: PreviewFeature,
+  x: number,
+  y: number,
+  z: number,
+  lineLength: number,
+) {
+  const center = { x, y };
+  const start = { x: x - lineLength * 0.5, y: y - lineLength * 0.18 };
+  const end = { x: x + lineLength * 0.5, y: y + lineLength * 0.18 };
+  const clippedStart = clipEndpointToFeatureFootprint(feature, center, start);
+  const clippedEnd = clipEndpointToFeatureFootprint(feature, center, end);
+
+  if (distance2D(clippedStart, clippedEnd) <= 0.001) {
+    return [];
+  }
+
+  return [
+    new THREE.Vector3(clippedStart.x, clippedStart.y, z),
+    new THREE.Vector3(clippedEnd.x, clippedEnd.y, z),
+  ];
+}
+
+function clipEndpointToFeatureFootprint(
+  feature: PreviewFeature,
+  insidePoint: { x: number; y: number },
+  candidate: { x: number; y: number },
+) {
+  if (pointInsideFeatureFootprint(feature, candidate.x, candidate.y)) {
+    return candidate;
+  }
+
+  let inside = insidePoint;
+  let outside = candidate;
+  for (let index = 0; index < 24; index += 1) {
+    const midpoint = {
+      x: (inside.x + outside.x) / 2,
+      y: (inside.y + outside.y) / 2,
+    };
+    if (pointInsideFeatureFootprint(feature, midpoint.x, midpoint.y)) {
+      inside = midpoint;
+    } else {
+      outside = midpoint;
+    }
+  }
+  return inside;
+}
+
+function distance2D(
+  left: { x: number; y: number },
+  right: { x: number; y: number },
+) {
+  return Math.hypot(left.x - right.x, left.y - right.y);
 }
 
 function createEnvelopeGeometry(geometry: PreviewGeometry) {
@@ -760,6 +818,26 @@ function createEnvelopeGeometry(geometry: PreviewGeometry) {
   });
   polygon.translate(0, 0, geometry.zMin);
   return polygon;
+}
+
+function circuitGlyphDepth(featureThickness: number, glyphRadius: number) {
+  const thickness = Math.max(featureThickness, 0.001);
+  return clamp(glyphRadius * 0.3, thickness * 0.12, thickness * 0.72);
+}
+
+function circuitGlyphScale(
+  featureSize: [number, number, number],
+  grid: { x: number; y: number },
+  glyphRadius: number,
+  circuitDepth: number,
+) {
+  const cellWidth = Math.max(featureSize[0] / Math.max(grid.x, 1), 0.001);
+  const cellHeight = Math.max(featureSize[1] / Math.max(grid.y, 1), 0.001);
+  return new THREE.Vector3(
+    Math.min(glyphRadius * 4.2, cellWidth * 0.62),
+    Math.min(glyphRadius * 0.72, cellHeight * 0.38),
+    circuitDepth,
+  );
 }
 
 function createGlyphGeometry(kind: FeatureKind) {

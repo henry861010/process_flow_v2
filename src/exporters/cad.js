@@ -203,9 +203,7 @@ export class OpenCascadeConverter {
     );
     if (featureCutTool !== null) {
       directBodies.forEach((body) => {
-        if (this._hasOverlap(body.shape, featureCutTool)) {
-          body.shape = this._cut(body.shape, featureCutTool);
-        }
+        body.shape = this._subtractTool(body.shape, featureCutTool);
       });
     }
 
@@ -220,9 +218,7 @@ export class OpenCascadeConverter {
     const cutTool = this._unionShapes(descendantBodies.map((body) => body.shape));
     if (cutTool !== null) {
       directSolids.forEach((body) => {
-        if (this._hasOverlap(body.shape, cutTool)) {
-          body.shape = this._cut(body.shape, cutTool);
-        }
+        body.shape = this._subtractTool(body.shape, cutTool);
       });
     }
 
@@ -777,6 +773,22 @@ export class OpenCascadeConverter {
       right,
       "common",
     );
+  }
+
+  _subtractTool(shape, tool) {
+    if (this._isEmptyShape(shape) || this._isEmptyShape(tool)) return shape;
+    if (!this._boundingBoxesOverlap(shape, tool)) return shape;
+
+    const common = this._common(shape, tool);
+    const overlapVolume = this._shapeVolume(common);
+    if (overlapVolume <= this.options.volumeTolerance) return shape;
+
+    const shapeVolume = this._shapeVolume(shape);
+    if (shapeVolume - overlapVolume <= this.options.volumeTolerance) {
+      return null;
+    }
+
+    return this._cut(shape, tool);
   }
 
   _booleanOperation(OperationClass, left, right, label) {
