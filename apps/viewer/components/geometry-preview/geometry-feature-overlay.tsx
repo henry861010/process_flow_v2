@@ -559,6 +559,7 @@ function createFeatureSamples(
   );
   const glyphRadius = baseRadius * settings.glyphSizeScale * (0.65 + density * 0.45);
   const height = Math.max(featureSize[2], glyphRadius * 1.2);
+  const bumpRadius = Math.max(glyphRadius, featureSize[2] / 2);
 
   return positions.map(({ x, y, z }, index) => {
     const rotation =
@@ -572,7 +573,7 @@ function createFeatureSamples(
         ? new THREE.Vector3(glyphRadius, height, glyphRadius)
         : feature.type === "circuit"
           ? new THREE.Vector3(glyphRadius * 4.2, glyphRadius * 0.72, Math.max(height * 0.22, glyphRadius * 0.2))
-          : new THREE.Vector3(glyphRadius, glyphRadius, glyphRadius);
+          : new THREE.Vector3(bumpRadius, bumpRadius, bumpRadius);
 
     return {
       position: new THREE.Vector3(x, y, z),

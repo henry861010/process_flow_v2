@@ -67,6 +67,11 @@ type PanelState =
     }
   | { status: "error"; message: string };
 
+const DEFAULT_FEATURE_DENSITY_SCALE = 0.4;
+const DEFAULT_FEATURE_GLYPH_SIZE_SCALE = 1;
+const DEFAULT_FEATURE_OPACITY = 0.6;
+const DEFAULT_FEATURE_MAX_INSTANCES = 10000;
+
 export function GeometryPreviewPanel({
   preview,
   onClose,
@@ -239,10 +244,18 @@ function PreviewCadWorkbench({
   const [showCircuits, setShowCircuits] = React.useState(true);
   const [featureMode, setFeatureMode] =
     React.useState<FeatureOverlayMode>("auto");
-  const [featureDensityScale, setFeatureDensityScale] = React.useState(1);
-  const [featureGlyphSizeScale, setFeatureGlyphSizeScale] = React.useState(1);
-  const [featureOpacity, setFeatureOpacity] = React.useState(0.42);
-  const [featureMaxInstances, setFeatureMaxInstances] = React.useState(2000);
+  const [featureDensityScale, setFeatureDensityScale] = React.useState(
+    DEFAULT_FEATURE_DENSITY_SCALE,
+  );
+  const [featureGlyphSizeScale, setFeatureGlyphSizeScale] = React.useState(
+    DEFAULT_FEATURE_GLYPH_SIZE_SCALE,
+  );
+  const [featureOpacity, setFeatureOpacity] = React.useState(
+    DEFAULT_FEATURE_OPACITY,
+  );
+  const [featureMaxInstances, setFeatureMaxInstances] = React.useState(
+    DEFAULT_FEATURE_MAX_INSTANCES,
+  );
   const [selectedFeatureId, setSelectedFeatureId] = React.useState<string | null>(
     null,
   );
