@@ -53,6 +53,10 @@ export class Circuit extends Geometry {
     return this._geometry.clipTopTo(toZ);
   }
 
+  clipXYToBox(bounds) {
+    return this._geometry.clipXYToBox(bounds);
+  }
+
   flip(aroundZ = 0) {
     this._geometry.flip(aroundZ);
   }

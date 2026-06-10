@@ -35,6 +35,10 @@ export class Geometry {
     throw new Error("clipTopTo must be implemented by subclasses");
   }
 
+  clipXYToBox() {
+    throw new Error("clipXYToBox must be implemented by subclasses");
+  }
+
   flip() {
     throw new Error("flip must be implemented by subclasses");
   }
@@ -65,6 +69,10 @@ export class Geometry {
 
   clip_top_to(toZ) {
     return this.clipTopTo(toZ);
+  }
+
+  clip_xy_to_box(bounds) {
+    return this.clipXYToBox(bounds);
   }
 }
 
@@ -154,6 +162,33 @@ export class BoxGeometry extends Geometry {
     return true;
   }
 
+  clipXYToBox(bounds) {
+    const crop = normalizeCropBox(bounds);
+    const xMin = Math.max(
+      Math.min(this._bottomLeft[0], this._topRight[0]),
+      crop.xMin,
+    );
+    const xMax = Math.min(
+      Math.max(this._bottomLeft[0], this._topRight[0]),
+      crop.xMax,
+    );
+    const yMin = Math.max(
+      Math.min(this._bottomLeft[1], this._topRight[1]),
+      crop.yMin,
+    );
+    const yMax = Math.min(
+      Math.max(this._bottomLeft[1], this._topRight[1]),
+      crop.yMax,
+    );
+
+    if (math.fLe(xMax, xMin) || math.fLe(yMax, yMin)) return false;
+
+    const z = this.zMin();
+    this._bottomLeft = [xMin, yMin, z];
+    this._topRight = [xMax, yMax, z];
+    return true;
+  }
+
   flip(aroundZ = 0) {
     const flippedZ = 2 * aroundZ - this.zMax();
     this._bottomLeft[2] = flippedZ;
@@ -230,6 +265,19 @@ export class PolygonGeometry extends Geometry {
       this._thk = toZ - zBottom;
     }
 
+    return true;
+  }
+
+  clipXYToBox(bounds) {
+    const crop = normalizeCropBox(bounds);
+    const clipped = this._polys
+      .map((poly) => clipLoopToBox(poly, crop))
+      .filter((poly) => poly.length >= 3);
+
+    if (clipped.length === 0) return false;
+
+    validatePolygonLoops(clipped);
+    this._polys = clipped;
     return true;
   }
 
@@ -316,6 +364,15 @@ export class CylinderGeometry extends Geometry {
     }
 
     return true;
+  }
+
+  clipXYToBox(bounds) {
+    return clipCircularFootprintToBox({
+      bounds,
+      center: this._center,
+      radius: this._bottomRadius,
+      typeName: "CylinderGeometry",
+    });
   }
 
   flip(aroundZ = 0) {
@@ -420,6 +477,15 @@ export class ConeGeometry extends Geometry {
     return true;
   }
 
+  clipXYToBox(bounds) {
+    return clipCircularFootprintToBox({
+      bounds,
+      center: this._center,
+      radius: Math.max(this._bottomRadius, this._topRadius),
+      typeName: "ConeGeometry",
+    });
+  }
+
   flip(aroundZ = 0) {
     this._center[2] = 2 * aroundZ - this.zMax();
     [this._bottomRadius, this._topRadius] = [
@@ -462,4 +528,161 @@ function finiteNumber(value, label) {
     throw new Error(`${label} must be a finite number`);
   }
   return number;
+}
+
+function normalizeCropBox(bounds) {
+  const xMin = finiteNumber(bounds?.xMin, "bounds.xMin");
+  const xMax = finiteNumber(bounds?.xMax, "bounds.xMax");
+  const yMin = finiteNumber(bounds?.yMin, "bounds.yMin");
+  const yMax = finiteNumber(bounds?.yMax, "bounds.yMax");
+  if (math.fLe(xMax, xMin) || math.fLe(yMax, yMin)) {
+    throw new Error("clipXYToBox requires a non-empty XY box");
+  }
+  return { xMin, xMax, yMin, yMax };
+}
+
+function clipCircularFootprintToBox({ bounds, center, radius, typeName }) {
+  const crop = normalizeCropBox(bounds);
+  const r = finiteNumber(radius, "radius");
+  const x = center[0];
+  const y = center[1];
+
+  if (
+    math.fGe(x - r, crop.xMin) &&
+    math.fLe(x + r, crop.xMax) &&
+    math.fGe(y - r, crop.yMin) &&
+    math.fLe(y + r, crop.yMax)
+  ) {
+    return true;
+  }
+
+  const closestX = Math.min(Math.max(x, crop.xMin), crop.xMax);
+  const closestY = Math.min(Math.max(y, crop.yMin), crop.yMax);
+  const dx = x - closestX;
+  const dy = y - closestY;
+  if (math.fGe(dx * dx + dy * dy, r * r)) {
+    return false;
+  }
+
+  throw new Error(`${typeName} does not support partial XY saw clipping`);
+}
+
+function clipLoopToBox(loop, bounds) {
+  const z = loop[0][2];
+  let result = loop.map((point) => [...point]);
+  result = clipLoopAgainstBoundary(result, bounds, insideLeft, intersectLeft);
+  result = clipLoopAgainstBoundary(result, bounds, insideRight, intersectRight);
+  result = clipLoopAgainstBoundary(result, bounds, insideBottom, intersectBottom);
+  result = clipLoopAgainstBoundary(result, bounds, insideTop, intersectTop);
+  return cleanLoop(result.map(([x, y]) => [math.fZero(x), math.fZero(y), z]));
+}
+
+function clipLoopAgainstBoundary(loop, bounds, inside, intersect) {
+  if (loop.length === 0) return [];
+  const result = [];
+  let previous = loop[loop.length - 1];
+  let previousInside = inside(previous, bounds);
+
+  for (const current of loop) {
+    const currentInside = inside(current, bounds);
+    if (currentInside) {
+      if (!previousInside) {
+        result.push(intersect(previous, current, bounds));
+      }
+      result.push(current);
+    } else if (previousInside) {
+      result.push(intersect(previous, current, bounds));
+    }
+    previous = current;
+    previousInside = currentInside;
+  }
+
+  return cleanAdjacentDuplicates(result);
+}
+
+function insideLeft(point, bounds) {
+  return math.fGe(point[0], bounds.xMin);
+}
+
+function insideRight(point, bounds) {
+  return math.fLe(point[0], bounds.xMax);
+}
+
+function insideBottom(point, bounds) {
+  return math.fGe(point[1], bounds.yMin);
+}
+
+function insideTop(point, bounds) {
+  return math.fLe(point[1], bounds.yMax);
+}
+
+function intersectLeft(start, end, bounds) {
+  return intersectAtX(start, end, bounds.xMin);
+}
+
+function intersectRight(start, end, bounds) {
+  return intersectAtX(start, end, bounds.xMax);
+}
+
+function intersectBottom(start, end, bounds) {
+  return intersectAtY(start, end, bounds.yMin);
+}
+
+function intersectTop(start, end, bounds) {
+  return intersectAtY(start, end, bounds.yMax);
+}
+
+function intersectAtX(start, end, x) {
+  const dx = end[0] - start[0];
+  if (math.fEq(dx, 0)) return [x, start[1], start[2]];
+  const t = (x - start[0]) / dx;
+  return [x, start[1] + t * (end[1] - start[1]), start[2]];
+}
+
+function intersectAtY(start, end, y) {
+  const dy = end[1] - start[1];
+  if (math.fEq(dy, 0)) return [start[0], y, start[2]];
+  const t = (y - start[1]) / dy;
+  return [start[0] + t * (end[0] - start[0]), y, start[2]];
+}
+
+function cleanLoop(loop) {
+  const cleaned = cleanAdjacentDuplicates(loop);
+  if (
+    cleaned.length > 1 &&
+    samePoint2(cleaned[0], cleaned[cleaned.length - 1])
+  ) {
+    cleaned.pop();
+  }
+  if (cleaned.length < 3 || math.fEq(signedArea2(cleaned), 0)) {
+    return [];
+  }
+  return cleaned;
+}
+
+function cleanAdjacentDuplicates(loop) {
+  const result = [];
+  for (const point of loop) {
+    if (
+      result.length === 0 ||
+      !samePoint2(result[result.length - 1], point)
+    ) {
+      result.push(point);
+    }
+  }
+  return result;
+}
+
+function signedArea2(loop) {
+  let area = 0;
+  for (let index = 0; index < loop.length; index += 1) {
+    const point = loop[index];
+    const nextPoint = loop[(index + 1) % loop.length];
+    area += point[0] * nextPoint[1] - nextPoint[0] * point[1];
+  }
+  return area / 2;
+}
+
+function samePoint2(left, right) {
+  return math.fEq(left[0], right[0]) && math.fEq(left[1], right[1]);
 }

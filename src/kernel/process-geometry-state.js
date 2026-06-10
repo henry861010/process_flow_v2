@@ -597,6 +597,31 @@ export class ProcessGeometryState {
     return this;
   }
 
+  sawToBox({
+    bottomLeftX,
+    bottomLeftY,
+    topRightX,
+    topRightY,
+    scope = ROOT_SCOPE,
+    updateFootprint = true,
+  } = {}) {
+    const bounds = normalizeSawBox({
+      bottomLeftX,
+      bottomLeftY,
+      topRightX,
+      topRightY,
+    });
+    this._resolveScope(scope).clipXYToBox(bounds);
+    if (updateFootprint) {
+      this._processFootprint = normalizeFootprintSpec({
+        type: "box",
+        bottomLeft: [bounds.xMin, bounds.yMin],
+        topRight: [bounds.xMax, bounds.yMax],
+      });
+    }
+    return this;
+  }
+
   placeGeometryState(source, options = {}) {
     if (!(source instanceof ProcessGeometryState)) {
       throw new Error("placeGeometryState requires a ProcessGeometryState source");
@@ -1180,6 +1205,25 @@ function normalizeBumpFootprintSource(value) {
     return "processFootprint";
   }
   throw new Error(`Unsupported bump footprintSource: ${value}`);
+}
+
+function normalizeSawBox({
+  bottomLeftX,
+  bottomLeftY,
+  topRightX,
+  topRightY,
+}) {
+  const xMin = finiteNumber(bottomLeftX, "bottomLeftX");
+  const yMin = finiteNumber(bottomLeftY, "bottomLeftY");
+  const xMax = finiteNumber(topRightX, "topRightX");
+  const yMax = finiteNumber(topRightY, "topRightY");
+  if (math.fLe(xMax, xMin)) {
+    throw new Error("sawToBox requires topRightX to be greater than bottomLeftX");
+  }
+  if (math.fLe(yMax, yMin)) {
+    throw new Error("sawToBox requires topRightY to be greater than bottomLeftY");
+  }
+  return { xMin, xMax, yMin, yMax };
 }
 
 function anchorPoint(bounds, anchor) {

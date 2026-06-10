@@ -77,26 +77,26 @@ Template metadata：
 2. 逐一處理 `layers`，layer number 從 1 開始計算。
 3. 每一層都使用 `main_geometry` 目前的 process footprint 作為 full-area
    geometry envelope。
-4. 奇數層先呼叫 `state.addCircuitAtCursor({ material: Conductivity,
-   density, thickness: thk })`，建立從 `cursorZ()` 到
-   `cursorZ() + thk` 的 circuit feature；接著呼叫
-   `state.depositLayer({ material: Dielectric, thickness: thk })` 建立
-   dielectric body，並將 cursor 推進到該層頂面。
-5. 偶數層先呼叫 `state.depositLayer({ material: Dielectric,
+4. 奇數層先呼叫 `state.depositLayer({ material: Dielectric,
    thickness: thk })` 建立 dielectric body 並推進 cursor；接著呼叫
    `state.addViaBelowCursor({ material: Conductivity, density,
    thickness: thk, direction: "-z" })`，建立覆蓋剛沉積 layer 的 downward
    via feature。
+5. 偶數層先呼叫 `state.addCircuitAtCursor({ material: Conductivity,
+   density, thickness: thk })`，建立從 `cursorZ()` 到
+   `cursorZ() + thk` 的 circuit feature；接著呼叫
+   `state.depositLayer({ material: Dielectric, thickness: thk })` 建立
+   dielectric body，並將 cursor 推進到該層頂面。
 6. Body、Circuit、Via 都加入 `main_geometry` root scope。
 
 設計要點：
 
 - 此 step 不直接建立或修改 `Container`、`Body`、`Via`、`Circuit` 或 raw
   geometry object。
-- Circuit 建立在奇數層 dielectric deposit 之前，使用當下的 `cursorZ()` 作為
-  feature bottom Z；這避免新增額外 `ProcessGeometryState` method。
-- Via 建立在偶數層 dielectric deposit 之後，使用 `addViaBelowCursor()` 讓 via
+- Via 建立在奇數層 dielectric deposit 之後，使用 `addViaBelowCursor()` 讓 via
   envelope 正好落在剛沉積的 layer 中，方向固定為 `"-z"`。
+- Circuit 建立在偶數層 dielectric deposit 之前，使用當下的 `cursorZ()` 作為
+  feature bottom Z；這避免新增額外 `ProcessGeometryState` method。
 - `density` 必須是 0 到 100 的 finite number。Runtime 保存此數值，不在 process
   step 中做百分比轉換。
 - `layers` 至少需要一個 item；每層 `Dielectric` / `Conductivity` 必須是非空字串，
@@ -146,6 +146,60 @@ Template metadata：
   會從 structure 中移除。
 - Grinding 不清除 runtime process footprint。即使 geometry 被磨平，後續
   full-area operation 仍可沿用原本 footprint。
+
+## saw
+
+`saw` 是 `saw` 類別的 process step，用來模擬 wafer sawing 後只保留指定
+XY 矩形區域的動作。此 step 的裁切範圍會套用到整棵 root geometry tree。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `saw` |
+| Category | `saw` |
+| Program | `saw/saw` |
+| Template id | `step_tpl_saw_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `bottomLeftX` | `float` | `processParameter` | 切割後要保留的左下角 X 座標。 |
+| `bottomLeftY` | `float` | `processParameter` | 切割後要保留的左下角 Y 座標。 |
+| `topRightX` | `float` | `processParameter` | 切割後要保留的右上角 X 座標，必須大於 `bottomLeftX`。 |
+| `topRightY` | `float` | `processParameter` | 切割後要保留的右上角 Y 座標，必須大於 `bottomLeftY`。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry`
+   `ProcessGeometryState`。
+2. 驗證 `bottomLeftX`、`bottomLeftY`、`topRightX`、`topRightY` 都是
+   finite number，且 retained rectangle 是非空矩形。
+3. 呼叫 `main_geometry.sawToBox({ bottomLeftX, bottomLeftY,
+   topRightX, topRightY })`。
+4. Kernel public API 會遞迴裁切 root scope、child scopes、bodies、vias、
+   circuits 與 bumps，只保留位於 retained rectangle 內的 XY 區域。
+5. 完全落在 retained rectangle 外的 feature 或 child scope 會被移除。
+6. 裁切完成後，runtime process footprint 更新為 retained rectangle，
+   後續 molding、RDL 或 bump formation 會沿用切割後的 footprint。
+7. `cursorZ` 不會改變，因為 saw 只改變 XY 保留範圍，不代表 Z 方向
+   process plane 移動。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body`、`Via`、`Circuit`、`Bump`
+  或 raw geometry object。
+- Process step 只呼叫 `ProcessGeometryState.sawToBox()`；遞迴 traversal、
+  primitive clipping 與 child scope 移除都由 geometry kernel/domain model
+  public methods 處理。
+- `BoxGeometry` 會被裁切成 retained rectangle 的交集。
+- `PolygonGeometry` 支援矩形 clipping，輸出仍保存為 `PolygonGeometry`。
+- `CylinderGeometry` 與 `ConeGeometry` 只有完全位於 retained rectangle 內時
+  會保留，完全位於外部時會移除；若被 retained rectangle 部分切到，kernel
+  會丟出錯誤，避免用目前 primitive 表示不了的幾何交集。
+- Via 與 bump 的 `direction` 不會因 saw 改變，因為 saw 不反轉 Z axis。
 
 ## Debound
 

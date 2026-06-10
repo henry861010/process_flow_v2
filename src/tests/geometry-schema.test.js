@@ -34,6 +34,7 @@ import { execute as executeMicroBump } from "../process/bump/uBump_formation.js"
 import { execute as executeFlip } from "../process/flip/flip.js";
 import { execute as executeDebound } from "../process/debound/debound.js";
 import { execute as executeUnderFill } from "../process/uf/under_fill.js";
+import { execute as executeSaw } from "../process/saw/saw.js";
 
 test("container json has schema unit and stable ids", () => {
   const root = new Container({ key: "package-root" });
@@ -1122,22 +1123,23 @@ test("geometry kernel imports and executes real RDL process step", async () => {
   assert.deepEqual(geometry.root.bodies[3].geometry.bottom_left, [-50, -50, 15]);
   assert.equal(geometry.root.bodies[3].geometry.thk, 4);
 
-  assert.equal(geometry.root.circuits.length, 2);
+  assert.equal(geometry.root.circuits.length, 1);
   assert.equal(geometry.root.circuits[0].material, "Cu");
-  assert.equal(geometry.root.circuits[0].density, 45);
-  assert.deepEqual(geometry.root.circuits[0].geometry.bottom_left, [-50, -50, 10]);
-  assert.equal(geometry.root.circuits[0].geometry.thk, 2);
-  assert.equal(geometry.root.circuits[1].material, "Cu-Ni");
-  assert.equal(geometry.root.circuits[1].density, 75);
-  assert.deepEqual(geometry.root.circuits[1].geometry.bottom_left, [-50, -50, 15]);
-  assert.equal(geometry.root.circuits[1].geometry.thk, 4);
+  assert.equal(geometry.root.circuits[0].density, 60);
+  assert.deepEqual(geometry.root.circuits[0].geometry.bottom_left, [-50, -50, 12]);
+  assert.equal(geometry.root.circuits[0].geometry.thk, 3);
 
-  assert.equal(geometry.root.vias.length, 1);
+  assert.equal(geometry.root.vias.length, 2);
   assert.equal(geometry.root.vias[0].material, "Cu");
-  assert.equal(geometry.root.vias[0].density, 60);
+  assert.equal(geometry.root.vias[0].density, 45);
   assert.equal(geometry.root.vias[0].direction, "-z");
-  assert.deepEqual(geometry.root.vias[0].geometry.bottom_left, [-50, -50, 12]);
-  assert.equal(geometry.root.vias[0].geometry.thk, 3);
+  assert.deepEqual(geometry.root.vias[0].geometry.bottom_left, [-50, -50, 10]);
+  assert.equal(geometry.root.vias[0].geometry.thk, 2);
+  assert.equal(geometry.root.vias[1].material, "Cu-Ni");
+  assert.equal(geometry.root.vias[1].density, 75);
+  assert.equal(geometry.root.vias[1].direction, "-z");
+  assert.deepEqual(geometry.root.vias[1].geometry.bottom_left, [-50, -50, 15]);
+  assert.equal(geometry.root.vias[1].geometry.thk, 4);
 });
 
 test("geometry kernel imports and executes real bounding bump process steps", async () => {
@@ -1211,6 +1213,228 @@ test("geometry kernel imports and executes real bounding bump process steps", as
     assert.deepEqual(geometry.root.bumps[0].geometry.top_right, [45, 45, -3]);
     assert.equal(geometry.root.bumps[0].geometry.thk, 3);
   }
+});
+
+test("Saw process step recursively clips root tree and updates footprint", () => {
+  const state = ProcessGeometryState.create({ key: "saw-root" });
+  state.initializeBoxLayer({
+    material: "carrier",
+    bottomLeft: [-10, -10, 0],
+    topRight: [10, 10, 0],
+    thickness: 5,
+  });
+  state.addVia({
+    material: "Cu",
+    density: 0.5,
+    direction: "+z",
+    geometry: {
+      type: "box",
+      bottomLeft: [-12, -2, 1],
+      topRight: [0, 2, 1],
+      thickness: 1,
+    },
+  });
+  state.addCircuit({
+    material: "Cu",
+    density: 0.25,
+    geometry: {
+      type: "polygon",
+      polygons: [[[-8, -8, 5], [8, -8, 5], [8, 8, 5], [-8, 8, 5]]],
+      thickness: 1,
+    },
+  });
+  state.addBump({
+    material: "SnAg",
+    density: 0.7,
+    direction: "-z",
+    geometry: {
+      type: "box",
+      bottomLeft: [7, 7, 1],
+      topRight: [9, 9, 1],
+      thickness: 1,
+    },
+  });
+
+  const dieState = ProcessGeometryState.create({ key: "die" });
+  dieState.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [0, 0, 0],
+    topRight: [6, 6, 0],
+    thickness: 2,
+  });
+  state.placeGeometryState(dieState, { x: 2, y: 2, bottomZ: 5 });
+
+  const outsideState = ProcessGeometryState.create({ key: "scrap" });
+  outsideState.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [0, 0, 0],
+    topRight: [2, 2, 0],
+    thickness: 2,
+  });
+  state.placeGeometryState(outsideState, { x: 20, y: 20, bottomZ: 5 });
+
+  executeSaw({
+    state,
+    values: {
+      bottomLeftX: -5,
+      bottomLeftY: -5,
+      topRightX: 5,
+      topRightY: 5,
+    },
+    geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
+  });
+
+  const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 5);
+  assert.deepEqual(state.processFootprint(), {
+    type: "box",
+    bottomLeft: [-5, -5],
+    topRight: [5, 5],
+  });
+
+  assert.equal(output.root.bodies.length, 1);
+  assert.deepEqual(output.root.bodies[0].geometry.bottom_left, [-5, -5, 0]);
+  assert.deepEqual(output.root.bodies[0].geometry.top_right, [5, 5, 0]);
+  assert.equal(output.root.vias.length, 1);
+  assert.deepEqual(output.root.vias[0].geometry.bottom_left, [-5, -2, 1]);
+  assert.deepEqual(output.root.vias[0].geometry.top_right, [0, 2, 1]);
+  assert.equal(output.root.circuits.length, 1);
+  assert.equal(output.root.bumps.length, 0);
+
+  const circuitLoop = output.root.circuits[0].geometry.polys[0];
+  assert.equal(circuitLoop.length, 4);
+  for (const [x, y, z] of circuitLoop) {
+    assert.ok(x >= -5 && x <= 5);
+    assert.ok(y >= -5 && y <= 5);
+    assert.equal(z, 5);
+  }
+
+  assert.equal(output.root.children.length, 1);
+  assert.equal(output.root.children[0].key, "die");
+  assert.deepEqual(
+    output.root.children[0].bodies[0].geometry.bottom_left,
+    [2, 2, 5],
+  );
+  assert.deepEqual(
+    output.root.children[0].bodies[0].geometry.top_right,
+    [5, 5, 5],
+  );
+});
+
+test("Saw rejects partially clipped cylinder and cone geometry", () => {
+  const cylinderState = ProcessGeometryState.create({ key: "saw-cylinder" });
+  cylinderState.initializeCylinderLayer({
+    material: "glass",
+    center: [0, 0, 0],
+    radius: 10,
+    thickness: 5,
+  });
+
+  assert.throws(
+    () =>
+      cylinderState.sawToBox({
+        bottomLeftX: -5,
+        bottomLeftY: -5,
+        topRightX: 5,
+        topRightY: 5,
+      }),
+    /CylinderGeometry does not support partial XY saw clipping/,
+  );
+
+  const coneState = ProcessGeometryState.create({ key: "saw-cone" });
+  coneState.initializeConeLayer({
+    material: "tapered",
+    center: [0, 0, 0],
+    bottomRadius: 10,
+    topRadius: 6,
+    thickness: 5,
+  });
+
+  assert.throws(
+    () =>
+      coneState.sawToBox({
+        bottomLeftX: -5,
+        bottomLeftY: -5,
+        topRightX: 5,
+        topRightY: 5,
+      }),
+    /ConeGeometry does not support partial XY saw clipping/,
+  );
+});
+
+test("geometry kernel imports real Saw step and passes cropped footprint downstream", async () => {
+  const kernel = createTestKernel({
+    processStepTemplates: [realSawStepTemplate(), realMoldingStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "saw",
+          processStepTemplateId: "step_tpl_saw_1_0_0",
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_saw",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "saw",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_saw_to_molding",
+          source: { sourceType: "stepOutput", stepRefId: "saw" },
+          target: {
+            stepRefId: "molding",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "saw",
+          processStepTemplateId: "step_tpl_saw_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            { fieldId: "bottomLeftX", value: -20 },
+            { fieldId: "bottomLeftY", value: -10 },
+            { fieldId: "topRightX", value: 20 },
+            { fieldId: "topRightY", value: 10 },
+          ],
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "material", value: "EMC-A" },
+            { fieldId: "thickness", value: 5 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const result = await kernel.execute("flow_inst_kernel_test");
+  const sawOutput = result.stepOutput("saw");
+  const geometry = result.geometry();
+
+  assert.deepEqual(sawOutput.root.bodies[0].geometry.bottom_left, [-20, -10, 0]);
+  assert.deepEqual(sawOutput.root.bodies[0].geometry.top_right, [20, 10, 0]);
+  assert.equal(geometry.root.bodies.length, 2);
+  assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-20, -10, 10]);
+  assert.deepEqual(geometry.root.bodies[1].geometry.top_right, [20, 10, 10]);
+  assert.equal(geometry.root.bodies[1].geometry.thk, 5);
 });
 
 test("Grinding process step can grind geometry flat while retaining footprint", () => {
@@ -2231,6 +2455,65 @@ function realBumpStepTemplate({ id, name, program }) {
       {
         id: "koz",
         name: "koz",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+    ],
+  };
+}
+
+function realSawStepTemplate() {
+  return {
+    id: "step_tpl_saw_1_0_0",
+    version: "V1.0.0",
+    name: "saw",
+    category: "saw",
+    program: "saw/saw",
+    description: "Cut geometry to a retained XY rectangle.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "bottomLeftX",
+        name: "bottomLeftX",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+      {
+        id: "bottomLeftY",
+        name: "bottomLeftY",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+      {
+        id: "topRightX",
+        name: "topRightX",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+      {
+        id: "topRightY",
+        name: "topRightY",
         scope: "processParameter",
         valueType: "float",
         controlType: "number",

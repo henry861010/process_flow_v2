@@ -1014,7 +1014,40 @@ Behavior:
 - Removes features and bodies entirely above the clipped region.
 - If `updateCursor` is true, sets `cursorZ` to `min(cursorZ(), z)`.
 
-### 12.4 Remove Top Root Bodies
+### 12.4 Saw To Box
+
+```js
+state.sawToBox({
+  bottomLeftX: -2500,
+  bottomLeftY: -2500,
+  topRightX: 2500,
+  topRightY: 2500,
+});
+```
+
+Parameters:
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bottomLeftX` | number | yes | Retained rectangle lower-left X coordinate. |
+| `bottomLeftY` | number | yes | Retained rectangle lower-left Y coordinate. |
+| `topRightX` | number | yes | Retained rectangle upper-right X coordinate. Must be greater than `bottomLeftX`. |
+| `topRightY` | number | yes | Retained rectangle upper-right Y coordinate. Must be greater than `bottomLeftY`. |
+| `scope` | `GeometryScopeRef` or `"root"` | no | Scope to clip. Defaults to root. |
+| `updateFootprint` | boolean | no | Defaults to `true`. When true, updates the runtime process footprint to the retained box. |
+
+Behavior:
+
+- Clips bodies, vias, circuits, bumps, and child scopes recursively in XY.
+- Removes geometry completely outside the retained rectangle.
+- Does not move `cursorZ`.
+- `BoxGeometry` and `PolygonGeometry` support retained-rectangle clipping.
+- `CylinderGeometry` and `ConeGeometry` are kept when fully inside and removed
+  when fully outside. Partial XY clipping throws because the current primitive
+  model cannot represent the exact intersection.
+- Via and bump direction is unchanged because saw does not flip Z.
+
+### 12.5 Remove Top Root Bodies
 
 ```js
 state.removeTopRootBodies();
@@ -1240,6 +1273,7 @@ Required public methods:
 | `move(offset)` | Move this scope and descendants. |
 | `flipAroundZ(z)` | Flip this scope and descendants. |
 | `grindTo(z)` | Clip this scope and descendants. |
+| `clipXYToBox(bounds)` | Recursively clip this scope and descendants to an XY box. |
 | `copy()` | Deep copy. |
 | `toTreePayload()` | Return container payload, not full structure. |
 
@@ -1270,6 +1304,7 @@ Required public methods:
 | `move(offset)` | Move body geometry. |
 | `flipAroundZ(z)` | Flip body geometry. |
 | `clipTopTo(z)` | Clip top. |
+| `clipXYToBox(bounds)` | Clip XY footprint to a retained box. |
 | `copy()` | Deep copy. |
 | `toPayload()` | Return serialized body payload. |
 
@@ -1292,6 +1327,7 @@ Required public methods:
 | `move(offset)` | Move feature envelope. |
 | `flipAroundZ(z)` | Flip geometry and reverse direction. |
 | `clipTopTo(z)` | Clip feature envelope. |
+| `clipXYToBox(bounds)` | Clip feature envelope to a retained XY box. |
 | `copy()` | Deep copy. |
 | `toPayload()` | Return serialized via payload. |
 

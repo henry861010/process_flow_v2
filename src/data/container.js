@@ -256,6 +256,27 @@ export class Container {
     return this.grindTo(toZ);
   }
 
+  clipXYToBox(bounds) {
+    this._vias = this._featuresAfterXYClip(this._vias, bounds);
+    this._circuits = this._featuresAfterXYClip(this._circuits, bounds);
+    this._bumps = this._featuresAfterXYClip(this._bumps, bounds);
+    this._bodies = this._featuresAfterXYClip(this._bodies, bounds);
+
+    const children = [];
+    this._children.forEach((child) => {
+      if (child.clipXYToBox(bounds)) {
+        children.push(child);
+      }
+    });
+    this._children = children;
+
+    return this.hasGeometry();
+  }
+
+  clip_xy_to_box(bounds) {
+    return this.clipXYToBox(bounds);
+  }
+
   flip(aroundZ = 0) {
     this._directFeatures().forEach((feature) => feature.flip(aroundZ));
     this._children.forEach((child) => child.flip(aroundZ));
@@ -312,6 +333,10 @@ export class Container {
 
   _featuresAfterClip(features, toZ) {
     return features.filter((feature) => feature.clipTopTo(toZ));
+  }
+
+  _featuresAfterXYClip(features, bounds) {
+    return features.filter((feature) => feature.clipXYToBox(bounds));
   }
 
   _isDescendantOf(container) {
