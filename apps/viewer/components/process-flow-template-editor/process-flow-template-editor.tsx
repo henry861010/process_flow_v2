@@ -26,9 +26,11 @@ import {
   Download,
   FileJson,
   GitBranch,
+  GitFork,
   Link2Off,
   Plus,
   Save,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -227,7 +229,9 @@ type EditorMetadata = {
 
 type InitialGeometryNodeData = Record<string, unknown> & {
   nodeKind: "initialGeometry";
-  geometry: GeometryEntity;
+  geometry: GeometryEntity | null;
+  placeholderLabel?: string;
+  placeholderSublabel?: string;
   isConnected?: boolean;
   onDelete?: (nodeId: string) => void;
 };
@@ -284,6 +288,11 @@ type GraphAnalysis = {
   canSave: boolean;
 };
 
+type LayoutResult = {
+  stepPositions: Map<string, { x: number; y: number }>;
+  initialPositions: Map<string, { x: number; y: number }>;
+};
+
 export function ProcessFlowTemplateEditor() {
   return (
     <ReactFlowProvider>
@@ -303,6 +312,7 @@ function ProcessFlowTemplateEditorInner() {
   const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>(
     [],
   );
+  const [flowTemplates, setFlowTemplates] = React.useState<ProcessFlowTemplate[]>([]);
   const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
   const [nodes, setNodes] = React.useState<FlowNode[]>([]);
   const [edges, setEdges] = React.useState<FlowEdge[]>([]);
@@ -318,10 +328,21 @@ function ProcessFlowTemplateEditorInner() {
   const [openStepCategories, setOpenStepCategories] = React.useState<
     Record<string, boolean>
   >({});
+  const [templatePickerOpen, setTemplatePickerOpen] = React.useState(false);
+  const [templateSearch, setTemplateSearch] = React.useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(
+    null,
+  );
+  const [confirmingTemplateStart, setConfirmingTemplateStart] =
+    React.useState(false);
+  const [confirmingGraphClear, setConfirmingGraphClear] = React.useState(false);
 
   React.useEffect(() => {
     setStepTemplates(
       readStorageArray<ProcessStepTemplate>(PROCESS_STEP_TEMPLATES_STORAGE_KEY),
+    );
+    setFlowTemplates(
+      readStorageArray<ProcessFlowTemplate>(PROCESS_FLOW_TEMPLATES_STORAGE_KEY),
     );
     setGeometries(readStorageArray<GeometryEntity>(GEOMETRY_ENTITIES_STORAGE_KEY));
     setHydrated(true);
@@ -368,17 +389,22 @@ function ProcessFlowTemplateEditorInner() {
     () =>
       nodes.map((node) => {
         if (isInitialGeometryNode(node)) {
+          const geometry = node.data.geometry;
+          const hasGeometry = isExplicitGeometryId(geometry?.id);
+          const connected = analysis.connectedInitialNodeIds.has(node.id);
           const nextNode: InitialGeometryFlowNode = {
             ...node,
             data: {
               ...node.data,
               graphMode: "edit",
-              displayLabel: node.data.geometry.name,
-              displaySublabel: node.data.geometry.entityType,
-              status: analysis.connectedInitialNodeIds.has(node.id)
-                ? "complete"
-                : "incomplete",
-              isConnected: analysis.connectedInitialNodeIds.has(node.id),
+              displayLabel:
+                geometry?.name ?? node.data.placeholderLabel ?? "Select geometry",
+              displaySublabel:
+                geometry?.entityType ??
+                node.data.placeholderSublabel ??
+                "Geometry required",
+              status: connected && hasGeometry ? "complete" : "incomplete",
+              isConnected: connected && hasGeometry,
               onDelete: deleteNode,
             },
           };
@@ -522,6 +548,20 @@ function ProcessFlowTemplateEditorInner() {
     () => groupByCategory(stepTemplates),
     [stepTemplates],
   );
+  const selectedTemplate = React.useMemo(
+    () =>
+      flowTemplates.find((template) => template.id === selectedTemplateId) ?? null,
+    [flowTemplates, selectedTemplateId],
+  );
+  const filteredFlowTemplates = React.useMemo(() => {
+    const query = templateSearch.trim().toLowerCase();
+    if (!query) {
+      return flowTemplates;
+    }
+    return flowTemplates.filter((template) =>
+      template.name.toLowerCase().includes(query),
+    );
+  }, [flowTemplates, templateSearch]);
 
   const onNodesChange = React.useCallback((changes: NodeChange<FlowNode>[]) => {
     setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
@@ -587,7 +627,9 @@ function ProcessFlowTemplateEditorInner() {
         setNodes,
         targetNode.id,
         targetField.id,
-        sourceNode.data.nodeKind === "initialGeometry" ? sourceNode.data.geometry.id : null,
+        sourceNode.data.nodeKind === "initialGeometry"
+          ? sourceNode.data.geometry?.id ?? ""
+          : null,
       );
     },
     [edges, nodes],
@@ -657,7 +699,9 @@ function ProcessFlowTemplateEditorInner() {
         setNodes,
         targetNode.id,
         targetField.id,
-        sourceNode.data.nodeKind === "initialGeometry" ? sourceNode.data.geometry.id : null,
+        sourceNode.data.nodeKind === "initialGeometry"
+          ? sourceNode.data.geometry?.id ?? ""
+          : null,
       );
     },
     [edges, nodes],
@@ -810,6 +854,64 @@ function ProcessFlowTemplateEditorInner() {
     downloadJson("processFlowTemplates.json", templates);
   }
 
+  function openTemplatePicker() {
+    const templates = readStorageArray<ProcessFlowTemplate>(
+      PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
+    );
+    setFlowTemplates(templates);
+    setSelectedTemplateId(null);
+    setTemplateSearch("");
+    setConfirmingTemplateStart(false);
+    setTemplatePickerOpen(true);
+  }
+
+  function closeTemplatePicker() {
+    setTemplatePickerOpen(false);
+    setConfirmingTemplateStart(false);
+  }
+
+  function requestStartFromTemplate() {
+    if (!selectedTemplate) {
+      return;
+    }
+    if (nodes.length > 0 || edges.length > 0) {
+      setConfirmingTemplateStart(true);
+      return;
+    }
+    startFromTemplate(selectedTemplate);
+  }
+
+  function startFromTemplate(template: ProcessFlowTemplate) {
+    const draft = buildDraftGraphFromTemplate(template, stepTemplates);
+    setNodes(draft.nodes);
+    setEdges(draft.edges);
+    setSelectedNodeId(null);
+    setEditingStepNodeId(null);
+    setGeometryPreview(null);
+    setTemplatePickerOpen(false);
+    setConfirmingTemplateStart(false);
+
+    window.setTimeout(() => {
+      reactFlow.fitView({ padding: 0.22, duration: 220 });
+    }, 0);
+  }
+
+  function requestClearGraph() {
+    if (nodes.length === 0 && edges.length === 0) {
+      return;
+    }
+    setConfirmingGraphClear(true);
+  }
+
+  function clearGraph() {
+    setNodes([]);
+    setEdges([]);
+    setSelectedNodeId(null);
+    setEditingStepNodeId(null);
+    setGeometryPreview(null);
+    setConfirmingGraphClear(false);
+  }
+
   function saveFlow() {
     if (!analysis.canSave) {
       return;
@@ -949,15 +1051,27 @@ function ProcessFlowTemplateEditorInner() {
               </h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Custom mode builds an immutable topology snapshot and a bound instance.
+              Create a new topology snapshot from a blank graph or an existing template.
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
               <Link href="/">
                 <ArrowLeft />
                 Home
               </Link>
+            </Button>
+            <Button variant="outline" onClick={openTemplatePicker}>
+              <GitFork />
+              Start from template
+            </Button>
+            <Button
+              variant="outline"
+              disabled={nodes.length === 0 && edges.length === 0}
+              onClick={requestClearGraph}
+            >
+              <Trash2 />
+              Clear
             </Button>
             <Button variant="outline" onClick={exportAllTemplates}>
               <Download />
@@ -1126,6 +1240,33 @@ function ProcessFlowTemplateEditorInner() {
         </aside>
       </section>
 
+      {templatePickerOpen ? (
+        <StartFromTemplateDialog
+          templates={filteredFlowTemplates}
+          totalTemplateCount={flowTemplates.length}
+          search={templateSearch}
+          selectedTemplateId={selectedTemplateId}
+          confirmingReplace={confirmingTemplateStart}
+          onSearchChange={setTemplateSearch}
+          onSelectTemplate={setSelectedTemplateId}
+          onCancel={closeTemplatePicker}
+          onStart={requestStartFromTemplate}
+          onCancelReplace={() => setConfirmingTemplateStart(false)}
+          onConfirmReplace={() => {
+            if (selectedTemplate) {
+              startFromTemplate(selectedTemplate);
+            }
+          }}
+        />
+      ) : null}
+
+      {confirmingGraphClear ? (
+        <ClearGraphDialog
+          onCancel={() => setConfirmingGraphClear(false)}
+          onConfirm={clearGraph}
+        />
+      ) : null}
+
       {editingStepNode ? (
         <StepInstanceDialog
           node={editingStepNode}
@@ -1265,6 +1406,200 @@ function StepTemplatePaletteItem({
         {repeaterCount > 0 ? <Badge variant="signal">repeater</Badge> : null}
       </div>
     </button>
+  );
+}
+
+function StartFromTemplateDialog({
+  templates,
+  totalTemplateCount,
+  search,
+  selectedTemplateId,
+  confirmingReplace,
+  onSearchChange,
+  onSelectTemplate,
+  onCancel,
+  onStart,
+  onCancelReplace,
+  onConfirmReplace,
+}: {
+  templates: ProcessFlowTemplate[];
+  totalTemplateCount: number;
+  search: string;
+  selectedTemplateId: string | null;
+  confirmingReplace: boolean;
+  onSearchChange: (value: string) => void;
+  onSelectTemplate: (templateId: string) => void;
+  onCancel: () => void;
+  onStart: () => void;
+  onCancelReplace: () => void;
+  onConfirmReplace: () => void;
+}) {
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (confirmingReplace) {
+          onCancelReplace();
+          return;
+        }
+        onCancel();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [confirmingReplace, onCancel, onCancelReplace]);
+
+  const emptyMessage =
+    totalTemplateCount === 0 ? "No templates found" : "No matching templates";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        aria-label="Close start from template"
+        className="absolute inset-0 cursor-default bg-foreground/40"
+        onClick={onCancel}
+      />
+      <section
+        className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="shrink-0 border-b bg-white px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold">Start from template</h2>
+            </div>
+            <Button variant="ghost" size="icon" title="Close" onClick={onCancel}>
+              <X />
+            </Button>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className={cn(inputClass, "pl-9")}
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search templates"
+              autoFocus
+            />
+          </label>
+
+          <div className="mt-4 overflow-hidden rounded-md border bg-white">
+            {templates.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                {emptyMessage}
+              </div>
+            ) : (
+              <div className="max-h-[320px] divide-y overflow-y-auto">
+                {templates.map((template) => {
+                  const selected = template.id === selectedTemplateId;
+                  return (
+                    <button
+                      key={template.id}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition hover:bg-muted/40",
+                        selected && "bg-primary/10 text-primary",
+                      )}
+                      onClick={() => onSelectTemplate(template.id)}
+                    >
+                      <span className="min-w-0 truncate font-medium">
+                        {template.name}
+                      </span>
+                      {selected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <footer className="flex shrink-0 justify-end gap-2 border-t bg-white px-5 py-4">
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button disabled={!selectedTemplateId} onClick={onStart}>
+            Start
+          </Button>
+        </footer>
+
+        {confirmingReplace ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 p-5 backdrop-blur-sm">
+            <section className="w-full max-w-md rounded-md border bg-white p-5 shadow-viewport">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold">Replace current draft?</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Starting from a template will replace the current draft graph.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <Button variant="outline" onClick={onCancelReplace}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={onConfirmReplace}>
+                  Replace draft
+                </Button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function ClearGraphDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        aria-label="Cancel clear graph"
+        className="absolute inset-0 cursor-default bg-foreground/40"
+        onClick={onCancel}
+      />
+      <section
+        className="relative z-10 w-[min(420px,calc(100vw-32px))] rounded-md border bg-white p-5 shadow-viewport"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold">Clear graph?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Clearing removes all steps, initial geometry nodes, edges, and step
+              values from the current draft graph.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={onConfirm}>
+            Clear
+          </Button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1740,6 +2075,438 @@ function FormField({
   );
 }
 
+function buildDraftGraphFromTemplate(
+  template: ProcessFlowTemplate,
+  stepTemplates: ProcessStepTemplate[],
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  const stepTemplateById = new Map(
+    stepTemplates.map((stepTemplate) => [stepTemplate.id, stepTemplate]),
+  );
+  const layout = computeTemplateLayout(template);
+
+  const processNodes: ProcessStepFlowNode[] = template.stepRefs.flatMap((stepRef) => {
+    const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
+    if (!stepTemplate) {
+      return [];
+    }
+    return [
+      {
+        id: importedStepNodeId(stepRef.stepRefId),
+        type: "processStep",
+        position: layout.stepPositions.get(stepRef.stepRefId) ?? { x: 320, y: 240 },
+        data: {
+          nodeKind: "processStep",
+          stepRefId: stepRef.stepRefId,
+          template: stepTemplate,
+          fieldValues: stepTemplate.fieldDefinitions.map(createDefaultFieldValue),
+          geometryInputFields: getGeometryInputFields(stepTemplate),
+        },
+      },
+    ];
+  });
+
+  const processNodeByStepRefId = new Map(
+    processNodes.map((node) => [node.data.stepRefId, node]),
+  );
+
+  template.flowEdges.forEach((edge) => {
+    if (edge.source.sourceType !== "stepOutput") {
+      return;
+    }
+    const targetNode = processNodeByStepRefId.get(edge.target.stepRefId);
+    if (!targetNode) {
+      return;
+    }
+    setFieldValueInArray(targetNode.data.fieldValues, edge.target.targetFieldId, null);
+  });
+
+  const initialNodes: InitialGeometryFlowNode[] = template.flowEdges.flatMap((edge) => {
+    if (edge.source.sourceType !== "geometryRef") {
+      return [];
+    }
+    const targetNode = processNodeByStepRefId.get(edge.target.stepRefId);
+    const targetField = targetNode?.data.geometryInputFields.find(
+      (field) => field.id === edge.target.targetFieldId,
+    );
+    if (!targetNode || !targetField) {
+      return [];
+    }
+    return [
+      {
+        id: importedInitialNodeId(edge.edgeId),
+        type: "initialGeometry",
+        position: layout.initialPositions.get(edge.edgeId) ?? { x: 40, y: 240 },
+        data: {
+          nodeKind: "initialGeometry",
+          geometry: null,
+          placeholderLabel: "Select geometry",
+          placeholderSublabel: targetField.name,
+        },
+      },
+    ];
+  });
+
+  const nodeIds = new Set([
+    ...processNodes.map((node) => node.id),
+    ...initialNodes.map((node) => node.id),
+  ]);
+  const usedEdgeIds = new Set<string>();
+  const flowEdges: FlowEdge[] = template.flowEdges.flatMap((edge, index) => {
+    const targetNode = processNodeByStepRefId.get(edge.target.stepRefId);
+    const targetField = targetNode?.data.geometryInputFields.find(
+      (field) => field.id === edge.target.targetFieldId,
+    );
+    if (!targetNode || !targetField) {
+      return [];
+    }
+
+    const sourceNodeId =
+      edge.source.sourceType === "geometryRef"
+        ? importedInitialNodeId(edge.edgeId)
+        : importedStepNodeId(edge.source.stepRefId);
+    if (!nodeIds.has(sourceNodeId)) {
+      return [];
+    }
+
+    const sourceNode =
+      edge.source.sourceType === "geometryRef"
+        ? initialNodes.find((node) => node.id === sourceNodeId)
+        : processNodeByStepRefId.get(edge.source.stepRefId);
+    if (!sourceNode) {
+      return [];
+    }
+
+    return [
+      {
+        id: uniqueImportedEdgeId(edge.edgeId, index, usedEdgeIds),
+        type: "dataFlow",
+        source: sourceNodeId,
+        target: targetNode.id,
+        sourceHandle: "out",
+        targetHandle: targetField.id,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        reconnectable: "target",
+        data: {
+          sourceType: edge.source.sourceType,
+          sourceGeometryEntityId: undefined,
+          sourceStepRefId:
+            edge.source.sourceType === "stepOutput" ? edge.source.stepRefId : undefined,
+          targetStepRefId: targetNode.data.stepRefId,
+          targetFieldId: targetField.id,
+          slotLabel: targetField.name,
+          sourceLabel: sourceLabelForNode(sourceNode),
+          geometryViewVisible: true,
+        },
+      },
+    ];
+  });
+
+  return { nodes: [...initialNodes, ...processNodes], edges: flowEdges };
+}
+
+function importedStepNodeId(stepRefId: string) {
+  return `import_step_${safeGraphId(stepRefId)}`;
+}
+
+function importedInitialNodeId(edgeId: string) {
+  return `import_geom_${safeGraphId(edgeId)}`;
+}
+
+function uniqueImportedEdgeId(
+  edgeId: string,
+  index: number,
+  usedEdgeIds: Set<string>,
+) {
+  const base = `import_${safeGraphId(edgeId || `edge_${index + 1}`)}`;
+  let candidate = base;
+  let suffix = 2;
+  while (usedEdgeIds.has(candidate)) {
+    candidate = `${base}_${suffix}`;
+    suffix += 1;
+  }
+  usedEdgeIds.add(candidate);
+  return candidate;
+}
+
+function safeGraphId(value: string) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "item"
+  );
+}
+
+function computeTemplateLayout(template: ProcessFlowTemplate): LayoutResult {
+  const stepOrder = new Map(
+    template.stepRefs.map((stepRef, index) => [stepRef.stepRefId, index]),
+  );
+  const stepIds = template.stepRefs.map((stepRef) => stepRef.stepRefId);
+  const stepSet = new Set(stepIds);
+  const rank = new Map(stepIds.map((stepRefId) => [stepRefId, 1]));
+
+  for (let pass = 0; pass < Math.max(1, stepIds.length); pass += 1) {
+    template.flowEdges.forEach((edge) => {
+      if (
+        edge.source.sourceType !== "stepOutput" ||
+        !stepSet.has(edge.source.stepRefId) ||
+        !stepSet.has(edge.target.stepRefId)
+      ) {
+        return;
+      }
+      const sourceRank = rank.get(edge.source.stepRefId) ?? 1;
+      const targetRank = rank.get(edge.target.stepRefId) ?? 1;
+      if (targetRank <= sourceRank) {
+        rank.set(edge.target.stepRefId, sourceRank + 1);
+      }
+    });
+  }
+
+  const mainPath = findLongestStepPath(template);
+  const mainSet = new Set(mainPath);
+  const lane = new Map<string, number>();
+  mainPath.forEach((stepRefId) => lane.set(stepRefId, 0));
+
+  const lanePattern = buildLanePattern(stepIds.length + 4);
+  let lanePatternIndex = 0;
+  stepIds
+    .filter((stepRefId) => !mainSet.has(stepRefId))
+    .sort(
+      (left, right) =>
+        (rank.get(left) ?? 1) - (rank.get(right) ?? 1) ||
+        (stepOrder.get(left) ?? 0) - (stepOrder.get(right) ?? 0) ||
+        left.localeCompare(right),
+    )
+    .forEach((stepRefId) => {
+      const upstreamLane = template.flowEdges
+        .filter(
+          (edge) =>
+            edge.source.sourceType === "stepOutput" &&
+            edge.target.stepRefId === stepRefId &&
+            lane.has(edge.source.stepRefId) &&
+            lane.get(edge.source.stepRefId) !== 0,
+        )
+        .map((edge) =>
+          edge.source.sourceType === "stepOutput"
+            ? lane.get(edge.source.stepRefId)
+            : undefined,
+        )
+        .find((value): value is number => typeof value === "number");
+
+      if (typeof upstreamLane === "number") {
+        lane.set(stepRefId, upstreamLane);
+        return;
+      }
+
+      lane.set(stepRefId, lanePattern[lanePatternIndex] ?? lanePatternIndex + 1);
+      lanePatternIndex += 1;
+    });
+
+  const stepPositions = new Map<string, { x: number; y: number }>();
+  const initialPositions = new Map<string, { x: number; y: number }>();
+  const xGap = 330;
+  const yGap = 190;
+
+  stepIds.forEach((stepRefId) => {
+    stepPositions.set(stepRefId, {
+      x: (rank.get(stepRefId) ?? 1) * xGap,
+      y: 280 + (lane.get(stepRefId) ?? 0) * yGap,
+    });
+  });
+
+  const occupiedLayoutCells = new Set<string>();
+  stepIds.forEach((stepRefId) => {
+    occupiedLayoutCells.add(
+      layoutCellKey(rank.get(stepRefId) ?? 1, lane.get(stepRefId) ?? 0),
+    );
+  });
+
+  const geometryEdgesByTarget = new Map<string, SavedFlowEdge[]>();
+  template.flowEdges.forEach((edge) => {
+    if (edge.source.sourceType !== "geometryRef") {
+      return;
+    }
+    const key = edge.target.stepRefId;
+    geometryEdgesByTarget.set(key, [...(geometryEdgesByTarget.get(key) ?? []), edge]);
+  });
+
+  geometryEdgesByTarget.forEach((group, targetStepRefId) => {
+    const targetRank = rank.get(targetStepRefId) ?? 1;
+    const targetLane = lane.get(targetStepRefId) ?? 0;
+    const initialRank = Math.max(0, targetRank - 1);
+    const laneOffsets = centeredInitialLaneOffsets(
+      group.length,
+      group.length + stepIds.length + 8,
+    );
+
+    group
+      .slice()
+      .sort((left, right) => left.edgeId.localeCompare(right.edgeId))
+      .forEach((edge) => {
+        const initialLane =
+          laneOffsets
+            .map((offset) => targetLane + offset)
+            .find(
+              (candidateLane) =>
+                !occupiedLayoutCells.has(layoutCellKey(initialRank, candidateLane)),
+            ) ?? targetLane;
+        occupiedLayoutCells.add(layoutCellKey(initialRank, initialLane));
+        initialPositions.set(edge.edgeId, {
+          x: initialRank * xGap,
+          y: 280 + initialLane * yGap,
+        });
+      });
+  });
+
+  normalizeTemplateLayoutPositions(stepPositions, initialPositions);
+  return { stepPositions, initialPositions };
+}
+
+function normalizeTemplateLayoutPositions(
+  stepPositions: Map<string, { x: number; y: number }>,
+  initialPositions: Map<string, { x: number; y: number }>,
+) {
+  const positions = [...stepPositions.values(), ...initialPositions.values()];
+  if (positions.length === 0) {
+    return;
+  }
+  const minX = Math.min(...positions.map((position) => position.x));
+  const minY = Math.min(...positions.map((position) => position.y));
+  const dx = minX < 40 ? 40 - minX : 0;
+  const dy = minY < 70 ? 70 - minY : 0;
+  if (dx === 0 && dy === 0) {
+    return;
+  }
+  stepPositions.forEach((position) => {
+    position.x += dx;
+    position.y += dy;
+  });
+  initialPositions.forEach((position) => {
+    position.x += dx;
+    position.y += dy;
+  });
+}
+
+function findLongestStepPath(template: ProcessFlowTemplate) {
+  const stepOrder = new Map(
+    template.stepRefs.map((stepRef, index) => [stepRef.stepRefId, index]),
+  );
+  const stepIds = template.stepRefs.map((stepRef) => stepRef.stepRefId);
+  const stepSet = new Set(stepIds);
+  const adjacency = new Map<string, string[]>();
+  template.flowEdges.forEach((edge) => {
+    if (
+      edge.source.sourceType !== "stepOutput" ||
+      !stepSet.has(edge.source.stepRefId) ||
+      !stepSet.has(edge.target.stepRefId)
+    ) {
+      return;
+    }
+    adjacency.set(edge.source.stepRefId, [
+      ...(adjacency.get(edge.source.stepRefId) ?? []),
+      edge.target.stepRefId,
+    ]);
+  });
+  adjacency.forEach((targets, source) => {
+    adjacency.set(
+      source,
+      targets.sort(
+        (left, right) =>
+          (stepOrder.get(left) ?? 0) - (stepOrder.get(right) ?? 0) ||
+          left.localeCompare(right),
+      ),
+    );
+  });
+
+  const memo = new Map<string, string[]>();
+  function dfs(stepRefId: string, visiting: Set<string>): string[] {
+    const cached = memo.get(stepRefId);
+    if (cached) {
+      return cached;
+    }
+    if (visiting.has(stepRefId)) {
+      return [stepRefId];
+    }
+    visiting.add(stepRefId);
+    let best = [stepRefId];
+    for (const target of adjacency.get(stepRefId) ?? []) {
+      const candidate = [stepRefId, ...dfs(target, new Set(visiting))];
+      if (compareStepPaths(candidate, best, stepOrder) < 0) {
+        best = candidate;
+      }
+    }
+    memo.set(stepRefId, best);
+    return best;
+  }
+
+  let bestPath: string[] = [];
+  stepIds.forEach((stepRefId) => {
+    const candidate = dfs(stepRefId, new Set());
+    if (bestPath.length === 0 || compareStepPaths(candidate, bestPath, stepOrder) < 0) {
+      bestPath = candidate;
+    }
+  });
+  return bestPath;
+}
+
+function compareStepPaths(
+  left: string[],
+  right: string[],
+  stepOrder: Map<string, number>,
+) {
+  if (left.length !== right.length) {
+    return right.length - left.length;
+  }
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const leftValue = left[index];
+    const rightValue = right[index];
+    if (leftValue === rightValue) {
+      continue;
+    }
+    if (leftValue === undefined) {
+      return 1;
+    }
+    if (rightValue === undefined) {
+      return -1;
+    }
+    const orderDiff =
+      (stepOrder.get(leftValue) ?? Number.MAX_SAFE_INTEGER) -
+      (stepOrder.get(rightValue) ?? Number.MAX_SAFE_INTEGER);
+    if (orderDiff !== 0) {
+      return orderDiff;
+    }
+    return leftValue.localeCompare(rightValue);
+  }
+  return 0;
+}
+
+function buildLanePattern(count: number) {
+  const lanes: number[] = [];
+  for (let index = 1; lanes.length < count; index += 1) {
+    lanes.push(-index, index);
+  }
+  return lanes;
+}
+
+function centeredInitialLaneOffsets(groupSize: number, minimumCount: number) {
+  const offsets: number[] = [];
+  if (groupSize % 2 === 1) {
+    offsets.push(0);
+  }
+  for (let distance = 1; offsets.length < minimumCount; distance += 1) {
+    offsets.push(-distance, distance);
+  }
+  if (groupSize % 2 === 0) {
+    offsets.push(0);
+  }
+  return offsets;
+}
+
+function layoutCellKey(rank: number, lane: number) {
+  return `${rank}:${lane}`;
+}
+
 function buildFlowEdge(
   edgeId: string,
   sourceNode: FlowNode,
@@ -1760,7 +2527,7 @@ function buildFlowEdge(
         sourceNode.data.nodeKind === "initialGeometry" ? "geometryRef" : "stepOutput",
       sourceGeometryEntityId:
         sourceNode.data.nodeKind === "initialGeometry"
-          ? sourceNode.data.geometry.id
+          ? sourceNode.data.geometry?.id
           : undefined,
       sourceStepRefId:
         sourceNode.data.nodeKind === "processStep" ? sourceNode.data.stepRefId : undefined,
@@ -1842,7 +2609,7 @@ function analyzeGraph(
   } else if (connectedInitialNodeIds.size === 0) {
     validationMessage = "Connect at least one initial geometry root.";
   } else if (unconnectedInitial) {
-    validationMessage = `Connect or delete unconnected initial geometry: ${unconnectedInitial.data.geometry.name}.`;
+    validationMessage = `Connect or delete unconnected initial geometry: ${initialGeometryLabel(unconnectedInitial)}.`;
   } else if (hasCycle) {
     validationMessage = "Graph contains a cycle.";
   } else if (duplicateTargetSlots.length > 0) {
@@ -2614,10 +3381,14 @@ function isProcessStepNode(node: FlowNode): node is ProcessStepFlowNode {
 }
 
 function sourceLabelForNode(node: FlowNode) {
-  if (node.data.nodeKind === "initialGeometry") {
-    return `${node.data.geometry.name}`;
+  if (isInitialGeometryNode(node)) {
+    return initialGeometryLabel(node);
   }
   return `${node.data.template.name} output`;
+}
+
+function initialGeometryLabel(node: InitialGeometryFlowNode) {
+  return node.data.geometry?.name ?? node.data.placeholderLabel ?? "Select geometry";
 }
 
 function uniqueStepRefId(template: ProcessStepTemplate, nodes: FlowNode[]) {
