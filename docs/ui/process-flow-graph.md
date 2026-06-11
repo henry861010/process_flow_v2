@@ -469,10 +469,8 @@ Template editor route 是 `/flow-template-editor`。這個 shell 不屬於 Graph
 Header：
 
 - 左側 icon 是 `GitBranch`，標題 `Process Flow Template Editor`。
-- subtitle：`Create a new topology snapshot from a blank graph or an existing template.`
-- 右側 actions：`Home`、`Start from template`、`Clear`、`Export all templates`、`Save`。
-- `Start from template` 開啟 template picker modal，依 template name 搜尋並選取既有 `ProcessFlowTemplate`，再將 source template topology 初始化到目前 editable draft graph。若目前 draft graph 已有 node 或 edge，開始匯入前必須顯示 replace confirmation。
-- `Clear` 在目前 draft graph 沒有 node 且沒有 edge 時 disabled。點擊後顯示 `Clear graph?` confirm；確認後移除所有 whiteboard nodes、edges、step draft values、selection、開啟中的 step dialog 與 geometry preview overlay，metadata form 保留原值。
+- subtitle：`Custom mode builds an immutable topology snapshot and a bound instance.`
+- 右側 actions：`Home`、`Start from template`、`Clear`、`Save`。
 - `Save` 在 `analysis.canSave === false` 時 disabled。
 - Metadata form 是一列三欄，在 `xl` 以上為：
   `technologyName`、`productInstanceName`、validation pill。

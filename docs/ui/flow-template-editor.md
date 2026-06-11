@@ -111,18 +111,7 @@ const GEOMETRY_ENTITIES_STORAGE_KEY = "GeometryEntity";
 
 此頁先假設上述 localStorage key 若存在，其 JSON 格式與 schema 都正確；不需要做 malformed localStorage recovery UI。
 
-Export all templates 時，下載內容為 `ProcessFlowTemplate[]`，來源是 `processFlowTemplates`。
-
-Export all templates 行為：
-
-- 下載檔名固定為 `processFlowTemplates.json`。
-- Blob MIME type 使用 `application/json;charset=utf-8`。
-- JSON 使用 2-space pretty print：`JSON.stringify(templates, null, 2)`。
-- 即使 templates 為空陣列，也可以 export，檔案內容為 `[]`。
-
-`Start from template` 讀取 `processFlowTemplates`，並依每筆 template 的 `name` 提供搜尋與選取。Picker list 只顯示 template name，不顯示 description、owner、version 或其他 metadata。使用者選取 template 後，系統將該 template 的 `stepRefs[]` 與 `flowEdges[]` 轉成目前白板使用的 draft `nodes` 與 `edges`。此轉換只寫入 React draft state，不立即寫入 localStorage。
-
-Save 時：
+Save custom flow 時：
 
 - 從 metadata form 取得 `Technology name` 與 `Product / instance name`。
 - 從白板 draft graph 建立新的 `ProcessFlowTemplate`，即使 graph 是由 `Start from template` 初始化也一樣建立新 template。
@@ -141,7 +130,7 @@ Save 時：
 
 `GeometryEntity` 由 home page 寫入 localStorage。若 `GeometryEntity` 不存在或為空陣列，左側 geometry palette 顯示 empty state 或空列表，本頁不自動建立 seed data。
 
-此頁不 seed process flow templates 或 process flow instances。若 `processFlowTemplates` 或 `processFlowInstances` 不存在，Save / export 時以空陣列處理。
+此頁不 seed process flow templates 或 process flow instances。若 `processFlowTemplates` 或 `processFlowInstances` 不存在，Save 時以空陣列處理。
 
 ## Metadata Form
 
@@ -154,7 +143,11 @@ Metadata 區域至少包含：
 
 Metadata 區域需要常駐在白板上方，與 Save 狀態列相鄰，讓使用者在任何白板縮放或捲動狀態下都能看見目前建立目標與 validation 狀態。
 
+<<<<<<< HEAD
 Header 右上角需要提供 `Home` button，點擊後導回 home page `/`，不寫入 localStorage、不下載 process JSON。`Home` button 與 `Start from template`、`Clear`、`Export all templates`、`Save` 放在同一組 header action controls。
+=======
+Header 右上角需要提供 `Home` button，點擊後導回 home page `/`，不寫入 localStorage、不下載 process JSON。`Home` button 與 `Start from template`、`Clear`、`Save` 放在同一組 header action controls。
+>>>>>>> feature/template_editor
 
 `Technology name` 空白時，Save button 必須 disabled，狀態列顯示 technology name required 類型的錯誤訊息。`Product / instance name` 空白時不阻止 Save。
 
