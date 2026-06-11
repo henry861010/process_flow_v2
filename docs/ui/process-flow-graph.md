@@ -470,7 +470,7 @@ Header：
 
 - 左側 icon 是 `GitBranch`，標題 `Process Flow Template Editor`。
 - subtitle：`Custom mode builds an immutable topology snapshot and a bound instance.`
-- 右側 actions：`Home`、`Export all templates`、`Save`。
+- 右側 actions：`Home`、`Start from template`、`Clear`、`Save`。
 - `Save` 在 `analysis.canSave === false` 時 disabled。
 - Metadata form 是一列三欄，在 `xl` 以上為：
   `technologyName`、`productInstanceName`、validation pill。
