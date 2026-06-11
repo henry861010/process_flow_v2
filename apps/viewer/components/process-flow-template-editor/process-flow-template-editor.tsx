@@ -23,7 +23,6 @@ import {
   Boxes,
   Check,
   ChevronDown,
-  Download,
   FileJson,
   GitBranch,
   GitFork,
@@ -847,13 +846,6 @@ function ProcessFlowTemplateEditorInner() {
     }
   }
 
-  function exportAllTemplates() {
-    const templates = readStorageArray<ProcessFlowTemplate>(
-      PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
-    );
-    downloadJson("processFlowTemplates.json", templates);
-  }
-
   function openTemplatePicker() {
     const templates = readStorageArray<ProcessFlowTemplate>(
       PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
@@ -1072,10 +1064,6 @@ function ProcessFlowTemplateEditorInner() {
             >
               <Trash2 />
               Clear
-            </Button>
-            <Button variant="outline" onClick={exportAllTemplates}>
-              <Download />
-              Export all templates
             </Button>
             <Button disabled={!analysis.canSave} onClick={saveFlow}>
               <Save />
