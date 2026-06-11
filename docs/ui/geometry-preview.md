@@ -306,6 +306,8 @@ Client 將 `glbBase64` 轉成 `Blob`，載入 CAD viewer，並使用同一個 `B
 下載。STEP export 會把 `via`、`circuit`、`bump` 的 geometry materialize
 成實體 solid，材料名稱為 `{featureType}_{material}_{density}` 的安全 token，
 例如 `via_Cu_0p4`；同一個 container 內這些 feature body 的優先權高於一般 body。
+當 ancestor 與 descendant container 的 body 或 materialized feature solid overlap
+時，descendant solid 具有較高 priority，ancestor solid 的重疊區域會被排除。
 
 ### 2.7 Download JSON Shape
 

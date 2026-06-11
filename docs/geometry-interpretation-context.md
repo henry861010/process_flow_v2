@@ -28,34 +28,42 @@ reader 依 parent-child 關係再套一次 transform。
 - Parent container 可以代表外殼、背景體積、封裝區、mold 或其他較粗的基底。
 - Child container 可以代表 die、局部結構、局部製程結果或更高優先權的幾何描述。
 
-## Ancestor-Descendant Volume Ownership
+## Ancestor-Descendant Spatial Priority
 
-當 descendant container 內的 body 和 ancestor container 內的 body 在空間上 overlap
-時，overlap 區域的 physical volume ownership 屬於 descendant body。這個規則不限於
-direct parent-child；只要兩個 container 位在同一條 ancestor-descendant chain 上，
-較深層的 body 會取代較上層的 body。
+當 descendant container 內的 body、via、circuit 或 bump 與 ancestor container
+內的 body、via、circuit 或 bump 在空間上 overlap 時，overlap 區域由 descendant
+item 表達。這個規則不限於 direct parent-child；只要兩個 container 位在同一條
+ancestor-descendant chain 上，較深層 container 的幾何描述會取代較上層 container
+在重疊區域的幾何描述。
 
-這是 geometry 解讀裡最重要的 composition rule：descendant container 會取代
-ancestor container 在重疊區域的語意。也就是說，ancestor body 不應該和 descendant
-body 在同一個空間被加總成兩份材料或兩份體積；該區域應由 descendant body 的材料與
-幾何語意代表。
+這是 geometry 解讀裡最重要的 composition rule：descendant container 在重疊區域具有
+較高 spatial priority。ancestor item 和 descendant item 不應該在同一個空間被加總成
+兩份材料、兩份實體或兩份 feature effect；該區域應由 descendant item 的材料、feature
+type、density 與幾何語意代表。
 
-典型情境是 ancestor body 表示 mold compound 或 package-level background volume，
-而 descendant body 表示 die silicon。若 die body 落在 mold body 內，重疊的那段體積
-要被視為 die silicon，而不是 mold compound 加 silicon 疊在一起。
+Body 決定實體體積與材料 ownership。Via、circuit 與 bump 則決定 scoped feature
+effect；它們不是一般 body，但在需要 materialize feature、計算 effective feature
+volume、產生 cross-section、建立 mesh 或輸出 CAD 時，也遵守相同的
+ancestor-descendant spatial priority。若 child die 的 bump 與 package root 的 bump
+envelope 重疊，重疊區域屬於 child die 的 bump；package root 的 bump 在該區域不再有
+effective feature volume。
 
-對 viewer 來說，即使第一版只做視覺化、沒有真的執行 boolean subtraction，也必須
-保留這個語意：descendant overlap ancestor 的區域屬於 descendant。之後若要做準確
-體積計算、材料統計、cross-section、mesh generation 或 CAD export，都應以這個
-ownership rule 為準。
+典型 body 情境是 ancestor body 表示 mold compound 或 package-level background
+volume，而 descendant body 表示 die silicon。若 die body 落在 mold body 內，這段
+overlap volume 屬於 die silicon，不屬於 mold compound。
+
+典型 feature 情境是 package root 有一個 full-area bump feature，而 child die 也有
+自己的 bump feature。若兩者 envelope overlap，overlap 區域由 child die 的 bump
+表達；root bump 的有效範圍需要排除該區域。這個規則同樣適用於 via、circuit 與不同
+feature/body 組合。
 
 這個規則只明確定義 ancestor-descendant chain 上的 overlap。若同一個 container 內
-的 sibling bodies 互相 overlap，或不同 child branches 內的 cousin/sibling container
-bodies 互相 overlap，structure 本身不定義哪一個 body 擁有該 overlap volume。資料
-建模時應避免依賴這類非 ancestor-descendant overlap 的 ownership。CAD exporter 目前
-可以在 export-time 對同 container、同材質、互相 overlap 的 sibling bodies 做 union，
-並保留 source ids；若同 container 內異材質 sibling bodies 發生實體 overlap，
-exporter 會拒絕輸出，避免產生不明確的 CAD 結果。
+的 sibling items 互相 overlap，或不同 child branches 內的 cousin/sibling container
+items 互相 overlap，structure 本身不定義哪一個 item 擁有該 overlap 區域。資料建模
+時應避免依賴這類非 ancestor-descendant overlap 的 ownership 或 priority。CAD
+exporter 可以在 export-time 對同 container、同材質、互相 overlap 的 sibling bodies
+做 union，並保留 source ids；若同 container 內異材質 sibling bodies 發生實體
+overlap，exporter 會拒絕輸出，避免產生不明確的 CAD 結果。
 
 ## Feature Scope
 
@@ -64,16 +72,19 @@ solid ownership，而是在某個 container scope 裡描述局部製程或結構
 
 這三類 feature 的作用 scope 由「它們放在哪一個 container 的 array 裡」決定，而
 不是單純由幾何座標或空間 overlap 決定。Feature 的 geometry 是該 feature 自己的
-spatial envelope；density-based 計算若需要有效體積，預設以這個 envelope 的幾何體積
-乘上 density 解讀。這個 feature envelope 不會變成 body ownership，也不參與
-ancestor-descendant body subtraction。
+spatial envelope；density-based 計算若需要有效體積，預設以這個 envelope 在套用
+ancestor-descendant spatial priority 後留下的有效幾何體積乘上 density 解讀。
+Feature envelope 不會變成一般 body ownership，但它在 materialized view、CAD export、
+cross-section 或有效 feature volume 計算中會參與 ancestor-descendant overlap
+resolution。
 
 換句話說，feature.geometry 決定 feature 在空間中描述哪一段局部效果，container
 array 決定這段效果屬於哪個 scope。Feature 不會因為 envelope overlap 到 parent、
 child 或 sibling container 的 body，就自動套用到那些 container；也不會因為 owner
-container 裡剛好有 body，就被隱含裁切成 feature.geometry 與該 body 的交集。若某個
-下游 solver 需要採用 body-bounded 的 feature 計算，必須把這當成該 solver 的額外
-策略明確宣告，不能反過來改寫 geometry structure 的基本語意。
+container 裡剛好有 body，就被隱含裁切成 feature.geometry 與該 body 的交集。若
+feature 和 ancestor 或 descendant item overlap，reader 先保留各自的 scope，再依
+ancestor-descendant spatial priority 決定 materialized view 或有效 feature volume
+中的重疊區域由哪個 item 表達。
 
 Via 與 bump 另外保存 `direction`，用來描述 feature 在 global Z axis 上的方向語意。
 每個 via 與 bump 都必須提供 `direction`；缺少 `direction` 的 via 或 bump payload
@@ -90,13 +101,20 @@ Z 方向成長、連接或作為 process normal。
 - 它們不會向上套用到 parent container。
 - 它們不會向下套用到 child container。
 - 它們不會因為幾何範圍 overlap 到別的 container，就自動變成別的 container 的 feature。
+- 當它們的 envelope 與 ancestor container 的 body 或 feature overlap 時，descendant
+  feature 在 overlap 區域有較高 spatial priority。
+- 當它們的 envelope 與 descendant container 的 body 或 feature overlap 時，
+  descendant item 在 overlap 區域有較高 spatial priority，ancestor feature 的有效範圍
+  需要排除該區域。
 - Via 與 bump 的方向由各自的 `direction` 欄位決定，不由 Z 位置、container 層級或
   material 推論。
 
 例如 root container 有一個 via feature，而 child container 裡有 die body。即使
 root via 的幾何範圍和 child die 的空間位置 overlap，該 via 仍然只屬於 root
-container scope，不會自動作用到 die。反過來，若 die container 裡有 bump 或
-circuit，它們也只屬於 die container，不會自動作用到 package root。
+container scope，不會自動作用到 die；materialized view 中的重疊區域則由 child die
+body 表達。反過來，若 die container 裡有 bump 或 circuit，它們也只屬於 die
+container，不會自動作用到 package root；若它們和 root feature overlap，overlap
+區域由 die container 的 feature 表達。
 
 ## Via、Circuit、Bump 的語意差異
 
@@ -148,28 +166,32 @@ global coordinates。Flip 不透過負厚度表示，也不以保留原 geometry
 3. 讀取目前 container 的 vias、circuits、bumps，建立只屬於目前 container scope
    的 density features 或 overlay。
 4. 遞迴讀取 child containers。
-5. 套用 ancestor-descendant volume ownership：descendant body 和 ancestor body
-   overlap 時，overlap volume 由 descendant body 取代 ancestor body。
+5. 套用 ancestor-descendant spatial priority：descendant body、via、circuit 或 bump
+   與 ancestor body、via、circuit 或 bump overlap 時，overlap 區域由 descendant item
+   取代 ancestor item。
 
 這個流程的重點是分開兩件事：body 決定 physical volume ownership，via/circuit/bump
-決定 local feature effect。Feature scope 不能跨 container 傳播；body overlap
-ownership 則只在 ancestor-descendant composition 中有明確規則。
+決定 local feature effect。Feature scope 不能跨 container 傳播；ancestor-descendant
+composition 只決定 materialized view 或有效體積中的 overlap 區域由哪個 scope 的 item
+表達。
 
 ## 實作與資料建模注意事項
 
 - Container 是 scope，不是材料。
 - Body 是實體體積與材料 ownership 的主要來源。
-- Descendant body overlap ancestor body 時，descendant body 取代 ancestor body。
+- Descendant body、via、circuit 或 bump overlap ancestor body、via、circuit 或 bump
+  時，descendant item 取代 ancestor item 的重疊區域。
 - Ancestor-descendant overlap 不代表兩份體積相加。
-- 非 ancestor-descendant 的 body overlap 沒有通用 ownership 語意，應避免在資料上依賴。
+- 非 ancestor-descendant 的 overlap 沒有通用 ownership 或 priority 語意，應避免在
+  資料上依賴。
 - Via、circuit、bump 只作用在所屬 container。
 - Via 與 bump 的 direction 是必要語意，不從 geometry envelope、material 或 container
   位置推論。
 - Feature scope 由 array 所在 container 決定，不由空間 overlap 決定。
-- Feature 的 density effect 預設以自己的 geometry envelope 表達，不隱含裁切到
-  owner container body，也不參與 body ownership subtraction。
+- Feature 的 density effect 預設以自己的 geometry envelope 表達；effective feature
+  volume 需排除被 descendant item 取代的 overlap 區域。
 - Z-axis flip 會反轉 flipped scope 內所有 via 與 bump direction。
-- Viewer 可以先不做 boolean subtraction，但文件解讀與後續計算必須保留 descendant
-  ownership rule。
+- Viewer、cross-section、mesh generation 與 CAD export 在呈現 materialized geometry
+  時應保留 ancestor-descendant spatial priority。
 - CAD export 可以有額外的 export-time 保護與合併策略，但不能反過來改寫 geometry
   structure 本身的語意。

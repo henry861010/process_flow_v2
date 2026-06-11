@@ -347,22 +347,31 @@ Reader、viewer 或 geometry engine 解讀 `standard` structure 時，應從
 2. 讀取目前 container 的 `vias`、`circuits`、`bumps`，建立只屬於此 container
    scope 的 density features。
 3. 遞迴讀取每個 `children` container。
-4. 套用 parent-child composition：child container 的 body 與 parent container
-   的 body 發生空間 overlap 時，overlap volume 由 child body 佔據。
+4. 套用 ancestor-descendant composition：descendant container 的 body、via、
+   circuit 或 bump 與 ancestor container 的 body、via、circuit 或 bump 發生空間
+   overlap 時，overlap 區域由 descendant item 佔據。
 
-這個規則的意思是：parent body 可以代表較粗略的外殼、包覆體或背景體積；
-child body 代表更高優先權、更具體的幾何。當 child body 與 parent body 重疊時，
-該重疊區域不應被解讀成 parent material 加 child material 兩份體積，而應由
-child body 的材料與幾何語意取代 parent body 在該區域的語意。
+這個規則的意思是：ancestor container 可以代表較粗略的外殼、包覆體、背景體積或
+package-level feature；descendant container 代表更高優先權、更具體的幾何。當
+descendant item 與 ancestor item 重疊時，該重疊區域不應被解讀成 ancestor material
+加 descendant material 兩份體積，也不應被解讀成 ancestor feature 加 descendant
+feature 兩份 feature effect，而應由 descendant item 的材料、feature type、density
+與幾何語意取代 ancestor item 在該區域的語意。
 
 例如 root container 有一個 mold compound body，而 child container 有一個 die
 silicon body。如果 die body 的空間範圍落在 mold body 內，這段 overlap volume
 屬於 child die 的 silicon body，不屬於 parent mold compound body。
 
-目前 `standard` structure 只定義 parent-child overlap 的 ownership。若同一個
-container 內的 sibling bodies 互相 overlap，structure 只描述它們的位置與材料，
-不額外定義哪一個 sibling 擁有 overlap volume；資料建模時應避免依賴 sibling
-overlap 的 ownership 語意。
+若 root container 有一個 full-area bump feature，而 child die container 有自己的
+bump feature，兩者 envelope overlap 的區域由 child die 的 bump 表達；root bump 的
+effective feature volume 需要排除該區域。這個 ancestor-descendant spatial priority
+同樣適用於 body、via、circuit 與 bump 的任意組合。
+
+`standard` structure 只定義 ancestor-descendant chain 上的 overlap priority。若同
+一個 container 內的 sibling items 互相 overlap，或不同 child branches 內的 cousin
+items 互相 overlap，structure 只描述它們的位置、材料與 feature 欄位，不額外定義哪
+一個 item 擁有 overlap 區域；資料建模時應避免依賴這類非 ancestor-descendant
+overlap 的 ownership 或 priority 語意。
 
 ## ProcessStepTemplate
 
