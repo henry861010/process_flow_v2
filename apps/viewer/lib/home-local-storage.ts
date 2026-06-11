@@ -131,7 +131,6 @@ type GeometryEntity = {
   owner: string;
   description: string;
   entityType: string;
-  summary: string;
   structureFormat: "standard";
   structure?: unknown;
 };
@@ -378,11 +377,11 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
-    id: "step_tpl_debound_1_0_0",
+    id: "step_tpl_debond_1_0_0",
     version: "V1.0.0",
-    name: "Debound",
-    category: "debound",
-    program: "debound/debound",
+    name: "Debond",
+    category: "carrier",
+    program: "carrier/debond",
     description:
       "Removes the highest direct root body or bodies from the main geometry, leaving child scopes and non-body features unchanged.",
     owner: "integration.platform",
@@ -391,7 +390,41 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
         id: "main_geometry",
         name: "main_geometry",
         description:
-          "Complete geometry state consumed by Debound. The operation removes only direct root bodies at the highest direct root body top.",
+          "Complete geometry state consumed by debond. The operation removes only direct root bodies at the highest direct root body top.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+    ],
+  },
+  {
+    id: "step_tpl_carrier_bond_1_0_0",
+    version: "V1.0.0",
+    name: "Carrier Bond",
+    category: "carrier",
+    program: "carrier/bond",
+    description:
+      "Copies carrier geometry root direct bodies onto the full geometry top as direct root bodies and updates cursorZ to the carrier stack top.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Main geometry state that receives bonded carrier direct root bodies.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "carrier_geometry",
+        name: "carrier_geometry",
+        description:
+          "Carrier geometry state. Only root direct bodies are copied; carrier geometry entities are expected to use entityType carrier.",
         scope: "inputState",
         valueType: "geometryRef",
         controlType: null,
@@ -489,7 +522,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     id: "step_tpl_ubump_formation_1_0_0",
     version: "V1.0.0",
     name: "Micro Bump",
-    category: "bounding",
+    category: "bump",
     program: "bump/uBump_formation",
     description:
       "Forms upward micro bump features above cursorZ using the current process footprint after applying koz.",
@@ -566,7 +599,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     id: "step_tpl_bga_bump_formation_1_0_0",
     version: "V1.0.0",
     name: "BGA Bump",
-    category: "bounding",
+    category: "bump",
     program: "bump/bga_bump_formation",
     description:
       "Forms upward BGA bump features above cursorZ using the current process footprint after applying koz.",
@@ -642,7 +675,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     id: "step_tpl_c4_bump_formation_1_0_0",
     version: "V1.0.0",
     name: "C4 Bump",
-    category: "bounding",
+    category: "bump",
     program: "bump/c4_bump_formation",
     description:
       "Forms upward C4 bump features above cursorZ using the current process footprint after applying koz.",
@@ -1117,9 +1150,9 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     name: "Wafer",
     version: "v1.0.0",
     owner: "demo.example",
-    description: "Centered circular wafer geometry for demo flow roots.",
+    description:
+      "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
     entityType: "wafer",
-    summary: "300000 x 500 um wafer, center at 0,0,0.",
     structureFormat: "standard",
     structure: centeredCylinderStructure("example-wafer", "Si", 300000, 500),
   },
@@ -1129,9 +1162,9 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     name: "Panel",
     version: "v1.0.0",
     owner: "demo.example",
-    description: "Centered square panel geometry for demo flow roots.",
+    description:
+      "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
     entityType: "panel",
-    summary: "310000 x 310000 x 500 um panel, center at 0,0,0.",
     structureFormat: "standard",
     structure: centeredBoxStructure("example-panel", "glass", 310000, 310000, 500),
   },
@@ -1141,9 +1174,9 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     name: "HBM",
     version: "v1.0.0",
     owner: "demo.example",
-    description: "Simple block placeholder for HBM die.",
+    description:
+      "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
     entityType: "die",
-    summary: "1400 x 1000 x 50 um HBM block, center at 0,0,0.",
     structureFormat: "standard",
     structure: centeredBoxStructure("example-hbm", "Si-HBM", 1400, 1000, 50),
   },
@@ -1153,9 +1186,9 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     name: "SoC",
     version: "v1.0.0",
     owner: "demo.example",
-    description: "Simple block placeholder for SoC die.",
+    description:
+      "Simple block placeholder for SoC die. 2000 x 1600 x 70 um SoC block, center at 0,0,0.",
     entityType: "die",
-    summary: "2000 x 1600 x 70 um SoC block, center at 0,0,0.",
     structureFormat: "standard",
     structure: centeredBoxStructure("example-soc", "Si-SoC", 2000, 1600, 70),
   },
@@ -1165,9 +1198,9 @@ export const GEOMETRY_ENTITY_SEED: GeometryEntity[] = [
     name: "carrier",
     version: "v1.0.0",
     owner: "demo.example",
-    description: "Simple block placeholder for carrier.",
+    description:
+      "Simple block placeholder for carrier. 5000 x 5000 x 70 um carrier block, center at 0,0,0.",
     entityType: "carrier",
-    summary: "5000 x 5000 x 70 um SoC block, center at 0,0,0.",
     structureFormat: "standard",
     structure: centeredBoxStructure("example-soc", "carrier", 5000, 5000, 70),
   },

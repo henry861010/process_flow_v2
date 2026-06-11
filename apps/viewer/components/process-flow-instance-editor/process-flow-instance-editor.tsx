@@ -182,7 +182,6 @@ type GeometryEntity = {
   owner: string;
   description: string;
   entityType: string;
-  summary: string;
   structureFormat: string;
   structure?: unknown;
 };
@@ -1040,7 +1039,7 @@ function GeometryPickerDialog({
         geometry.version,
         geometry.category,
         geometry.entityType,
-        geometry.summary,
+        geometry.description,
       ]
         .join(" ")
         .toLowerCase()
@@ -1133,7 +1132,7 @@ function GeometryPickerDialog({
                           <Badge variant="outline">{geometry.entityType}</Badge>
                         </div>
                         <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                          {geometry.summary}
+                          {geometry.description}
                         </p>
                       </button>
                     ))}

@@ -320,6 +320,7 @@ Client 將 `glbBase64` 轉成 `Blob`，載入 CAD viewer，並使用同一個 `B
 type GeometryEntityDownload = {
   id: null;
   category: string | null;
+  entityType: string;
   name: string;
   version: null;
   owner: null;
@@ -339,15 +340,15 @@ type GeometryEntityDownload = {
 | `owner` | `null` |
 | `description` | 包含 edge id 與 source kind 的簡短 preview context |
 | `category` | `"preview.generated"` |
+| `entityType` | `"preview"` |
 | `structureFormat` | `"standard"` |
 | `structure` | Kernel preview output geometry structure |
 
 重要 schema note：
 
-- `docs/data-model.md` 的 core `GeometryEntity` schema 沒有定義 `entityType`。
-- 目前 viewer seed data 與 UI types 有包含 `entityType`，但 Geometry Preview
-  download JSON 應以 `docs/data-model.md` 為準，除非 data model 後續更新。
-- Preview download JSON 預設不加入 `entityType`。
+- `docs/data-model.md` 的 core `GeometryEntity` schema 定義 `entityType`。
+- Preview download JSON 預設加入 `entityType: "preview"`，表示這是尚未 persisted
+  的 preview artifact，不代表已治理的原始 geometry 類型。
 
 Category rule:
 
@@ -547,3 +548,4 @@ GLB blob 與 download state 由 panel 自己管理。
 ## 3. Product Decision
 
 Preview download JSON 的 `category` 固定使用 `"preview.generated"`。
+Preview download JSON 的 `entityType` 固定使用 `"preview"`。

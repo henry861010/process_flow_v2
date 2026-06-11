@@ -32,7 +32,8 @@ import {
 import { execute as executeGrinding } from "../process/grinding/grinding.js";
 import { execute as executeMicroBump } from "../process/bump/uBump_formation.js";
 import { execute as executeFlip } from "../process/flip/flip.js";
-import { execute as executeDebound } from "../process/debound/debound.js";
+import { execute as executeDebond } from "../process/carrier/debond.js";
+import { execute as executeCarrierBond } from "../process/carrier/bond.js";
 import { execute as executeUnderFill } from "../process/uf/under_fill.js";
 import { execute as executeSaw } from "../process/saw/saw.js";
 
@@ -351,7 +352,7 @@ test("rootBodyZMax reports only direct root body top", () => {
 });
 
 test("removeTopRootBodies removes all highest direct root bodies only", () => {
-  const state = ProcessGeometryState.create({ key: "debound-root" });
+  const state = ProcessGeometryState.create({ key: "debond-root" });
   state.initializeBoxLayer({
     material: "carrier",
     bottomLeft: [-10, -10, 0],
@@ -415,7 +416,7 @@ test("removeTopRootBodies removes all highest direct root bodies only", () => {
 });
 
 test("removeTopRootBodies is a no-op when root has no direct body", () => {
-  const state = ProcessGeometryState.create({ key: "empty-debound-root" });
+  const state = ProcessGeometryState.create({ key: "empty-debond-root" });
   state.setCursorZ(42);
 
   const result = state.removeTopRootBodies();
@@ -425,8 +426,100 @@ test("removeTopRootBodies is a no-op when root has no direct body", () => {
   assert.equal(state.inspect().bodyCount, 0);
 });
 
-test("Debound process step removes top root bodies and updates cursor", () => {
-  const state = ProcessGeometryState.create({ key: "debound-step-root" });
+test("Carrier Bond process step copies carrier root bodies to full geometry top", () => {
+  const state = ProcessGeometryState.create({ key: "carrier-bond-main" });
+  state.initializeBoxLayer({
+    material: "base",
+    bottomLeft: [-20, -20, 0],
+    topRight: [20, 20, 0],
+    thickness: 5,
+  });
+  const footprint = state.processFootprint();
+
+  const die = ProcessGeometryState.create({ key: "die" });
+  die.initializeBoxLayer({
+    material: "Si",
+    bottomLeft: [0, 0, 0],
+    topRight: [4, 4, 0],
+    thickness: 10,
+  });
+  state.placeGeometryState(die, {
+    x: 0,
+    y: 0,
+    bottomZ: 20,
+    anchor: "bottomLeft",
+  });
+  state.addBump({
+    material: "SnAg",
+    density: 0.8,
+    direction: "+z",
+    geometry: {
+      type: "box",
+      bottomLeft: [-2, -2, 33],
+      topRight: [2, 2, 33],
+      thickness: 2,
+    },
+  });
+  state.setCursorZ(5);
+
+  const carrier = ProcessGeometryState.create({ key: "carrier" });
+  carrier.initializeBoxLayer({
+    material: "carrier-core",
+    bottomLeft: [-30, -30, -5],
+    topRight: [30, 30, -5],
+    thickness: 2,
+    setFootprint: false,
+  });
+  carrier.depositBoxLayer({
+    material: "carrier-cap",
+    bottomLeft: [-30, -30, -3],
+    topRight: [30, 30, -3],
+    thickness: 3,
+  });
+  const ignoredCarrierChild = ProcessGeometryState.create({ key: "carrier-child" });
+  ignoredCarrierChild.initializeBoxLayer({
+    material: "ignored-child",
+    bottomLeft: [0, 0, 0],
+    topRight: [1, 1, 0],
+    thickness: 1,
+  });
+  carrier.placeGeometryState(ignoredCarrierChild, {
+    x: 0,
+    y: 0,
+    bottomZ: 100,
+    anchor: "bottomLeft",
+  });
+
+  executeCarrierBond({
+    state,
+    geometryState: (fieldId) => {
+      if (fieldId === "main_geometry") return state;
+      if (fieldId === "carrier_geometry") return carrier;
+      return null;
+    },
+  });
+
+  const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 40);
+  assert.deepEqual(state.processFootprint(), footprint);
+  assert.deepEqual(
+    output.root.bodies.map((body) => body.material),
+    ["base", "carrier-core", "carrier-cap"],
+  );
+  assert.deepEqual(output.root.bodies[1].geometry.bottom_left, [-30, -30, 35]);
+  assert.equal(output.root.bodies[1].geometry.thk, 2);
+  assert.deepEqual(output.root.bodies[2].geometry.bottom_left, [-30, -30, 37]);
+  assert.equal(output.root.bodies[2].geometry.thk, 3);
+  assert.equal(output.root.children.length, 1);
+  assert.equal(output.root.children[0].key, "die");
+
+  const carrierOutput = carrier.toGeometryStructure();
+  assert.deepEqual(carrierOutput.root.bodies[0].geometry.bottom_left, [-30, -30, -5]);
+  assert.equal(carrierOutput.root.children.length, 1);
+});
+
+test("Debond process step removes top root bodies and updates cursor", () => {
+  const state = ProcessGeometryState.create({ key: "debond-step-root" });
   state.initializeBoxLayer({
     material: "carrier",
     bottomLeft: [-10, -10, 0],
@@ -441,7 +534,7 @@ test("Debound process step removes top root bodies and updates cursor", () => {
     advanceCursor: true,
   });
 
-  executeDebound({
+  executeDebond({
     state,
     geometryState: (fieldId) => (fieldId === "main_geometry" ? state : null),
   });
@@ -1143,7 +1236,7 @@ test("geometry kernel imports and executes real RDL process step", async () => {
   assert.equal(geometry.root.vias[1].geometry.thk, 4);
 });
 
-test("geometry kernel imports and executes real bounding bump process steps", async () => {
+test("geometry kernel imports and executes real bump process steps", async () => {
   const variants = [
     {
       id: "step_tpl_ubump_formation_1_0_0",
@@ -1531,27 +1624,42 @@ test("geometry kernel imports real Grinding step and preserves footprint for dow
   assert.equal(geometry.root.bodies[1].geometry.thk, 2);
 });
 
-test("geometry kernel imports real Debound step and passes root-body cursor downstream", async () => {
+test("geometry kernel imports real Carrier Bond step and passes carrier-top cursor downstream", async () => {
   const kernel = createTestKernel({
     geometryEntities: [
       {
-        id: "geom_kernel_debound",
-        category: "carrier.panel",
-        name: "Kernel debound input",
+        id: "geom_kernel_bond_main",
+        category: "package.panel",
+        entityType: "panel",
+        name: "Kernel carrier bond main",
         version: "v1",
         owner: "test",
-        description: "Geometry kernel debound test input",
+        description: "Main geometry for carrier bond kernel test",
         structureFormat: "standard",
-        structure: kernelDeboundGeometry(),
+        structure: kernelCarrierBondMainGeometry(),
+      },
+      {
+        id: "geom_kernel_carrier",
+        category: "temporary.carrier",
+        entityType: "carrier",
+        name: "Kernel carrier",
+        version: "v1",
+        owner: "test",
+        description: "Carrier geometry for carrier bond kernel test",
+        structureFormat: "standard",
+        structure: kernelCarrierGeometry(),
       },
     ],
-    processStepTemplates: [realDeboundStepTemplate(), realMoldingStepTemplate()],
+    processStepTemplates: [
+      realCarrierBondStepTemplate(),
+      realMoldingStepTemplate(),
+    ],
     flowTemplate: {
       id: "flow_tpl_kernel_test",
       stepRefs: [
         {
-          stepRefId: "debound",
-          processStepTemplateId: "step_tpl_debound_1_0_0",
+          stepRefId: "carrier_bond",
+          processStepTemplateId: "step_tpl_carrier_bond_1_0_0",
         },
         {
           stepRefId: "molding",
@@ -1560,16 +1668,24 @@ test("geometry kernel imports real Debound step and passes root-body cursor down
       ],
       flowEdges: [
         {
-          edgeId: "edge_input_to_debound",
+          edgeId: "edge_main_to_carrier_bond",
           source: { sourceType: "geometryRef" },
           target: {
-            stepRefId: "debound",
+            stepRefId: "carrier_bond",
             targetFieldId: "main_geometry",
           },
         },
         {
-          edgeId: "edge_debound_to_molding",
-          source: { sourceType: "stepOutput", stepRefId: "debound" },
+          edgeId: "edge_carrier_to_carrier_bond",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "carrier_bond",
+            targetFieldId: "carrier_geometry",
+          },
+        },
+        {
+          edgeId: "edge_carrier_bond_to_molding",
+          source: { sourceType: "stepOutput", stepRefId: "carrier_bond" },
           target: {
             stepRefId: "molding",
             targetFieldId: "main_geometry",
@@ -1582,10 +1698,11 @@ test("geometry kernel imports real Debound step and passes root-body cursor down
       processFlowTemplateId: "flow_tpl_kernel_test",
       stepValueSets: [
         {
-          stepRefId: "debound",
-          processStepTemplateId: "step_tpl_debound_1_0_0",
+          stepRefId: "carrier_bond",
+          processStepTemplateId: "step_tpl_carrier_bond_1_0_0",
           fieldValues: [
-            { fieldId: "main_geometry", value: "geom_kernel_debound" },
+            { fieldId: "main_geometry", value: "geom_kernel_bond_main" },
+            { fieldId: "carrier_geometry", value: "geom_kernel_carrier" },
           ],
         },
         {
@@ -1603,15 +1720,108 @@ test("geometry kernel imports real Debound step and passes root-body cursor down
   });
 
   const result = await kernel.execute("flow_inst_kernel_test");
-  const deboundOutput = result.stepOutput("debound");
+  const bondOutput = result.stepOutput("carrier_bond");
   const geometry = result.geometry();
 
   assert.deepEqual(
-    deboundOutput.root.bodies.map((body) => body.material),
+    bondOutput.root.bodies.map((body) => body.material),
+    ["base", "carrier-core", "carrier-cap"],
+  );
+  assert.deepEqual(bondOutput.root.bodies[1].geometry.bottom_left, [-20, -20, 22]);
+  assert.equal(bondOutput.root.bodies[1].geometry.thk, 4);
+  assert.deepEqual(bondOutput.root.bodies[2].geometry.bottom_left, [-20, -20, 26]);
+  assert.equal(bondOutput.root.bodies[2].geometry.thk, 2);
+  assert.equal(bondOutput.root.children.length, 1);
+  assert.deepEqual(
+    geometry.root.bodies.map((body) => body.material),
+    ["base", "carrier-core", "carrier-cap", "EMC-A"],
+  );
+  assert.deepEqual(geometry.root.bodies[3].geometry.bottom_left, [-50, -50, 28]);
+  assert.equal(geometry.root.bodies[3].geometry.thk, 2);
+});
+
+test("geometry kernel imports real Debond step and passes root-body cursor downstream", async () => {
+  const kernel = createTestKernel({
+    geometryEntities: [
+      {
+        id: "geom_kernel_debond",
+        category: "carrier.panel",
+        entityType: "panel",
+        name: "Kernel debond input",
+        version: "v1",
+        owner: "test",
+        description: "Geometry kernel debond test input",
+        structureFormat: "standard",
+        structure: kernelDebondGeometry(),
+      },
+    ],
+    processStepTemplates: [realDebondStepTemplate(), realMoldingStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "debond",
+          processStepTemplateId: "step_tpl_debond_1_0_0",
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_debond",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "debond",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_debond_to_molding",
+          source: { sourceType: "stepOutput", stepRefId: "debond" },
+          target: {
+            stepRefId: "molding",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "debond",
+          processStepTemplateId: "step_tpl_debond_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_debond" },
+          ],
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "material", value: "EMC-A" },
+            { fieldId: "thickness", value: 2 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const result = await kernel.execute("flow_inst_kernel_test");
+  const debondOutput = result.stepOutput("debond");
+  const geometry = result.geometry();
+
+  assert.deepEqual(
+    debondOutput.root.bodies.map((body) => body.material),
     ["carrier", "adhesive"],
   );
-  assert.equal(deboundOutput.root.vias.length, 1);
-  assert.equal(deboundOutput.root.children.length, 1);
+  assert.equal(debondOutput.root.vias.length, 1);
+  assert.equal(debondOutput.root.children.length, 1);
   assert.deepEqual(
     geometry.root.bodies.map((body) => body.material),
     ["carrier", "adhesive", "EMC-A"],
@@ -1627,6 +1837,7 @@ test("geometry kernel imports real Flip step and passes root-body cursor downstr
       {
         id: "geom_kernel_flip",
         category: "carrier.panel",
+        entityType: "panel",
         name: "Kernel flip input",
         version: "v1",
         owner: "test",
@@ -1717,6 +1928,7 @@ test("geometry kernel imports and executes real PnP process step", async () => {
       {
         id: "geom_kernel_input",
         category: "carrier.panel",
+        entityType: "panel",
         name: "Kernel input panel",
         version: "v1",
         owner: "test",
@@ -1727,6 +1939,7 @@ test("geometry kernel imports and executes real PnP process step", async () => {
       {
         id: "geom_kernel_die",
         category: "initial.die",
+        entityType: "die",
         name: "Kernel test die",
         version: "v1",
         owner: "test",
@@ -1839,6 +2052,7 @@ test("geometry kernel imports and executes real Under Fill process step", async 
       {
         id: "geom_kernel_input",
         category: "carrier.panel",
+        entityType: "panel",
         name: "Kernel input panel",
         version: "v1",
         owner: "test",
@@ -1849,6 +2063,7 @@ test("geometry kernel imports and executes real Under Fill process step", async 
       {
         id: "geom_kernel_die",
         category: "initial.die",
+        entityType: "die",
         name: "Kernel test die",
         version: "v1",
         owner: "test",
@@ -2176,6 +2391,7 @@ function createTestKernel({
     {
       id: "geom_kernel_input",
       category: "carrier.panel",
+      entityType: "panel",
       name: "Kernel input panel",
       version: "v1",
       owner: "test",
@@ -2412,7 +2628,7 @@ function realBumpStepTemplate({ id, name, program }) {
     id,
     version: "V1.0.0",
     name,
-    category: "bounding",
+    category: "bump",
     program,
     description: "Form upward bumps above cursorZ.",
     owner: "test",
@@ -2557,19 +2773,51 @@ function realGrindingStepTemplate() {
   };
 }
 
-function realDeboundStepTemplate() {
+function realDebondStepTemplate() {
   return {
-    id: "step_tpl_debound_1_0_0",
+    id: "step_tpl_debond_1_0_0",
     version: "V1.0.0",
-    name: "Debound",
-    category: "debound",
-    program: "debound/debound",
+    name: "Debond",
+    category: "carrier",
+    program: "carrier/debond",
     description: "Remove the highest direct root body or bodies.",
     owner: "test",
     fieldDefinitions: [
       {
         id: "main_geometry",
         name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+    ],
+  };
+}
+
+function realCarrierBondStepTemplate() {
+  return {
+    id: "step_tpl_carrier_bond_1_0_0",
+    version: "V1.0.0",
+    name: "Carrier Bond",
+    category: "carrier",
+    program: "carrier/bond",
+    description: "Bond carrier root direct bodies to the full geometry top.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "carrier_geometry",
+        name: "carrier_geometry",
         scope: "inputState",
         valueType: "geometryRef",
         controlType: null,
@@ -3006,12 +3254,12 @@ function kernelFlipGeometry() {
   };
 }
 
-function kernelDeboundGeometry() {
+function kernelDebondGeometry() {
   return {
     schemaVersion: "1.0.0",
     unitSystem: "um",
     root: {
-      key: "kernel-debound",
+      key: "kernel-debond",
       bodies: [
         {
           geometry: {
@@ -3085,6 +3333,96 @@ function kernelDeboundGeometry() {
           children: [],
         },
       ],
+    },
+  };
+}
+
+function kernelCarrierBondMainGeometry() {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key: "kernel-carrier-bond-main",
+      bodies: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-50, -50, 0],
+            top_right: [50, 50, 0],
+            thk: 5,
+          },
+          material: "base",
+        },
+      ],
+      vias: [],
+      circuits: [],
+      bumps: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-5, -5, 20],
+            top_right: [5, 5, 20],
+            thk: 2,
+          },
+          material: "SnAg",
+          density: 0.8,
+          direction: "+z",
+        },
+      ],
+      children: [
+        {
+          key: "die",
+          bodies: [
+            {
+              geometry: {
+                type: "BoxGeometry",
+                bottom_left: [0, 0, 10],
+                top_right: [4, 4, 10],
+                thk: 6,
+              },
+              material: "Si",
+            },
+          ],
+          vias: [],
+          circuits: [],
+          bumps: [],
+          children: [],
+        },
+      ],
+    },
+  };
+}
+
+function kernelCarrierGeometry() {
+  return {
+    schemaVersion: "1.0.0",
+    unitSystem: "um",
+    root: {
+      key: "kernel-carrier",
+      bodies: [
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-20, -20, 0],
+            top_right: [20, 20, 0],
+            thk: 4,
+          },
+          material: "carrier-core",
+        },
+        {
+          geometry: {
+            type: "BoxGeometry",
+            bottom_left: [-20, -20, 4],
+            top_right: [20, 20, 4],
+            thk: 2,
+          },
+          material: "carrier-cap",
+        },
+      ],
+      vias: [],
+      circuits: [],
+      bumps: [],
+      children: [],
     },
   };
 }

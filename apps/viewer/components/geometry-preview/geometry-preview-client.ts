@@ -14,6 +14,7 @@ export type GeometryPreviewRequest = {
 export type GeometryEntityDownload = {
   id: null;
   category: string | null;
+  entityType: string;
   name: string;
   version: null;
   owner: null;

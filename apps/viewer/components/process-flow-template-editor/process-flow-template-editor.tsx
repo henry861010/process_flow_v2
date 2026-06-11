@@ -216,7 +216,6 @@ type GeometryEntity = {
   owner: string;
   description: string;
   entityType: string;
-  summary: string;
   structureFormat: "standard";
   structure?: unknown;
 };
@@ -1350,7 +1349,7 @@ function GeometryPaletteItem({ geometry }: { geometry: GeometryEntity }) {
         </div>
       </div>
       <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-        {geometry.summary}
+        {geometry.description}
       </p>
     </div>
   );

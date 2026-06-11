@@ -201,20 +201,72 @@ Template metadata：
   會丟出錯誤，避免用目前 primitive 表示不了的幾何交集。
 - Via 與 bump 的 `direction` 不會因 saw 改變，因為 saw 不反轉 Z axis。
 
-## Debound
+## Carrier Bond
 
-`Debound` 是 `debound` 類別的 process step，用來模擬製程中 carrier
-debound。此 step 只移除 `main_geometry` root container 直接持有的最上方
+`Carrier Bond` 是 `carrier` 類別的 process step，用來模擬製程中把 carrier
+bond 到目前 wafer/package geometry 最上方的動作。此 step 只複製
+`carrier_geometry` root container 直接持有的 bodies，並把它們加入
+`main_geometry` 的 root container direct bodies。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `Carrier Bond` |
+| Category | `carrier` |
+| Program | `carrier/bond` |
+| Template id | `step_tpl_carrier_bond_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 接收 carrier bond 結果的主 geometry state。 |
+| `carrier_geometry` | `geometryRef` | `inputState` | 要被複製並疊到主 geometry 最上方的 carrier geometry state。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry` 與
+   `carrier_geometry` `ProcessGeometryState`。
+2. 呼叫 `main_geometry.bondCarrierGeometry(carrier_geometry)`。
+3. Kernel 以 `main_geometry.geometryZMax()` 作為 carrier bond bottom Z；此
+   Z reference 會納入 root direct bodies、vias、circuits、bumps 與 child scopes
+   中所有 geometry 的最高點，而不是使用 runtime `cursorZ()`。
+4. Kernel 只複製 `carrier_geometry` root direct bodies，不複製 carrier 的
+   child scopes、vias、circuits 或 bumps。
+5. 若 carrier 有多個 root direct body，kernel 會保留它們彼此的 Z stack 關係，
+   將整組 direct-body stack 的 `zMin` 對齊到 main geometry top。
+6. 複製後的 carrier bodies 會成為 `main_geometry` root container direct
+   bodies，不會成為 child scope。
+7. `cursorZ` 更新為 bonded carrier stack 的 top Z。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body` 或 raw geometry object。
+- `entityType` 是 `GeometryEntity` metadata，不保存在 `GeometryStructure`
+  裡；runtime process step 不檢查 `entityType`。Carrier selection 與
+  carrier 不含 child 的治理由 geometry database / UI template 使用
+  `entityType: "carrier"` 保證。
+- 此 step 不更新 runtime process footprint。Carrier bond 是把既有 carrier
+  solid bodies 疊到完整 geometry 最上方，不代表重新定義後續 full-area process
+  footprint。
+- 若 `carrier_geometry` root container 沒有 direct body，kernel 會丟出錯誤，
+  因為沒有可 bond 的 carrier solid body。
+
+## Debond
+
+`Debond` 是 `carrier` 類別的 process step，用來模擬製程中 carrier
+debond。此 step 只移除 `main_geometry` root container 直接持有的最上方
 body，不會移除 child scope 內的 body。
 
 Template metadata：
 
 | Field | Value |
 | --- | --- |
-| Name | `Debound` |
-| Category | `debound` |
-| Program | `debound/debound` |
-| Template id | `step_tpl_debound_1_0_0` |
+| Name | `Debond` |
+| Category | `carrier` |
+| Program | `carrier/debond` |
+| Template id | `step_tpl_debond_1_0_0` |
 
 參數：
 
@@ -237,11 +289,11 @@ Template metadata：
 設計要點：
 
 - 此 step 不直接建立或修改 `Container`、`Body` 或 raw geometry object。
-- Debound 只移除 root container direct bodies；child scopes 內的 bodies
+- Debond 只移除 root container direct bodies；child scopes 內的 bodies
   不受影響。
-- Debound 不移除 root direct vias、circuits、bumps，也不移除 child scopes
+- Debond 不移除 root direct vias、circuits、bumps，也不移除 child scopes
   內的 vias、circuits、bumps。
-- Debound 不清除 runtime process footprint。後續 full-area operation 仍可沿用
+- Debond 不清除 runtime process footprint。後續 full-area operation 仍可沿用
   原本 footprint。
 
 ## Flip
@@ -350,9 +402,9 @@ Template metadata：
   `set_edge` narrow-edge 補洞流程。
 - `gap` 判斷沿用舊 `set_gap` 行為，使用 `<= gap`。
 
-## Bounding Bump Formation
+## Bump Formation
 
-`Micro Bump`、`BGA Bump` 與 `C4 Bump` 是 `bounding` 類別的 process
+`Micro Bump`、`BGA Bump` 與 `C4 Bump` 是 `bump` 類別的 process
 steps，用來在 die geometry 目前 process surface 上方形成朝 `"+z"` 方向的
 bump density feature。
 這三個 step 的幾何行為相同，只透過 template id、name 與 program path 區分不同
@@ -363,9 +415,9 @@ Template metadata：
 
 | Name | Category | Program | Template id |
 | --- | --- | --- | --- |
-| `Micro Bump` | `bounding` | `bump/uBump_formation` | `step_tpl_ubump_formation_1_0_0` |
-| `BGA Bump` | `bounding` | `bump/bga_bump_formation` | `step_tpl_bga_bump_formation_1_0_0` |
-| `C4 Bump` | `bounding` | `bump/c4_bump_formation` | `step_tpl_c4_bump_formation_1_0_0` |
+| `Micro Bump` | `bump` | `bump/uBump_formation` | `step_tpl_ubump_formation_1_0_0` |
+| `BGA Bump` | `bump` | `bump/bga_bump_formation` | `step_tpl_bga_bump_formation_1_0_0` |
+| `C4 Bump` | `bump` | `bump/c4_bump_formation` | `step_tpl_c4_bump_formation_1_0_0` |
 
 參數：
 

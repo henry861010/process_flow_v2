@@ -509,7 +509,7 @@ Geometry palette item：
   value 是 `GeometryEntity.id`。
 - Card：`cursor-grab rounded-md border bg-white p-3 text-sm shadow-sm`，
   hover 時 `border-primary/60 bg-muted/20`。
-- 內容：`Box` icon、geometry name、`entityType / id`、兩行 summary。
+- 內容：`Box` icon、geometry name、`entityType / id`、兩行 description。
 
 Step template palette item：
 
@@ -895,9 +895,9 @@ Geometry picker：
 - Header 顯示 `Geometry picker` 與 `${targetStepRefId} / ${targetFieldName}`。
 - Header 內有 search input，placeholder `Search geometry`，左側 `Search` icon。
 - Body 依 geometry category 分組，每組有 header、count badge。
-- Geometry card 顯示 name、`version / id`、entityType badge、summary。
+- Geometry card 顯示 name、`version / id`、entityType badge、description。
 - 已選 geometry card 加 `border-primary ring-2 ring-primary/20`。
-- Search 會比對 name、id、version、category、entityType、summary。
+- Search 會比對 name、id、version、category、entityType、description。
 
 Geometry preview panel：
 

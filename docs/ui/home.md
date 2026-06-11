@@ -47,7 +47,7 @@ empty array `[]`, home must not overwrite it.
 | `processStepTemplates` | `ProcessStepTemplate[]` | Built-in process step templates | Home initializes; admin editor reads/writes. |
 | `processFlowTemplates` | `ProcessFlowTemplate[]` | Demo flow templates | Home initializes; flow template editor appends on custom flow save. |
 | `processFlowInstances` | `ProcessFlowInstance[]` | Demo flow instances with step value sets | Home initializes; flow template editor and flow instance editor append instances. |
-| `GeometryEntity` | `GeometryEntity[]` | 4 sample geometry entities | Home initializes; flow template editor and flow instance editor read. |
+| `GeometryEntity` | `GeometryEntity[]` | 5 sample geometry entities | Home initializes; flow template editor and flow instance editor read. |
 
 ### Seed Policy
 
@@ -96,12 +96,13 @@ upstream process step output use `null`, matching the flow edge resolve rule use
 
 ### Geometry Seed
 
-| id | name | category | entityType |
-|---|---|---|---|
-| `geom_example_wafer` | Wafer | `initial.wafer` | `wafer` |
-| `geom_example_panel` | Panel | `initial.panel` | `panel` |
-| `geom_example_hbm` | HBM die | `initial.die.hbm` | `die` |
-| `geom_example_soc` | SoC die | `initial.die.soc` | `die` |
+| id | name | category | entityType | description |
+|---|---|---|---|---|
+| `geom_example_wafer` | Wafer | `initial.wafer` | `wafer` | Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0. |
+| `geom_example_panel` | Panel | `initial.panel` | `panel` | Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0. |
+| `geom_example_hbm` | HBM die | `initial.die.hbm` | `die` | Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0. |
+| `geom_example_soc` | SoC die | `initial.die.soc` | `die` | Simple block placeholder for SoC die. 2000 x 1600 x 70 um SoC block, center at 0,0,0. |
+| `geom_example_carrier` | carrier | `initial.test.carrier` | `carrier` | Simple block placeholder for carrier. 5000 x 5000 x 70 um carrier block, center at 0,0,0. |
 
 ## Page Layout
 

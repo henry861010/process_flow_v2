@@ -1146,6 +1146,43 @@ Parameters:
 
 Returns an array of `GeometryScopeRef` values.
 
+### 13.3 Bond Carrier Geometry
+
+```js
+state.bondCarrierGeometry(carrierState);
+```
+
+Copies the source carrier state's root direct bodies onto the top of the target
+state as root direct bodies.
+
+Parameters:
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `source` | `ProcessGeometryState` | yes | none | Carrier geometry state. Only its root direct bodies are copied. |
+| `updateCursor` | boolean | no | `true` | Whether to set `cursorZ` to the top of the bonded carrier stack. |
+
+Returns:
+
+```js
+{
+  bondedBodyCount: number,
+  bottomZ: number,
+  topZ: number
+}
+```
+
+Behavior:
+
+- Uses the target state's full `geometryZMax()` as the carrier bond bottom Z.
+- Copies only the source root direct bodies. Source child scopes, vias,
+  circuits, and bumps are not copied.
+- Shifts the copied carrier body stack so the source direct-body `zMin` aligns
+  to `bottomZ`.
+- Adds the copied bodies directly to the target root scope, not as a child
+  scope.
+- If `updateCursor` is true, sets `cursorZ` to the copied carrier stack top.
+
 ## 14. Scope References
 
 `GeometryScopeRef` is an opaque reference to a geometry scope. It is not a

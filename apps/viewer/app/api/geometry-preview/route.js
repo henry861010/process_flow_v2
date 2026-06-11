@@ -574,6 +574,7 @@ function buildGeometryEntityDownload({
   return {
     id: null,
     category: "preview.generated",
+    entityType: "preview",
     name,
     version: null,
     owner: null,

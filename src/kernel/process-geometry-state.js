@@ -128,6 +128,39 @@ export class ProcessGeometryState {
     return { removedCount };
   }
 
+  bondCarrierGeometry(source, { updateCursor = true } = {}) {
+    if (!(source instanceof ProcessGeometryState)) {
+      throw new Error("bondCarrierGeometry requires a ProcessGeometryState source");
+    }
+    const sourceBodies = source._root.bodies();
+    if (sourceBodies.length === 0) {
+      throw new Error(
+        "bondCarrierGeometry requires carrier source with at least one root direct body",
+      );
+    }
+
+    const sourceBottomZ = Math.min(...sourceBodies.map((body) => body.zMin()));
+    const sourceTopZ = Math.max(...sourceBodies.map((body) => body.zMax()));
+    const targetBottomZ = this.geometryZMax();
+    const zOffset = targetBottomZ - sourceBottomZ;
+
+    for (const sourceBody of sourceBodies) {
+      const body = sourceBody.copy();
+      body.move({ z: zOffset });
+      this._addBodyObject(body);
+    }
+
+    const targetTopZ = targetBottomZ + (sourceTopZ - sourceBottomZ);
+    if (updateCursor) {
+      this._cursorZ = targetTopZ;
+    }
+    return {
+      bondedBodyCount: sourceBodies.length,
+      bottomZ: targetBottomZ,
+      topZ: targetTopZ,
+    };
+  }
+
   zBounds() {
     return { min: this.geometryZMin(), max: this.geometryZMax() };
   }
