@@ -887,11 +887,11 @@ Behavior:
 state.addBump({
   material: "SAC305",
   density: 0.55,
-  direction: "-z",
+  direction: "+z",
   geometry: {
     type: "box",
-    bottomLeft: [-80, -80, -20],
-    topRight: [80, 80, -20],
+    bottomLeft: [-80, -80, 0],
+    topRight: [80, 80, 0],
     thickness: 20,
   },
 });
@@ -899,15 +899,14 @@ state.addBump({
 
 Parameters are the same as `addVia()`, except the feature type is bump.
 
-### 11.7 Add Bump Below Lowest Body
+### 11.7 Add Bump Above Cursor
 
 ```js
-state.addBumpBelowLowestBody({
+state.addBumpAboveCursor({
   material: "SAC305",
   density: 0.55,
   thickness: 40,
-  direction: "-z",
-  footprintSource: "processFootprint",
+  direction: "+z",
   xyInset: 20,
 });
 ```
@@ -918,29 +917,24 @@ Parameters:
 | --- | --- | --- | --- | --- |
 | `material` | string | yes | none | Material name or id. |
 | `density` | number | yes | none | Effective bump density. |
-| `thickness` | number | no | lowest body thickness | Bump envelope thickness. |
-| `direction` | `"+z"` or `"-z"` | no | `"-z"` | Bump direction. |
-| `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Scope tree whose lowest body is used for Z placement. |
-| `footprintSource` | string | no | `"lowestBody"` | Source for bump XY envelope. Supported values are `"lowestBody"` and `"processFootprint"`. `"lowestDirectBody"` is accepted as an alias for `"lowestBody"`. |
-| `xyInset` | number | no | `0` | XY inset applied to the selected footprint before creating the bump. Positive values shrink the footprint; negative values expand it. |
+| `thickness` | number | yes | none | Bump envelope thickness. |
+| `direction` | `"+z"` or `"-z"` | no | `"+z"` | Bump direction. |
+| `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Target scope that receives the bump feature. |
+| `xyInset` | number | no | `0` | XY inset applied to the process footprint before creating the bump. Positive values shrink the footprint; negative values expand it. |
 
 Behavior:
 
-- Finds the lowest body in the target scope tree, including child scopes.
-- Uses that body only for Z placement when `footprintSource` is
-  `"processFootprint"`.
-- Uses the lowest body's XY footprint when `footprintSource` is `"lowestBody"`.
-- Uses the runtime process footprint when `footprintSource` is
-  `"processFootprint"`.
-- Places the bump immediately below that body.
-- Uses the lowest body thickness when `thickness` is omitted.
+- Uses the runtime process footprint as the bump XY envelope.
+- Creates a bump envelope from `cursorZ()` to `cursorZ() + thickness`.
+- Defaults direction to `"+z"`.
 - Applies `xyInset` through geometry primitive copy methods. Box, cylinder, and
   cone footprints support positive inset and negative outset. Polygon footprints
   only support `xyInset: 0`; non-zero polygon inset/outset is not supported.
 - Does not move `cursorZ`.
 
-This method exists because bump placement is a common process operation and
-should not require process-step authors to inspect bodies directly.
+This method matches package bump formation steps that grow bump material from the
+active process surface upward while leaving the process cursor available for the
+next modeled operation.
 
 ## 12. Transform and Removal API
 
@@ -1508,11 +1502,11 @@ export function execute({ state, values, geometryState }) {
 
 ```js
 export function execute({ state, values }) {
-  state.addBumpBelowLowestBody({
+  state.addBumpAboveCursor({
     material: values.bump_material,
     density: values.bump_density,
     thickness: values.bump_thickness,
-    direction: "-z",
+    direction: "+z",
   });
 
   return state;
@@ -1705,7 +1699,7 @@ Examples:
 | Invalid direction | `via direction must be "+z" or "-z".` |
 | Missing geometry input | `geometryState("die_geometry") returned null.` |
 | Invalid placement | `placeGeometryState requires finite x and y.` |
-| No body for bump | `addBumpBelowLowestBody requires at least one body in the target scope tree.` |
+| Missing footprint for bump | `process footprint is required. Call initialize...Layer or setProcessFootprint first.` |
 
 Guidelines:
 
@@ -1724,7 +1718,7 @@ Preferred:
 - `fillTo`
 - `addViaBelowCursor`
 - `addCircuitAtCursor`
-- `addBumpBelowLowestBody`
+- `addBumpAboveCursor`
 - `placeGeometryState`
 - `cursorZ`
 - `geometryZMax`
@@ -1802,7 +1796,7 @@ state.addViaBelowCursor(options)
 state.addCircuit(options)
 state.addCircuitAtCursor(options)
 state.addBump(options)
-state.addBumpBelowLowestBody(options)
+state.addBumpAboveCursor(options)
 
 state.placeGeometryState(source, options)
 state.grindTo(options)

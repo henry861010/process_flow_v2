@@ -353,7 +353,8 @@ Template metadata：
 ## Bounding Bump Formation
 
 `Micro Bump`、`BGA Bump` 與 `C4 Bump` 是 `bounding` 類別的 process
-steps，用來在 die geometry 下方形成朝 `"-z"` 方向的 bump density feature。
+steps，用來在 die geometry 目前 process surface 上方形成朝 `"+z"` 方向的
+bump density feature。
 這三個 step 的幾何行為相同，只透過 template id、name 與 program path 區分不同
 bump type。這些 step 預期用在 die geometry，不作為 wafer-level bump formation
 使用。
@@ -382,25 +383,20 @@ Template metadata：
    `ProcessGeometryState`。
 2. 驗證 `material` 為非空字串、`thk` 為正值、`density` 為 0 到 100 的 finite
    number、`koz` 為非負 finite number。
-3. 呼叫 `main_geometry.addBumpBelowLowestBody({ material, density,
-   thickness: thk, direction: "-z", footprintSource: "processFootprint",
-   xyInset: koz })`。
-4. `addBumpBelowLowestBody()` 會 recursive 搜尋 `main_geometry` target scope
-   tree 內所有 body，使用最低 body 的 `zMin()` 作為 bump top Z。
-5. Bump geometry 使用 `main_geometry` 目前的 process footprint，並依 `koz`
-   做 XY 內縮。Bump bottom Z 為 `lowestBody.zMin() - thk`，top Z 為
-   `lowestBody.zMin()`。
-6. 新增的 bump feature 會加入 `main_geometry` root scope 的 `bumps`。
-7. 此 step 不會推進或修改 `main_geometry.cursorZ()`。
+3. 呼叫 `main_geometry.addBumpAboveCursor({ material, density,
+   thickness: thk, direction: "+z", xyInset: koz })`。
+4. Bump geometry 使用 `main_geometry` 目前的 process footprint，並依 `koz`
+   做 XY 內縮。Bump bottom Z 為 `main_geometry.cursorZ()`，top Z 為
+   `main_geometry.cursorZ() + thk`。
+5. 新增的 bump feature 會加入 `main_geometry` root scope 的 `bumps`。
+6. 此 step 不會推進或修改 `main_geometry.cursorZ()`。
 
 設計要點：
 
 - 此 step 不直接建立或修改 `Container`、`Body`、`Bump` 或 raw geometry object。
 - `koz` 內縮透過 geometry primitive 的 public copy API 執行；Box、Cylinder 與
   Cone footprint 支援此操作。Polygon footprint 不支援非零 `koz`。
-- Bump direction 固定為 `"-z"`，不由 geometry envelope 的 Z 位置推論。
-- Recursive lowest-body 搜尋會把 child scopes 內的 body 納入 Z placement 參考，
-  避免 sub geometry 的最低結構低於 root direct body 時 bump 放置錯誤。
+- Bump direction 固定為 `"+z"`，不由 geometry envelope 的 Z 位置推論。
 - Feature scope 仍由 root `bumps` array 決定；bump 不會自動向 child container
   或 parent container 傳播。
 

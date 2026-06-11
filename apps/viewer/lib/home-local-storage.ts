@@ -492,7 +492,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     category: "bounding",
     program: "bump/uBump_formation",
     description:
-      "Forms downward micro bump features below the lowest body using the current process footprint after applying koz.",
+      "Forms upward micro bump features above cursorZ using the current process footprint after applying koz.",
     owner: "integration.platform",
     fieldDefinitions: [
       {
@@ -520,7 +520,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
         id: "thk",
         name: "thk",
         description:
-          "Positive micro bump thickness. The bump top is aligned to the lowest body bottom and extends downward.",
+          "Positive micro bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
         scope: "processParameter",
         valueType: "float",
         controlType: "number",
@@ -569,7 +569,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     category: "bounding",
     program: "bump/bga_bump_formation",
     description:
-      "Forms downward BGA bump features below the lowest body using the current process footprint after applying koz.",
+      "Forms upward BGA bump features above cursorZ using the current process footprint after applying koz.",
     owner: "integration.platform",
     fieldDefinitions: [
       {
@@ -597,7 +597,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
         id: "thk",
         name: "thk",
         description:
-          "Positive BGA bump thickness. The bump top is aligned to the lowest body bottom and extends downward.",
+          "Positive BGA bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
         scope: "processParameter",
         valueType: "float",
         controlType: "number",
@@ -645,7 +645,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     category: "bounding",
     program: "bump/c4_bump_formation",
     description:
-      "Forms downward C4 bump features below the lowest body using the current process footprint after applying koz.",
+      "Forms upward C4 bump features above cursorZ using the current process footprint after applying koz.",
     owner: "integration.platform",
     fieldDefinitions: [
       {
@@ -673,7 +673,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
         id: "thk",
         name: "thk",
         description:
-          "Positive C4 bump thickness. The bump top is aligned to the lowest body bottom and extends downward.",
+          "Positive C4 bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
         scope: "processParameter",
         valueType: "float",
         controlType: "number",

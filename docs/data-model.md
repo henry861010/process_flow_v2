@@ -190,7 +190,7 @@ density；若某個 process 需要描述有方向性的垂直連接，應使用 
   "geometry": {},
   "material": "solder",
   "density": 0.8,
-  "direction": "-z"
+  "direction": "+z"
 }
 ```
 

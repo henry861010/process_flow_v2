@@ -513,7 +513,7 @@ test("Flip process step flips directions and sets cursor from root bodies only",
   );
 });
 
-test("micro bump formation uses process footprint and recursive lowest body", () => {
+test("micro bump formation uses process footprint and grows above cursor", () => {
   const state = ProcessGeometryState.create({ key: "bump-root" });
   state.initializeBoxLayer({
     material: "carrier",
@@ -547,12 +547,13 @@ test("micro bump formation uses process footprint and recursive lowest body", ()
   });
 
   const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 20);
   assert.equal(output.root.bumps.length, 1);
   assert.equal(output.root.bumps[0].material, "SnAg");
   assert.equal(output.root.bumps[0].density, 80);
-  assert.equal(output.root.bumps[0].direction, "-z");
-  assert.deepEqual(output.root.bumps[0].geometry.bottom_left, [-90, -90, -2]);
-  assert.deepEqual(output.root.bumps[0].geometry.top_right, [90, 90, -2]);
+  assert.equal(output.root.bumps[0].direction, "+z");
+  assert.deepEqual(output.root.bumps[0].geometry.bottom_left, [-90, -90, 20]);
+  assert.deepEqual(output.root.bumps[0].geometry.top_right, [90, 90, 20]);
   assert.equal(output.root.bumps[0].geometry.thk, 2);
 });
 
@@ -1208,9 +1209,9 @@ test("geometry kernel imports and executes real bounding bump process steps", as
     assert.equal(geometry.root.bumps.length, 1);
     assert.equal(geometry.root.bumps[0].material, "SnAg");
     assert.equal(geometry.root.bumps[0].density, 75);
-    assert.equal(geometry.root.bumps[0].direction, "-z");
-    assert.deepEqual(geometry.root.bumps[0].geometry.bottom_left, [-45, -45, -3]);
-    assert.deepEqual(geometry.root.bumps[0].geometry.top_right, [45, 45, -3]);
+    assert.equal(geometry.root.bumps[0].direction, "+z");
+    assert.deepEqual(geometry.root.bumps[0].geometry.bottom_left, [-45, -45, 10]);
+    assert.deepEqual(geometry.root.bumps[0].geometry.top_right, [45, 45, 10]);
     assert.equal(geometry.root.bumps[0].geometry.thk, 3);
   }
 });
@@ -2413,7 +2414,7 @@ function realBumpStepTemplate({ id, name, program }) {
     name,
     category: "bounding",
     program,
-    description: "Form downward bumps below the lowest body.",
+    description: "Form upward bumps above cursorZ.",
     owner: "test",
     fieldDefinitions: [
       {

@@ -9,12 +9,11 @@ export function executeBumpFormation({ state, values, geometryState }, { name })
   const density = requiredDensity(values?.density, "density", name);
   const koz = requiredNonNegativeNumber(values?.koz, "koz", name);
 
-  mainState.addBumpBelowLowestBody({
+  mainState.addBumpAboveCursor({
     material,
     density,
     thickness: thk,
-    direction: "-z",
-    footprintSource: "processFootprint",
+    direction: "+z",
     xyInset: koz,
   });
 
@@ -22,7 +21,7 @@ export function executeBumpFormation({ state, values, geometryState }, { name })
 }
 
 function requiredGeometryState(value, label, stepName) {
-  if (!value || typeof value.addBumpBelowLowestBody !== "function") {
+  if (!value || typeof value.addBumpAboveCursor !== "function") {
     throw new Error(`${stepName}.${label} must resolve to a ProcessGeometryState`);
   }
   return value;
