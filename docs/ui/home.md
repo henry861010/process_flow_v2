@@ -113,6 +113,17 @@ Home layout is an operational dashboard:
 - POC reset appears as a small monospace system command pinned to the bottom-left corner.
 - No marketing content or editor canvas state appears on this page.
 
+## Tool Navigation
+
+The header tool actions navigate to the editor routes:
+
+- `Flow Template` links to `/flow-template-editor` with `prefetch={false}` because the editor is a heavy client route and should load on explicit user intent.
+- `Flow Instance` links to `/flow-instance-editor`.
+- `Process Step` links to `/admin/processstepeditor`.
+
+The home page does not contain dev-only route warmup logic. Cold-start route compilation behavior in
+`next dev` is treated as a development-server concern rather than product behavior.
+
 ## Filter Bar
 
 The filter bar has one select control:

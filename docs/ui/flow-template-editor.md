@@ -8,25 +8,13 @@
 
 建立一個可視化的 process flow template editor，讓使用者在白板上從 geometry library 建立 initial geometry roots，拖入 process step templates，將 geometry states 連接到 target step 的 geometry input slots，形成沒有 cycle 的 geometry dataflow DAG，並填寫建立 instance 所需的 step values。
 
-此 editor 支援自訂 flow 建立 instance：
+此 editor 永遠建立新的 process flow template snapshot 與綁定該 template 的 process flow instance。使用者可以從空白白板開始，也可以使用 `Start from template` 從既有 process flow template 複製 topology 作為目前 draft graph 的起點。被選取的既有 template 只作為初始化來源，不會被修改、覆蓋或和新建立的 template 保持同步。
 
-- 使用者不套用既有 flow template。
-- 使用者可以自行拖拉 initial geometry、step template、排列白板 node、將 geometry state 接到 step input slot、填寫 instance values。
-- Save 時依白板上的 graph 建立新的 process flow template snapshot，同時建立綁定該 template 的 process flow instance 與可匯出的 process JSON。
+使用者可以自行拖拉 initial geometry、step template、排列白板 node、將 geometry state 接到 step input slot、填寫 instance values，也可以在匯入既有 template 後重新連接 flow、新增 step、刪除 step 或修改 step values。Save 時依白板上的目前 graph 建立新的 process flow template snapshot，同時建立綁定該 template 的 process flow instance 與可匯出的 process JSON。
 
 使用者在操作時的心理模型是「我正在建立一個 process flow instance」。系統在底層同時建立一份新的 flow template，是為了讓 instance 有不可變的 topology snapshot 可以綁定。UI 不要求使用者先建立一份沒有 values 的 process flow template，再到另一個流程補 process flow instance values；這會讓使用者覺得流程被拆成兩次不自然的工作。
 
-Process flow 編輯有兩種建立模式：
-
-1. `fromTemplate`：使用既有 process flow template 建立 instance。
-2. `custom`：使用者自行建立 flow topology，Save 時同時建立新的 process flow template snapshot 與 process flow instance。
-
-`fromTemplate` 模式中：
-
-- 使用者不能編輯 flow 結構。
-- 使用者只填寫 instance 所需 values 與 initial geometry instance selections。
-
-本文件定義 `custom` 模式。`fromTemplate` 模式只在此說明概念，不在本文件展開完整 UI 規格。
+此頁與 `/flow-instance-editor` 的 from-template instance editor 不同。`/flow-instance-editor` 使用既有 immutable template 建立新的 instance，並且不允許修改 topology；本頁的 `Start from template` 則是把既有 template topology 複製成可編輯的 template editor draft，之後所有編輯、validation 與 Save 都走本頁既有的 topology edit 與 create-new-template 流程。
 
 此頁面不連接 backend service 或 database。process step templates、process flow templates 與 process flow instances 都從 browser `localStorage` 讀寫。
 
@@ -39,6 +27,7 @@ Process flow 編輯有兩種建立模式：
 - 左側 geometry selection palette。
 - 右側 process step template palette。
 - Technology / product metadata form。
+- `Start from template` template picker、search、replace confirmation 與 draft graph initialization。
 - Step instance dialog 的 template editor 行為。
 - Status strip 與 Save validation priority。
 - 從 draft graph 建立 `ProcessFlowTemplate`、`ProcessFlowInstance` 與 process JSON export。
@@ -114,8 +103,8 @@ const GEOMETRY_ENTITIES_STORAGE_KEY = "GeometryEntity";
 | localStorage key | Value shape | 此頁用途 | 此頁是否寫入 |
 |---|---|---|---|
 | `processStepTemplates` | `ProcessStepTemplate[]` | 右側 process step template palette 的資料來源。 | 不寫入。此頁只讀取既有 process step templates，不建立、不修改、不刪除 process step templates。 |
-| `processFlowTemplates` | `ProcessFlowTemplate[]` | Save custom flow 後新增一份 process flow template snapshot。 | 寫入。Save 成功後 append 新 template。 |
-| `processFlowInstances` | `ProcessFlowInstance[]` | Save custom flow 後新增一份綁定新 template 的 instance。 | 寫入。Save 成功後 append 新 instance。 |
+| `processFlowTemplates` | `ProcessFlowTemplate[]` | `Start from template` picker 的 template 來源；Save 後新增一份 process flow template snapshot。 | 讀取與寫入。Save 成功後 append 新 template，不修改被匯入的 source template。 |
+| `processFlowInstances` | `ProcessFlowInstance[]` | Save 後新增一份綁定新 template 的 instance。 | 寫入。Save 成功後 append 新 instance。 |
 | `GeometryEntity` | `GeometryEntity[]` | 左側 geometry selection palette 的資料來源。 | 不寫入。此頁只讀取 home seed 的 geometry entities。 |
 
 四個 localStorage value 都是純 array，不包額外 metadata。
@@ -131,16 +120,18 @@ Export all templates 行為：
 - JSON 使用 2-space pretty print：`JSON.stringify(templates, null, 2)`。
 - 即使 templates 為空陣列，也可以 export，檔案內容為 `[]`。
 
-Save custom flow 時：
+`Start from template` 讀取 `processFlowTemplates`，並依每筆 template 的 `name` 提供搜尋與選取。Picker list 只顯示 template name，不顯示 description、owner、version 或其他 metadata。使用者選取 template 後，系統將該 template 的 `stepRefs[]` 與 `flowEdges[]` 轉成目前白板使用的 draft `nodes` 與 `edges`。此轉換只寫入 React draft state，不立即寫入 localStorage。
+
+Save 時：
 
 - 從 metadata form 取得 `Technology name` 與 `Product / instance name`。
-- 從白板 draft graph 建立新的 `ProcessFlowTemplate`。
+- 從白板 draft graph 建立新的 `ProcessFlowTemplate`，即使 graph 是由 `Start from template` 初始化也一樣建立新 template。
 - 從白板中 flow graph 內的 step values 建立新的 `ProcessFlowInstance`。
 - 將 `Technology name` 寫入新 `ProcessFlowTemplate.name`。
 - 將 `Product / instance name` 寫入新 `ProcessFlowInstance.name`；若使用者留空，使用 `Technology name` 作為 fallback。
 - 將新 template append 到 `processFlowTemplates`。
 - 將新 instance append 到 `processFlowInstances`。
-- 另行下載一份 process JSON，作為本次 custom flow 建立結果的匯出檔。
+- 另行下載一份 process JSON，作為本次建立結果的匯出檔。
 
 ### Seed Templates
 
@@ -158,16 +149,92 @@ Editor 上方需要提供 metadata 區域，讓使用者在建立 flow topology 
 
 Metadata 區域至少包含：
 
-- `Technology name`：必填。寫入 Save 後產生的 `ProcessFlowTemplate.name`，也是本次 custom flow 在 template list 中主要顯示的名稱。
+- `Technology name`：必填。寫入 Save 後產生的 `ProcessFlowTemplate.name`，也是新 template 在 template list 中主要顯示的名稱。
 - `Product / instance name`：選填。寫入 Save 後產生的 `ProcessFlowInstance.name`；若使用者留空，Save 時使用 `Technology name` 作為 instance name fallback。
 
 Metadata 區域需要常駐在白板上方，與 Save 狀態列相鄰，讓使用者在任何白板縮放或捲動狀態下都能看見目前建立目標與 validation 狀態。
 
-Header 右上角需要提供 `Home` button，點擊後導回 home page `/`，不寫入 localStorage、不下載 process JSON。`Home` button 與 `Export all templates`、`Save` 放在同一組 header action controls。
+Header 右上角需要提供 `Home` button，點擊後導回 home page `/`，不寫入 localStorage、不下載 process JSON。`Home` button 與 `Start from template`、`Clear`、`Export all templates`、`Save` 放在同一組 header action controls。
 
 `Technology name` 空白時，Save button 必須 disabled，狀態列顯示 technology name required 類型的錯誤訊息。`Product / instance name` 空白時不阻止 Save。
 
 若未來需要讓使用者填寫 `ProcessFlowTemplate.version`、`description`、`owner` 或其他 metadata，應優先擴充此 metadata 區域，不要把 template metadata 混入 step instance editor。
+
+## Clear Graph
+
+`Clear` 是 Flow Template Editor 的 draft graph reset action。它只清空目前白板上的 graph draft，不修改 metadata form，不寫入 localStorage，不下載 process JSON，也不影響左側 geometry library 或右側 process step template palette。
+
+Header action controls 中提供一個 outline button：
+
+- Icon 使用 delete / trash 語意的 lucide icon。
+- Button text 是 `Clear`。
+- 當目前 draft graph 沒有 node 且沒有 edge 時，`Clear` disabled。
+
+使用者點擊 `Clear` 後必須先顯示 confirm dialog：
+
+- Confirm title：`Clear graph?`
+- Confirm copy：`Clearing removes all steps, initial geometry nodes, edges, and step values from the current draft graph.`
+- Confirm actions 是 `Cancel` 與 `Clear`。
+- 使用者取消 confirm 時，目前 draft graph 不變。
+- 使用者確認後，系統移除目前所有 whiteboard nodes、edges、step draft values、selection、開啟中的 step dialog 與 geometry preview overlay。
+- `Technology name` 與 `Product / instance name` 保留原值。
+- Clear 後 Save validation 回到空 graph 狀態，例如沒有 connected initial geometry root 時顯示 root validation message。
+
+## Start From Template
+
+`Start from template` 是 Flow Template Editor 的 draft graph initializer。它不建立獨立的 imported-template editor mode，不改變 Save payload，也不讓使用者直接 update source template。匯入完成後，使用者看到的是一個已經放入部分 graph 的普通 template editor draft。
+
+Header action controls 中提供一個 outline button：
+
+- Icon 使用 template / branching / import 語意的 lucide icon。
+- Button text 是 `Start from template`。
+- Button 在 `processFlowTemplates` 為空時仍可點擊；modal 內顯示 empty state。
+
+點擊 button 後開啟 modal dialog：
+
+- Title：`Start from template`。
+- Search input placeholder：`Search templates`。
+- List 只顯示 template name。
+- 每個 list item 是 single-select row。選取後 row 顯示 selected state。
+- Footer actions 是 `Cancel` 與 `Start`。
+- `Start` 在尚未選取 template 時 disabled。
+
+Search 行為：
+
+- Search 只比對 `ProcessFlowTemplate.name`，大小寫不敏感。
+- Search 不改變 storage，也不改變目前 draft graph。
+- 無 template 時顯示 `No templates found`。
+- Search 後沒有符合項目時顯示 `No matching templates`。
+
+Import confirm：
+
+- 使用者按下 `Start` 後，如果目前 draft graph 已有任一 node 或 edge，必須先顯示 confirm dialog。
+- Confirm title：`Replace current draft?`
+- Confirm copy：`Starting from a template will replace the current draft graph.`
+- Confirm actions 是 `Cancel` 與 `Replace draft`。
+- 使用者取消 confirm 時，保持 template picker 開啟，且目前 draft graph 不變。
+- 使用者確認後，關閉 picker 與 confirm，並以 selected template 初始化 draft graph。
+- 若目前 draft graph 沒有 node 且沒有 edge，按下 `Start` 直接初始化，不顯示 confirm。
+
+Import 後的 draft state：
+
+- `metadata.technologyName` 保持使用者目前輸入值；若為空白，仍維持空白。
+- `metadata.productInstanceName` 保持使用者目前輸入值；若為空白，仍維持空白。
+- 匯入不自動填入 source template name，也不產生 `Copy of ...` 類型名稱。
+- Save validation 仍要求 `Technology name` 必填。
+- 匯入不讀取 source template 既有 instances，也不帶入任何既有 process flow instance values。
+- 每個 imported step node 的 non-geometry field values 使用該 process step template 的 default draft value。
+- 每個 imported `geometryRef` source edge 會建立一個 initial geometry placeholder node。Process flow template 只保存 topology，不保存 geometry entity id，因此 placeholder 初始顯示 `Select geometry`，edge preview disabled，Save validation 要求使用者刪除 placeholder 後，從左側 geometry library 拖入實際 geometry node 並重新連線。
+- 每個 imported `stepOutput` edge 轉成同一套 editable flow edge，之後可刪除或 reconnect。
+- 匯入後所有新增 step、刪除 step、重新連線、欄位編輯、preview、validation 與 Save 都使用本頁既有 editor state 與 handler。
+
+Import layout：
+
+- Imported process step nodes 使用 deterministic left-to-right layout。
+- Step rank 由 `stepOutput` edges 推導；沒有 upstream step output 的 step rank 是 1。
+- Initial geometry nodes 位在其 target step 左側。
+- 多個 geometryRef source 指向同一 target step 時，initial geometry nodes 在垂直方向分散排列。
+- Layout 只影響視覺位置，不影響 saved topology。
 
 ## Layout
 
@@ -275,7 +342,7 @@ Save flow template 時，flow graph 中每個 reachable process step 的每個 t
 - 有 incoming edge 指向該 field。
 - 沒有 incoming edge，但使用者在 step dialog 的 Input mapping row 直接從 geometry entity select 選了一個明確 `GeometryEntity.id`。
 
-第二種方式會讓 custom flow instance 可以保存該欄位值，但不會為該 field 建立 `flowEdges[]` edge。也就是說，它是目前 Template Editor 的 direct geometry value 行為，不是 Graph UI topology edge。若未來希望所有 from-template topology 都能完整重放，應優先要求使用者用 initial geometry node 建立 edge；但要重現目前 UI，必須保留 dialog 內的 unmapped geometry select。
+第二種方式會讓本頁建立的 process flow instance 可以保存該欄位值，但不會為該 field 建立 `flowEdges[]` edge。也就是說，它是 Template Editor 的 direct geometry value 行為，不是 Graph UI topology edge。若要讓所有 topology 都能完整重放，應優先要求使用者用 initial geometry node 建立 edge；但此 editor 保留 dialog 內的 unmapped geometry select 作為直接指定 geometry 的路徑。
 
 當 top-level geometry input field 的 incoming edge source 是 geometry DB / initial geometry 時，`FieldValue.value` 仍必須保存明確的 `GeometryEntity.id`，不可保存 `null`。
 
@@ -626,8 +693,9 @@ Graph UI 在此頁的使用範圍：
 
 - Accordion：category 展開/收合。
 - ScrollArea：左右 palette list 滾動。
-- Modal/Dialog：step instance editor。
-- Button：Save、unlink、change source。
+- Modal/Dialog：step instance editor、`Start from template` picker、replace confirmation 與 clear graph confirmation。
+- Button：Start from template、Clear、Save、unlink、change source。
+- Search input：template picker name filtering。
 - Form fields：依 schema 動態產生 instance value input。
 - Tooltip：input port、edge label 與 icon button 說明。
 
@@ -664,9 +732,9 @@ type DraftValidationStatus = "complete" | "incomplete" | "unconnected" | "invali
 type DraftInitialGeometryNode = {
   id: string;
   nodeType: "initialGeometry";
-  geometryEntityId: string;
+  geometryEntityId: string | null;
   geometryDisplayName: string;
-  entityType: string;
+  entityType: string | null;
   position: DraftNodePosition;
   isConnected: boolean;
   validationStatus: DraftValidationStatus;
@@ -703,7 +771,7 @@ type DraftFlowEdge = {
 `DraftFlowEdge` 欄位規則：
 
 - `sourceNodeId` 與 `targetNodeId` 對應白板上的 React Flow node id，用於畫線、hover、delete 與 selection。
-- `sourceType: "geometryRef"` 表示 source 是 initial geometry node。此時 `sourceGeometryEntityId` 必須存在，並對應該 initial geometry node 的 `geometryEntityId`。同一個 initial geometry `sourceNodeId` 在 draft graph 中最多只能出現在一條 outgoing edge。
+- `sourceType: "geometryRef"` 表示 source 是 initial geometry node。若 node 來自 geometry palette，`sourceGeometryEntityId` 必須存在，並對應該 initial geometry node 的 `geometryEntityId`。若 node 是 `Start from template` 建立的 placeholder，`sourceGeometryEntityId` 初始為 `null`，Save validation 必須阻止儲存直到使用者提供明確 geometry id 或移除該 placeholder topology。同一個 initial geometry `sourceNodeId` 在 draft graph 中最多只能出現在一條 outgoing edge。
 - `sourceType: "stepOutput"` 表示 source 是 process step output。此時 `sourceStepRefId` 必須存在。
 - 對 `sourceType: "stepOutput"` 而言，同一個 `sourceStepRefId` 在 draft graph 中最多只能出現在一條 outgoing edge。
 - `targetStepRefId` 必須對應 target process step node 的 `stepRefId`。

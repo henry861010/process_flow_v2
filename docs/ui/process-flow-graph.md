@@ -10,7 +10,7 @@ Graph UI 不代表任何單一路由。它由上層 editor 嵌入使用：
 
 | 上層 editor | Graph topology mode | 使用方式 |
 |---|---|---|
-| Flow Template Editor / custom flow editor | `topologyEdit` | 使用者可以建立與修改 flow topology。 |
+| Flow Template Editor / topology editor | `topologyEdit` | 使用者可以建立與修改 flow topology。 |
 | Flow Instance Editor / from-template editor | `readonlyTopology` | Topology 由 selected `ProcessFlowTemplate` 決定，使用者只做 instance-level editing。 |
 
 Graph UI 的核心模型是 directed acyclic geometry dataflow graph。使用者看到的是
@@ -63,7 +63,7 @@ type ProcessFlowGraphTopologyMode = "topologyEdit" | "readonlyTopology";
 
 ### `topologyEdit`
 
-用於 Flow Template Editor / custom flow editor。
+用於 Flow Template Editor / topology editor。
 
 允許：
 
@@ -362,7 +362,7 @@ type AddProcessStepNodeCommand = {
 
 ## 上層 Editor 職責
 
-Flow Template Editor / custom flow editor 負責：
+Flow Template Editor / topology editor 負責：
 
 - Geometry library palette。
 - Process step template palette。
@@ -469,8 +469,10 @@ Template editor route 是 `/flow-template-editor`。這個 shell 不屬於 Graph
 Header：
 
 - 左側 icon 是 `GitBranch`，標題 `Process Flow Template Editor`。
-- subtitle：`Custom mode builds an immutable topology snapshot and a bound instance.`
-- 右側 actions：`Home`、`Export all templates`、`Save`。
+- subtitle：`Create a new topology snapshot from a blank graph or an existing template.`
+- 右側 actions：`Home`、`Start from template`、`Clear`、`Export all templates`、`Save`。
+- `Start from template` 開啟 template picker modal，依 template name 搜尋並選取既有 `ProcessFlowTemplate`，再將 source template topology 初始化到目前 editable draft graph。若目前 draft graph 已有 node 或 edge，開始匯入前必須顯示 replace confirmation。
+- `Clear` 在目前 draft graph 沒有 node 且沒有 edge 時 disabled。點擊後顯示 `Clear graph?` confirm；確認後移除所有 whiteboard nodes、edges、step draft values、selection、開啟中的 step dialog 與 geometry preview overlay，metadata form 保留原值。
 - `Save` 在 `analysis.canSave === false` 時 disabled。
 - Metadata form 是一列三欄，在 `xl` 以上為：
   `technologyName`、`productInstanceName`、validation pill。
