@@ -2833,7 +2833,7 @@ function realFlipStepTemplate() {
     id: "step_tpl_flip_1_0_0",
     version: "V1.0.0",
     name: "Flip",
-    category: "flip",
+    category: "carrier",
     program: "flip/flip",
     description: "Flip geometry around Z=0 and update cursor from root bodies.",
     owner: "test",

@@ -437,7 +437,7 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     id: "step_tpl_flip_1_0_0",
     version: "V1.0.0",
     name: "Flip",
-    category: "flip",
+    category: "carrier",
     program: "flip/flip",
     description:
       "Flips the main geometry around Z=0, normalizes the flipped structure to zMin 0, reverses directional via and bump features, and sets cursorZ to the highest direct root body top.",

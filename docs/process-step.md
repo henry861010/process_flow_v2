@@ -298,7 +298,7 @@ Template metadata：
 
 ## Flip
 
-`Flip` 是 `flip` 類別的 process step，用來把 `main_geometry` 沿 Z axis
+`Flip` 是 `carrier` 類別的 process step，用來把 `main_geometry` 沿 Z axis
 做上下翻轉。此 step 會翻轉整棵 geometry tree，包含 root direct geometry、
 features 與 child scopes。
 
@@ -307,7 +307,7 @@ Template metadata：
 | Field | Value |
 | --- | --- |
 | Name | `Flip` |
-| Category | `flip` |
+| Category | `carrier` |
 | Program | `flip/flip` |
 | Template id | `step_tpl_flip_1_0_0` |
 

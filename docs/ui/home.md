@@ -69,7 +69,7 @@ empty array `[]`, home must not overwrite it.
 | `step_tpl_molding_1_0_0` | molding | `layer` | `layer/molding` |
 | `step_tpl_rdl_1_0_0` | RDL layer | `layer` | `layer/rdl` |
 | `step_tpl_grinding_1_0_0` | Grinding | `grinding` | `grinding/grinding` |
-| `step_tpl_flip_1_0_0` | Flip | `flip` | `flip/flip` |
+| `step_tpl_flip_1_0_0` | Flip | `carrier` | `flip/flip` |
 | `step_tpl_ubump_formation_1_0_0` | Micro Bump | `bump` | `bump/uBump_formation` |
 | `step_tpl_bga_bump_formation_1_0_0` | BGA Bump | `bump` | `bump/bga_bump_formation` |
 | `step_tpl_c4_bump_formation_1_0_0` | C4 Bump | `bump` | `bump/c4_bump_formation` |
