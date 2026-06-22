@@ -281,6 +281,7 @@ export class ProcessGeometryState {
     z = this._cursorZ,
     advanceCursor = true,
     scope = ROOT_SCOPE,
+    xyInset = 0,
   } = {}) {
     const layerThickness = positiveNumber(thickness, "thickness");
     const bottomZ = finiteNumber(z, "z");
@@ -288,7 +289,7 @@ export class ProcessGeometryState {
       this.requireProcessFootprint(),
       bottomZ,
       layerThickness,
-    );
+    ).copyWithXYInset(finiteNumber(xyInset, "xyInset"));
     const handle = this._addBodyObject(
       new Body(geometry, requireString(material, "material")),
       { scope },

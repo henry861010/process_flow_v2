@@ -40,6 +40,59 @@ Template metadata：
 - `thickness` 必須為正值。若要表達 thinning 語意，應使用 `grindTo` 或其他專門的
   removal step，而不是使用負的 molding thickness。
 
+## ECL
+
+`ECL` 是 `layer` 類別的 process step，用來模擬製程中把 carrier
+bond 到 wafer/package 時使用的 ECL material layer。此 step 會在目前
+`main_geometry.cursorZ()` 上方新增一層 solid body，XY footprint 使用目前
+process footprint 並依 `koz` 做 inward inset。
+
+Template metadata：
+
+| Field | Value |
+| --- | --- |
+| Name | `ECL` |
+| Category | `layer` |
+| Program | `layer/ecl` |
+| Template id | `step_tpl_ecl_1_0_0` |
+
+參數：
+
+| Field id | Value type | Scope | Description |
+| --- | --- | --- | --- |
+| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `material` | `materialRef` | `processParameter` | ECL material 名稱或 material DB entity id。 |
+| `thk` | `float` | `processParameter` | 正值 ECL 厚度，單位依照 geometry state 的 unit system 解讀。 |
+| `koz` | `float` | `processParameter` | Keep out zone，表示 ECL layer footprint 相對 process footprint 的 XY 內縮距離，必須大於或等於 0。 |
+
+實作行為：
+
+1. 從 kernel context 取得已 resolve 的 `main_geometry`
+   `ProcessGeometryState`。
+2. 驗證 `material` 為非空字串、`thk` 為正值、`koz` 為非負 finite number。
+3. 呼叫 `main_geometry.depositLayer({ material, thickness: thk,
+   xyInset: koz })`。
+4. Kernel 使用 `main_geometry` 目前的 process footprint 建立 ECL body，
+   並在建立 body 前依 `koz` 對 XY footprint 做 inward inset。
+5. ECL body bottom Z 為 `main_geometry.cursorZ()`，top Z 為
+   `main_geometry.cursorZ() + thk`。
+6. 新增的 ECL body 會加入 `main_geometry` root scope 的 direct bodies。
+7. `cursorZ` 更新為原本 `cursorZ + thk`。
+8. 此 step 不更新 runtime process footprint。
+
+設計要點：
+
+- 此 step 不直接建立或修改 `Container`、`Body` 或 raw geometry object。
+- `koz` 內縮透過 `ProcessGeometryState.depositLayer()` 的 public
+  `xyInset` 參數執行，再由 geometry primitive 的 public copy API 產生內縮後
+  envelope。
+- Box、Cylinder 與 Cone footprint 支援非零 `koz`；Polygon footprint 目前只支援
+  `koz: 0`。
+- ECL 是 solid body layer，不是 bump、via 或 circuit feature，因此不保存
+  density 或 direction。
+- ECL 不更新 process footprint。後續 full-area operation 仍沿用進入 ECL 前的
+  footprint。
+
 ## RDL layer
 
 `RDL layer` 是 `layer` 類別的 process step，用來模擬 RDL dielectric

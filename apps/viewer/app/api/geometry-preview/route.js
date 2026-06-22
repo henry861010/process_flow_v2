@@ -1,17 +1,10 @@
 import { GeometryKernel, InMemoryRepository } from "../../../../../src/kernel/index.js";
-import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import {
+  enqueueGeometryExport,
+  isGeometryExportAbortError,
+} from "./export-queue.js";
 
 export const runtime = "nodejs";
-
-const DEFAULT_EXPORT_CONCURRENCY = 1;
-const DEFAULT_EXPORT_TIMEOUT_MS = 30_000;
-const MAX_WORKER_LOG_BYTES = 16_000;
-
-let activeGeometryPreviewExports = 0;
-const pendingGeometryPreviewExports = [];
 
 export async function POST(request) {
   try {
@@ -36,7 +29,12 @@ export async function POST(request) {
       previewTarget: normalized.target,
     });
     const geometryStructure = preview.geometryStructure;
-    const previewExports = await enqueueGeometryPreviewExport(geometryStructure);
+    const glbBytes = await enqueueGeometryExport({
+      geometryStructure,
+      format: "glb",
+      priority: "high",
+      signal: request.signal,
+    });
     const geometryEntityJson = buildGeometryEntityDownload({
       geometryStructure,
       previewId: previewIdForTarget(normalized.target),
@@ -47,160 +45,16 @@ export async function POST(request) {
 
     return Response.json({
       geometryEntityJson,
-      glbBase64: Buffer.from(previewExports.glbBytes).toString("base64"),
-      stepBase64: Buffer.from(previewExports.stepBytes).toString("base64"),
+      glbBase64: Buffer.from(glbBytes).toString("base64"),
     });
   } catch (error) {
+    if (isGeometryExportAbortError(error)) {
+      return new Response(null, { status: 499 });
+    }
     const message =
       error instanceof Error ? error.message : "Unable to generate geometry preview.";
     return Response.json({ message }, { status: 400 });
   }
-}
-
-function enqueueGeometryPreviewExport(geometryStructure) {
-  return new Promise((resolve, reject) => {
-    pendingGeometryPreviewExports.push({ geometryStructure, resolve, reject });
-    drainGeometryPreviewExportQueue();
-  });
-}
-
-function drainGeometryPreviewExportQueue() {
-  const concurrency = exportConcurrency();
-
-  while (
-    activeGeometryPreviewExports < concurrency &&
-    pendingGeometryPreviewExports.length > 0
-  ) {
-    const job = pendingGeometryPreviewExports.shift();
-    activeGeometryPreviewExports += 1;
-
-    geometryToPreviewExports(job.geometryStructure)
-      .then(job.resolve, job.reject)
-      .finally(() => {
-        activeGeometryPreviewExports -= 1;
-        drainGeometryPreviewExportQueue();
-      });
-  }
-}
-
-async function geometryToPreviewExports(geometryStructure) {
-  const workDir = await mkdtemp(join(tmpdir(), "process-flow-preview-"));
-  const inputPath = join(workDir, "geometry-structure.json");
-  const outputGlbPath = join(workDir, "preview.glb");
-  const outputStepPath = join(workDir, "preview.step");
-
-  try {
-    await writeFile(inputPath, JSON.stringify(geometryStructure), "utf8");
-    await runGeometryExportWorker({ inputPath, outputGlbPath, outputStepPath });
-    const [glbBytes, stepBytes] = await Promise.all([
-      readFile(outputGlbPath),
-      readFile(outputStepPath),
-    ]);
-    return { glbBytes, stepBytes };
-  } finally {
-    await rm(workDir, { recursive: true, force: true });
-  }
-}
-
-function runGeometryExportWorker({ inputPath, outputGlbPath, outputStepPath }) {
-  const workerPath = join(process.cwd(), "scripts/geometry-to-glb-worker.mjs");
-  const exporterPath = join(process.cwd(), "../../src/exporters/cad.js");
-  const timeoutMs = exportTimeoutMs();
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      [workerPath, inputPath, outputGlbPath, outputStepPath, exporterPath],
-      {
-        cwd: process.cwd(),
-        env: process.env,
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-
-    let stderr = "";
-    let stdout = "";
-    let settled = false;
-    let timedOut = false;
-
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, timeoutMs);
-
-    child.stderr.on("data", (chunk) => {
-      stderr = appendLimited(stderr, chunk);
-    });
-    child.stdout.on("data", (chunk) => {
-      stdout = appendLimited(stdout, chunk);
-    });
-
-    child.on("error", (error) => {
-      settle(() => {
-        reject(
-          new Error(`Unable to start geometry preview export worker: ${error.message}`),
-        );
-      });
-    });
-
-    child.on("exit", (code, signal) => {
-      settle(() => {
-        if (timedOut) {
-          reject(
-            new Error(
-              `Geometry preview CAD export timed out after ${timeoutMs}ms.`,
-            ),
-          );
-          return;
-        }
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        reject(workerFailureError({ code, signal, stderr, stdout }));
-      });
-    });
-
-    function settle(callback) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      callback();
-    }
-  });
-}
-
-function exportConcurrency() {
-  const value = Number(process.env.GEOMETRY_PREVIEW_EXPORT_CONCURRENCY ?? "");
-  return Number.isSafeInteger(value) && value > 0
-    ? value
-    : DEFAULT_EXPORT_CONCURRENCY;
-}
-
-function exportTimeoutMs() {
-  const value = Number.parseInt(
-    process.env.GEOMETRY_PREVIEW_EXPORT_TIMEOUT_MS ?? "",
-    10,
-  );
-  return Number.isFinite(value) && value > 0
-    ? value
-    : DEFAULT_EXPORT_TIMEOUT_MS;
-}
-
-function appendLimited(current, chunk) {
-  const next = `${current}${chunk.toString()}`;
-  return next.length > MAX_WORKER_LOG_BYTES
-    ? next.slice(next.length - MAX_WORKER_LOG_BYTES)
-    : next;
-}
-
-function workerFailureError({ code, signal, stderr, stdout }) {
-  const reason = signal ? `signal ${signal}` : `exit code ${code}`;
-  const details = (stderr || stdout).trim();
-  if (!details) {
-    return new Error(`Geometry preview CAD export failed with ${reason}.`);
-  }
-  return new Error(`Geometry preview CAD export failed with ${reason}: ${details}`);
 }
 
 function normalizePreviewRequest(payload) {

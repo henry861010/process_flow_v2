@@ -907,6 +907,9 @@ Geometry preview panel：
 - Terminal final preview request 使用 `{ type: "stepOutput", stepRefId }` target。
 - Kernel 回傳 `geometryStructure: GeometryStructure`；API route 以此產生 GLB，並包成
   `geometryEntityJson: GeometryEntityDownload` 供 `Save JSON` 使用。
+- `Save STEP AP242` 使用 `geometryEntityJson.structure` 呼叫
+  `POST /api/geometry-preview/step`，下載和目前 preview 畫面對應的 STEP；背景
+  prefetch 不顯示獨立 loading 狀態，panel 關閉時會 abort 尚未完成的 prefetch。
 - Panel 是全畫面 overlay，`fixed inset-0 z-50 p-3 sm:p-6`。
 - Header 顯示：
   - `Geometry Preview`

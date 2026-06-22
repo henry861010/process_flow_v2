@@ -10,11 +10,11 @@ Preview component 應該和 flow instance editor page 分離，例如：
 | File | 責任 |
 |---|---|
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Overlay shell、loading/error/ready 狀態、下載動作 |
-| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | 呼叫 server-side preview API 的 client helper |
-| `apps/viewer/app/api/geometry-preview/route.js` | Server-side kernel execution 與 GLB / STEP AP242 export |
+| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | 呼叫 server-side preview 與 STEP export API 的 client helpers |
+| `apps/viewer/app/api/geometry-preview/route.js` | Server-side kernel execution 與 preview GLB export |
+| `apps/viewer/app/api/geometry-preview/step/route.js` | Preview snapshot STEP AP242 export |
 
-實作時檔名可以調整，但 preview UI 必須維持為獨立 component，不應直接塞進
-flow graph component 裡。
+Preview UI 必須維持為獨立 component，不直接塞進 flow graph component 裡。
 
 ## 1. UI 設計
 
@@ -41,8 +41,8 @@ flow edge 所代表的 geometry state。
 | `geometryRef` | 顯示在 initial geometry edge 上 | 使用者選取的 initial geometry，並經過 kernel preview execution path |
 | `stepOutput` | 顯示在 process output edge 上 | Source process step 的 output geometry |
 
-目前 graph UI 已經會在 `stepOutput` edge 顯示 preview button。實作時需要修正，
-讓 `geometryRef` edge 也顯示 preview button。
+`geometryRef` 與 `stepOutput` edge 都顯示 preview button，讓 graph structure
+和可預覽的 geometry state 保持一致。
 
 ### 1.3 Button Enabled State
 
@@ -141,8 +141,7 @@ Generating geometry preview...
 - `Save JSON`、`Save GLB` 與 `Save STEP AP242` disabled。
 - 使用者可以關閉 panel 回到 graph。
 
-錯誤訊息應盡量使用 server 回傳的 concise message。未來可以加 collapsible
-technical detail，但第一版只需要顯示單一可讀錯誤訊息。
+錯誤訊息使用 server 回傳的 concise message，並在 preview panel 中顯示單一可讀訊息。
 
 ### 1.8 Ready State
 
@@ -150,7 +149,7 @@ Preview 成功後：
 
 - Generated GLB 載入 CAD viewer scene。
 - Generated geometry JSON 保存在 memory 中供下載。
-- Generated STEP AP242 保存在 memory 中供下載。
+- STEP AP242 下載綁定同一份 preview geometry snapshot；它可以在背景預先產生，但不影響 preview ready。
 - `Save JSON`、`Save GLB` 與 `Save STEP AP242` enabled。
 - Graph draft 維持不變。
 
@@ -171,17 +170,28 @@ Viewer 應支援和 CAD viewer 相同的核心 inspection controls：
 |---|---|---|
 | `Save JSON` | Preview ready | Geometry DB import-ready JSON |
 | `Save GLB` | Preview ready | Generated binary GLB |
-| `Save STEP AP242` | Preview ready | Generated STEP AP242 with material labels |
+| `Save STEP AP242` | Preview ready | STEP AP242 generated from the current preview snapshot with material labels |
 
 Buttons 只做本機下載。它們不會把資料存入 `localStorage` 或未來 database。
 
-建議 filename：
+`Save STEP AP242` 不會重新讀取目前 graph draft，也不會重新執行 kernel。它使用
+preview response 中的 `geometryEntityJson.structure` 作為固定 snapshot，確保使用者
+下載的 STEP 和畫面中看到的 GLB 對應同一份 geometry。Panel ready 後，client
+在背景啟動 STEP prefetch；UI 不顯示這個背景工作的 loading 狀態。使用者按下
+`Save STEP AP242` 時，如果 prefetch 已完成就直接下載；如果尚未完成，則等待同一個
+in-flight export；如果沒有 in-flight export 或前次失敗，則啟動新的 STEP export。
+
+Preview panel 關閉或 unmount 時，client 會 abort 尚未完成的 STEP prefetch。Server
+會移除尚未開始的低優先權 STEP job，或結束已經啟動的 STEP worker，讓下一個互動式
+GLB preview 不會被舊 snapshot 的 STEP 工作阻塞。
+
+Filename format：
 
 - JSON: `geometry-preview-{edgeId}.json`
 - GLB: `geometry-preview-{edgeId}.glb`
 - STEP AP242: `geometry-preview-{edgeId}.step`
 
-若擔心檔名重複，實作可以加 timestamp。
+需要避免覆蓋同名下載時，可以附加 timestamp。
 
 ## 2. Data 與 Kernel Execution
 
@@ -297,19 +307,49 @@ Server response：
 type GeometryPreviewResponse = {
   geometryEntityJson: GeometryEntityDownload;
   glbBase64: string;
-  stepBase64: string;
 };
 ```
 
 Client 將 `glbBase64` 轉成 `Blob`，載入 CAD viewer，並使用同一個 `Blob` 供
-`Save GLB` 下載。`stepBase64` 轉成 STEP `Blob`，供 `Save STEP AP242`
-下載。STEP export 會把 `via`、`circuit`、`bump` 的 geometry materialize
+`Save GLB` 下載。
+
+STEP AP242 使用獨立 request，request body 是 preview response 中的 geometry
+snapshot：
+
+```ts
+type GeometryPreviewStepRequest = {
+  geometryStructure: GeometryStructure;
+};
+
+type GeometryPreviewStepResponse = {
+  stepBase64: string;
+};
+```
+
+Client 只傳送已經 ready 的 preview snapshot，不傳送 draft flow template 或 draft
+instance。Server 不會重新執行 `GeometryKernel.executePreview()`。
+
+STEP export 會把 `via`、`circuit`、`bump` 的 geometry materialize
 成實體 solid，材料名稱為 `{featureType}_{material}_{density}` 的安全 token，
 例如 `via_Cu_0p4`；同一個 container 內這些 feature body 的優先權高於一般 body。
 當 ancestor 與 descendant container 的 body 或 materialized feature solid overlap
 時，descendant solid 具有較高 priority，ancestor solid 的重疊區域會被排除。
 
-### 2.7 Download JSON Shape
+### 2.7 Export Scheduling
+
+CAD export 使用 child process 隔離 OpenCascade.js / WASM memory lifecycle。Preview
+GLB 是互動式高優先權工作；STEP AP242 prefetch 是低優先權、可取消工作。
+
+Scheduling rules：
+
+- GLB export 屬於 preview critical path，只要完成就可以顯示 viewer。
+- STEP export 不屬於 preview critical path，不會讓 panel loading state 等待 STEP。
+- Export queue 會優先啟動 GLB job，再處理 STEP job。
+- `GEOMETRY_PREVIEW_EXPORT_CONCURRENCY` 控制同時執行的 worker 數量，預設為 `1`。
+- Worker timeout 由 `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_MS` 控制。
+- Request abort 時，尚未開始的 job 會從 queue 移除；已啟動的 worker 會被結束並清理 temp directory。
+
+### 2.8 Download JSON Shape
 
 `Save JSON` 下載的是 geometry database import-ready object。
 
@@ -356,7 +396,7 @@ Category rule:
 - 不沿用 input geometry category，也不從 source process step category 推導，避免
   使用者把 preview artifact 誤認為已治理的原始 geometry 或正式 process output。
 
-### 2.8 Validation Flow
+### 2.9 Validation Flow
 
 Client-side validation 決定 preview button 是否 enabled。
 
@@ -374,7 +414,7 @@ Validation rules：
 - Referenced process step template ids 必須存在於 process step template snapshot。
 - Pre-flow 必須 acyclic。
 
-### 2.9 Execution Flow
+### 2.10 Execution Flow
 
 ```mermaid
 flowchart TD
@@ -387,11 +427,17 @@ flowchart TD
   validate["Server validates request"]
   preflow["Build preview pre-flow template and instance"]
   kernel["GeometryKernel.executePreview"]
-  export["Export preview geometry to GLB and STEP AP242"]
-  response["Return geometryEntityJson, glbBase64, and stepBase64"]
+  export["Export preview geometry to GLB"]
+  response["Return geometryEntityJson and glbBase64"]
   show["Load GLB into viewer and show ready state"]
   downloads["Enable Save JSON, Save GLB, and Save STEP AP242"]
+  stepPrefetch["Prefetch STEP AP242 from preview snapshot"]
+  saveStep["User clicks Save STEP AP242"]
+  stepReady{"STEP ready?"}
+  downloadStep["Download STEP AP242"]
+  abortStep["Abort STEP prefetch on panel close"]
   error["Show error inside preview panel"]
+  stepError["Show STEP download error"]
 
   click --> enabled
   enabled -- "No" --> click
@@ -406,20 +452,29 @@ flowchart TD
   export --> response
   response --> show
   show --> downloads
+  show --> stepPrefetch
+  downloads --> saveStep
+  saveStep --> stepReady
+  stepReady -- "Yes" --> downloadStep
+  stepReady -- "No" --> stepPrefetch
+  stepPrefetch --> downloadStep
+  stepPrefetch --> abortStep
 
   validate -- "Invalid" --> error
   kernel -- "Execution error" --> error
   export -- "CAD export error" --> error
+  stepPrefetch -- "STEP export error after save click" --> stepError
 ```
 
-### 2.10 Sequence
+### 2.11 Sequence
 
 ```mermaid
 sequenceDiagram
   participant User
   participant Graph as Flow Graph UI
   participant Panel as GeometryPreviewPanel
-  participant API as Next API Route
+  participant PreviewAPI as Preview API Route
+  participant StepAPI as STEP API Route
   participant Kernel as GeometryKernel
   participant Viewer as CAD Viewer Scene
 
@@ -427,17 +482,26 @@ sequenceDiagram
   Graph->>Graph: Check edge-specific completeness
   Graph->>Panel: Open with edge context
   Panel->>Panel: Show spinner
-  Panel->>API: POST preview request
-  API->>API: Validate request and build in-memory repositories
-  API->>Kernel: executePreview(previewEdgeId)
-  Kernel-->>API: Geometry structure
-  API->>API: Export GLB / STEP and build download JSON
-  API-->>Panel: geometryEntityJson + glbBase64 + stepBase64
+  Panel->>PreviewAPI: POST preview request
+  PreviewAPI->>PreviewAPI: Validate request and build in-memory repositories
+  PreviewAPI->>Kernel: executePreview(previewTarget)
+  Kernel-->>PreviewAPI: Geometry structure
+  PreviewAPI->>PreviewAPI: Export GLB and build download JSON
+  PreviewAPI-->>Panel: geometryEntityJson + glbBase64
   Panel->>Viewer: Load GLB blob
   Panel->>Panel: Enable downloads
+  Panel->>StepAPI: POST preview snapshot for STEP prefetch
+  alt User closes preview before STEP completes
+    Panel->>StepAPI: Abort STEP request
+    StepAPI->>StepAPI: Remove queued job or kill worker
+  else User clicks Save STEP AP242
+    Panel->>StepAPI: Await in-flight or start STEP export
+    StepAPI-->>Panel: stepBase64
+    Panel->>Panel: Download STEP file
+  end
 ```
 
-### 2.11 Pre-Flow Construction
+### 2.12 Pre-Flow Construction
 
 對 `geometryRef` preview edge：
 
@@ -533,9 +597,9 @@ GLB blob 與 download state 由 panel 自己管理。
 - Server route 應針對 missing geometry、incomplete fields、kernel errors、
   CAD export errors 回傳清楚錯誤訊息。
 
-### 2.14 First Version Non-Goals
+### 2.14 Scope Exclusions
 
-第一版不需要：
+Geometry Preview 不包含：
 
 - 將 preview output 存入 localStorage。
 - 分配真正的 geometry DB id。

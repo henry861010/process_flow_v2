@@ -14,6 +14,7 @@ import {
 
 import {
   requestGeometryPreview,
+  requestGeometryPreviewStep,
   type GeometryEntityDownload,
   type GeometryPreviewRequest,
 } from "@/components/geometry-preview/geometry-preview-client";
@@ -63,9 +64,13 @@ type PanelState =
       status: "ready";
       geometryEntityJson: GeometryEntityDownload;
       glbBlob: Blob;
-      stepBlob: Blob;
     }
   | { status: "error"; message: string };
+
+type StepExportRequest = {
+  controller: AbortController;
+  promise: Promise<Blob>;
+};
 
 const DEFAULT_FEATURE_DENSITY_SCALE = 0.4;
 const DEFAULT_FEATURE_GLYPH_SIZE_SCALE = 1;
@@ -80,6 +85,52 @@ export function GeometryPreviewPanel({
   onClose: () => void;
 }) {
   const [state, setState] = React.useState<PanelState>({ status: "loading" });
+  const [stepError, setStepError] = React.useState<string | null>(null);
+  const stepExportRef = React.useRef<StepExportRequest | null>(null);
+  const stepBlobRef = React.useRef<Blob | null>(null);
+  const stepDownloadInFlightRef = React.useRef(false);
+  const mountedRef = React.useRef(true);
+
+  const abortStepExport = React.useCallback(() => {
+    const current = stepExportRef.current;
+    if (!current) return;
+    current.controller.abort();
+    stepExportRef.current = null;
+  }, []);
+
+  const startStepExport = React.useCallback((geometryStructure: unknown) => {
+    if (stepBlobRef.current) {
+      return Promise.resolve(stepBlobRef.current);
+    }
+
+    const current = stepExportRef.current;
+    if (current) return current.promise;
+
+    const controller = new AbortController();
+    const requestState: StepExportRequest = {
+      controller,
+      promise: Promise.resolve(new Blob()),
+    };
+    const promise = requestGeometryPreviewStep(
+      { geometryStructure },
+      controller.signal,
+    )
+      .then((response) => {
+        const stepBlob = base64ToBlob(response.stepBase64, "application/step");
+        stepBlobRef.current = stepBlob;
+        return stepBlob;
+      })
+      .catch((error) => {
+        if (stepExportRef.current === requestState) {
+          stepExportRef.current = null;
+        }
+        throw error;
+      });
+
+    requestState.promise = promise;
+    stepExportRef.current = requestState;
+    return promise;
+  }, []);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -92,7 +143,17 @@ export function GeometryPreviewPanel({
   }, [onClose]);
 
   React.useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      abortStepExport();
+    };
+  }, [abortStepExport]);
+
+  React.useEffect(() => {
     const controller = new AbortController();
+    abortStepExport();
+    stepBlobRef.current = null;
+    setStepError(null);
     setState({ status: "loading" });
 
     requestGeometryPreview(preview.request, controller.signal)
@@ -101,7 +162,6 @@ export function GeometryPreviewPanel({
           status: "ready",
           geometryEntityJson: response.geometryEntityJson,
           glbBlob: base64ToBlob(response.glbBase64, "model/gltf-binary"),
-          stepBlob: base64ToBlob(response.stepBase64, "application/step"),
         });
       })
       .catch((error) => {
@@ -117,8 +177,17 @@ export function GeometryPreviewPanel({
         });
       });
 
-    return () => controller.abort();
-  }, [preview]);
+    return () => {
+      controller.abort();
+      abortStepExport();
+    };
+  }, [abortStepExport, preview]);
+
+  React.useEffect(() => {
+    if (state.status !== "ready") return;
+    const promise = startStepExport(state.geometryEntityJson.structure);
+    void promise.catch(() => undefined);
+  }, [startStepExport, state]);
 
   const ready = state.status === "ready";
 
@@ -137,9 +206,31 @@ export function GeometryPreviewPanel({
     downloadBlob(state.glbBlob, `geometry-preview-${preview.previewId}.glb`);
   }
 
-  function saveStep() {
+  async function saveStep() {
     if (state.status !== "ready") return;
-    downloadBlob(state.stepBlob, `geometry-preview-${preview.previewId}.step`);
+    if (stepDownloadInFlightRef.current) return;
+
+    if (stepBlobRef.current) {
+      downloadBlob(stepBlobRef.current, `geometry-preview-${preview.previewId}.step`);
+      return;
+    }
+
+    stepDownloadInFlightRef.current = true;
+    setStepError(null);
+    try {
+      const stepBlob = await startStepExport(state.geometryEntityJson.structure);
+      if (!mountedRef.current) return;
+      downloadBlob(stepBlob, `geometry-preview-${preview.previewId}.step`);
+    } catch (error) {
+      if (!mountedRef.current || isAbortError(error)) return;
+      setStepError(
+        error instanceof Error
+          ? error.message
+          : "Unable to generate STEP export.",
+      );
+    } finally {
+      stepDownloadInFlightRef.current = false;
+    }
   }
 
   return (
@@ -196,6 +287,11 @@ export function GeometryPreviewPanel({
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-white px-4 py-3">
+          {stepError ? (
+            <span className="mr-auto min-w-0 flex-1 truncate text-sm text-destructive">
+              {stepError}
+            </span>
+          ) : null}
           <Button variant="outline" disabled={!ready} onClick={saveJson}>
             <FileJson />
             Save JSON
@@ -956,6 +1052,12 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
+}
+
 function base64ToBlob(base64: string, mimeType: string) {
   const binary = window.atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -973,5 +1075,5 @@ function downloadBlob(blob: Blob, fileName: string) {
   document.body.append(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

@@ -185,6 +185,68 @@ export const PROCESS_STEP_TEMPLATE_SEED: ProcessStepTemplate[] = [
     ],
   },
   {
+    id: "step_tpl_ecl_1_0_0",
+    version: "V1.0.0",
+    name: "ECL",
+    category: "layer",
+    program: "layer/ecl",
+    description:
+      "Deposits an ECL body layer above cursorZ using the current process footprint after applying koz as an inward XY inset.",
+    owner: "integration.platform",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        description:
+          "Complete geometry state consumed by ECL. The state must already carry a process footprint.",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "material",
+        name: "material",
+        description: "ECL material name or material entity id.",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "text",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        description:
+          "Positive ECL thickness deposited from the current process cursor plane.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+          exclusiveMin: true,
+        },
+      },
+      {
+        id: "koz",
+        name: "koz",
+        description:
+          "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+        validation: {
+          min: 0,
+        },
+      },
+    ],
+  },
+  {
     id: "step_tpl_rdl_1_0_0",
     version: "V1.0.0",
     name: "RDL layer",

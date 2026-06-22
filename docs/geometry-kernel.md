@@ -679,6 +679,7 @@ Parameters:
 | `z` | number | no | `state.cursorZ()` | Bottom Z of the new layer. |
 | `advanceCursor` | boolean | no | `true` | Whether to move cursor to layer top. |
 | `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Target geometry scope. |
+| `xyInset` | number | no | `0` | XY inset applied to the process footprint before creating the body. Positive values shrink the footprint; negative values expand it. |
 
 Returns:
 
@@ -690,6 +691,9 @@ Behavior:
 
 - Uses `state.requireProcessFootprint()`.
 - Creates a body whose bottom is at `z`.
+- Applies `xyInset` through geometry primitive copy methods. Box, cylinder, and
+  cone footprints support positive inset and negative outset. Polygon footprints
+  only support `xyInset: 0`; non-zero polygon inset/outset is not supported.
 - If `advanceCursor` is true, sets `cursorZ` to `z + thickness`.
 
 ### 10.2 Fill To Z

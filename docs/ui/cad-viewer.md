@@ -277,7 +277,7 @@ Ready state：
 
 - Generated GLB 被載入 shared scene。
 - Generated geometry JSON 保留在 memory 中供 download。
-- Generated STEP AP242 保留在 memory 中供 download。
+- STEP AP242 download 使用同一份 preview geometry snapshot，可能由背景 prefetch 先完成。
 - `Save JSON`、`Save GLB` 與 `Save STEP AP242` enabled。
 
 ### 6.2 Preview Layout
@@ -555,7 +555,8 @@ Viewer does not support：
 | `apps/viewer/components/viewer/model-loader.ts` | STL / GLB / GLTF loading、model disposal helpers、bounds、stats 與 formatting helpers。 |
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay shell、preview CAD workbench、download actions、section controls、axis view 與 feature overlay settings。 |
 | `apps/viewer/components/geometry-preview/geometry-feature-overlay.tsx` | Geometry JSON feature extraction、summaries、feature envelopes、hatches 與 instanced density glyphs。 |
-| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | `/api/geometry-preview` client helper。 |
-| `apps/viewer/app/api/geometry-preview/route.js` | Server-side preview execution 與 GLB / STEP AP242 export。 |
+| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Preview GLB 與 preview snapshot STEP API client helpers。 |
+| `apps/viewer/app/api/geometry-preview/route.js` | Server-side preview execution 與 GLB export。 |
+| `apps/viewer/app/api/geometry-preview/step/route.js` | Preview snapshot STEP AP242 export。 |
 | `apps/viewer/components/ui/*` | Shared UI primitives。 |
 | `apps/viewer/app/globals.css` | Tailwind base styles 與 viewer surface styling。 |

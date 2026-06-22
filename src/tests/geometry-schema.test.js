@@ -319,6 +319,35 @@ test("process geometry state deposit and placement track cursor z", () => {
   assert.equal(output.root.children[0].bodies[0].geometry.thk, 2);
 });
 
+test("process geometry state can deposit an inset body layer without changing footprint", () => {
+  const state = ProcessGeometryState.create();
+  state.initializeBoxLayer({
+    material: "base",
+    bottomLeft: [-10, -20, 0],
+    topRight: [10, 20, 0],
+    thickness: 5,
+  });
+
+  state.depositLayer({
+    material: "ECL",
+    thickness: 2,
+    xyInset: 3,
+  });
+
+  const output = state.toGeometryStructure();
+  assert.equal(state.cursorZ(), 7);
+  assert.deepEqual(state.processFootprint(), {
+    type: "box",
+    bottomLeft: [-10, -20],
+    topRight: [10, 20],
+  });
+  assert.equal(output.root.bodies.length, 2);
+  assert.equal(output.root.bodies[1].material, "ECL");
+  assert.deepEqual(output.root.bodies[1].geometry.bottom_left, [-7, -17, 5]);
+  assert.deepEqual(output.root.bodies[1].geometry.top_right, [7, 17, 5]);
+  assert.equal(output.root.bodies[1].geometry.thk, 2);
+});
+
 test("rootBodyZMax reports only direct root body top", () => {
   const state = ProcessGeometryState.create();
   state.initializeBoxLayer({
@@ -1127,6 +1156,82 @@ test("geometry kernel imports and executes real molding process step", async () 
   assert.equal(geometry.root.bodies[1].material, "EMC-A");
   assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-50, -50, 10]);
   assert.equal(geometry.root.bodies[1].geometry.thk, 5);
+});
+
+test("geometry kernel imports and executes real ECL process step", async () => {
+  const kernel = createTestKernel({
+    processStepTemplates: [realEclStepTemplate(), realMoldingStepTemplate()],
+    flowTemplate: {
+      id: "flow_tpl_kernel_test",
+      stepRefs: [
+        {
+          stepRefId: "ecl",
+          processStepTemplateId: "step_tpl_ecl_1_0_0",
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+        },
+      ],
+      flowEdges: [
+        {
+          edgeId: "edge_input_to_ecl",
+          source: { sourceType: "geometryRef" },
+          target: {
+            stepRefId: "ecl",
+            targetFieldId: "main_geometry",
+          },
+        },
+        {
+          edgeId: "edge_ecl_to_molding",
+          source: { sourceType: "stepOutput", stepRefId: "ecl" },
+          target: {
+            stepRefId: "molding",
+            targetFieldId: "main_geometry",
+          },
+        },
+      ],
+    },
+    flowInstance: {
+      id: "flow_inst_kernel_test",
+      processFlowTemplateId: "flow_tpl_kernel_test",
+      stepValueSets: [
+        {
+          stepRefId: "ecl",
+          processStepTemplateId: "step_tpl_ecl_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: "geom_kernel_input" },
+            { fieldId: "material", value: "ECL-A" },
+            { fieldId: "thk", value: 4 },
+            { fieldId: "koz", value: 5 },
+          ],
+        },
+        {
+          stepRefId: "molding",
+          processStepTemplateId: "step_tpl_molding_1_0_0",
+          fieldValues: [
+            { fieldId: "main_geometry", value: null },
+            { fieldId: "material", value: "EMC-A" },
+            { fieldId: "thickness", value: 2 },
+          ],
+        },
+      ],
+    },
+    moduleResolver: new ProcessStepModuleResolver(),
+  });
+
+  const geometry = (await kernel.execute("flow_inst_kernel_test")).geometry();
+
+  assert.equal(geometry.root.bodies.length, 3);
+  assert.equal(geometry.root.bodies[1].material, "ECL-A");
+  assert.deepEqual(geometry.root.bodies[1].geometry.bottom_left, [-45, -45, 10]);
+  assert.deepEqual(geometry.root.bodies[1].geometry.top_right, [45, 45, 10]);
+  assert.equal(geometry.root.bodies[1].geometry.thk, 4);
+
+  assert.equal(geometry.root.bodies[2].material, "EMC-A");
+  assert.deepEqual(geometry.root.bodies[2].geometry.bottom_left, [-50, -50, 14]);
+  assert.deepEqual(geometry.root.bodies[2].geometry.top_right, [50, 50, 14]);
+  assert.equal(geometry.root.bodies[2].geometry.thk, 2);
 });
 
 test("geometry kernel imports and executes real RDL process step", async () => {
@@ -2538,6 +2643,56 @@ function realMoldingStepTemplate() {
       {
         id: "thickness",
         name: "thickness",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+    ],
+  };
+}
+
+function realEclStepTemplate() {
+  return {
+    id: "step_tpl_ecl_1_0_0",
+    version: "V1.0.0",
+    name: "ECL",
+    category: "layer",
+    program: "layer/ecl",
+    description: "Deposit ECL material above cursorZ with a keep-out-zone inset.",
+    owner: "test",
+    fieldDefinitions: [
+      {
+        id: "main_geometry",
+        name: "main_geometry",
+        scope: "inputState",
+        valueType: "geometryRef",
+        controlType: null,
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "material",
+        name: "material",
+        scope: "processParameter",
+        valueType: "materialRef",
+        controlType: "text",
+        selectionMode: null,
+        unit: null,
+      },
+      {
+        id: "thk",
+        name: "thk",
+        scope: "processParameter",
+        valueType: "float",
+        controlType: "number",
+        selectionMode: null,
+        unit: "um",
+      },
+      {
+        id: "koz",
+        name: "koz",
         scope: "processParameter",
         valueType: "float",
         controlType: "number",
