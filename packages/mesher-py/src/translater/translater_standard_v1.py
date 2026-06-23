@@ -41,6 +41,8 @@ class Translater:
 
         return base_face, faces
 
+    def get_3D_pattern(self, container):
+        print("")
 
 def _collect_faces(container):
     """Collects all 2D faces from a standard container subtree.
