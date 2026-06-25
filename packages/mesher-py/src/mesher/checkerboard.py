@@ -42,6 +42,9 @@ def checkerboard_box(element_size, x_list, y_list):
     x = _densify(element_size, x_list)
     y = _densify(element_size, y_list)
     
+    print(x)
+    print(y)
+    
     if x.size < 2 or y.size < 2:
         raise ValueError("After _densify, need at least 2 x-lines and 2 y-lines.")
 

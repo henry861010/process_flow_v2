@@ -182,7 +182,7 @@ class Dragger:
         corner_xy = self.node_2D[self.element_2D[indices]]
         return corner_xy
     
-    def _search_faces(self, face, indices=None):
+    def _search_faces(self, face, indices=None, eps=0.01):
         indices = self._normalize_element_indices(indices)
         if 0 == len(indices):
             return np.zeros(0, dtype=np.int32)
@@ -192,10 +192,10 @@ class Dragger:
         face_dim = face["dim"]
         
         if face_type == "BOX":
-            mask_bl_x = (face_dim[0] < element_coordinates[:,:,0])
-            mask_bl_y = (face_dim[1] < element_coordinates[:,:,1])
-            mask_tr_x = (element_coordinates[:,:,0] < face_dim[2])
-            mask_tr_y = (element_coordinates[:,:,1] < face_dim[3])
+            mask_bl_x = (face_dim[0]-eps < element_coordinates[:,:,0])
+            mask_bl_y = (face_dim[1]-eps < element_coordinates[:,:,1])
+            mask_tr_x = (element_coordinates[:,:,0] < face_dim[2]+eps)
+            mask_tr_y = (element_coordinates[:,:,1] < face_dim[3]+eps)
             mask = np.all(mask_bl_x & mask_bl_y & mask_tr_x & mask_tr_y, axis=1)
             return mask
         
