@@ -42,7 +42,114 @@ class Translater:
         return base_face, faces
 
     def get_3D_pattern(self, container):
-        print("")
+        # assign priority
+        _assign_priority(container)
+        
+        # get assignment
+        assignments = _get_assignments(container)
+        
+        # order by priority and start/end
+        assignments = sorted(assignments, key=lambda item: (item['z'], item['type']))
+        
+        # group by z
+        layer_infos = []
+        for assignment in assignments:
+            if not layer_infos or layer_infos[-1]["z"] < assignment["z"]:
+                layer_infos.append({
+                    "z": assignment["z"],
+                    "assignments": [assignment]
+                })
+            else:
+                layer_infos[-1]["assignments"].append(assignment)
+                
+        return layer_infos
+
+def _get_assignments(container, ancestors=[]):
+    '''
+        assignment {
+            z: float
+            type: 1 / 0 (START / END)
+            face: face
+            areas: area[]
+        }
+        
+        area {
+            face: face / None
+            type: NORMAL / DENSITY_START / DENSITY_CONVERT
+            priority: int (NORMAL / DENSITY_START / DENSITY_CONVERT)
+            density: float (DENSITY_START)
+            material: str (NORMAL / DENSITY_START / DENSITY_CONVERT)
+            material_o: str (DENSITY_CONVERT)
+        }
+        
+        face {
+            type: BOX / CIRCLE / POLYGON
+            dim: []
+        }
+    '''
+    assignments = []
+    
+    # body
+    for body in container["bodies"]:
+        geometry = body["geometry"]
+        material = body["material"]
+        priority = container["priority"]
+        face = _geometry_to_face(geometry)
+        
+        # START
+        assignments.append({
+            "z": _geometry_to_z(geometry, isStart=True),
+            "type": 1,
+            "face": face,
+            "areas": [{
+                "type": "NORMAL",
+                "face": None,
+                "material": material,
+                "priority": priority,
+            }]
+        })
+        
+        # END
+        z = _geometry_to_z(geometry, isStart=False)
+        areas = [{
+            "type": "NORMAL",
+            "face": None,
+            "material": material,
+            "priority": priority,
+        }]
+        for ancestor in ancestors:
+            for ancestor_body in ancestor["bodies"]:
+                ancestor_geometry = ancestor_body["geometry"]
+                z_start = _geometry_to_z(ancestor_geometry, isStart=True)
+                z_end = _geometry_to_z(ancestor_geometry, isStart=False)
+                if z_start < z and z < z_end:
+                    ancestor_face = _geometry_to_face(geometry)
+                    areas.append({
+                        "type": "NORMAL",
+                        "face": ancestor_face,
+                        "material": ancestor_body["material"],
+                        "priority": ancestor["priority"],
+                    })
+        
+        assignments.append({
+            "z": z,
+            "type": 0,
+            "face": face,
+            "areas": areas
+        })     
+    
+    # child
+    for child in container["children"]:
+        assignment_child = _get_assignments(child, ancestors=ancestors+[container])
+        assignments = assignments + assignment_child
+        
+    return assignments
+    
+def _assign_priority(container, priority=0):
+    container["priority"] = priority
+    for child in container["children"]:
+        _assign_priority(child, priority=priority+1)
+
 
 def _collect_faces(container):
     """Collects all 2D faces from a standard container subtree.
@@ -147,6 +254,29 @@ def _geometry_to_face(geometry):
         raise ValueError("ConeGeometry is not supported by translater_standard_v1")
 
     raise ValueError(f"Geometry type {geometry_type} is not supported")
+
+
+def _geometry_to_z(geometry, isStart=True):
+    if geometry["type"] == "BoxGeometry":
+        z = geometry["bottom_left"][2] 
+        if not isStart:
+            z += geometry["thk"]
+        return z
+
+    if geometry["type"] == "PolygonGeometry":
+        z = geometry["polys"][0][0][2]
+        if not isStart:
+            z += geometry["thk"]
+        return z
+    
+    if geometry["type"] == "CylinderGeometry":
+        return geometry["center"][2] 
+        if not isStart:
+            z += geometry["thk"]
+        return z
+    
+    if geometry["type"] == "ConeGeometry":
+        raise ValueError("ConeGeometry is not supported by translater_standard_v1") 
 
 
 def _polygon_dim(geometry):
