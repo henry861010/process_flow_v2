@@ -182,10 +182,15 @@ class Dragger:
         corner_xy = self.node_2D[self.element_2D[indices]]
         return corner_xy
     
-    def _search_faces(self, face, indices=None, eps=0.01):
+    def _search_faces(self, face, indices=None, eps=0.01):   
         indices = self._normalize_element_indices(indices)
+        
+        if face is None:
+            return np.ones(len(indices), dtype=bool)
+        
         if 0 == len(indices):
             return np.zeros(0, dtype=np.int32)
+        
         element_coordinates = self._element_coordinates(indices)
         
         face_type = face["type"]
@@ -204,6 +209,11 @@ class Dragger:
         self.element_2D_comp[:] = 0
         self.node_2D_to_3D[:] = -1
         
+    def _comp(self, comp):
+        if comp not in self.comps:
+            self.comps[comp] = len(self.comps)
+        return self.comps[comp]
+        
     def _organize(self, assignments, layer=1):
         for assignment in assignments:
             face = assignment["face"]
@@ -212,51 +222,55 @@ class Dragger:
             
             ### Select the area once (mask -> indices)
             mask  = self._search_faces(face)
-            area_indices = np.where(mask)[0]
+            target_indices = np.where(mask)[0]
             
-            if len(area_indices) == 0:
+            if len(target_indices) == 0:
                 continue
 
+            # END
             if assign_type == 0:
-                priority_now = areas[0]["priority"]
-                for area in areas[1:]:
-                    material = area["material"]
+                priority_o = areas[0]["priority_o"]
+                target_indices = target_indices[self.element_2D_priority[target_indices] == priority_o]
+                areas = sorted(areas, key=lambda item: item['priority'], reverse=True)
+                
+                for area in areas:
+                    face = area["face"]
                     priority = area["priority"]
-                    
-                    ### fill the lower priority
-                    mask1 = (self.element_2D_priority[area_indices] <= priority)
-                    mask2 = (self.element_2D_priority[area_indices] == priority_now)
-                    sub_indices = area_indices[mask1 | mask2]
+                    material = area["material"]
                     
                     ### local area
-                    mask  = self._search_faces(face, indices=sub_indices)
-                    sub_indices = sub_indices[mask]
-                        
+                    mask  = self._search_faces(face, indices=target_indices)
+                    sub_indices = target_indices[mask]
+                    target_indices = target_indices[~mask]
+                      
                     ### get (new) material
-                    if material not in self.comps:
-                        self.comps[material] = len(self.comps)
-                    comp_id = self.comps[material]
+                    comp_id = self._comp(material)
                     
                     ### assignment
                     self.element_2D_comp[sub_indices] = comp_id
                     self.element_2D_priority[sub_indices] = priority
-            else:
+                    
+                    if len(target_indices) == 0:
+                        break
+                    
+            # START_NORMAL
+            elif assign_type == 3:
                 area = areas[0]
                 material = area["material"]
                 priority = area["priority"]
                 
                 ### fill the lower priority
-                mask = (self.element_2D_priority[area_indices] <= priority)
-                sub_indices = area_indices[mask]
+                mask = (self.element_2D_priority[target_indices] <= priority)
+                sub_indices = target_indices[mask]
                     
                 ### get (new) material
-                if material not in self.comps:
-                    self.comps[material] = len(self.comps)
-                comp_id = self.comps[material]
+                comp_id = self._comp(material)
                 
                 ### assignment
                 self.element_2D_comp[sub_indices] = comp_id
-                self.element_2D_priority[sub_indices] = priority    
+                self.element_2D_priority[sub_indices] = priority  
+                
+            
         
     def _drag(self, element_size: float, begin: float, end: float):
         """Extrude currently labeled 2D elements between two z positions.

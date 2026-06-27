@@ -14,7 +14,7 @@ body3 = {
     "type": "BoxGeometry",
     "bottom_left": [17, 17, -10],
     "top_right": [20, 20, -10],
-    "thk": 100
+    "thk": 60
     },
   "material": "body3"
 }
@@ -54,7 +54,7 @@ child = {
     "vias": [],
     "circuits": [],
     "bumps": [],
-    "children": [child2]
+    "children": []
 }
 
 # ---------------------------------------
@@ -90,9 +90,10 @@ for face in faces:
     x_list.append(face["dim"][2])
     y_list.append(face["dim"][1])
     y_list.append(face["dim"][3])
-nodes, elements = checkerboard_box(3, x_list, y_list)
+nodes, elements = checkerboard_box(5, x_list, y_list)
 
 layer_infos = translater.get_3D_pattern(container)
+#print(json.dumps(layer_infos, indent=4))
 
 dragger = Dragger()
 dragger.set_2D(nodes, elements)

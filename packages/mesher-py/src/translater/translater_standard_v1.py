@@ -68,18 +68,41 @@ def _get_assignments(container, ancestors=[]):
     '''
         assignment {
             z: float
-            type: 1 / 0 (START / END)
+            type:  0 / 1 / 2 / 3 (END / START_CONVERT / START_DENSITY / START_NORMAL)
             face: face
             areas: area[]
         }
         
+        # area of START_NORMAL
         area {
-            face: face / None
-            type: NORMAL / DENSITY_START / DENSITY_CONVERT
-            priority: int (NORMAL / DENSITY_START / DENSITY_CONVERT)
-            density: float (DENSITY_START)
-            material: str (NORMAL / DENSITY_START / DENSITY_CONVERT)
-            material_o: str (DENSITY_CONVERT)
+            face: face,
+            priority: float
+            material: str
+        }
+        
+        # area of START_DENSITY
+        area {
+            face: face,
+            priority: float
+            density: float
+            material: str
+        }
+        
+        # area of START_CONVERT
+        area {
+            face: face,
+            priority: float
+            priority_o: float
+            density: float
+            material: str
+        }
+        
+        # area of END
+        area {
+            face: face,
+            priority_o: float
+            priority: float
+            material: str
         }
         
         face {
@@ -99,23 +122,22 @@ def _get_assignments(container, ancestors=[]):
         # START
         assignments.append({
             "z": _geometry_to_z(geometry, isStart=True),
-            "type": 1,
+            "type": 3,
             "face": face,
             "areas": [{
-                "type": "NORMAL",
-                "face": None,
-                "material": material,
+                "face": face,
                 "priority": priority,
+                "material": material
             }]
         })
         
         # END
         z = _geometry_to_z(geometry, isStart=False)
         areas = [{
-            "type": "NORMAL",
             "face": None,
-            "material": material,
-            "priority": priority,
+            "priority": 0,
+            "priority_o": priority,
+            "material": "EMPTY",
         }]
         for ancestor in ancestors:
             for ancestor_body in ancestor["bodies"]:
@@ -123,12 +145,12 @@ def _get_assignments(container, ancestors=[]):
                 z_start = _geometry_to_z(ancestor_geometry, isStart=True)
                 z_end = _geometry_to_z(ancestor_geometry, isStart=False)
                 if z_start < z and z < z_end:
-                    ancestor_face = _geometry_to_face(geometry)
+                    ancestor_face = _geometry_to_face(ancestor_geometry)
                     areas.append({
-                        "type": "NORMAL",
                         "face": ancestor_face,
-                        "material": ancestor_body["material"],
                         "priority": ancestor["priority"],
+                        "priority_o": priority,
+                        "material": ancestor_body["material"],
                     })
         
         assignments.append({
@@ -145,7 +167,7 @@ def _get_assignments(container, ancestors=[]):
         
     return assignments
     
-def _assign_priority(container, priority=0):
+def _assign_priority(container, priority=1):
     container["priority"] = priority
     for child in container["children"]:
         _assign_priority(child, priority=priority+1)
