@@ -1045,18 +1045,65 @@ FieldDefinition editor 與資料驗證應只允許下列 `valueType`、`controlT
   - Flow graph 只描述真實幾何物件在 process steps 之間的加工順序與匯入關係。厚度、warpage、process state 或 recipe parameter 這類非 geometryRef 欄位不由 graph edge 傳遞；它們保存在 `FieldValue.value`，由使用者在 step form 中填寫，或由 computed field 在同一個 step value set 內計算。
 
   - Geometry resolve 規則：
-     - 若 target `geometryRef` 的 `FieldValue.value` 是 string，runtime 使用該 geometry DB id。
-     - 若 target `geometryRef` 的 `FieldValue.value` 是 `null`，target 必須有且只能有一條 incoming edge，且該 edge source 必須是 `stepOutput`。
-     - `geometryRef` source 代表 instance 必須在 target `geometryRef` field value 中提供明確 geometry DB id；此情況不可使用 `null`。
-     - 若 source step 尚未產生 output geometry DB id，依賴該 output 且 value 為 `null` 的 target field 不算 complete。
+     - 每個 target `geometryRef` field 必須有且只能有一條 incoming edge。Runtime 依該 edge 的 `source.sourceType` 決定 geometry 來源。
+     - 若 incoming edge 的 `source.sourceType` 是 `geometryRef`，target `geometryRef` 的 `FieldValue.value` 必須是非空 string，且該 string 必須是 geometry database 中的 `GeometryEntity.id`。Runtime 使用該 geometry entity 的 `structure` 作為此欄位的輸入 geometry。
+     - 若 incoming edge 的 `source.sourceType` 是 `stepOutput`，target `geometryRef` 的 `FieldValue.value` 必須是 `null`。Runtime 使用 source step 執行後產生的 output geometry 作為此欄位的輸入 geometry。
+     - `FieldValue.value` 為 string 但 incoming edge source 是 `stepOutput`，或 `FieldValue.value` 為 `null` 但 incoming edge source 是 `geometryRef`，都代表 graph 與 instance value 來源衝突，runtime 不可執行。
+     - 若 source step 尚未產生 output geometry，依賴該 output 且 value 為 `null` 的 target field 不算 complete。
 
   - Flow graph 規則：
      - 每個 process flow 是一個 directed acyclic graph，不能有 cycle。
-     - 每個 target `geometryRef` field 必定只能有一條 incoming edge。
-     - 每個 process step 可以有多個 `geoemetryRef` field
-     - process step incoming edge 數量等於 `geoemetryRef` field 數量
+     - 每個 target `geometryRef` field 必須有且只能有一條 incoming edge。
+     - 每個 process step 可以有多個 `geometryRef` field
+     - process step incoming geometry edge 數量等於 `geometryRef` field 數量
      - 若某個 `geometryRef` field 在 instance 中使用 `null`，該 field 必須有一條 incoming `stepOutput` edge。
-     - Process step 只能也必定只有一條 outgoing edge。
+     - 每個 process step output 最多只能被一條 downstream `stepOutput` edge consume；fan-out 不允許。Terminal step 可以沒有 outgoing `stepOutput` edge。
+
+### Runtime flow graph validation
+
+Kernel 在執行 `ProcessFlowInstance` 前必須先執行 `validate_flow_graph()`。
+此 validation 的目的，是確認 flow template、step templates、instance value sets
+與 geometry dataflow 規則彼此一致。它只驗證 graph 結構、`geometryRef`
+來源解析與執行所需的基本 value-set binding；材料、厚度、density、座標格式與其他
+process parameter 的 domain validation 由各 process step module 自己負責。
+
+`validate_flow_graph()` 是 deterministic 且 read-only 的 operation。在相同的
+`ProcessFlowTemplate`、`ProcessFlowInstance` 與 resolved `ProcessStepTemplate`
+內容下，validation result 必須相同。此 operation 不修改 input payload、不執行
+process step module、不讀取 `GeometryEntity.structure`，也不執行 CAD、preview 或
+geometry export。Geometry entity id 是否能在 geometry repository 中找到，由
+geometry resolve 階段處理；`validate_flow_graph()` 只檢查 geometry field value
+與 edge source type 是否一致。
+
+`validate_flow_graph()` 必須檢查下列規則：
+
+1. `ProcessFlowTemplate.stepRefs[]` 中每個 `stepRefId` 必須是唯一且非空字串。
+2. 每個 `stepRefs[].processStepTemplateId` 必須能 resolve 到存在的
+   `ProcessStepTemplate`。
+3. `ProcessFlowInstance.processFlowTemplateId` 必須等於正在執行的
+   `ProcessFlowTemplate.id`。
+4. Instance 中每個 step 必須有且只能有一個 `StepValueSet`。每個
+   `StepValueSet.stepRefId` 必須存在於 `ProcessFlowTemplate.stepRefs[]`。
+5. 每個 `StepValueSet.processStepTemplateId` 必須與其 `stepRefId` resolve 到的
+   `ProcessStepTemplate.id` 一致。
+6. 每個 `flowEdges[].target.stepRefId` 必須存在於
+   `ProcessFlowTemplate.stepRefs[]`。
+7. 每個 `flowEdges[].target.targetFieldId` 必須存在於 target step 的
+   `ProcessStepTemplate.fieldDefinitions[]`，且該 field 的 `valueType` 必須是
+   `geometryRef`。
+8. 每個 target `geometryRef` field 必須剛好有一條 incoming edge；同一個
+   `{ stepRefId, targetFieldId }` 不可被多條 edge 指向。
+9. 若 edge `source.sourceType` 是 `geometryRef`，target field 的
+   `FieldValue.value` 必須是非空 geometry entity id string。此情況不允許使用
+   `null`。
+10. 若 edge `source.sourceType` 是 `stepOutput`，`source.stepRefId` 必須存在於
+    `ProcessFlowTemplate.stepRefs[]`，不可等於 target `stepRefId`，且 target
+    field 的 `FieldValue.value` 必須是 `null`。
+11. 所有 `stepOutput` edges 必須形成 directed acyclic graph，不能有 cycle。
+12. 同一個 source `stepOutput` 最多只能出現在一條 outgoing edge 中；也就是同一個
+    process step output 不可 fan-out 到多個 downstream geometry input。
+13. `flowEdges[].source.sourceType` 只允許 `geometryRef` 或 `stepOutput`。其他
+    source type 不可執行。
 
 ## ProcessFlowInstance
 
