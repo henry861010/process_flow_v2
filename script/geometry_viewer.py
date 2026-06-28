@@ -34,14 +34,12 @@ for face in faces:
   elif face["type"] == "POLYGON":
     for poly in face["dim"]:
       for node in poly:
-        print(node)
         x_list.append(node[0])
         y_list.append(node[1])
   
 nodes, elements = checkerboard_box(args.element_size, x_list, y_list)
 
 layer_infos = translater.get_3D_pattern(container)
-#print(json.dumps(layer_infos, indent=4))
 
 dragger = Dragger()
 dragger.set_2D(nodes, elements)

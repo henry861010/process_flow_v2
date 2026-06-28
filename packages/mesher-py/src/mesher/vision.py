@@ -90,7 +90,7 @@ class Vision:
         rows = []
         for index, (comp_id, count) in enumerate(zip(vals, counts)):
             comp_id = int(comp_id)
-            name = comp_names.get(comp_id, f"comp {comp_id}")
+            name = comp_names.get(comp_id, f"Component {index + 1}")
             rows.append({
                 "id": comp_id,
                 "name": name,
@@ -99,20 +99,45 @@ class Vision:
             })
         return rows
 
-    def _add_component_panel(self, plotter, rows, actors):
+    def _add_component_panel(
+        self,
+        plotter,
+        rows,
+        actors,
+        element_count,
+        node_count,
+        on_visibility_change=None,
+    ):
+        x0 = 12
+        top_y = plotter.window_size[1] - 28
+        button_size = 22
+        row_gap = 30
+        text_gap = 18
+        text_x = x0 + button_size + 10
+
+        plotter.add_text(
+            f"Elements: {element_count}",
+            position=(x0, top_y),
+            font_size=9,
+            color="black",
+            name="mesh_element_count",
+            render=False,
+        )
+        plotter.add_text(
+            f"Nodes: {node_count}",
+            position=(x0, top_y - text_gap),
+            font_size=9,
+            color="black",
+            name="mesh_node_count",
+            render=False,
+        )
+
         if not rows:
             return
 
-        x0 = 12
-        y0 = 12
-        button_size = 22
-        row_gap = 30
-        text_x = x0 + button_size + 10
-        title_y = y0 + row_gap * len(rows) + 8
-
         plotter.add_text(
             "Components",
-            position=(x0, title_y),
+            position=(x0, top_y - text_gap * 3),
             font_size=11,
             color="black",
             name="component_panel_title",
@@ -120,12 +145,16 @@ class Vision:
         )
 
         for index, row in enumerate(rows):
-            y = y0 + row_gap * (len(rows) - index - 1)
-            label = f"{row['name']} ({row['id']}): {row['count']} elems"
+            y = top_y - text_gap * 4 - button_size - row_gap * index
+            label = f"{row['name']}: {row['count']} elems"
             actor = actors[row["id"]]
 
             def toggle_component(is_visible, actor=actor):
+                is_visible = bool(is_visible)
                 actor.SetVisibility(is_visible)
+                actor.SetPickable(is_visible)
+                if on_visibility_change is not None:
+                    on_visibility_change(render=False)
                 plotter.render()
 
             plotter.add_checkbox_button_widget(
@@ -147,6 +176,149 @@ class Vision:
                 render=False,
             )
 
+    def _visible_node_ids(self, actors, component_node_indices):
+        visible_node_ids = [
+            component_node_indices[comp_id]
+            for comp_id, actor in actors.items()
+            if actor.GetVisibility()
+        ]
+        if not visible_node_ids:
+            return np.empty((0,), dtype=np.int32)
+        return np.unique(np.concatenate(visible_node_ids)).astype(np.int32)
+
+    def _nearest_visible_node(self, point, actors, component_node_indices):
+        point = np.asarray(point, dtype=float)
+        if point.shape != (3,) or not np.all(np.isfinite(point)):
+            return None
+
+        node_ids = self._visible_node_ids(actors, component_node_indices)
+        if node_ids.size == 0:
+            return None
+
+        node_points = self.nodes[node_ids]
+        nearest_index = int(np.argmin(np.sum((node_points - point) ** 2, axis=1)))
+        node_id = int(node_ids[nearest_index])
+        return {
+            "id": node_id,
+            "point": self.nodes[node_id].astype(float),
+        }
+
+    def _remove_actor(self, plotter, name, render=False):
+        try:
+            plotter.remove_actor(name, render=render)
+        except TypeError:
+            plotter.remove_actor(name)
+
+    def _add_distance_measure_tool(self, plotter, actors, component_node_indices):
+        picked_nodes = []
+        actor_names = (
+            "distance_measure_point_0",
+            "distance_measure_point_1",
+            "distance_measure_line",
+            "distance_measure_label",
+        )
+
+        def clear_measurement(render=True):
+            picked_nodes.clear()
+            for name in actor_names:
+                self._remove_actor(plotter, name, render=False)
+            if render:
+                plotter.render()
+
+        def add_point_marker(node, index):
+            colors = ("red", "blue")
+            point_mesh = pv.PolyData(np.asarray([node["point"]]))
+            plotter.add_mesh(
+                point_mesh,
+                color=colors[index],
+                point_size=14,
+                render_points_as_spheres=True,
+                name=f"distance_measure_point_{index}",
+                render=False,
+            )
+
+        def add_distance_annotation():
+            start = picked_nodes[0]["point"]
+            end = picked_nodes[1]["point"]
+            delta = np.abs(end - start)
+            distance = float(np.linalg.norm(end - start))
+            midpoint = (start + end) / 2.0
+            label = (
+                f"X: {delta[0]:.6g}\n"
+                f"Y: {delta[1]:.6g}\n"
+                f"Z: {delta[2]:.6g}\n"
+                f"Total: {distance:.6g}"
+            )
+
+            plotter.add_mesh(
+                pv.Line(start, end),
+                color="black",
+                line_width=4,
+                name="distance_measure_line",
+                render=False,
+            )
+            plotter.add_point_labels(
+                np.asarray([midpoint]),
+                [label],
+                font_size=12,
+                text_color="black",
+                shape_color="white",
+                shape_opacity=0.75,
+                show_points=False,
+                always_visible=True,
+                name="distance_measure_label",
+                render=False,
+            )
+
+        def on_pick(point, picker=None):
+            node = self._nearest_visible_node(point, actors, component_node_indices)
+            if node is None:
+                return
+
+            if len(picked_nodes) >= 2:
+                clear_measurement(render=False)
+
+            picked_nodes.append(node)
+            add_point_marker(node, len(picked_nodes) - 1)
+
+            if len(picked_nodes) == 2:
+                add_distance_annotation()
+
+            plotter.render()
+
+        picking_options = {
+            "callback": on_pick,
+            "tolerance": 0.03,
+            "left_clicking": True,
+            "picker": "point",
+            "show_message": "Distance: left-click two visible nodes; press C to clear",
+            "font_size": 10,
+            "show_point": False,
+            "use_picker": True,
+            "pickable_window": False,
+            "clear_on_no_selection": False,
+        }
+        optional_keys = (
+            "clear_on_no_selection",
+            "use_picker",
+            "pickable_window",
+            "picker",
+            "left_clicking",
+        )
+        for key_count in range(len(optional_keys) + 1):
+            current_options = picking_options.copy()
+            for key in optional_keys[:key_count]:
+                current_options.pop(key, None)
+            try:
+                plotter.enable_point_picking(**current_options)
+                break
+            except TypeError:
+                if key_count == len(optional_keys):
+                    raise
+
+        plotter.add_key_event("c", clear_measurement)
+        return clear_measurement
+
     def show(self, isRandomColor=False, component_names=None):
         grid = self._build_grid()
 
@@ -159,22 +331,35 @@ class Vision:
         ### Plot
         plotter = pv.Plotter()
         actors = {}
+        component_node_indices = {}
         for row in rows:
-            component_grid = grid.extract_cells(np.where(comp == row["id"])[0])
+            cell_indices = np.where(comp == row["id"])[0]
+            component_grid = grid.extract_cells(cell_indices)
+            component_node_indices[row["id"]] = np.unique(
+                self.elements[cell_indices].ravel()
+            ).astype(np.int32)
             actors[row["id"]] = plotter.add_mesh(
                 component_grid,
                 color=row["color"],
                 show_edges=True,
                 smooth_shading=False,
                 show_scalar_bar=False,
+                pickable=True,
                 name=f"component_{row['id']}",
             )
         
-        legend = [[f"{row['name']} ({row['id']}): {row['count']} elems", row["color"]] for row in rows]
-        legend = [[f"Node Num: {len(self.nodes)}", "black"]] + legend
-        legend = [[f"Elem Num: {len(self.elements)}", "black"]] + legend
-        
-        plotter.add_legend(legend, loc='upper left', bcolor='white', border=True) 
-        self._add_component_panel(plotter, rows, actors)
+        clear_measurement = self._add_distance_measure_tool(
+            plotter,
+            actors,
+            component_node_indices,
+        )
+        self._add_component_panel(
+            plotter,
+            rows,
+            actors,
+            len(self.elements),
+            len(self.nodes),
+            on_visibility_change=clear_measurement,
+        )
         plotter.add_axes()
         plotter.show()

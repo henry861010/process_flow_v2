@@ -477,4 +477,3 @@ class Dragger:
         
         print(f"element_num: {self.element_num}")
         print(f"node_num: {self.node_num}")
-        print(json.dumps(self.comps, indent=4))
