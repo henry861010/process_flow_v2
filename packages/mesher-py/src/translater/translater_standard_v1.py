@@ -4,6 +4,10 @@ import math
 DEFAULT_TOLERANCE = 1e-6
 CONTAINER_ITEM_FIELDS = ("bodies", "vias", "circuits", "bumps")
 
+START_NORMAL = 3
+START_DENSITY = 2
+START_CONVERT = 1
+END = 0
 
 class Translater:
     """Translates standard geometry containers into 2D print faces.
@@ -112,54 +116,103 @@ def _get_assignments(container, ancestors=[]):
     '''
     assignments = []
     
-    # body
-    for body in container["bodies"]:
-        geometry = body["geometry"]
-        material = body["material"]
-        priority = container["priority"]
-        face = _geometry_to_face(geometry)
+    for key in ["bodies", "bumps", "vias", "circuits"]:
+        for term in container[key]:
+            if key == "bodies":
+                geometry = term["geometry"]
+                material = term["material"]
+                priority = container["priority"]
+                face = _geometry_to_face(geometry)
+                
+                # START
+                assignments.append({
+                    "z": _geometry_to_z(geometry, isStart=True),
+                    "type": START_NORMAL,
+                    "face": face,
+                    "areas": [{
+                        "face": None,
+                        "priority": priority,
+                        "material": material
+                    }]
+                })
+                
+                # END
+                z = _geometry_to_z(geometry, isStart=False)
+                areas = [{
+                    "face": None,
+                    "priority": 0,
+                    "priority_o": priority,
+                    "material": "EMPTY",
+                }]
+                for ancestor in ancestors:
+                    for ancestor_body in ancestor["bodies"]:
+                        ancestor_geometry = ancestor_body["geometry"]
+                        z_start = _geometry_to_z(ancestor_geometry, isStart=True)
+                        z_end = _geometry_to_z(ancestor_geometry, isStart=False)
+                        if z_start < z and z < z_end:
+                            ancestor_face = _geometry_to_face(ancestor_geometry)
+                            areas.append({
+                                "face": ancestor_face,
+                                "priority": ancestor["priority"],
+                                "priority_o": priority,
+                                "material": ancestor_body["material"],
+                            })
+                
+                assignments.append({
+                    "z": z,
+                    "type": END,
+                    "face": face,
+                    "areas": areas
+                }) 
+            
+            elif key in ["bumps", "vias", "circuits"]:
+                geometry = term["geometry"]
+                material = term["material"]
+                priority = container["priority"] + 0.5
+                face = _geometry_to_face(geometry)
+            
+                # START
+                assignments.append({
+                    "z": _geometry_to_z(geometry, isStart=True),
+                    "type": START_DENSITY,
+                    "face": face,
+                    "areas": [{
+                        "face": None,
+                        "priority": priority,
+                        "material": material,
+                        "density": term["density"]
+                    }]
+                })
+            
+                # END
+                z = _geometry_to_z(geometry, isStart=False)
+                areas = [{
+                    "face": None,
+                    "priority": 0,
+                    "priority_o": priority,
+                    "material": "EMPTY",
+                }]
+                for ancestor in ancestors + [container]:
+                    for ancestor_body in ancestor["bodies"]:
+                        ancestor_geometry = ancestor_body["geometry"]
+                        z_start = _geometry_to_z(ancestor_geometry, isStart=True)
+                        z_end = _geometry_to_z(ancestor_geometry, isStart=False)
+                        if z_start < z and z < z_end:
+                            ancestor_face = _geometry_to_face(ancestor_geometry)
+                            areas.append({
+                                "face": ancestor_face,
+                                "priority": ancestor["priority"],
+                                "priority_o": priority,
+                                "material": ancestor_body["material"],
+                            })
+                
+                assignments.append({
+                    "z": z,
+                    "type": END,
+                    "face": face,
+                    "areas": areas
+                })     
         
-        # START
-        assignments.append({
-            "z": _geometry_to_z(geometry, isStart=True),
-            "type": 3,
-            "face": face,
-            "areas": [{
-                "face": face,
-                "priority": priority,
-                "material": material
-            }]
-        })
-        
-        # END
-        z = _geometry_to_z(geometry, isStart=False)
-        areas = [{
-            "face": None,
-            "priority": 0,
-            "priority_o": priority,
-            "material": "EMPTY",
-        }]
-        for ancestor in ancestors:
-            for ancestor_body in ancestor["bodies"]:
-                ancestor_geometry = ancestor_body["geometry"]
-                z_start = _geometry_to_z(ancestor_geometry, isStart=True)
-                z_end = _geometry_to_z(ancestor_geometry, isStart=False)
-                if z_start < z and z < z_end:
-                    ancestor_face = _geometry_to_face(ancestor_geometry)
-                    areas.append({
-                        "face": ancestor_face,
-                        "priority": ancestor["priority"],
-                        "priority_o": priority,
-                        "material": ancestor_body["material"],
-                    })
-        
-        assignments.append({
-            "z": z,
-            "type": 0,
-            "face": face,
-            "areas": areas
-        })     
-    
     # child
     for child in container["children"]:
         assignment_child = _get_assignments(child, ancestors=ancestors+[container])
