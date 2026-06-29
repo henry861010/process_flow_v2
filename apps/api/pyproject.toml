@@ -8,10 +8,10 @@ version = "0.1.0"
 description = "FastAPI service for process-flow templates, instances, geometry, and preview execution."
 requires-python = ">=3.11"
 dependencies = [
-  "cadquery>=2.5,<3",
   "fastapi>=0.111",
   "uvicorn[standard]>=0.30",
   "pydantic>=2.7",
+  "process-flow-cad",
   "process-flow-kernel",
   "process-flow-steps",
 ]

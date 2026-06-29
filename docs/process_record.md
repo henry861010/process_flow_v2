@@ -21,7 +21,7 @@ This record describes the active geometry preview path from the viewer to FastAP
 GLB and STEP export both use:
 
 ```text
-python -m process_flow_api.cad.worker <format> <input-json> <output-file>
+python -m process_flow_cad.worker <format> <input-json> <output-file>
 ```
 
 FastAPI creates a temporary working directory, writes `geometry-structure.json`, starts the worker with the current Python executable, waits for completion, reads the output file, and removes the temporary directory.
@@ -53,7 +53,7 @@ If the worker times out, exits non-zero, or fails to produce output, FastAPI ret
 | --- | --- |
 | `apps/api/src/process_flow_api/main.py` | FastAPI routes, request validation, kernel calls, response assembly. |
 | `apps/api/src/process_flow_api/exporter.py` | Python CAD worker orchestration for GLB and STEP export. |
-| `apps/api/src/process_flow_api/cad/worker.py` | Isolated Python worker entry point. |
-| `apps/api/src/process_flow_api/cad/exporter.py` | CadQuery/OCP geometry conversion and GLB/STEP export implementation. |
+| `packages/cad-py/src/process_flow_cad/worker.py` | Isolated Python worker entry point. |
+| `packages/cad-py/src/process_flow_cad/exporter.py` | CadQuery/OCP geometry conversion and GLB/STEP export implementation. |
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Browser API client helpers for preview and STEP export. |
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay UI and download actions. |

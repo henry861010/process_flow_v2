@@ -15,34 +15,76 @@ The current service path is FastAPI + SQLite + Python kernel. CAD export is prov
 | --- | --- |
 | `apps/api` | FastAPI service, SQLite repository, API models, seed fixtures, preview/export bridge. |
 | `apps/viewer` | Next.js viewer and flow editor UI. |
+| `packages/cad-py` | Python CadQuery/OCP CAD export package for GLB and STEP AP242. |
 | `packages/kernel-py` | Python geometry kernel, flow validation, geometry hydration, repositories, and preview execution. |
 | `packages/process-step-py` | Python process step implementations resolved by `ProcessStepTemplate.program`. |
 | `docs` | Product, data-model, UI, and runtime notes. |
 
 ## Local Startup
 
-Install Python packages into the project virtualenv:
+From a fresh environment, clone the repository and enter the workspace:
 
 ```bash
-venv/bin/pip install -e packages/kernel-py -e packages/process-step-py -e 'apps/api[test]'
+git clone <repo-url>
+cd process_flow_v2
+```
+
+Create a Python virtual environment and install the backend plus all local
+Python packages:
+
+```bash
+python3 -m venv venv
+venv/bin/pip install --upgrade pip
+venv/bin/pip install -e packages/kernel-py -e packages/process-step-py -e packages/cad-py -e 'apps/api[test]'
 ```
 
 Start the API:
 
 ```bash
-venv/bin/uvicorn process_flow_api.main:app --host 127.0.0.1 --port 8000
+PROCESS_FLOW_API_CORS_ORIGINS=http://localhost:3001 \
+venv/bin/uvicorn process_flow_api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Start the viewer:
+Seed the demo database after the API is running:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/admin/seed \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"ifEmpty"}'
+```
+
+Install frontend dependencies and start the viewer in development mode:
 
 ```bash
 cd apps/viewer
+npm install
 NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://localhost:8000 npm run dev -- -p 3001
 ```
 
 Open the viewer at `http://localhost:3001`.
 
 Open FastAPI's generated API docs at `http://127.0.0.1:8000/docs`.
+
+For a production viewer build:
+
+```bash
+cd apps/viewer
+NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://<api-host>:8000 npm run build
+NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://<api-host>:8000 npm run start -- -p 3001
+```
+
+Important environment variables:
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `PROCESS_FLOW_API_DB_PATH` | `apps/api/.data/process-flow.sqlite3` | SQLite database path. |
+| `PROCESS_FLOW_API_CORS_ORIGINS` | `http://localhost:3001,http://<frontend-host>:3001` | Browser origins allowed by FastAPI CORS. |
+| `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://<api-host>:8000` | Viewer-side API base URL. |
+| `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` | Timeout for each GLB or STEP CAD worker export. |
+
+`apps/api` depends on the repository-local packages
+`packages/kernel-py`, `packages/process-step-py`, and `packages/cad-py`; install
+them together in every new environment.
 
 ## Data And Seed
 

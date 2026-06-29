@@ -32,7 +32,7 @@ async def export_geometry(
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-m",
-            "process_flow_api.cad.worker",
+            "process_flow_cad.worker",
             format,
             str(input_path),
             str(output_path),

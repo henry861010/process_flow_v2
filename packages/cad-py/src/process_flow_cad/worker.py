@@ -12,7 +12,7 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) != 3:
         print(
-            "Usage: python -m process_flow_api.cad.worker "
+            "Usage: python -m process_flow_cad.worker "
             "<format> <input-json> <output-file>",
             file=sys.stderr,
         )

@@ -558,7 +558,7 @@ Viewer does not support：
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Preview GLB 與 preview snapshot STEP API client helpers。 |
 | `apps/api/src/process_flow_api/main.py` | FastAPI preview execution routes and response assembly。 |
 | `apps/api/src/process_flow_api/exporter.py` | Preview GLB and STEP AP242 export bridge to the Python CAD worker。 |
-| `apps/api/src/process_flow_api/cad/worker.py` | Isolated Python CadQuery/OCP worker used by FastAPI。 |
-| `apps/api/src/process_flow_api/cad/exporter.py` | Python CAD conversion implementation。 |
+| `packages/cad-py/src/process_flow_cad/worker.py` | Isolated Python CadQuery/OCP worker used by FastAPI。 |
+| `packages/cad-py/src/process_flow_cad/exporter.py` | Python CAD conversion implementation。 |
 | `apps/viewer/components/ui/*` | Shared UI primitives。 |
 | `apps/viewer/app/globals.css` | Tailwind base styles 與 viewer surface styling。 |
