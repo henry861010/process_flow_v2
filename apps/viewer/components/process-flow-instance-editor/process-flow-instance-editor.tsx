@@ -32,11 +32,9 @@ import { coordinateListValueIsComplete } from "@/components/process-flow-fields/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  GEOMETRY_ENTITIES_STORAGE_KEY,
-  PROCESS_FLOW_INSTANCES_STORAGE_KEY,
-  PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
-  PROCESS_STEP_TEMPLATES_STORAGE_KEY,
-} from "@/lib/home-local-storage";
+  createProcessFlowInstance,
+  loadBootstrap,
+} from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const inputClass =
@@ -286,16 +284,28 @@ function ProcessFlowInstanceEditorInner() {
     React.useState<string | null>(null);
   const [geometryPreview, setGeometryPreview] =
     React.useState<GeometryPreviewContext | null>(null);
+  const [apiError, setApiError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    setTemplates(
-      readStorageArray<ProcessFlowTemplate>(PROCESS_FLOW_TEMPLATES_STORAGE_KEY),
-    );
-    setStepTemplates(
-      readStorageArray<ProcessStepTemplate>(PROCESS_STEP_TEMPLATES_STORAGE_KEY),
-    );
-    setGeometries(readStorageArray<GeometryEntity>(GEOMETRY_ENTITIES_STORAGE_KEY));
-    setHydrated(true);
+    let active = true;
+    loadBootstrap()
+      .then((payload) => {
+        if (!active) return;
+        setTemplates(payload.processFlowTemplates as ProcessFlowTemplate[]);
+        setStepTemplates(payload.processStepTemplates as ProcessStepTemplate[]);
+        setGeometries(payload.geometries as GeometryEntity[]);
+        setApiError(null);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setApiError(error instanceof Error ? error.message : "Unable to load API data.");
+      })
+      .finally(() => {
+        if (active) setHydrated(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const selectedTemplate =
@@ -636,7 +646,7 @@ function ProcessFlowInstanceEditorInner() {
     setPickingGeometryEdgeId(null);
   }
 
-  function saveInstance() {
+  async function saveInstance() {
     if (!analysis.canSave || !selectedTemplate) {
       return;
     }
@@ -657,14 +667,7 @@ function ProcessFlowInstanceEditorInner() {
       }),
     };
 
-    const nextInstances = [
-      ...readStorageArray<ProcessFlowInstance>(PROCESS_FLOW_INSTANCES_STORAGE_KEY),
-      processFlowInstance,
-    ];
-    window.localStorage.setItem(
-      PROCESS_FLOW_INSTANCES_STORAGE_KEY,
-      JSON.stringify(nextInstances),
-    );
+    await createProcessFlowInstance(processFlowInstance);
     router.push("/");
   }
 
@@ -690,6 +693,9 @@ function ProcessFlowInstanceEditorInner() {
             <p className="mt-1 text-sm text-muted-foreground">
               Create a product instance from an immutable flow template.
             </p>
+            {apiError ? (
+              <p className="mt-1 text-sm text-destructive">{apiError}</p>
+            ) : null}
           </div>
           <Button asChild variant="outline" size="sm">
             <Link href="/">
@@ -817,7 +823,7 @@ function ProcessFlowInstanceEditorInner() {
           <RotateCcw />
           Abort
         </Button>
-        <Button disabled={!analysis.canSave} onClick={saveInstance}>
+        <Button disabled={!analysis.canSave} onClick={() => void saveInstance()}>
           <Save />
           Save
         </Button>
@@ -1095,7 +1101,7 @@ function GeometryPickerDialog({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {geometries.length === 0 ? (
             <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-              No geometry entities in localStorage.
+              No geometry entities from API.
             </div>
           ) : groups.length === 0 ? (
             <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
@@ -2646,11 +2652,6 @@ function groupByCategory<T extends { category: string }>(items: T[]) {
   return Array.from(groups.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([category, groupItems]) => ({ category, items: groupItems }));
-}
-
-function readStorageArray<T>(key: string): T[] {
-  const stored = window.localStorage.getItem(key);
-  return stored ? (JSON.parse(stored) as T[]) : [];
 }
 
 function clone<T>(value: T): T {

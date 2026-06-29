@@ -51,7 +51,7 @@ def validate_flow_graph(process_flow_template, process_flow_instance, step_templ
         fields = {
             field.get("id"): field
             for field in template.get("fieldDefinitions", [])
-            if field.get("valueType") == "geometryRef"
+            if _is_geometry_field(field)
         }
         geometry_fields_by_step[step_ref_id] = fields
 
@@ -127,6 +127,10 @@ def _find_field_value(field_values, field_id):
         if field_value.get("fieldId") == field_id:
             return field_value.get("value")
     return _MISSING
+
+
+def _is_geometry_field(field):
+    return field.get("valueType") in ("geometryRef", "geometry")
 
 
 def _assert_step_output_dag(step_ref_ids, edges):

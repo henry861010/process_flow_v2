@@ -41,11 +41,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { GeometryPreviewContext } from "@/components/geometry-preview/geometry-preview-panel";
 import {
-  GEOMETRY_ENTITIES_STORAGE_KEY,
-  PROCESS_FLOW_INSTANCES_STORAGE_KEY,
-  PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
-  PROCESS_STEP_TEMPLATES_STORAGE_KEY,
-} from "@/lib/home-local-storage";
+  createProcessFlowTemplateInstance,
+  listProcessFlowTemplates,
+  loadBootstrap,
+} from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const GEOMETRY_DRAG_TYPE = "application/process-flow-geometry";
@@ -334,16 +333,28 @@ function ProcessFlowTemplateEditorInner() {
   const [confirmingTemplateStart, setConfirmingTemplateStart] =
     React.useState(false);
   const [confirmingGraphClear, setConfirmingGraphClear] = React.useState(false);
+  const [apiError, setApiError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    setStepTemplates(
-      readStorageArray<ProcessStepTemplate>(PROCESS_STEP_TEMPLATES_STORAGE_KEY),
-    );
-    setFlowTemplates(
-      readStorageArray<ProcessFlowTemplate>(PROCESS_FLOW_TEMPLATES_STORAGE_KEY),
-    );
-    setGeometries(readStorageArray<GeometryEntity>(GEOMETRY_ENTITIES_STORAGE_KEY));
-    setHydrated(true);
+    let active = true;
+    loadBootstrap()
+      .then((payload) => {
+        if (!active) return;
+        setStepTemplates(payload.processStepTemplates as ProcessStepTemplate[]);
+        setFlowTemplates(payload.processFlowTemplates as ProcessFlowTemplate[]);
+        setGeometries(payload.geometries as GeometryEntity[]);
+        setApiError(null);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setApiError(error instanceof Error ? error.message : "Unable to load API data.");
+      })
+      .finally(() => {
+        if (active) setHydrated(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const analysis = React.useMemo(
@@ -846,10 +857,14 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function openTemplatePicker() {
-    const templates = readStorageArray<ProcessFlowTemplate>(
-      PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
-    );
-    setFlowTemplates(templates);
+    void listProcessFlowTemplates<ProcessFlowTemplate>()
+      .then((templates) => {
+        setFlowTemplates(templates);
+        setApiError(null);
+      })
+      .catch((error) => {
+        setApiError(error instanceof Error ? error.message : "Unable to load templates.");
+      });
     setSelectedTemplateId(null);
     setTemplateSearch("");
     setConfirmingTemplateStart(false);
@@ -903,7 +918,7 @@ function ProcessFlowTemplateEditorInner() {
     setConfirmingGraphClear(false);
   }
 
-  function saveFlow() {
+  async function saveFlow() {
     if (!analysis.canSave) {
       return;
     }
@@ -967,22 +982,10 @@ function ProcessFlowTemplateEditorInner() {
       })),
     };
 
-    const nextTemplates = [
-      ...readStorageArray<ProcessFlowTemplate>(PROCESS_FLOW_TEMPLATES_STORAGE_KEY),
+    await createProcessFlowTemplateInstance({
       processFlowTemplate,
-    ];
-    const nextInstances = [
-      ...readStorageArray<ProcessFlowInstance>(PROCESS_FLOW_INSTANCES_STORAGE_KEY),
       processFlowInstance,
-    ];
-    window.localStorage.setItem(
-      PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
-      JSON.stringify(nextTemplates),
-    );
-    window.localStorage.setItem(
-      PROCESS_FLOW_INSTANCES_STORAGE_KEY,
-      JSON.stringify(nextInstances),
-    );
+    });
 
     const usedTemplateIds = new Set(
       reachableStepNodes.map((node) => node.data.template.id),
@@ -1044,6 +1047,9 @@ function ProcessFlowTemplateEditorInner() {
             <p className="mt-1 text-sm text-muted-foreground">
               Create a new topology snapshot from a blank graph or an existing template.
             </p>
+            {apiError ? (
+              <p className="mt-1 text-sm text-destructive">{apiError}</p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
@@ -1064,7 +1070,7 @@ function ProcessFlowTemplateEditorInner() {
               <Trash2 />
               Clear
             </Button>
-            <Button disabled={!analysis.canSave} onClick={saveFlow}>
+            <Button disabled={!analysis.canSave} onClick={() => void saveFlow()}>
               <Save />
               Save
             </Button>
@@ -1195,7 +1201,7 @@ function ProcessFlowTemplateEditorInner() {
           <div className="h-[280px] overflow-y-auto p-3 lg:h-[calc(100%-49px)]">
             {stepTemplates.length === 0 ? (
               <div className="rounded-md border border-dashed bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-                No process step templates in localStorage.
+                No process step templates from API.
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -3403,11 +3409,6 @@ function groupByCategory<T extends { category: string }>(items: T[]) {
   return Array.from(groups.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([category, groupItems]) => ({ category, items: groupItems }));
-}
-
-function readStorageArray<T>(key: string): T[] {
-  const stored = window.localStorage.getItem(key);
-  return stored ? (JSON.parse(stored) as T[]) : [];
 }
 
 function downloadJson(filename: string, data: unknown) {

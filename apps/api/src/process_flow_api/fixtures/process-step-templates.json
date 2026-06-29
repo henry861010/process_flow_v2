@@ -1,0 +1,675 @@
+[
+  {
+    "id": "step_tpl_molding_1_0_0",
+    "version": "V1.0.0",
+    "name": "molding",
+    "category": "layer",
+    "program": "layer/molding",
+    "description": "Deposits a molding material layer over the current process footprint from cursorZ to cursorZ + thickness.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by molding. The state must already carry a process footprint.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "Molding material name or material entity id.",
+        "scope": "processParameter",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thickness",
+        "name": "thickness",
+        "description": "Molding thickness deposited from the current process cursor plane.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_ecl_1_0_0",
+    "version": "V1.0.0",
+    "name": "ECL",
+    "category": "layer",
+    "program": "layer/ecl",
+    "description": "Deposits an ECL body layer above cursorZ using the current process footprint after applying koz as an inward XY inset.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by ECL. The state must already carry a process footprint.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "ECL material name or material entity id.",
+        "scope": "processParameter",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive ECL thickness deposited from the current process cursor plane.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_rdl_1_0_0",
+    "version": "V1.0.0",
+    "name": "RDL layer",
+    "category": "layer",
+    "program": "layer/rdl",
+    "description": "Builds RDL dielectric layers with odd-layer downward via features and even-layer circuit features over the current process footprint.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by RDL. The state must already carry a process footprint.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "layers",
+        "name": "layers",
+        "description": "RDL layer stack. Odd-numbered layers create downward via features after dielectric deposit; even-numbered layers create circuit features before dielectric deposit.",
+        "scope": "processParameter",
+        "valueType": "fieldGroupArray",
+        "controlType": "repeater",
+        "selectionMode": null,
+        "unit": null,
+        "repeatDefinition": {
+          "itemNameTemplate": "RDL layer {{index}}",
+          "indexBase": 1,
+          "minItems": 1,
+          "itemFieldDefinitions": [
+            {
+              "id": "Dielectric",
+              "name": "Dielectric",
+              "description": "Dielectric material name or material entity id.",
+              "scope": "processParameter",
+              "valueType": "materialRef",
+              "controlType": "text",
+              "selectionMode": null,
+              "unit": null
+            },
+            {
+              "id": "Conductivity",
+              "name": "Conductivity",
+              "description": "Conductivity material name or material entity id.",
+              "scope": "processParameter",
+              "valueType": "materialRef",
+              "controlType": "text",
+              "selectionMode": null,
+              "unit": null
+            },
+            {
+              "id": "thk",
+              "name": "thk",
+              "description": "Positive thickness for this dielectric layer and its conductivity feature envelope.",
+              "scope": "processParameter",
+              "valueType": "float",
+              "controlType": "number",
+              "selectionMode": null,
+              "unit": "um",
+              "validation": {
+                "min": 0,
+                "exclusiveMin": true
+              }
+            },
+            {
+              "id": "density",
+              "name": "density",
+              "description": "Conductivity feature density recorded as a 0 to 100 percentage value.",
+              "scope": "processParameter",
+              "valueType": "float",
+              "controlType": "number",
+              "selectionMode": null,
+              "unit": null,
+              "validation": {
+                "min": 0,
+                "max": 100
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_grinding_1_0_0",
+    "version": "V1.0.0",
+    "name": "Grinding",
+    "category": "grinding",
+    "program": "grinding/grinding",
+    "description": "Removes geometry from the current full geometry top downward by thk while preserving the runtime process footprint.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by grinding. The operation uses the full geometry top, not cursorZ.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive grinding thickness removed downward from the highest Z in the full geometry tree.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_saw_1_0_0",
+    "version": "V1.0.0",
+    "name": "saw",
+    "category": "saw",
+    "program": "saw/saw",
+    "description": "Recursively cuts the main geometry to a retained XY rectangle and updates the process footprint to that rectangle.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by saw. The operation keeps only geometry inside the retained XY rectangle.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "bottomLeftX",
+        "name": "bottomLeftX",
+        "description": "Retained rectangle lower-left X coordinate.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      },
+      {
+        "id": "bottomLeftY",
+        "name": "bottomLeftY",
+        "description": "Retained rectangle lower-left Y coordinate.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      },
+      {
+        "id": "topRightX",
+        "name": "topRightX",
+        "description": "Retained rectangle upper-right X coordinate.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      },
+      {
+        "id": "topRightY",
+        "name": "topRightY",
+        "description": "Retained rectangle upper-right Y coordinate.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_debond_1_0_0",
+    "version": "V1.0.0",
+    "name": "Debond",
+    "category": "carrier",
+    "program": "carrier/debond",
+    "description": "Removes the highest direct root body or bodies from the main geometry, leaving child scopes and non-body features unchanged.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by debond. The operation removes only direct root bodies at the highest direct root body top.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_carrier_bond_1_0_0",
+    "version": "V1.0.0",
+    "name": "Carrier Bond",
+    "category": "carrier",
+    "program": "carrier/bond",
+    "description": "Copies carrier geometry root direct bodies onto the full geometry top as direct root bodies and updates cursorZ to the carrier stack top.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main geometry state that receives bonded carrier direct root bodies.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "carrier_geometry",
+        "name": "carrier_geometry",
+        "description": "Carrier geometry state. Only root direct bodies are copied; carrier geometry entities are expected to use entityType carrier.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_flip_1_0_0",
+    "version": "V1.0.0",
+    "name": "Flip",
+    "category": "carrier",
+    "program": "flip/flip",
+    "description": "Flips the main geometry around Z=0, normalizes the flipped structure to zMin 0, reverses directional via and bump features, and sets cursorZ to the highest direct root body top.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by Flip. The operation mirrors the full geometry tree but derives the output cursor only from direct root bodies.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_under_fill_1_0_0",
+    "version": "V1.0.0",
+    "name": "Under Fill",
+    "category": "UF",
+    "program": "uf/under_fill",
+    "description": "Fills underfill material into bump-side child cavities and root die-to-die gaps up to gap without moving cursorZ.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main package geometry state containing root child die scopes to be underfilled.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "Underfill material name or material entity id.",
+        "scope": "processParameter",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive root die-to-die gap fill height deposited from cursorZ.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "gap",
+        "name": "gap",
+        "description": "Maximum die-to-die XY gap distance that underfill is allowed to fill.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_ubump_formation_1_0_0",
+    "version": "V1.0.0",
+    "name": "Micro Bump",
+    "category": "bump",
+    "program": "bump/uBump_formation",
+    "description": "Forms upward micro bump features above cursorZ using the current process footprint after applying koz.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Die geometry state consumed by micro bump formation. The state must already carry a process footprint.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "Micro bump material name or material entity id.",
+        "scope": "processParameter",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive micro bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "Micro bump density recorded as a 0 to 100 percentage value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        }
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_bga_bump_formation_1_0_0",
+    "version": "V1.0.0",
+    "name": "BGA Bump",
+    "category": "bump",
+    "program": "bump/bga_bump_formation",
+    "description": "Forms upward BGA bump features above cursorZ using the current process footprint after applying koz.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Die geometry state consumed by BGA bump formation. The state must already carry a process footprint.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "BGA bump material name or material entity id.",
+        "scope": "processParameter",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive BGA bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "BGA bump density recorded as a 0 to 100 percentage value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        }
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_c4_bump_formation_1_0_0",
+    "version": "V1.0.0",
+    "name": "C4 Bump",
+    "category": "bump",
+    "program": "bump/c4_bump_formation",
+    "description": "Forms upward C4 bump features above cursorZ using the current process footprint after applying koz.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Die geometry state consumed by C4 bump formation. The state must already carry a process footprint.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "C4 bump material name or material entity id.",
+        "scope": "processParameter",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive C4 bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "C4 bump density recorded as a 0 to 100 percentage value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        }
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "step_tpl_pnp_1_0_0",
+    "version": "V1.0.0",
+    "name": "PnP",
+    "category": "PnP",
+    "program": "pnp/pnp",
+    "description": "Places one or more copied die geometry states onto the main geometry at the main cursorZ plane.",
+    "owner": "integration.platform",
+    "fieldDefinitions": [
+      {
+        "id": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main package geometry state that receives placed die child scopes.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "die_geometry",
+        "name": "die_geometry",
+        "description": "Die geometry state copied once for each coordinate item before placement.",
+        "scope": "inputState",
+        "valueType": "geometryRef",
+        "controlType": null,
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "coordinates",
+        "name": "coordinates",
+        "description": "Placement coordinates. Each item gives the target lower-left XY point for one die copy.",
+        "scope": "processParameter",
+        "valueType": "coordinates",
+        "controlType": "coordinateList",
+        "selectionMode": null,
+        "unit": "um"
+      }
+    ]
+  }
+]

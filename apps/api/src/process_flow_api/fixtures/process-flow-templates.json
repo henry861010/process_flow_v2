@@ -1,0 +1,162 @@
+[
+  {
+    "id": "flow_tpl_cowosl_demo_1_0_0",
+    "name": "CoWoS-L Demo",
+    "version": "V1.0.0",
+    "description": "Demo CoWoS-L style package flow with die placement, molding, RDL, and C4 bump formation.",
+    "owner": "demo.example",
+    "stepRefs": [
+      {
+        "stepRefId": "pnp_hbm",
+        "processStepTemplateId": "step_tpl_pnp_1_0_0"
+      },
+      {
+        "stepRefId": "mold_cap",
+        "processStepTemplateId": "step_tpl_molding_1_0_0"
+      },
+      {
+        "stepRefId": "rdl_build",
+        "processStepTemplateId": "step_tpl_rdl_1_0_0"
+      },
+      {
+        "stepRefId": "c4_bump",
+        "processStepTemplateId": "step_tpl_c4_bump_formation_1_0_0"
+      }
+    ],
+    "flowEdges": [
+      {
+        "edgeId": "edge_cowosl_panel_to_pnp_main",
+        "source": {
+          "sourceType": "geometryRef"
+        },
+        "target": {
+          "stepRefId": "pnp_hbm",
+          "targetFieldId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_cowosl_hbm_to_pnp_die",
+        "source": {
+          "sourceType": "geometryRef"
+        },
+        "target": {
+          "stepRefId": "pnp_hbm",
+          "targetFieldId": "die_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_cowosl_pnp_to_mold",
+        "source": {
+          "sourceType": "stepOutput",
+          "stepRefId": "pnp_hbm"
+        },
+        "target": {
+          "stepRefId": "mold_cap",
+          "targetFieldId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_cowosl_mold_to_rdl",
+        "source": {
+          "sourceType": "stepOutput",
+          "stepRefId": "mold_cap"
+        },
+        "target": {
+          "stepRefId": "rdl_build",
+          "targetFieldId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_cowosl_rdl_to_c4",
+        "source": {
+          "sourceType": "stepOutput",
+          "stepRefId": "rdl_build"
+        },
+        "target": {
+          "stepRefId": "c4_bump",
+          "targetFieldId": "main_geometry"
+        }
+      }
+    ]
+  },
+  {
+    "id": "flow_tpl_fanout_demo_1_0_0",
+    "name": "Fan-Out Demo",
+    "version": "V1.0.0",
+    "description": "Demo fan-out package flow with SoC placement, micro bump formation, flip, and BGA bump formation.",
+    "owner": "demo.example",
+    "stepRefs": [
+      {
+        "stepRefId": "pnp_soc",
+        "processStepTemplateId": "step_tpl_pnp_1_0_0"
+      },
+      {
+        "stepRefId": "micro_bump",
+        "processStepTemplateId": "step_tpl_ubump_formation_1_0_0"
+      },
+      {
+        "stepRefId": "flip_package",
+        "processStepTemplateId": "step_tpl_flip_1_0_0"
+      },
+      {
+        "stepRefId": "bga_array",
+        "processStepTemplateId": "step_tpl_bga_bump_formation_1_0_0"
+      }
+    ],
+    "flowEdges": [
+      {
+        "edgeId": "edge_fanout_panel_to_pnp_main",
+        "source": {
+          "sourceType": "geometryRef"
+        },
+        "target": {
+          "stepRefId": "pnp_soc",
+          "targetFieldId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_fanout_soc_to_pnp_die",
+        "source": {
+          "sourceType": "geometryRef"
+        },
+        "target": {
+          "stepRefId": "pnp_soc",
+          "targetFieldId": "die_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_fanout_pnp_to_micro_bump",
+        "source": {
+          "sourceType": "stepOutput",
+          "stepRefId": "pnp_soc"
+        },
+        "target": {
+          "stepRefId": "micro_bump",
+          "targetFieldId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_fanout_micro_bump_to_flip",
+        "source": {
+          "sourceType": "stepOutput",
+          "stepRefId": "micro_bump"
+        },
+        "target": {
+          "stepRefId": "flip_package",
+          "targetFieldId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_fanout_flip_to_bga",
+        "source": {
+          "sourceType": "stepOutput",
+          "stepRefId": "flip_package"
+        },
+        "target": {
+          "stepRefId": "bga_array",
+          "targetFieldId": "main_geometry"
+        }
+      }
+    ]
+  }
+]

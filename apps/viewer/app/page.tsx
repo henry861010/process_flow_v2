@@ -13,13 +13,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  initializeHomeLocalStorage,
-  PROCESS_FLOW_INSTANCES_STORAGE_KEY,
-  PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
-  PROCESS_STEP_TEMPLATES_STORAGE_KEY,
-  resetHomeLocalStorage,
-} from "@/lib/home-local-storage";
+import { loadBootstrap, resetPocData } from "@/lib/process-flow-api";
 
 const ALL_TEMPLATE_TYPES = "__all_template_types__";
 
@@ -96,24 +90,30 @@ export default function Home() {
   const [selectedTemplateType, setSelectedTemplateType] =
     React.useState(ALL_TEMPLATE_TYPES);
   const [hydrated, setHydrated] = React.useState(false);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    initializeHomeLocalStorage();
-    setHomeData(readHomeData());
-    setHydrated(true);
-
-    function handleStorage(event: StorageEvent) {
-      if (
-        event.key === PROCESS_FLOW_TEMPLATES_STORAGE_KEY ||
-        event.key === PROCESS_FLOW_INSTANCES_STORAGE_KEY ||
-        event.key === PROCESS_STEP_TEMPLATES_STORAGE_KEY
-      ) {
-        setHomeData(readHomeData());
-      }
-    }
-
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    let active = true;
+    loadBootstrap()
+      .then((payload) => {
+        if (!active) return;
+        setHomeData({
+          flowTemplates: payload.processFlowTemplates as ProcessFlowTemplate[],
+          flowInstances: payload.processFlowInstances as ProcessFlowInstance[],
+          stepTemplates: payload.processStepTemplates as ProcessStepTemplate[],
+        });
+        setLoadError(null);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setLoadError(error instanceof Error ? error.message : "Unable to load API data.");
+      })
+      .finally(() => {
+        if (active) setHydrated(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const flowRows = React.useMemo(() => buildFlowInstanceRows(homeData), [homeData]);
@@ -147,9 +147,13 @@ export default function Home() {
     homeData.flowInstances.map((instance) => instance.processFlowTemplateId),
   ).size;
 
-  function handlePocReset() {
-    resetHomeLocalStorage();
-    setHomeData(readHomeData());
+  async function handlePocReset() {
+    const payload = await resetPocData();
+    setHomeData({
+      flowTemplates: payload.processFlowTemplates as ProcessFlowTemplate[],
+      flowInstances: payload.processFlowInstances as ProcessFlowInstance[],
+      stepTemplates: payload.processStepTemplates as ProcessStepTemplate[],
+    });
     setSelectedTemplateType(ALL_TEMPLATE_TYPES);
   }
 
@@ -195,6 +199,11 @@ export default function Home() {
         </header>
 
         <section className="overflow-hidden rounded-md border bg-white shadow-sm">
+          {loadError ? (
+            <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {loadError}
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-end justify-between gap-3 border-b bg-white px-4 py-3">
             <label className="grid min-w-[240px] flex-1 max-w-md gap-1 text-sm font-medium">
               <span className="flex items-center gap-2">
@@ -316,7 +325,7 @@ export default function Home() {
       <button
         type="button"
         aria-label="Reset POC Data"
-        title="Clear localStorage and restore default JSON"
+        title="Reset API data and restore default JSON"
         className="fixed bottom-3 left-3 inline-flex h-7 items-center gap-1 rounded border border-foreground/20 bg-background/70 px-2 font-mono text-[11px] text-muted-foreground shadow-none backdrop-blur-sm transition hover:border-foreground/35 hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         onClick={handlePocReset}
       >
@@ -325,20 +334,6 @@ export default function Home() {
       </button>
     </main>
   );
-}
-
-function readHomeData(): HomeData {
-  return {
-    flowTemplates: readStorageArray<ProcessFlowTemplate>(
-      PROCESS_FLOW_TEMPLATES_STORAGE_KEY,
-    ),
-    flowInstances: readStorageArray<ProcessFlowInstance>(
-      PROCESS_FLOW_INSTANCES_STORAGE_KEY,
-    ),
-    stepTemplates: readStorageArray<ProcessStepTemplate>(
-      PROCESS_STEP_TEMPLATES_STORAGE_KEY,
-    ),
-  };
 }
 
 function buildFlowInstanceRows(data: HomeData): FlowInstanceRow[] {
@@ -431,9 +426,4 @@ function statusLabel(status: FlowInstanceRow["referenceStatus"]) {
     return "Missing step";
   }
   return "Resolved";
-}
-
-function readStorageArray<T>(key: string): T[] {
-  const stored = window.localStorage.getItem(key);
-  return stored ? (JSON.parse(stored) as T[]) : [];
 }

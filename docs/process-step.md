@@ -434,8 +434,8 @@ Template metadata：
    `min(zMin)` 到 `max(zMax)`。因此當 child 底部不是單一平面或多個 bump
    高度不一致時，underfill body 的厚度會是整體 bump Z range，而不是任一顆
    bump 的單獨厚度。
-7. Root die-to-die gap 使用 `src/process/utils/region.js` 中 reusable
-   `Region` utility。Kernel 將符合條件的 root child 整體 XY bounds 轉成
+7. Root die-to-die gap 使用 `process_flow_kernel.domain.region.Region`
+   utility。Kernel 將符合條件的 root child 整體 XY bounds 轉成
    `BOX` faces，呼叫 `Region.setGap(gap, { isRecursive: true })` 找出小於或
    等於 `gap` 的 grid gap cells，再用 `Region.getOutline()` 轉回 polygon
    footprint。
@@ -448,9 +448,8 @@ Template metadata：
 
 - 此 step 不直接建立或修改 `Container`、`Body`、`Bump` 或 raw geometry
   object；process module 只呼叫 `ProcessGeometryState.applyUnderFill()`。
-- `Region` utility 是從舊 Python `Region` class 的 grid/mask-based
-  `set_gap` 流程移植而來，放在 `src/process/utils` 供後續 process steps
-  重用。
+- `Region` utility 提供 grid/mask-based `set_gap` 流程，供 Python process
+  steps 重用。
 - 目前 Under Fill 只使用 `set_gap`，尚未啟用舊 Python class 中的
   `set_edge` narrow-edge 補洞流程。
 - `gap` 判斷沿用舊 `set_gap` 行為，使用 `<= gap`。

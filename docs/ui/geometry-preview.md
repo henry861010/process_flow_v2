@@ -1,615 +1,235 @@
-# Geometry Preview UI 設計
+# Geometry Preview UI Design
 
-## 位置
+## Location
 
-Geometry Preview 不是獨立 route。它是在 `/flow-instance-editor` 的 process
-flow graph 上方開啟的 overlay component。
+Geometry Preview is an overlay used inside the process flow editors. It is not a standalone route.
 
-Preview component 應該和 flow instance editor page 分離，例如：
+| File | Responsibility |
+| --- | --- |
+| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Overlay shell, loading/error/ready state, download actions. |
+| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Client helpers for FastAPI preview and STEP export calls. |
+| `apps/api/src/process_flow_api/main.py` | Preview request validation, Python kernel execution, response assembly. |
+| `apps/api/src/process_flow_api/exporter.py` | GLB and STEP export through the JavaScript CAD worker. |
 
-| File | 責任 |
-|---|---|
-| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Overlay shell、loading/error/ready 狀態、下載動作 |
-| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | 呼叫 server-side preview 與 STEP export API 的 client helpers |
-| `apps/viewer/app/api/geometry-preview/route.js` | Server-side kernel execution 與 preview GLB export |
-| `apps/viewer/app/api/geometry-preview/step/route.js` | Preview snapshot STEP AP242 export |
+The preview UI stays separate from the flow graph component. The graph owns topology and field editing; the preview overlay owns rendering and download behavior.
 
-Preview UI 必須維持為獨立 component，不直接塞進 flow graph component 裡。
+## Goal
 
-## 1. UI 設計
+Geometry Preview lets an engineer inspect a geometry state while editing a draft process flow:
 
-### 1.1 目標
+- The geometry entering a target field from an initial geometry reference.
+- The output geometry produced by an upstream process step.
+- The terminal output geometry of a step.
 
-Geometry Preview 讓 engineer 在建立 draft process flow instance 時，可以檢查某一條
-flow edge 所代表的 geometry state。
+Opening a preview never changes the draft and never saves data.
 
-它回答兩個問題：
+## Entry Points
 
-- 目前進入這個 target slot 的 geometry 是什麼？
-- 如果這條 edge 是由 upstream process step 產生，該 upstream step 執行 kernel
-  後的 output geometry 長什麼樣？
+Every geometry flow edge can expose a preview button.
 
-使用者仍然留在 flow instance editor。開啟 preview 不應跳轉到 `/cad-viewer`
-或任何其他頁面。
+| Source | Preview result |
+| --- | --- |
+| `geometryRef` | The selected `GeometryEntity` after passing through the preview execution path. |
+| `stepOutput` | The source process step's output geometry. |
 
-### 1.2 進入點
+Step output preview can also be requested directly with `target.type: "stepOutput"` and a `stepRefId`.
 
-每一條 flow edge 都應該有 geometry preview button。
+## Enabled State
 
-| Edge source | Button visibility | Preview result |
-|---|---|---|
-| `geometryRef` | 顯示在 initial geometry edge 上 | 使用者選取的 initial geometry，並經過 kernel preview execution path |
-| `stepOutput` | 顯示在 process output edge 上 | Source process step 的 output geometry |
+Preview button enabled state checks only the dependencies needed to produce that preview.
 
-`geometryRef` 與 `stepOutput` edge 都顯示 preview button，讓 graph structure
-和可預覽的 geometry state 保持一致。
+For `geometryRef` edge preview:
 
-### 1.3 Button Enabled State
+- The target field must contain a non-empty `GeometryEntity.id`.
+- The id must exist in the current geometry repository or request snapshot.
+- Downstream fields after the preview target do not block the preview.
 
-所有 fields 在 Save flow instance 時都是 required。Preview button 的 enabled state
-只檢查該 preview edge 所需的 dependency，不檢查 preview edge 後方的 downstream
-steps。
+For `stepOutput` preview:
 
-對 `geometryRef` edge：
+- The source step and all upstream dependencies must be complete.
+- Downstream steps after the source output do not block the preview.
 
-- 只有當對應 initial geometry node 已選到 `GeometryEntity.id` 時才 enabled。
-- 選到的 id 必須存在於目前 geometry repository snapshot。
-- 如果 initial geometry 尚未選擇、值是空的，或指到不存在的 geometry entity，
-  button 必須 disabled。
-- 不需要檢查 target step 或 downstream steps 的其他 required fields。Initial geometry
-  preview 只代表該 selected geometry state 經過 preview execution path 的結果。
+Disabled preview buttons remain visible and use a concise tooltip such as `Select initial geometry first` or `Complete upstream fields first`.
 
-對 `stepOutput` edge：
+## Overlay Behavior
 
-- 只有當 source step complete 時才 enabled。
-- Source step completeness 包含 source step 前面所有 upstream steps、
-  upstream initial geometry selections，以及 source step 以前所有 required field values。
-- Preview edge 後面的 downstream steps 不影響這顆 button。
+The preview opens as a full-page overlay above the graph:
 
-Disabled button 仍然要顯示，讓 graph structure 保持可讀。使用 icon button 的
-disabled state，並用 tooltip/title 說明阻擋原因，例如 `Complete upstream fields first`。
+- It does not navigate away from the editor.
+- The graph remains visible through a dim background.
+- The graph is not interactive while preview is open.
+- Closing the preview does not modify the draft instance.
 
-### 1.4 Overlay 行為
+Close actions:
 
-Geometry Preview 以 full-page overlay panel 的形式顯示在 graph 上方。
+- Close icon button.
+- Escape key.
+- Dim background click, as long as it does not conflict with future graph interactions.
 
-Layout 規則：
+## Panel Structure
 
-- 它不是新 route，也不取代目前頁面。
-- 它位於 graph UI 上方。
-- 背景 graph 透過 dim overlay 仍然可見。
-- Preview 開啟時，背景 graph 不可互動。
-- Overlay 應接近滿版，只保留一小圈 margin，讓使用者仍然感覺它是覆蓋在 graph
-  上方的子頁面。
-- Desktop 建議 shell size 為 `calc(100vw - 48px)` by `calc(100vh - 48px)`，
-  小螢幕可以使用更小 margin。
-- Panel 視覺風格應該和現有 CAD viewer 一致，維持克制、工程工具導向。
+| Area | Content |
+| --- | --- |
+| Header | Title, source/target context, status badge, close button. |
+| Main viewport | Generated GLB in the shared CAD viewer scene. |
+| Side controls | Section, camera, grid, and axes controls reused from CAD viewer behavior. |
+| Footer actions | `Save JSON`, `Save GLB`, `Save STEP AP242`. |
 
-關閉行為：
+The panel should feel like an engineering inspection tool: dense, legible, and restrained.
 
-- 右上角 close button。
-- Escape key 關閉 preview。
-- 點擊 dim background 可以關閉 preview，只要未來不和其他選取行為衝突。
-- 關閉 preview 不得修改 draft instance。
+## Loading State
 
-### 1.5 Panel 結構
+When the user starts a preview:
 
-Preview panel 有四個區域：
+- The overlay opens immediately.
+- The panel shows a loading state while FastAPI runs preview execution and GLB export.
+- Download buttons are disabled.
+- The user may close the panel while the request is in flight.
+- A completed request must not update a closed panel.
 
-| 區域 | 內容 |
-|---|---|
-| Header | Title、edge context、close button |
-| Main viewport | 顯示 generated GLB 的 CAD viewer scene |
-| Side controls | 重用 CAD viewer 的 section、measurement、camera、grid、axes controls |
-| Footer actions | 右下角 `Save JSON`、`Save GLB` 與 `Save STEP AP242` buttons |
-
-Header 內容：
-
-- Title: `Geometry Preview`
-- Subtitle: source label 與 target slot label，例如
-  `Molding encapsulation -> main_geometry`
-- Optional status badge: `Initial geometry`、`Step output`、`Loading`、`Ready`
-  或 `Error`
-
-Main viewport 應盡量重用現有 CAD viewer design 與 3D scene。Preview 不應複製一份
-CAD viewer rendering logic。
-
-### 1.6 Loading State
-
-使用者點擊 preview button 後：
-
-- Overlay 立即開啟。
-- Server-side kernel preview 執行期間，preview panel 內顯示 spinner。
-- Spinner 必須顯示在 preview panel 中，不應只顯示在 edge button 上。
-- Loading 期間 download buttons disabled。
-- 使用者可以在 loading 時關閉 panel。如果 request 之後才完成，不得更新已關閉的 panel。
-
-Loading 文字應短且操作導向，例如：
+Loading text:
 
 ```text
 Generating geometry preview...
 ```
 
-### 1.7 Error State
+## Error State
 
-如果 validation、kernel execution 或 CAD export 失敗：
+If validation, kernel execution, or CAD export fails:
 
-- Preview panel 保持開啟。
-- 錯誤訊息顯示在 preview panel 裡。
-- 不修改 graph draft。
-- 不寫入 localStorage。
-- `Save JSON`、`Save GLB` 與 `Save STEP AP242` disabled。
-- 使用者可以關閉 panel 回到 graph。
+- The panel remains open.
+- The error message is shown inside the panel.
+- Download buttons stay disabled.
+- The graph draft is unchanged.
 
-錯誤訊息使用 server 回傳的 concise message，並在 preview panel 中顯示單一可讀訊息。
+The displayed message should use the concise API error message.
 
-### 1.8 Ready State
+## Ready State
 
-Preview 成功後：
+After success:
 
-- Generated GLB 載入 CAD viewer scene。
-- Generated geometry JSON 保存在 memory 中供下載。
-- STEP AP242 下載綁定同一份 preview geometry snapshot；它可以在背景預先產生，但不影響 preview ready。
-- `Save JSON`、`Save GLB` 與 `Save STEP AP242` enabled。
-- Graph draft 維持不變。
+- The generated GLB loads into the shared CAD viewer scene.
+- The generated geometry JSON stays in memory for download.
+- The STEP action uses the exact same preview snapshot.
+- The graph draft remains unchanged.
 
-Viewer 應支援和 CAD viewer 相同的核心 inspection controls：
+Viewer controls should include:
 
-- Orbit / pan / zoom
-- Camera fit
-- Grid toggle
-- Axes toggle
-- Section plane controls
-- 如果現有 CAD viewer component 已支援 measurement，則 preview 也重用 measurement controls
+- Orbit, pan, and zoom.
+- Camera fit.
+- Grid toggle.
+- Axes toggle.
+- Section plane controls.
 
-### 1.9 Downloads
+## Downloads
 
-右下角 action area 包含：
+| Button | Output |
+| --- | --- |
+| `Save JSON` | Import-ready `GeometryEntity` JSON with `id: null`. |
+| `Save GLB` | Generated binary GLB. |
+| `Save STEP AP242` | STEP AP242 generated from the preview snapshot. |
 
-| Button | Enabled when | Output |
-|---|---|---|
-| `Save JSON` | Preview ready | Geometry DB import-ready JSON |
-| `Save GLB` | Preview ready | Generated binary GLB |
-| `Save STEP AP242` | Preview ready | STEP AP242 generated from the current preview snapshot with material labels |
+Downloads are local browser downloads. They do not create database records.
 
-Buttons 只做本機下載。它們不會把資料存入 `localStorage` 或未來 database。
+`Save STEP AP242` calls:
 
-`Save STEP AP242` 不會重新讀取目前 graph draft，也不會重新執行 kernel。它使用
-preview response 中的 `geometryEntityJson.structure` 作為固定 snapshot，確保使用者
-下載的 STEP 和畫面中看到的 GLB 對應同一份 geometry。Panel ready 後，client
-在背景啟動 STEP prefetch；UI 不顯示這個背景工作的 loading 狀態。使用者按下
-`Save STEP AP242` 時，如果 prefetch 已完成就直接下載；如果尚未完成，則等待同一個
-in-flight export；如果沒有 in-flight export 或前次失敗，則啟動新的 STEP export。
+```http
+POST /api/geometry-preview/step
+```
 
-Preview panel 關閉或 unmount 時，client 會 abort 尚未完成的 STEP prefetch。Server
-會移除尚未開始的低優先權 STEP job，或結束已經啟動的 STEP worker，讓下一個互動式
-GLB preview 不會被舊 snapshot 的 STEP 工作阻塞。
+with:
 
-Filename format：
-
-- JSON: `geometry-preview-{edgeId}.json`
-- GLB: `geometry-preview-{edgeId}.glb`
-- STEP AP242: `geometry-preview-{edgeId}.step`
-
-需要避免覆蓋同名下載時，可以附加 timestamp。
-
-## 2. Data 與 Kernel Execution
-
-### 2.1 Preview Contract
-
-Preview 是對目前 draft 的 read-only operation。
-
-它可以讀取：
-
-- Selected process flow template。
-- Draft process step field values。
-- Draft initial geometry selections。
-- 目前 localStorage 中的 `GeometryEntity[]` snapshot。
-- 目前 localStorage 中的 `ProcessStepTemplate[]` snapshot。
-
-它不得寫入：
-
-- `processFlowInstances`
-- `processFlowTemplates`
-- `processStepTemplates`
-- `GeometryEntity`
-
-Downloads 是 browser 本機下載，不算 database write。
-
-### 2.2 Server-Side Execution 選擇
-
-Preview 使用 server-side kernel execution。
-
-這不需要額外啟動另一個 server process。同一個由 `npm run dev` 啟動的 Next.js
-dev server 同時負責：
-
-- browser UI
-- `/api/geometry-preview` server-side route
-
-因為 API route 不能直接讀 browser localStorage，所以 client 必須在 request body
-中送出 preview 所需的 draft data 與 repository snapshots。
-
-### 2.3 Kernel API 方向
-
-Geometry kernel 端使用 dedicated preview API：
-
-```ts
-type GeometryPreviewInput = {
-  processFlowTemplate: ProcessFlowTemplate;
-  processFlowInstance: ProcessFlowInstance;
-  previewEdgeId: string;
-};
-
-type GeometryPreviewResult = {
-  geometryStructure: GeometryStructure;
-  sourceKind: "geometryRef" | "stepOutput";
-  outputStepRefId: string | null;
-};
-
-class GeometryKernel {
-  executePreview(input: GeometryPreviewInput): Promise<GeometryPreviewResult>;
+```json
+{
+  "geometryStructure": {}
 }
 ```
 
-`executePreview()` 是 preview-specific API。它應該把不同 edge source 的分支邏輯
-藏在 kernel/server preview path 中：
+The request uses `geometryEntityJson.structure` from the ready preview response. It does not re-read the current graph draft and does not re-run the kernel.
 
-- 對 `geometryRef` edge，resolve selected geometry input，並經過 kernel preview
-  path 回傳。
-- 對 `stepOutput` edge，只執行必要的 upstream pre-flow，並回傳 source step output。
+Filename format:
 
-UI 不應自行實作 kernel semantics。UI 負責 draft validation 與 request construction；
-server-side preview path 負責 execution。
+- JSON: `geometry-preview-{target}.json`
+- GLB: `geometry-preview-{target}.glb`
+- STEP AP242: `geometry-preview-{target}.step`
 
-### 2.4 Repository 策略
+## API Contract
 
-Preview 不需要把 pre-flow records 存在 localStorage 或未來 database。
+Preview request:
 
-Server-side repositories：
-
-| Repository | Preview 時的資料來源 |
-|---|---|
-| Geometry repository | Request 中的 `GeometryEntity[]` snapshot |
-| Process step repository | Request 中的 `ProcessStepTemplate[]` snapshot |
-| Process flow template repository | 只包含 preview pre-flow template 的 in-memory repository |
-| Process flow instance repository | 只包含 preview pre-flow instance 的 in-memory repository |
-
-這樣可以讓 preview 和 persisted database state 隔離，同時仍然使用同一套 kernel
-repository interfaces。
-
-### 2.5 Preview Request
-
-Client 送出的 request 類似：
-
-```ts
-type GeometryPreviewRequest = {
-  previewEdgeId: string;
-  flowTemplate: ProcessFlowTemplate;
-  draftInstance: ProcessFlowInstance;
-  geometries: GeometryEntity[];
-  processStepTemplates: ProcessStepTemplate[];
-};
-```
-
-`draftInstance` 不會被保存。它由目前 UI draft 依照 Save 時相同的 normalization
-rules 建立：
-
-- 每個 selected initial geometry 會成為 target field value，值為 selected
-  `GeometryEntity.id`。
-- 每個由 `stepOutput` 提供的 field 使用 `FieldValue.value: null`。
-- 所有其他 fields 使用目前 draft field value。
-
-### 2.6 Preview Response
-
-Server response：
-
-```ts
-type GeometryPreviewResponse = {
-  geometryEntityJson: GeometryEntityDownload;
-  glbBase64: string;
-};
-```
-
-Client 將 `glbBase64` 轉成 `Blob`，載入 CAD viewer，並使用同一個 `Blob` 供
-`Save GLB` 下載。
-
-STEP AP242 使用獨立 request，request body 是 preview response 中的 geometry
-snapshot：
-
-```ts
-type GeometryPreviewStepRequest = {
-  geometryStructure: GeometryStructure;
-};
-
-type GeometryPreviewStepResponse = {
-  stepBase64: string;
-};
-```
-
-Client 只傳送已經 ready 的 preview snapshot，不傳送 draft flow template 或 draft
-instance。Server 不會重新執行 `GeometryKernel.executePreview()`。
-
-STEP export 會把 `via`、`circuit`、`bump` 的 geometry materialize
-成實體 solid，材料名稱為 `{featureType}_{material}_{density}` 的安全 token，
-例如 `via_Cu_0p4`；同一個 container 內這些 feature body 的優先權高於一般 body。
-當 ancestor 與 descendant container 的 body 或 materialized feature solid overlap
-時，descendant solid 具有較高 priority，ancestor solid 的重疊區域會被排除。
-
-### 2.7 Export Scheduling
-
-CAD export 使用 child process 隔離 OpenCascade.js / WASM memory lifecycle。Preview
-GLB 是互動式高優先權工作；STEP AP242 prefetch 是低優先權、可取消工作。
-
-Scheduling rules：
-
-- GLB export 屬於 preview critical path，只要完成就可以顯示 viewer。
-- STEP export 不屬於 preview critical path，不會讓 panel loading state 等待 STEP。
-- Export queue 會優先啟動 GLB job，再處理 STEP job。
-- `GEOMETRY_PREVIEW_EXPORT_CONCURRENCY` 控制同時執行的 worker 數量，預設為 `1`。
-- Worker timeout 由 `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_MS` 控制。
-- Request abort 時，尚未開始的 job 會從 queue 移除；已啟動的 worker 會被結束並清理 temp directory。
-
-### 2.8 Download JSON Shape
-
-`Save JSON` 下載的是 geometry database import-ready object。
-
-此 object 不應被視為已經 persisted。因此 `id` 是 `null`，讓未來 DB import code
-可以快速辨識這個 object 尚未被分配 database identity。
-
-```ts
-type GeometryEntityDownload = {
-  id: null;
-  category: string | null;
-  entityType: string;
-  name: string;
-  version: null;
-  owner: null;
-  description: string | null;
-  structureFormat: "standard";
-  structure: GeometryStructure;
-};
-```
-
-預設 metadata：
-
-| Field | Value |
-|---|---|
-| `id` | `null` |
-| `name` | `Preview - {source label} output` |
-| `version` | `null` |
-| `owner` | `null` |
-| `description` | 包含 edge id 與 source kind 的簡短 preview context |
-| `category` | `"preview.generated"` |
-| `entityType` | `"preview"` |
-| `structureFormat` | `"standard"` |
-| `structure` | Kernel preview output geometry structure |
-
-重要 schema note：
-
-- `docs/data-model.md` 的 core `GeometryEntity` schema 定義 `entityType`。
-- Preview download JSON 預設加入 `entityType: "preview"`，表示這是尚未 persisted
-  的 preview artifact，不代表已治理的原始 geometry 類型。
-
-Category rule:
-
-- Preview download JSON 的 `category` 固定為 `"preview.generated"`。
-- 不沿用 input geometry category，也不從 source process step category 推導，避免
-  使用者把 preview artifact 誤認為已治理的原始 geometry 或正式 process output。
-
-### 2.9 Validation Flow
-
-Client-side validation 決定 preview button 是否 enabled。
-
-Server-side validation 仍然必須重新檢查 request，因為 API 接收到的是 browser
-送來的 raw JSON。
-
-Validation rules：
-
-- `previewEdgeId` 必須存在於提供的 flow template。
-- 所有 fields 都是 required。
-- `geometryRef` preview edge 必須 resolve 到 selected geometry id。
-- `stepOutput` preview edge 必須 resolve 到 source step。
-- 該 preview edge 所需的所有 upstream steps 必須 complete。
-- Referenced geometry ids 必須存在於 geometry snapshot。
-- Referenced process step template ids 必須存在於 process step template snapshot。
-- Pre-flow 必須 acyclic。
-
-### 2.10 Execution Flow
-
-```mermaid
-flowchart TD
-  click["User clicks edge preview button"]
-  enabled{"Button enabled?"}
-  open["Open GeometryPreviewPanel"]
-  loading["Show spinner"]
-  request["Build preview request from draft state"]
-  api["POST /api/geometry-preview"]
-  validate["Server validates request"]
-  preflow["Build preview pre-flow template and instance"]
-  kernel["GeometryKernel.executePreview"]
-  export["Export preview geometry to GLB"]
-  response["Return geometryEntityJson and glbBase64"]
-  show["Load GLB into viewer and show ready state"]
-  downloads["Enable Save JSON, Save GLB, and Save STEP AP242"]
-  stepPrefetch["Prefetch STEP AP242 from preview snapshot"]
-  saveStep["User clicks Save STEP AP242"]
-  stepReady{"STEP ready?"}
-  downloadStep["Download STEP AP242"]
-  abortStep["Abort STEP prefetch on panel close"]
-  error["Show error inside preview panel"]
-  stepError["Show STEP download error"]
-
-  click --> enabled
-  enabled -- "No" --> click
-  enabled -- "Yes" --> open
-  open --> loading
-  loading --> request
-  request --> api
-  api --> validate
-  validate --> preflow
-  preflow --> kernel
-  kernel --> export
-  export --> response
-  response --> show
-  show --> downloads
-  show --> stepPrefetch
-  downloads --> saveStep
-  saveStep --> stepReady
-  stepReady -- "Yes" --> downloadStep
-  stepReady -- "No" --> stepPrefetch
-  stepPrefetch --> downloadStep
-  stepPrefetch --> abortStep
-
-  validate -- "Invalid" --> error
-  kernel -- "Execution error" --> error
-  export -- "CAD export error" --> error
-  stepPrefetch -- "STEP export error after save click" --> stepError
-```
-
-### 2.11 Sequence
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant Graph as Flow Graph UI
-  participant Panel as GeometryPreviewPanel
-  participant PreviewAPI as Preview API Route
-  participant StepAPI as STEP API Route
-  participant Kernel as GeometryKernel
-  participant Viewer as CAD Viewer Scene
-
-  User->>Graph: Click preview button
-  Graph->>Graph: Check edge-specific completeness
-  Graph->>Panel: Open with edge context
-  Panel->>Panel: Show spinner
-  Panel->>PreviewAPI: POST preview request
-  PreviewAPI->>PreviewAPI: Validate request and build in-memory repositories
-  PreviewAPI->>Kernel: executePreview(previewTarget)
-  Kernel-->>PreviewAPI: Geometry structure
-  PreviewAPI->>PreviewAPI: Export GLB and build download JSON
-  PreviewAPI-->>Panel: geometryEntityJson + glbBase64
-  Panel->>Viewer: Load GLB blob
-  Panel->>Panel: Enable downloads
-  Panel->>StepAPI: POST preview snapshot for STEP prefetch
-  alt User closes preview before STEP completes
-    Panel->>StepAPI: Abort STEP request
-    StepAPI->>StepAPI: Remove queued job or kill worker
-  else User clicks Save STEP AP242
-    Panel->>StepAPI: Await in-flight or start STEP export
-    StepAPI-->>Panel: stepBase64
-    Panel->>Panel: Download STEP file
-  end
-```
-
-### 2.12 Pre-Flow Construction
-
-對 `geometryRef` preview edge：
-
-- Preview source 是連到該 edge 的 selected geometry。
-- `executePreview()` 透過 geometry repository resolve 該 geometry。
-- 回傳的 geometry structure 仍然經過 kernel preview path，讓 UI 對所有 edge types
-  都只面對同一個 execution interface。
-
-對 `stepOutput` preview edge：
-
-- 找到 edge source step ref id。
-- 找出 source step 所需的所有 upstream process steps。
-- 包含這些 upstream steps 之間的所有 flow edges。
-- 包含這些 upstream steps 需要的 initial geometry edges。
-- 排除 source step 後面的 downstream steps。
-- 建立只包含 upstream closure 的 temporary process flow template。
-- 建立只包含 included steps value sets 的 temporary process flow instance。
-- 執行 temporary flow 並回傳 source step output。
-
-Pseudocode：
-
-```ts
-async function previewEdge(edgeId: string, draft: DraftPreviewPayload) {
-  const edge = findEdge(draft.flowTemplate, edgeId);
-
-  if (edge.source.sourceType === "geometryRef") {
-    return kernel.executePreview({
-      processFlowTemplate: draft.flowTemplate,
-      processFlowInstance: draft.draftInstance,
-      previewEdgeId: edgeId,
-    });
-  }
-
-  const upstreamClosure = findUpstreamClosure(
-    draft.flowTemplate,
-    edge.source.stepRefId,
-  );
-  const preFlowTemplate = buildPreFlowTemplate(draft.flowTemplate, upstreamClosure);
-  const preFlowInstance = buildPreFlowInstance(
-    draft.draftInstance,
-    preFlowTemplate,
-  );
-
-  return kernel.executePreview({
-    processFlowTemplate: preFlowTemplate,
-    processFlowInstance: preFlowInstance,
-    previewEdgeId: edgeId,
-  });
+```json
+{
+  "target": {
+    "type": "edge",
+    "previewEdgeId": "edge_initial_panel_to_pnp"
+  },
+  "sourceLabel": "Panel -> PnP",
+  "flowTemplate": {},
+  "draftInstance": {},
+  "geometries": [],
+  "processStepTemplates": []
 }
 ```
 
-### 2.12 UI State Model
+Terminal output preview request:
 
-Panel 可以使用以下 state shape：
-
-```ts
-type GeometryPreviewPanelState =
-  | {
-      status: "loading";
-      edgeId: string;
-      sourceLabel: string;
-      slotLabel: string;
-    }
-  | {
-      status: "ready";
-      edgeId: string;
-      sourceLabel: string;
-      slotLabel: string;
-      geometryEntityJson: GeometryEntityDownload;
-      glbBlob: Blob;
-    }
-  | {
-      status: "error";
-      edgeId: string;
-      sourceLabel: string;
-      slotLabel: string;
-      message: string;
-    };
+```json
+{
+  "target": {
+    "type": "stepOutput",
+    "stepRefId": "pnp_hbm"
+  },
+  "flowTemplate": {},
+  "draftInstance": {}
+}
 ```
 
-Flow instance editor 只需要保存目前開啟的 preview context。Loading、error、
-GLB blob 與 download state 由 panel 自己管理。
+`geometries` and `processStepTemplates` are optional snapshots. When omitted, FastAPI resolves them from SQLite.
 
-### 2.13 Implementation Notes
+Preview response:
 
-- 盡量重用現有 CAD viewer scene 與 model loading utilities。
-- 新增 helper，讓 viewer 可以 load generated GLB `Blob` 或 `File`，而不只支援
-  使用者手動選取的 file。
-- `GeometryPreviewPanel` 應和 React Flow internals 分離。只傳入 edge labels、
-  request payload，以及 close/download callbacks。
-- Panel 不得修改 graph nodes、graph edges 或 step field values。
-- Preview output 不自動 persist。
-- Server route 應針對 missing geometry、incomplete fields、kernel errors、
-  CAD export errors 回傳清楚錯誤訊息。
+```json
+{
+  "geometryEntityJson": {
+    "id": null,
+    "category": "preview.generated",
+    "entityType": "preview",
+    "name": "Preview - Panel -> PnP output",
+    "structureFormat": "standard",
+    "structure": {}
+  },
+  "glbBase64": "..."
+}
+```
 
-### 2.14 Scope Exclusions
+STEP response:
 
-Geometry Preview 不包含：
+```json
+{
+  "stepBase64": "..."
+}
+```
 
-- 將 preview output 存入 localStorage。
-- 分配真正的 geometry DB id。
-- 下載前提供 metadata editor。
-- Body-level selection。
-- 比較兩個 preview outputs。
-- 跨 draft edits cache preview results。
-- 執行 preview edge 後面的 downstream steps。
+## Execution Semantics
 
-## 3. Product Decision
+Preview is read-only.
 
-Preview download JSON 的 `category` 固定使用 `"preview.generated"`。
-Preview download JSON 的 `entityType` 固定使用 `"preview"`。
+FastAPI validates the request, then calls the Python kernel's preview execution path. The kernel computes only the upstream closure required by the preview target:
+
+- `geometryRef` preview resolves the selected geometry id.
+- `stepOutput` preview executes the upstream steps needed to produce that source output.
+- Terminal step output preview executes the requested step's upstream closure.
+
+FastAPI then calls the JavaScript CAD exporter worker to convert the resulting `geometryStructure` into GLB or STEP.
+
+## Ownership Boundaries
+
+| Layer | Responsibility |
+| --- | --- |
+| Flow editor | Maintains draft template and instance state. |
+| Preview client | Sends draft data to FastAPI and manages overlay state. |
+| FastAPI | Validates request, calls Python kernel, bridges CAD export. |
+| Python kernel | Resolves flow graph and process step execution. |
+| JavaScript CAD exporter | Converts geometry structure to GLB or STEP AP242. |
+
+General UI code should treat `GeometryEntity.structure` as an opaque payload and pass it to preview/export/viewer code when needed.

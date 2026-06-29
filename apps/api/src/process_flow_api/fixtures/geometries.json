@@ -1,0 +1,198 @@
+[
+  {
+    "id": "geom_example_wafer",
+    "category": "initial.wafer",
+    "name": "Wafer",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
+    "entityType": "wafer",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-wafer",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "CylinderGeometry",
+              "center": [
+                0,
+                0,
+                -250
+              ],
+              "bottom_radius": 300000,
+              "thk": 500
+            },
+            "material": "Si"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "geom_example_panel",
+    "category": "initial.panel",
+    "name": "Panel",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
+    "entityType": "panel",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-panel",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -155000,
+                -155000,
+                -250
+              ],
+              "top_right": [
+                155000,
+                155000,
+                -250
+              ],
+              "thk": 500
+            },
+            "material": "glass"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "geom_example_hbm",
+    "category": "initial.die.hbm",
+    "name": "HBM",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "entityType": "die",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-hbm",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -700,
+                -500,
+                -25
+              ],
+              "top_right": [
+                700,
+                500,
+                -25
+              ],
+              "thk": 50
+            },
+            "material": "Si-HBM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "geom_example_soc",
+    "category": "initial.die.soc",
+    "name": "SoC",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for SoC die. 2000 x 1600 x 70 um SoC block, center at 0,0,0.",
+    "entityType": "die",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-soc",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -1000,
+                -800,
+                -35
+              ],
+              "top_right": [
+                1000,
+                800,
+                -35
+              ],
+              "thk": 70
+            },
+            "material": "Si-SoC"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "geom_example_carrier",
+    "category": "initial.test.carrier",
+    "name": "carrier",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for carrier. 5000 x 5000 x 70 um carrier block, center at 0,0,0.",
+    "entityType": "carrier",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-soc",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -2500,
+                -2500,
+                -35
+              ],
+              "top_right": [
+                2500,
+                2500,
+                -35
+              ],
+              "thk": 70
+            },
+            "material": "carrier"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  }
+]

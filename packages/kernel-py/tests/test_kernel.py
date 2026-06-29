@@ -289,6 +289,75 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(geometry["root"]["bodies"][2]["material"], "EMC-A")
         self.assertEqual(geometry["root"]["bodies"][2]["geometry"]["bottom_left"], [-50, -50, 14])
 
+    def test_kernel_preview_initial_geometry_edge(self):
+        kernel = create_kernel(
+            process_step_templates=[real_ecl_step_template(), real_molding_step_template()],
+            flow_template=flow_template_ecl_to_molding(),
+            flow_instance=flow_instance_ecl_to_molding(),
+        )
+
+        preview = kernel.execute_preview(
+            {
+                "processFlowTemplate": flow_template_ecl_to_molding(),
+                "processFlowInstance": flow_instance_ecl_to_molding(),
+                "target": {"type": "edge", "previewEdgeId": "edge_input_to_ecl"},
+            }
+        )
+
+        self.assertEqual(preview["sourceKind"], "geometryRef")
+        self.assertIsNone(preview["outputStepRefId"])
+        self.assertEqual(preview["geometryStructure"]["root"]["key"], "kernel-input")
+
+    def test_kernel_preview_step_output_edge_uses_upstream_closure(self):
+        instance = flow_instance_ecl_to_molding()
+        instance["stepValueSets"][1]["fieldValues"][1]["value"] = ""
+        kernel = create_kernel(
+            process_step_templates=[real_ecl_step_template(), real_molding_step_template()],
+            flow_template=flow_template_ecl_to_molding(),
+            flow_instance=instance,
+        )
+
+        preview = kernel.execute_preview(
+            {
+                "processFlowTemplate": flow_template_ecl_to_molding(),
+                "processFlowInstance": instance,
+                "target": {"type": "edge", "previewEdgeId": "edge_ecl_to_molding"},
+            }
+        )
+
+        self.assertEqual(preview["sourceKind"], "stepOutput")
+        self.assertEqual(preview["outputStepRefId"], "ecl")
+        self.assertEqual(len(preview["geometryStructure"]["root"]["bodies"]), 2)
+        self.assertEqual(preview["geometryStructure"]["root"]["bodies"][1]["material"], "ECL-A")
+
+    def test_kernel_preview_terminal_step_output(self):
+        kernel = create_kernel(
+            process_step_templates=[real_ecl_step_template(), real_molding_step_template()],
+            flow_template=flow_template_ecl_to_molding(),
+            flow_instance=flow_instance_ecl_to_molding(),
+        )
+
+        preview = kernel.execute_preview(
+            {
+                "processFlowTemplate": flow_template_ecl_to_molding(),
+                "processFlowInstance": flow_instance_ecl_to_molding(),
+                "target": {"type": "stepOutput", "stepRefId": "molding"},
+            }
+        )
+
+        self.assertEqual(preview["sourceKind"], "stepOutput")
+        self.assertEqual(preview["outputStepRefId"], "molding")
+        self.assertEqual(preview["geometryStructure"]["root"]["bodies"][2]["material"], "EMC-A")
+
+    def test_kernel_accepts_legacy_geometry_value_type(self):
+        template = real_molding_step_template()
+        template["fieldDefinitions"][0]["valueType"] = "geometry"
+        kernel = create_kernel(process_step_templates=[template])
+
+        geometry = kernel.execute("flow_inst_kernel_test").geometry()
+
+        self.assertEqual(geometry["root"]["bodies"][1]["material"], "EMC-A")
+
     def test_kernel_imports_and_executes_real_rdl_step(self):
         kernel = create_kernel(
             process_step_templates=[real_rdl_step_template()],

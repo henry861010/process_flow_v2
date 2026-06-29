@@ -1,0 +1,354 @@
+[
+  {
+    "id": "flow_inst_cowosl_demo_hbm4_alpha",
+    "name": "HBM4 Alpha Build",
+    "processFlowTemplateId": "flow_tpl_cowosl_demo_1_0_0",
+    "stepValueSets": [
+      {
+        "stepRefId": "pnp_hbm",
+        "processStepTemplateId": "step_tpl_pnp_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": "geom_example_panel"
+          },
+          {
+            "fieldId": "die_geometry",
+            "value": "geom_example_hbm"
+          },
+          {
+            "fieldId": "coordinates",
+            "value": [
+              [
+                -760,
+                -520
+              ],
+              [
+                760,
+                -520
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "stepRefId": "mold_cap",
+        "processStepTemplateId": "step_tpl_molding_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "material",
+            "value": "EMC-G700"
+          },
+          {
+            "fieldId": "thickness",
+            "value": 180
+          }
+        ]
+      },
+      {
+        "stepRefId": "rdl_build",
+        "processStepTemplateId": "step_tpl_rdl_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "layers",
+            "value": {
+              "items": [
+                {
+                  "itemId": "layers_item_1",
+                  "index": 1,
+                  "fieldValues": [
+                    {
+                      "fieldId": "Dielectric",
+                      "value": "PI-2611"
+                    },
+                    {
+                      "fieldId": "Conductivity",
+                      "value": "Cu"
+                    },
+                    {
+                      "fieldId": "thk",
+                      "value": 8
+                    },
+                    {
+                      "fieldId": "density",
+                      "value": 0.62
+                    }
+                  ]
+                },
+                {
+                  "itemId": "layers_item_2",
+                  "index": 2,
+                  "fieldValues": [
+                    {
+                      "fieldId": "Dielectric",
+                      "value": "PI-2611"
+                    },
+                    {
+                      "fieldId": "Conductivity",
+                      "value": "Cu"
+                    },
+                    {
+                      "fieldId": "thk",
+                      "value": 6
+                    },
+                    {
+                      "fieldId": "density",
+                      "value": 0.48
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "stepRefId": "c4_bump",
+        "processStepTemplateId": "step_tpl_c4_bump_formation_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "material",
+            "value": "SAC305"
+          },
+          {
+            "fieldId": "thk",
+            "value": 65
+          },
+          {
+            "fieldId": "density",
+            "value": 0.58
+          },
+          {
+            "fieldId": "koz",
+            "value": 18
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "flow_inst_cowosl_demo_hbm4_beta",
+    "name": "HBM4 Beta Reliability",
+    "processFlowTemplateId": "flow_tpl_cowosl_demo_1_0_0",
+    "stepValueSets": [
+      {
+        "stepRefId": "pnp_hbm",
+        "processStepTemplateId": "step_tpl_pnp_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": "geom_example_panel"
+          },
+          {
+            "fieldId": "die_geometry",
+            "value": "geom_example_hbm"
+          },
+          {
+            "fieldId": "coordinates",
+            "value": [
+              [
+                -820,
+                -560
+              ],
+              [
+                0,
+                -560
+              ],
+              [
+                820,
+                -560
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "stepRefId": "mold_cap",
+        "processStepTemplateId": "step_tpl_molding_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "material",
+            "value": "EMC-R920"
+          },
+          {
+            "fieldId": "thickness",
+            "value": 210
+          }
+        ]
+      },
+      {
+        "stepRefId": "rdl_build",
+        "processStepTemplateId": "step_tpl_rdl_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "layers",
+            "value": {
+              "items": [
+                {
+                  "itemId": "layers_item_1",
+                  "index": 1,
+                  "fieldValues": [
+                    {
+                      "fieldId": "Dielectric",
+                      "value": "ABF-GX92"
+                    },
+                    {
+                      "fieldId": "Conductivity",
+                      "value": "Cu"
+                    },
+                    {
+                      "fieldId": "thk",
+                      "value": 10
+                    },
+                    {
+                      "fieldId": "density",
+                      "value": 0.56
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "stepRefId": "c4_bump",
+        "processStepTemplateId": "step_tpl_c4_bump_formation_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "material",
+            "value": "SAC405"
+          },
+          {
+            "fieldId": "thk",
+            "value": 72
+          },
+          {
+            "fieldId": "density",
+            "value": 0.53
+          },
+          {
+            "fieldId": "koz",
+            "value": 20
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "flow_inst_fanout_demo_soc_ev1",
+    "name": "SoC EV1",
+    "processFlowTemplateId": "flow_tpl_fanout_demo_1_0_0",
+    "stepValueSets": [
+      {
+        "stepRefId": "pnp_soc",
+        "processStepTemplateId": "step_tpl_pnp_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": "geom_example_panel"
+          },
+          {
+            "fieldId": "die_geometry",
+            "value": "geom_example_soc"
+          },
+          {
+            "fieldId": "coordinates",
+            "value": [
+              [
+                -1000,
+                -800
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "stepRefId": "micro_bump",
+        "processStepTemplateId": "step_tpl_ubump_formation_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "material",
+            "value": "Cu/Ni/SnAg"
+          },
+          {
+            "fieldId": "thk",
+            "value": 28
+          },
+          {
+            "fieldId": "density",
+            "value": 0.42
+          },
+          {
+            "fieldId": "koz",
+            "value": 12
+          }
+        ]
+      },
+      {
+        "stepRefId": "flip_package",
+        "processStepTemplateId": "step_tpl_flip_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          }
+        ]
+      },
+      {
+        "stepRefId": "bga_array",
+        "processStepTemplateId": "step_tpl_bga_bump_formation_1_0_0",
+        "fieldValues": [
+          {
+            "fieldId": "main_geometry",
+            "value": null
+          },
+          {
+            "fieldId": "material",
+            "value": "SAC305"
+          },
+          {
+            "fieldId": "thk",
+            "value": 240
+          },
+          {
+            "fieldId": "density",
+            "value": 0.36
+          },
+          {
+            "fieldId": "koz",
+            "value": 35
+          }
+        ]
+      }
+    ]
+  }
+]

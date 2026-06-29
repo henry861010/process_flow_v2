@@ -20,7 +20,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PROCESS_STEP_TEMPLATES_STORAGE_KEY } from "@/lib/home-local-storage";
+import {
+  createProcessStepTemplate,
+  deleteProcessStepTemplate,
+  listProcessStepTemplates,
+} from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const SNAKE_CASE_RE = /^[a-z][a-z0-9_]*$/;
@@ -164,12 +168,22 @@ export function ProcessStepTemplateEditor() {
   const [draft, setDraft] = React.useState<ProcessStepTemplate | null>(null);
   const [draftSnapshot, setDraftSnapshot] = React.useState("");
   const [selectedFieldIndex, setSelectedFieldIndex] = React.useState(0);
+  const [apiError, setApiError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const stored = window.localStorage.getItem(PROCESS_STEP_TEMPLATES_STORAGE_KEY);
-    setTemplates(stored ? (JSON.parse(stored) as ProcessStepTemplate[]) : []);
-    setHydrated(true);
+    void refreshTemplates();
   }, []);
+
+  async function refreshTemplates() {
+    try {
+      setTemplates(await listProcessStepTemplates<ProcessStepTemplate>());
+      setApiError(null);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "Unable to load templates.");
+    } finally {
+      setHydrated(true);
+    }
+  }
 
   const reviewTemplate = React.useMemo(
     () => templates.find((template) => template.id === reviewTemplateId) ?? null,
@@ -218,14 +232,6 @@ export function ProcessStepTemplateEditor() {
     return () => document.removeEventListener("keydown", onKeyDown);
   });
 
-  function persistTemplates(nextTemplates: ProcessStepTemplate[]) {
-    window.localStorage.setItem(
-      PROCESS_STEP_TEMPLATES_STORAGE_KEY,
-      stringify(nextTemplates),
-    );
-    setTemplates(nextTemplates);
-  }
-
   function clearFilters() {
     setSearch("");
     setCategorySegments([]);
@@ -269,22 +275,22 @@ export function ProcessStepTemplateEditor() {
     setSelectedFieldIndex(0);
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     if (!draft || Object.keys(draftErrors).length > 0) {
       return;
     }
     const normalized = normalizeTemplate(draft);
-    const nextTemplates = [...templates, normalized];
-    persistTemplates(nextTemplates);
+    await createProcessStepTemplate(normalized);
+    await refreshTemplates();
     setDraft(null);
     setDraftSnapshot("");
     setSelectedFieldIndex(0);
     setReviewTemplateId(normalized.id);
   }
 
-  function deleteTemplate(templateId: string) {
-    const nextTemplates = templates.filter((template) => template.id !== templateId);
-    persistTemplates(nextTemplates);
+  async function deleteTemplate(templateId: string) {
+    await deleteProcessStepTemplate(templateId);
+    await refreshTemplates();
     setReviewTemplateId(null);
   }
 
@@ -371,8 +377,11 @@ export function ProcessStepTemplateEditor() {
             </h1>
             <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="signal">{templates.length} templates</Badge>
-              <span>localStorage key: {PROCESS_STEP_TEMPLATES_STORAGE_KEY}</span>
+              <span>API: process-step-templates</span>
             </div>
+            {apiError ? (
+              <div className="mt-2 text-sm text-destructive">{apiError}</div>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline">
@@ -551,7 +560,7 @@ export function ProcessStepTemplateEditor() {
                 <X />
                 Abort
               </Button>
-              <Button disabled={draftErrorCount > 0} onClick={saveDraft}>
+              <Button disabled={draftErrorCount > 0} onClick={() => void saveDraft()}>
                 <Save />
                 Save
               </Button>
@@ -2306,10 +2315,10 @@ function validateProgramPath(program: string) {
     program.startsWith("\\") ||
     /^[A-Za-z]:[\\/]/.test(program)
   ) {
-    return "Use a relative path under src/process.";
+    return "Use an extensionless process step module path, for example layer/molding.";
   }
-  if (program.endsWith(".js")) {
-    return "Do not include .js.";
+  if (/\.[A-Za-z0-9]+$/.test(program)) {
+    return "Do not include a file extension.";
   }
 
   const segments = program.split("/");

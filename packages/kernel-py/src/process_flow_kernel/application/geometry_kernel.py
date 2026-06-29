@@ -114,6 +114,120 @@ class GeometryKernel:
             terminal_step_ref_ids=terminal_step_ref_ids,
         )
 
+    def execute_preview(self, input_: Mapping[str, Any]):
+        process_flow_template = input_.get("processFlowTemplate")
+        process_flow_instance = input_.get("processFlowInstance")
+        preview_target = _normalize_preview_target(input_)
+
+        if not isinstance(process_flow_template, Mapping):
+            raise ValueError("processFlowTemplate is required for geometry preview")
+        if not isinstance(process_flow_instance, Mapping):
+            raise ValueError("processFlowInstance is required for geometry preview")
+        if preview_target is None:
+            raise ValueError("preview target is required")
+
+        if preview_target["type"] == "stepOutput":
+            output_step_ref_id = preview_target["stepRefId"]
+            preview_id = f"step-output-{output_step_ref_id}"
+            included_step_ref_ids = _upstream_closure_step_ref_ids(
+                process_flow_template,
+                output_step_ref_id,
+            )
+            preview_template = _build_preview_flow_template(
+                process_flow_template,
+                included_step_ref_ids,
+                preview_id,
+            )
+            preview_instance = _build_preview_flow_instance(
+                process_flow_instance,
+                preview_template,
+                preview_id,
+            )
+            preview_kernel = GeometryKernel(
+                geometry_repository=self._geometry_repository,
+                process_step_repository=self._process_step_repository,
+                process_flow_template_repository=_object_repository(preview_template),
+                process_flow_instance_repository=_object_repository(preview_instance),
+                module_resolver=self._module_resolver,
+            )
+            result = preview_kernel.execute(
+                preview_instance,
+                ExecuteOptions(output_step_ref_id=output_step_ref_id),
+            )
+            return {
+                "geometryStructure": result.geometry(),
+                "sourceKind": "stepOutput",
+                "outputStepRefId": output_step_ref_id,
+            }
+
+        preview_edge_id = preview_target["previewEdgeId"]
+        preview_edge = _find_edge_by_id(process_flow_template.get("flowEdges", []), preview_edge_id)
+        if preview_edge is None:
+            raise ValueError(f"Preview edge not found: {preview_edge_id}")
+
+        if preview_edge.get("source", {}).get("sourceType") == "geometryRef":
+            value_set = _find_step_value_set(
+                process_flow_instance.get("stepValueSets", []),
+                preview_edge.get("target", {}).get("stepRefId"),
+            )
+            geometry_entity_id = _find_field_value(
+                value_set.get("fieldValues", []) if value_set else [],
+                preview_edge.get("target", {}).get("targetFieldId"),
+            )
+            if not isinstance(geometry_entity_id, str) or geometry_entity_id.strip() == "":
+                raise ValueError(
+                    f"Preview edge {preview_edge_id} requires a selected geometry entity id"
+                )
+            entity = self._get_by_id_or_throw(
+                self._geometry_repository,
+                geometry_entity_id,
+                "Geometry entity",
+            )
+            if "structure" not in entity or entity["structure"] is None:
+                raise ValueError(f"Geometry entity {geometry_entity_id} is missing structure")
+            return {
+                "geometryStructure": normalize_geometry_structure(entity["structure"]),
+                "sourceKind": "geometryRef",
+                "outputStepRefId": None,
+            }
+
+        if preview_edge.get("source", {}).get("sourceType") != "stepOutput":
+            raise ValueError(
+                f"Unsupported preview edge source: {preview_edge.get('source', {}).get('sourceType')}"
+            )
+
+        output_step_ref_id = preview_edge["source"]["stepRefId"]
+        included_step_ref_ids = _upstream_closure_step_ref_ids(
+            process_flow_template,
+            output_step_ref_id,
+        )
+        preview_template = _build_preview_flow_template(
+            process_flow_template,
+            included_step_ref_ids,
+            preview_edge_id,
+        )
+        preview_instance = _build_preview_flow_instance(
+            process_flow_instance,
+            preview_template,
+            preview_edge_id,
+        )
+        preview_kernel = GeometryKernel(
+            geometry_repository=self._geometry_repository,
+            process_step_repository=self._process_step_repository,
+            process_flow_template_repository=_object_repository(preview_template),
+            process_flow_instance_repository=_object_repository(preview_instance),
+            module_resolver=self._module_resolver,
+        )
+        result = preview_kernel.execute(
+            preview_instance,
+            ExecuteOptions(output_step_ref_id=output_step_ref_id),
+        )
+        return {
+            "geometryStructure": result.geometry(),
+            "sourceKind": "stepOutput",
+            "outputStepRefId": output_step_ref_id,
+        }
+
     def _resolve_process_flow_instance(self, process_flow_instance_or_id):
         if not isinstance(process_flow_instance_or_id, str):
             return process_flow_instance_or_id
@@ -166,6 +280,9 @@ class GeometryKernel:
                 continue
 
             field_value = _find_field_value(step_value_set.get("fieldValues", []), field["id"])
+            if _is_geometry_structure(field_value):
+                geometry_inputs[field["id"]] = normalize_geometry_structure(field_value)
+                continue
             entity = self._get_by_id_or_throw(self._geometry_repository, field_value, "Geometry entity")
             if "structure" not in entity or entity["structure"] is None:
                 raise ValueError(f"Geometry entity {field_value} is missing structure")
@@ -241,7 +358,7 @@ def _find_field_value(field_values, field_id):
 
 
 def _is_geometry_field(field):
-    return field.get("valueType") == "geometryRef"
+    return field.get("valueType") in ("geometryRef", "geometry")
 
 
 def _build_values(field_definitions, field_values):
@@ -326,3 +443,119 @@ def _serialize_geometry_input_map(geometry_inputs):
         field_id: process_geometry_state_to_geometry_structure(input_)
         for field_id, input_ in geometry_inputs.items()
     }
+
+
+def _normalize_preview_target(input_):
+    target = input_.get("previewTarget") or input_.get("target")
+    if isinstance(target, Mapping):
+        if target.get("type") == "edge" and target.get("previewEdgeId"):
+            return {"type": "edge", "previewEdgeId": target["previewEdgeId"]}
+        if target.get("type") == "stepOutput" and target.get("stepRefId"):
+            return {"type": "stepOutput", "stepRefId": target["stepRefId"]}
+    if input_.get("previewEdgeId"):
+        return {"type": "edge", "previewEdgeId": input_["previewEdgeId"]}
+    if input_.get("outputStepRefId"):
+        return {"type": "stepOutput", "stepRefId": input_["outputStepRefId"]}
+    return None
+
+
+def _find_edge_by_id(flow_edges, edge_id):
+    for edge in flow_edges:
+        if edge.get("edgeId") == edge_id:
+            return edge
+    return None
+
+
+def _find_step_value_set(step_value_sets, step_ref_id):
+    for value_set in step_value_sets:
+        if value_set.get("stepRefId") == step_ref_id:
+            return value_set
+    return None
+
+
+def _is_geometry_structure(value):
+    return isinstance(value, Mapping) and ("root" in value or "bodies" in value)
+
+
+def _upstream_closure_step_ref_ids(process_flow_template, output_step_ref_id):
+    step_ref_ids = {
+        step_ref.get("stepRefId")
+        for step_ref in process_flow_template.get("stepRefs", [])
+    }
+    if output_step_ref_id not in step_ref_ids:
+        raise ValueError(f"Preview source step not found: {output_step_ref_id}")
+
+    reverse_dependencies = {step_ref_id: [] for step_ref_id in step_ref_ids}
+    for edge in process_flow_template.get("flowEdges", []):
+        if (
+            edge.get("source", {}).get("sourceType") == "stepOutput"
+            and edge.get("source", {}).get("stepRefId") in step_ref_ids
+            and edge.get("target", {}).get("stepRefId") in step_ref_ids
+        ):
+            reverse_dependencies[edge["target"]["stepRefId"]].append(edge["source"]["stepRefId"])
+
+    included = set()
+    visiting = set()
+
+    def visit(step_ref_id):
+        if step_ref_id in included:
+            return
+        if step_ref_id in visiting:
+            raise ValueError("Process flow contains a cycle in preview upstream closure")
+        visiting.add(step_ref_id)
+        for upstream_step_ref_id in reverse_dependencies.get(step_ref_id, []):
+            visit(upstream_step_ref_id)
+        visiting.remove(step_ref_id)
+        included.add(step_ref_id)
+
+    visit(output_step_ref_id)
+    return included
+
+
+def _build_preview_flow_template(process_flow_template, included_step_ref_ids, preview_id):
+    step_refs = [
+        step_ref
+        for step_ref in process_flow_template.get("stepRefs", [])
+        if step_ref.get("stepRefId") in included_step_ref_ids
+    ]
+    flow_edges = []
+    for edge in process_flow_template.get("flowEdges", []):
+        if edge.get("target", {}).get("stepRefId") not in included_step_ref_ids:
+            continue
+        if (
+            edge.get("source", {}).get("sourceType") == "geometryRef"
+            or edge.get("source", {}).get("stepRefId") in included_step_ref_ids
+        ):
+            flow_edges.append(edge)
+
+    return {
+        **dict(process_flow_template),
+        "id": f"{process_flow_template.get('id', 'flow')}__preview__{preview_id}",
+        "stepRefs": step_refs,
+        "flowEdges": flow_edges,
+    }
+
+
+def _build_preview_flow_instance(process_flow_instance, preview_template, preview_id):
+    included_step_ref_ids = {
+        step_ref.get("stepRefId")
+        for step_ref in preview_template.get("stepRefs", [])
+    }
+    return {
+        **dict(process_flow_instance),
+        "id": f"{process_flow_instance.get('id', 'instance')}__preview__{preview_id}",
+        "processFlowTemplateId": preview_template["id"],
+        "stepValueSets": [
+            value_set
+            for value_set in process_flow_instance.get("stepValueSets", [])
+            if value_set.get("stepRefId") in included_step_ref_ids
+        ],
+    }
+
+
+def _object_repository(item):
+    class ObjectRepository:
+        def get_by_id(self, id_):
+            return item if item.get("id") == id_ else None
+
+    return ObjectRepository()

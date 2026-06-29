@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "process-flow-api"
+version = "0.1.0"
+description = "FastAPI service for process-flow templates, instances, geometry, and preview execution."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.7",
+  "process-flow-kernel",
+  "process-flow-steps",
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx>=0.27",
+  "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+process_flow_api = ["fixtures/*.json"]

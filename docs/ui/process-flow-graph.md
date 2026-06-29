@@ -42,7 +42,7 @@ Graph UI 不負責：
 - Step instance field dialog content。
 - Geometry picker content。
 - Status strip copy 與 validation priority。
-- Save、export、abort 或 localStorage persistence。
+- Save、export、abort 或 backend persistence。
 - Domain validation，例如 wafer geometry 是否被接到語意正確的 field。
 
 Geometry library 與 step template library 是上層 editor 的 UI，不屬於 Graph UI core。

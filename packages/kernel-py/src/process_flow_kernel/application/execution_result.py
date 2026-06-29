@@ -16,5 +16,8 @@ class GeometryKernelExecutionResult:
         output = self._step_outputs.get(step_ref_id)
         return None if output is None else deep_copy(output)
 
+    def step_outputs(self):
+        return deep_copy(self._step_outputs)
+
     def terminal_step_ref_ids(self):
         return list(self._terminal_step_ref_ids)

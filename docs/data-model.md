@@ -388,8 +388,8 @@ overlap 的 ownership 或 priority 語意。
 2. `version`：人閱讀以及UI顯示 version
 3. `name`：人閱讀以及UI顯示 process name
 4. `category`：階層式 category，用來描述這個 process step 是什麼種類，例如 Bounding.TCP。Category 是給 UI 搜尋、瀏覽與建立 template 時使用的主要分類。
-5. `program`：runtime process program 的 module path，格式為相對 `src/process/` 的 extensionless path，例如 `assembly/die_attach/step_tpl_die_attach`。
-    - `program` 不使用絕對路徑、`..`、空 segment 或 `.js` 副檔名。
+5. `program`：runtime process program 的 module path，格式為相對 Python `process_flow_steps` package 的 extensionless path，例如 `layer/molding` 或 `bump/bga_bump_formation`。
+    - `program` 不使用絕對路徑、`..`、空 segment 或檔案副檔名。
     - Path segment 只使用英文字母、數字、`_` 與 `-`。
     - 多個 process step template 可以共用同一個 `program`。
 6. `description`：用於描述此物件來源用途等資訊，並且提供在UI顯示。
@@ -541,7 +541,7 @@ ProcessStepTemplate JSON 範本：
         - 不允許重複 coordinate pair；相同 `[x, y]` 只可保存一次。
         - `coordinates` 只支援 `controlType: "coordinateList"`。
         - `coordinateList` UI 可提供不同輸入方式，例如手動新增 x/y rows，或由 browser 端 GDS file import 填入同一份 coordinate list。
-        - GDS import 使用 browser File API 讀取使用者選取的本機檔案，並在 user side 完成解析與轉換；GDS file 不上傳 server，也不保存到 localStorage。
+        - GDS import 使用 browser File API 讀取使用者選取的本機檔案，並在 user side 完成解析與轉換；GDS file 不上傳 server，也不保存到 process flow instance payload。
         - `coordinates` 目前不使用 `validation`；`minItems`、`maxItems`、coordinate range 或其他座標限制不由目前 schema 表達。
     8. `fieldGroupArray`：用來定義一種特殊 valueType。依據現有 fieldDefinition 定義一組 參數組 。
         - 此欄位設計目的主要是用於像 RDL layer，會有好幾層，每層有個別 厚度、材料 與 metal density (或 real pattern)。如果一層一層建 RDL 會帶來兩個問題，一是這讓 engineer感覺很煩，二則是只要有不同 RDL layer 就需要產生不同 process flow template，但往往不同 tech 我們才建立不同 flow template。因此引入此可以讓使用者調整參數組數量的 valueType

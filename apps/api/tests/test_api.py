@@ -1,0 +1,214 @@
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+import process_flow_api.main as api_main
+from process_flow_api.main import create_app
+
+
+class ProcessFlowApiTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.app = create_app(db_path=Path(self.tmp.name) / "test.sqlite3")
+        self.client = TestClient(self.app)
+
+    def tearDown(self):
+        self.app.state.store.close()
+        self.tmp.cleanup()
+
+    def seed(self):
+        response = self.client.post("/api/admin/seed", json={"mode": "reset"})
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def test_health_and_seed_bootstrap(self):
+        self.assertEqual(self.client.get("/api/health").json(), {"status": "ok"})
+
+        payload = self.seed()
+
+        self.assertEqual(len(payload["processStepTemplates"]), 13)
+        self.assertEqual(len(payload["processFlowTemplates"]), 2)
+        self.assertEqual(len(payload["processFlowInstances"]), 3)
+        self.assertEqual(len(payload["geometries"]), 5)
+
+    def test_step_template_create_duplicate_and_delete(self):
+        self.seed()
+        template = {
+            "id": "custom_step",
+            "version": "V1.0.0",
+            "name": "Custom step",
+            "category": "custom",
+            "program": "layer/molding",
+            "description": "",
+            "owner": "test",
+            "fieldDefinitions": [
+                {
+                    "id": "main_geometry",
+                    "name": "main_geometry",
+                    "scope": "inputState",
+                    "valueType": "geometryRef",
+                    "controlType": None,
+                    "selectionMode": None,
+                    "unit": None,
+                }
+            ],
+        }
+
+        created = self.client.post("/api/process-step-templates", json=template)
+        self.assertEqual(created.status_code, 201, created.text)
+        duplicate = self.client.post("/api/process-step-templates", json=template)
+        self.assertEqual(duplicate.status_code, 409, duplicate.text)
+        deleted = self.client.delete("/api/process-step-templates/custom_step")
+        self.assertEqual(deleted.status_code, 204, deleted.text)
+        missing = self.client.get("/api/process-step-templates/custom_step")
+        self.assertEqual(missing.status_code, 404, missing.text)
+
+    def test_geometry_import_assigns_id_for_preview_json(self):
+        self.seed()
+        geometry = {
+            "id": None,
+            "category": "preview.generated",
+            "entityType": "preview",
+            "name": "Preview Artifact",
+            "version": None,
+            "owner": None,
+            "description": "generated",
+            "structureFormat": "standard",
+            "structure": simple_structure(),
+        }
+
+        response = self.client.post("/api/geometries", json=geometry)
+
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertTrue(response.json()["id"].startswith("geom_preview_artifact_"))
+
+    def test_create_from_template_instance(self):
+        bootstrap = self.seed()
+        source = bootstrap["processFlowInstances"][0]
+        instance = {**source, "id": "flow_inst_test_copy", "name": "Test Copy"}
+
+        response = self.client.post("/api/process-flow-instances", json=instance)
+
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["id"], "flow_inst_test_copy")
+
+    def test_create_template_and_bound_instance_transaction(self):
+        self.seed()
+        template = {
+            "id": "flow_tpl_transaction_test",
+            "name": "Transaction Test",
+            "version": "V1.0.0",
+            "description": "",
+            "owner": "test",
+            "stepRefs": [
+                {
+                    "stepRefId": "molding",
+                    "processStepTemplateId": "step_tpl_molding_1_0_0",
+                }
+            ],
+            "flowEdges": [
+                {
+                    "edgeId": "edge_input_to_molding",
+                    "source": {"sourceType": "geometryRef"},
+                    "target": {"stepRefId": "molding", "targetFieldId": "main_geometry"},
+                }
+            ],
+        }
+        instance = {
+            "id": "flow_inst_transaction_test",
+            "name": "Transaction Test Instance",
+            "processFlowTemplateId": "flow_tpl_transaction_test",
+            "stepValueSets": [
+                {
+                    "stepRefId": "molding",
+                    "processStepTemplateId": "step_tpl_molding_1_0_0",
+                    "fieldValues": [
+                        {"fieldId": "main_geometry", "value": "geom_example_panel"},
+                        {"fieldId": "material", "value": "EMC"},
+                        {"fieldId": "thickness", "value": 10},
+                    ],
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/process-flow-template-instances",
+            json={"processFlowTemplate": template, "processFlowInstance": instance},
+        )
+
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["processFlowTemplate"]["id"], template["id"])
+        self.assertEqual(response.json()["processFlowInstance"]["id"], instance["id"])
+
+    def test_execute_saved_instance(self):
+        self.seed()
+
+        response = self.client.post("/api/process-flow-instances/flow_inst_cowosl_demo_hbm4_alpha/execute")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertIn("geometryStructure", payload)
+        self.assertIn("terminalStepRefIds", payload)
+        self.assertGreater(len(payload["stepOutputs"]), 0)
+
+    def test_preview_and_step_export(self):
+        bootstrap = self.seed()
+        flow_template = bootstrap["processFlowTemplates"][0]
+        draft_instance = bootstrap["processFlowInstances"][0]
+
+        preview = self.client.post(
+            "/api/geometry-preview",
+            json={
+                "target": {"type": "edge", "previewEdgeId": "edge_cowosl_panel_to_pnp_main"},
+                "sourceLabel": "Panel input",
+                "flowTemplate": flow_template,
+                "draftInstance": draft_instance,
+            },
+        )
+        self.assertEqual(preview.status_code, 200, preview.text)
+        preview_payload = preview.json()
+        self.assertIn("glbBase64", preview_payload)
+        self.assertEqual(preview_payload["geometryEntityJson"]["entityType"], "preview")
+
+        step = self.client.post(
+            "/api/geometry-preview/step",
+            json={"geometryStructure": preview_payload["geometryEntityJson"]["structure"]},
+        )
+        self.assertEqual(step.status_code, 200, step.text)
+        self.assertIn("stepBase64", step.json())
+
+
+def simple_structure():
+    return {
+        "schemaVersion": "1.0.0",
+        "unitSystem": "um",
+        "root": {
+            "key": "test",
+            "bodies": [
+                {
+                    "geometry": {
+                        "type": "BoxGeometry",
+                        "bottom_left": [0, 0, 0],
+                        "top_right": [10, 10, 0],
+                        "thk": 1,
+                    },
+                    "material": "test",
+                }
+            ],
+            "vias": [],
+            "circuits": [],
+            "bumps": [],
+            "children": [],
+        },
+    }
+
+def tearDownModule():
+    api_main.app.state.store.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
