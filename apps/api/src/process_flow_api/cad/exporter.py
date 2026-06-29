@@ -371,9 +371,8 @@ class CadQueryConverter:
             raise CadExportError("CadQuery OCP GLB modules are unavailable.") from error
 
         # CadQuery's high-level GLTF exporter rotates +Z-up models to glTF's
-        # conventional +Y-up coordinate system. The Process Flow viewer is Z-up,
-        # matching the geometry structure and the previous exporter path, so write
-        # CAF directly and intentionally keep coordinates unchanged.
+        # conventional +Y-up coordinate system. The Process Flow geometry contract
+        # and viewer are Z-up, so write CAF directly and keep coordinates unchanged.
         _, doc = toCAF(
             assembly,
             True,
@@ -398,16 +397,12 @@ class CadQueryConverter:
         except ImportError as error:
             raise CadExportError("CadQuery OCP STEP modules are unavailable.") from error
 
-        _call_static(STEPControl_Controller, "Init")
-        _call_static(STEPCAFControl_Controller, "Init")
+        STEPControl_Controller.Init_s()
+        STEPCAFControl_Controller.Init_s()
         schema = "AP242DIS" if self.options.step_schema.upper() == "AP242" else self.options.step_schema
-        set_cval = getattr(Interface_Static, "SetCVal_s", None) or getattr(
-            Interface_Static,
-            "SetCVal",
-        )
-        if set_cval("write.step.schema", schema) is False:
+        if Interface_Static.SetCVal_s("write.step.schema", schema) is False:
             raise CadExportError(f"Unsupported STEP schema: {self.options.step_schema}")
-        if set_cval("write.step.unit", self._step_unit(unit_system)) is False:
+        if Interface_Static.SetCVal_s("write.step.unit", self._step_unit(unit_system)) is False:
             raise CadExportError(f"Unsupported STEP unit system: {unit_system}")
 
     @staticmethod
@@ -550,11 +545,6 @@ def _get_number_attr(value: Any, name: str) -> float:
     attr = getattr(value, name)
     resolved = attr() if callable(attr) else attr
     return float(resolved)
-
-
-def _call_static(owner: Any, name: str) -> Any:
-    method = getattr(owner, f"{name}_s", None) or getattr(owner, name)
-    return method()
 
 
 def material_color_hex(material: Any) -> str:

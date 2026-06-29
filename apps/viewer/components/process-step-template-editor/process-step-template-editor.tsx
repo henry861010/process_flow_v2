@@ -39,7 +39,6 @@ type ValueType =
   | "boolean"
   | "materialRef"
   | "geometryRef"
-  | "geometry"
   | "coordinates"
   | "fieldGroupArray"
   | "string[]"
@@ -51,7 +50,6 @@ type ControlType =
   | "number"
   | "checkbox"
   | "select"
-  | "geometry"
   | "repeater"
   | "coordinateList"
   | null;
@@ -135,7 +133,6 @@ const valueTypes: ValueType[] = [
   "materialRef",
   "materialRef[]",
   "geometryRef",
-  "geometry",
   "coordinates",
   "fieldGroupArray",
 ];
@@ -143,7 +140,6 @@ const valueTypes: ValueType[] = [
 const childValueTypes: ValueType[] = valueTypes.filter(
   (valueType) =>
     valueType !== "geometryRef" &&
-    valueType !== "geometry" &&
     valueType !== "coordinates" &&
     valueType !== "fieldGroupArray",
 );
@@ -2051,8 +2047,6 @@ function defaultControlForValueType(valueType: ValueType): ControlType {
       return "checkbox";
     case "geometryRef":
       return null;
-    case "geometry":
-      return "geometry";
     case "coordinates":
       return "coordinateList";
     case "fieldGroupArray":
@@ -2084,8 +2078,6 @@ function legalControlsForValueType(valueType: ValueType): ControlType[] {
       return ["select", "checkbox"];
     case "geometryRef":
       return [null];
-    case "geometry":
-      return ["geometry"];
     case "coordinates":
       return ["coordinateList"];
     case "fieldGroupArray":
@@ -2390,12 +2382,11 @@ function validateFieldDefinition({
   if (
     isChild &&
     (valueType === "geometryRef" ||
-      valueType === "geometry" ||
       valueType === "coordinates" ||
       valueType === "fieldGroupArray")
   ) {
     errors[`${path}.valueType`] =
-      "Repeater child fields cannot use geometryRef, geometry, coordinates, or fieldGroupArray.";
+      "Repeater child fields cannot use geometryRef, coordinates, or fieldGroupArray.";
   }
 
   if (!isLegalCombination(valueType, controlType, selectionMode)) {

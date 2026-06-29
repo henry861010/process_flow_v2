@@ -358,7 +358,7 @@ def _find_field_value(field_values, field_id):
 
 
 def _is_geometry_field(field):
-    return field.get("valueType") in ("geometryRef", "geometry")
+    return field.get("valueType") == "geometryRef"
 
 
 def _build_values(field_definitions, field_values):

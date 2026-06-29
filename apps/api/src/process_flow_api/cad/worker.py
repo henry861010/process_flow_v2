@@ -5,14 +5,14 @@ import sys
 import traceback
 from pathlib import Path
 
-from .cad_exporter import CadExportError, export_cad_bytes
+from .exporter import CadExportError, export_cad_bytes
 
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) != 3:
         print(
-            "Usage: python -m process_flow_api.cad_export_worker "
+            "Usage: python -m process_flow_api.cad.worker "
             "<format> <input-json> <output-file>",
             file=sys.stderr,
         )

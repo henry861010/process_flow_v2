@@ -19,7 +19,6 @@ async def export_geometry(
     format: Literal["glb", "step"],
     timeout_seconds: int | None = None,
 ) -> bytes:
-    repo_root = _repo_root()
     timeout = timeout_seconds or int(
         os.environ.get("GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS", DEFAULT_EXPORT_TIMEOUT_SECONDS)
     )
@@ -30,17 +29,13 @@ async def export_geometry(
         output_path = work_dir / f"preview.{format}"
         input_path.write_text(json.dumps(geometry_structure), encoding="utf-8")
 
-        env = os.environ.copy()
-        env["PYTHONPATH"] = _worker_pythonpath(repo_root, env.get("PYTHONPATH"))
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-m",
-            "process_flow_api.cad_export_worker",
+            "process_flow_api.cad.worker",
             format,
             str(input_path),
             str(output_path),
-            cwd=str(repo_root),
-            env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -58,19 +53,3 @@ async def export_geometry(
             raise RuntimeError(f"Geometry {format} export failed with exit code {process.returncode}")
 
         return output_path.read_bytes()
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
-
-
-def _worker_pythonpath(repo_root: Path, existing: str | None) -> str:
-    paths = [
-        repo_root / "apps" / "api" / "src",
-        repo_root / "packages" / "kernel-py" / "src",
-        repo_root / "packages" / "process-step-py" / "src",
-    ]
-    values = [str(path) for path in paths]
-    if existing:
-        values.append(existing)
-    return os.pathsep.join(values)

@@ -349,15 +349,6 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(preview["outputStepRefId"], "molding")
         self.assertEqual(preview["geometryStructure"]["root"]["bodies"][2]["material"], "EMC-A")
 
-    def test_kernel_accepts_legacy_geometry_value_type(self):
-        template = real_molding_step_template()
-        template["fieldDefinitions"][0]["valueType"] = "geometry"
-        kernel = create_kernel(process_step_templates=[template])
-
-        geometry = kernel.execute("flow_inst_kernel_test").geometry()
-
-        self.assertEqual(geometry["root"]["bodies"][1]["material"], "EMC-A")
-
     def test_kernel_imports_and_executes_real_rdl_step(self):
         kernel = create_kernel(
             process_step_templates=[real_rdl_step_template()],

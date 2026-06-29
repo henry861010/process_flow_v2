@@ -4,7 +4,7 @@ import json
 import struct
 import unittest
 
-from process_flow_api.cad_exporter import CadExportError, convert_cad_bodies, export_cad_bytes
+from process_flow_api.cad import CadExportError, convert_cad_bodies, export_cad_bytes
 
 
 class CadExporterTests(unittest.TestCase):

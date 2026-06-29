@@ -50,7 +50,6 @@ type ValueType =
   | "boolean"
   | "materialRef"
   | "geometryRef"
-  | "geometry"
   | "coordinates"
   | "fieldGroupArray"
   | "string[]"
@@ -64,7 +63,6 @@ type ControlType =
   | "select"
   | "repeater"
   | "coordinateList"
-  | "geometry"
   | null;
 type SelectionMode = "single" | "multiple" | null;
 
@@ -2501,7 +2499,7 @@ function getGeometryInputFields(template: ProcessStepTemplate) {
 }
 
 function isGeometryField(field: FieldDefinition) {
-  return field.valueType === "geometryRef" || field.valueType === "geometry";
+  return field.valueType === "geometryRef";
 }
 
 function isSelectedGeometryValid(

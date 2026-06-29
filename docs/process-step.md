@@ -525,14 +525,7 @@ Template metadata：
 | --- | --- | --- | --- |
 | `main_geometry` | `geometryRef` | `inputState` | 接收 die placement 結果的主 geometry state。 |
 | `die_geometry` | `geometryRef` | `inputState` | 要被複製並放置到 `main_geometry` 上的 die geometry state。 |
-| `coordinates` | `fieldGroupArray` | `processParameter` | Die placement 座標清單。每個 item 使用 `bottemLeftX`、`bottemLeftY` 表示 die copy 的左下角目標 XY 座標。 |
-
-`coordinates` repeater child fields：
-
-| Field id | Value type | Unit | Description |
-| --- | --- | --- | --- |
-| `bottemLeftX` | `float` | `um` | Die copy 左下角目標 X 座標。 |
-| `bottemLeftY` | `float` | `um` | Die copy 左下角目標 Y 座標。 |
+| `coordinates` | `coordinates` | `processParameter` | Die placement 座標清單。Instance value 是 `number[][]`，每個 item 是 `[x, y]`，代表 die copy 的左下角目標 XY 座標。 |
 
 實作行為：
 
@@ -553,8 +546,8 @@ Template metadata：
   `Container`、`Body`、`Via`、`Circuit`、`Bump`。
 - 多顆 die 使用同一份 `die_geometry` input，透過 `placeGeometryState()` 的
   default clone 行為避免重複 placement 時互相污染。
-- `coordinates` 欄位 id 依目前需求使用 `bottemLeftX` / `bottemLeftY` 拼法；
-  runtime module 也接受 `bottomLeftX` / `bottomLeftY` 作為相容 fallback。
+- `coordinates` 僅接受 `number[][]`；每個座標 item 必須是固定長度為 2 的
+  `[x, y]` tuple。
 - Geometry kernel 在單次 flow execution 期間保留 upstream step output 的
   runtime `ProcessGeometryState`，最後回傳 API/result 時才序列化成
   `GeometryStructure`。這讓 PnP 後的 downstream step 可以看到 PnP 未改變的

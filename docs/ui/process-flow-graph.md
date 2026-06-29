@@ -174,14 +174,12 @@ Graph UI 將每個 top-level geometry input field 視為 target input slot。
 目前 viewer 實作的判斷是：
 
 ```ts
-field.valueType === "geometryRef" || field.valueType === "geometry"
+field.valueType === "geometryRef"
 ```
 
 文件中若為了描述 dataflow source type 使用 `geometryRef`，指的是 saved
 `flowEdges[].source.sourceType` 的 initial geometry source；若描述 process step
-template field，則應理解為 top-level geometry-compatible field，也就是
-`valueType: "geometryRef"` 或 `valueType: "geometry"`。目前 seed data 使用
-`valueType: "geometry"` 搭配 `controlType: "geometry"`。
+template field，則指 `valueType: "geometryRef"` 的 top-level geometry input field。
 
 規則：
 
@@ -520,8 +518,7 @@ Step template palette item：
 - Badge 顯示 `N geometry slots`；若有 repeater field，再顯示 `repeater` signal badge。
 - 若 template 沒有 top-level geometry input slot，整張 card disabled，title 是
   `This template has no top-level geometryRef input slot.`
-  這是目前 UI 的實際 title 文案；判斷條件仍是 geometry-compatible field
-  (`geometryRef` 或 `geometry`)。
+  這是目前 UI 的實際 title 文案；判斷條件是 top-level `geometryRef` field。
 - Enabled title 是 `Click to add, or drag to the whiteboard`。
 
 Click-to-add placement：

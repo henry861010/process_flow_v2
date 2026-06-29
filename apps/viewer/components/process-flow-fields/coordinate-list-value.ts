@@ -5,17 +5,15 @@ export type CoordinatePair = [number, number];
 export const COORDINATE_DUPLICATE_TOLERANCE = 1e-6;
 
 export function normalizeCoordinateRows(value: unknown): CoordinateDraftRow[] {
-  if (Array.isArray(value)) {
-    return value.map((item) => {
-      if (!Array.isArray(item)) {
-        return ["", ""];
-      }
-      return [toDraftCell(item[0]), toDraftCell(item[1])];
-    });
+  if (!Array.isArray(value)) {
+    return [];
   }
-
-  const legacyRows = legacyRepeaterCoordinateRows(value);
-  return legacyRows ?? [];
+  return value.map((item) => {
+    if (!Array.isArray(item)) {
+      return ["", ""];
+    }
+    return [toDraftCell(item[0]), toDraftCell(item[1])];
+  });
 }
 
 export function coordinateListValueIsComplete(value: unknown) {
@@ -78,45 +76,4 @@ function toDraftCell(value: unknown): CoordinateDraftCell {
     return Number.isFinite(parsed) ? parsed : "";
   }
   return "";
-}
-
-function legacyRepeaterCoordinateRows(value: unknown): CoordinateDraftRow[] | null {
-  if (!value || typeof value !== "object" || !("items" in value)) {
-    return null;
-  }
-  const items = (value as { items?: unknown }).items;
-  if (!Array.isArray(items)) {
-    return null;
-  }
-  return items.map((item) => {
-    const fieldValues =
-      item && typeof item === "object" && "fieldValues" in item
-        ? (item as { fieldValues?: unknown }).fieldValues
-        : null;
-    if (!Array.isArray(fieldValues)) {
-      return ["", ""];
-    }
-    return [
-      toDraftCell(findLegacyFieldValue(fieldValues, "bottemLeftX", "bottomLeftX")),
-      toDraftCell(findLegacyFieldValue(fieldValues, "bottemLeftY", "bottomLeftY")),
-    ];
-  });
-}
-
-function findLegacyFieldValue(
-  fieldValues: unknown[],
-  primaryFieldId: string,
-  fallbackFieldId: string,
-) {
-  const target = fieldValues.find(
-    (fieldValue) =>
-      fieldValue &&
-      typeof fieldValue === "object" &&
-      "fieldId" in fieldValue &&
-      ((fieldValue as { fieldId?: unknown }).fieldId === primaryFieldId ||
-        (fieldValue as { fieldId?: unknown }).fieldId === fallbackFieldId),
-  );
-  return target && typeof target === "object" && "value" in target
-    ? (target as { value?: unknown }).value
-    : undefined;
 }

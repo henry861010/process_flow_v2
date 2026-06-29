@@ -43,8 +43,7 @@ class Dragger:
             ``nodes[:node_num]`` and each row is ``[x, y, z]``.
         node_ids (numpy.ndarray): External ids for valid 3D nodes.
         element_2D (numpy.ndarray): Source 2D quad connectivity.
-        element_2D_volumn (numpy.ndarray): XY area for each 2D element. The
-            legacy field name is kept as ``volumn`` for compatibility.
+        element_2D_volume (numpy.ndarray): XY area for each 2D element.
         element_2D_comp (numpy.ndarray): Temporary per-layer component id for
             each 2D element. ``0`` means ``EMPTY`` and is not extruded.
         node_2D (numpy.ndarray): Source 2D node coordinates as ``[x, y]``.
@@ -70,7 +69,7 @@ class Dragger:
         
         ### process
         self.element_2D = np.zeros((0, 4), dtype=np.int32)
-        self.element_2D_volumn = np.empty((0), dtype=np.float64)
+        self.element_2D_volume = np.empty((0), dtype=np.float64)
         self.element_2D_comp = np.empty((0), dtype=np.int32)
         self.element_2D_priority = np.empty((0), dtype=np.float64)
         
@@ -88,12 +87,12 @@ class Dragger:
         
         self.element_2D = elements
         self.element_2D_comp = np.zeros(len(elements), dtype=np.int32)
-        self.element_2D_volumn = np.empty(len(elements), dtype=np.float64)
+        self.element_2D_volume = np.empty(len(elements), dtype=np.float64)
         self.element_2D_priority = np.zeros(len(elements), dtype=np.float64)
         self.node_2D = nodes[:,:2]
         self.node_2D_to_3D = np.zeros(len(nodes), dtype=np.int32) - 1
         
-        self._cal_volumns()
+        self._cal_volumes()
         
     ### buffer growth
     def _pre_allocate_nodes(self, size: int = 1):
@@ -136,15 +135,11 @@ class Dragger:
             self.element_comps = np.concatenate([self.element_comps, np.empty(extra, dtype=np.int32)])
         
     ### core
-    def _cal_volumns(self):
+    def _cal_volumes(self):
         """Calculate XY area for every source 2D quadrilateral element.
 
         Returns:
-            None: Results are written to ``self.element_2D_volumn``.
-
-        Notes:
-            The legacy field name ``volumn`` is preserved in the public state,
-            but the value is the 2D face area used for density calculations.
+            None: Results are written to ``self.element_2D_volume``.
         """
         corner_xy = self.node_2D[self.element_2D]
 
@@ -155,12 +150,12 @@ class Dragger:
         x4, y4 = corner_xy[:, 3, 0], corner_xy[:, 3, 1]
 
         # Shoelace formula for quadrilateral
-        voulmn = 0.5 * np.abs(
+        volume = 0.5 * np.abs(
             x1*y2 + x2*y3 + x3*y4 + x4*y1 -
             (y1*x2 + y2*x3 + y3*x4 + y4*x1)
         )
 
-        self.element_2D_volumn = voulmn.astype(np.float64, copy=False)
+        self.element_2D_volume = volume.astype(np.float64, copy=False)
         
     def _normalize_element_indices(self, indices=None):
         """Normalize optional element indices into a 1D int32 array.
@@ -242,7 +237,7 @@ class Dragger:
         if density == 0:
             return np.empty((0), dtype=np.int32)
             
-        volumes = self.element_2D_volumn[indices]
+        volumes = self.element_2D_volume[indices]
         target_indices = np.arange(len(volumes), dtype=np.int32)
         
         # target volume
@@ -330,7 +325,7 @@ class Dragger:
                 sub_indices = potential_indices[mask]
                 
                 ### total volume
-                total_volume = np.sum(self.element_2D_volumn[sub_indices])
+                total_volume = np.sum(self.element_2D_volume[sub_indices])
                 target_indices = self._assign_metal(sub_indices, density, total_volume, randomSeed=layer*100000+index)
                     
                 ### get (new) material
