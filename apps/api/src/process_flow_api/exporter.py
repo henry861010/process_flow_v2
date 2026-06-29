@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Literal
@@ -19,9 +20,6 @@ async def export_geometry(
     timeout_seconds: int | None = None,
 ) -> bytes:
     repo_root = _repo_root()
-    worker_path = repo_root / "apps" / "viewer" / "scripts" / "geometry-export-worker.mjs"
-    exporter_path = repo_root / "src" / "exporters" / "cad.js"
-    node_path = os.environ.get("PROCESS_FLOW_NODE", "node")
     timeout = timeout_seconds or int(
         os.environ.get("GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS", DEFAULT_EXPORT_TIMEOUT_SECONDS)
     )
@@ -32,14 +30,17 @@ async def export_geometry(
         output_path = work_dir / f"preview.{format}"
         input_path.write_text(json.dumps(geometry_structure), encoding="utf-8")
 
+        env = os.environ.copy()
+        env["PYTHONPATH"] = _worker_pythonpath(repo_root, env.get("PYTHONPATH"))
         process = await asyncio.create_subprocess_exec(
-            node_path,
-            str(worker_path),
+            sys.executable,
+            "-m",
+            "process_flow_api.cad_export_worker",
             format,
             str(input_path),
             str(output_path),
-            str(exporter_path),
-            cwd=str(repo_root / "apps" / "viewer"),
+            cwd=str(repo_root),
+            env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -61,3 +62,15 @@ async def export_geometry(
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
+
+
+def _worker_pythonpath(repo_root: Path, existing: str | None) -> str:
+    paths = [
+        repo_root / "apps" / "api" / "src",
+        repo_root / "packages" / "kernel-py" / "src",
+        repo_root / "packages" / "process-step-py" / "src",
+    ]
+    values = [str(path) for path in paths]
+    if existing:
+        values.append(existing)
+    return os.pathsep.join(values)

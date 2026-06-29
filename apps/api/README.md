@@ -18,8 +18,7 @@ Important environment variables:
 | --- | --- | --- |
 | `PROCESS_FLOW_API_DB_PATH` | `apps/api/.data/process-flow.sqlite3` | SQLite file path. |
 | `PROCESS_FLOW_API_CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001` | Comma-separated browser origins allowed by CORS. |
-| `PROCESS_FLOW_NODE` | `node` | Node executable used for CAD export worker calls. |
-| `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` | Timeout for each GLB or STEP worker export. |
+| `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` | Timeout for each GLB or STEP Python CAD worker export. |
 | `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://localhost:8000` | Viewer-side API base URL. |
 
 The OpenAPI UI is available at `/docs` when the service is running.

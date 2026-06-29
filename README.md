@@ -7,7 +7,7 @@ The project models two immutable resource families:
 - Process templates: `ProcessStepTemplate` and `ProcessFlowTemplate` define reusable step programs and flow topology.
 - Process instances: `ProcessFlowInstance` binds a template to concrete TV/Product geometry selections and field values.
 
-The current service path is FastAPI + SQLite + Python kernel. CAD export is still provided by the JavaScript OpenCascade exporter and is called from FastAPI through an isolated Node worker.
+The current service path is FastAPI + SQLite + Python kernel. CAD export is provided by a Python CadQuery/OCP exporter and is called from FastAPI through an isolated Python worker.
 
 ## Repository Layout
 
@@ -17,8 +17,6 @@ The current service path is FastAPI + SQLite + Python kernel. CAD export is stil
 | `apps/viewer` | Next.js viewer and flow editor UI. |
 | `packages/kernel-py` | Python geometry kernel, flow validation, geometry hydration, repositories, and preview execution. |
 | `packages/process-step-py` | Python process step implementations resolved by `ProcessStepTemplate.program`. |
-| `src/data` | JavaScript geometry data helpers used by the CAD exporter path. |
-| `src/exporters/cad.js` | JavaScript OpenCascade.js GLB/STEP exporter kept for CAD output. |
 | `docs` | Product, data-model, UI, and runtime notes. |
 
 ## Local Startup
@@ -78,7 +76,6 @@ Run the main checks from the repository root:
 
 ```bash
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
-venv/bin/python -m unittest apps/api/tests/test_api.py
+venv/bin/python -m unittest discover apps/api/tests
 cd apps/viewer && npm run build
-cd ../../src && npm test
 ```

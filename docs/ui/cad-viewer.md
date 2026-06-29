@@ -557,8 +557,8 @@ Viewer does not support：
 | `apps/viewer/components/geometry-preview/geometry-feature-overlay.tsx` | Geometry JSON feature extraction、summaries、feature envelopes、hatches 與 instanced density glyphs。 |
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Preview GLB 與 preview snapshot STEP API client helpers。 |
 | `apps/api/src/process_flow_api/main.py` | FastAPI preview execution routes and response assembly。 |
-| `apps/api/src/process_flow_api/exporter.py` | Preview GLB and STEP AP242 export bridge to the JavaScript CAD worker。 |
-| `apps/viewer/scripts/geometry-export-worker.mjs` | Isolated OpenCascade.js worker used by FastAPI。 |
-| `src/exporters/cad.js` | JavaScript CAD conversion implementation。 |
+| `apps/api/src/process_flow_api/exporter.py` | Preview GLB and STEP AP242 export bridge to the Python CAD worker。 |
+| `apps/api/src/process_flow_api/cad_export_worker.py` | Isolated Python CadQuery/OCP worker used by FastAPI。 |
+| `apps/api/src/process_flow_api/cad_exporter.py` | Python CAD conversion implementation。 |
 | `apps/viewer/components/ui/*` | Shared UI primitives。 |
 | `apps/viewer/app/globals.css` | Tailwind base styles 與 viewer surface styling。 |

@@ -9,7 +9,7 @@ Geometry Preview is an overlay used inside the process flow editors. It is not a
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Overlay shell, loading/error/ready state, download actions. |
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Client helpers for FastAPI preview and STEP export calls. |
 | `apps/api/src/process_flow_api/main.py` | Preview request validation, Python kernel execution, response assembly. |
-| `apps/api/src/process_flow_api/exporter.py` | GLB and STEP export through the JavaScript CAD worker. |
+| `apps/api/src/process_flow_api/exporter.py` | GLB and STEP export through the Python CadQuery/OCP worker. |
 
 The preview UI stays separate from the flow graph component. The graph owns topology and field editing; the preview overlay owns rendering and download behavior.
 
@@ -220,7 +220,7 @@ FastAPI validates the request, then calls the Python kernel's preview execution 
 - `stepOutput` preview executes the upstream steps needed to produce that source output.
 - Terminal step output preview executes the requested step's upstream closure.
 
-FastAPI then calls the JavaScript CAD exporter worker to convert the resulting `geometryStructure` into GLB or STEP.
+FastAPI then calls the Python CadQuery/OCP exporter worker to convert the resulting `geometryStructure` into GLB or STEP.
 
 ## Ownership Boundaries
 
@@ -230,6 +230,6 @@ FastAPI then calls the JavaScript CAD exporter worker to convert the resulting `
 | Preview client | Sends draft data to FastAPI and manages overlay state. |
 | FastAPI | Validates request, calls Python kernel, bridges CAD export. |
 | Python kernel | Resolves flow graph and process step execution. |
-| JavaScript CAD exporter | Converts geometry structure to GLB or STEP AP242. |
+| Python CAD exporter | Converts geometry structure to GLB or STEP AP242. |
 
 General UI code should treat `GeometryEntity.structure` as an opaque payload and pass it to preview/export/viewer code when needed.
