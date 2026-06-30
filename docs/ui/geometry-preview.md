@@ -384,7 +384,7 @@ FastAPI validates the request, then calls the Python kernel's preview execution 
 
 FastAPI calls the Python CadQuery/OCP exporter worker to convert the resulting `geometryStructure` into GLB or STEP.
 
-CDB export jobs use the same ready preview snapshot. Job creation does not re-run preview execution. The backend queues the job in memory, runs the Python mesher worker, writes the generated text CDB artifact to the normalized output path, and updates job state for polling.
+CDB export jobs use the same ready preview snapshot. Job creation does not re-run preview execution. The backend queues the job in memory, runs the Python mesher worker, builds a `Dragger`, calls `Dragger.write(path)`, and updates job state for polling.
 
 The text CDB artifact records mesh arrays in deterministic sections:
 
@@ -404,6 +404,6 @@ The text CDB artifact records mesh arrays in deterministic sections:
 | FastAPI | Validates request, calls Python kernel, bridges CAD export and CDB job creation. |
 | Python kernel | Resolves flow graph and process step execution. |
 | Python CAD exporter | Converts geometry structure to GLB or STEP AP242. |
-| Python mesher exporter | Converts geometry structure to mesh arrays and writes the text CDB artifact. |
+| Python mesher exporter | Converts geometry structure to a `Dragger` and writes the text CDB artifact through `Dragger.write(path)`. |
 
 General UI code should treat `GeometryEntity.structure` as an opaque payload and pass it to preview/export/viewer code when needed.

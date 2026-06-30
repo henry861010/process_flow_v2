@@ -228,7 +228,7 @@ Response:
 | `POST` | `/api/process-flow-instances/{id}/execute` | Runs a saved instance through the Python kernel. |
 | `POST` | `/api/geometry-preview` | Runs a draft preview and exports GLB. |
 | `POST` | `/api/geometry-preview/step` | Exports a preview snapshot as STEP AP242. |
-| `POST` | `/api/geometry-preview/cdb-jobs` | Starts a server-side placeholder CDB export job from a preview snapshot. |
+| `POST` | `/api/geometry-preview/cdb-jobs` | Starts a server-side text CDB export job from a preview snapshot. |
 | `GET` | `/api/export-jobs?clientId=` | Lists recent export jobs for one client id. |
 | `GET` | `/api/export-jobs/{jobId}?clientId=` | Reads one export job for one client id. |
 | `POST` | `/api/export-jobs/{jobId}/cancel` | Requests cancellation for one export job. |

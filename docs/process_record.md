@@ -60,6 +60,9 @@ If the worker times out, exits non-zero, or fails to produce output, FastAPI ret
 | `packages/cad-py/src/process_flow_cad/worker.py` | Isolated Python worker entry point. |
 | `packages/cad-py/src/process_flow_cad/exporter.py` | CadQuery/OCP geometry conversion and GLB/STEP export implementation. |
 | `packages/mesher-py/src/process_flow_mesher/worker.py` | Isolated Python worker entry point for text CDB export. |
+| `packages/mesher-py/src/process_flow_mesher/builder.py` | Geometry structure to `Dragger` and `MeshResult` conversion. |
+| `packages/mesher-py/src/mesher/dragger.py` | 2.5D mesh extrusion engine and `Dragger.write(path)` text CDB export entry point. |
+| `packages/mesher-py/src/mesher/cdb_writer.py` | Text CDB serialization for mesher-owned mesh arrays. |
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Browser API client helpers for preview and STEP export. |
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay UI and download actions. |
 | `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | CDB export modal for element size and absolute output path. |

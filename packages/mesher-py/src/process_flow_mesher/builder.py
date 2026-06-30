@@ -40,11 +40,33 @@ def build_mesh_from_structure(
     element_size: float,
 ) -> MeshResult:
     """Build a 2.5D hexahedral mesh from a standard geometry structure."""
+    dragger = build_dragger_from_structure(
+        geometry_structure,
+        element_size=element_size,
+    )
+
+    return MeshResult(
+        nodes=np.asarray(dragger.nodes[: dragger.node_num], dtype=np.float64),
+        elements=np.asarray(dragger.elements[: dragger.element_num], dtype=np.int32),
+        element_comps=np.asarray(
+            dragger.element_comps[: dragger.element_num],
+            dtype=np.int32,
+        ),
+        comps=dict(dragger.comps),
+    )
+
+
+def build_dragger_from_structure(
+    geometry_structure: JsonObject,
+    *,
+    element_size: float,
+) -> Dragger:
+    """Build and return a Dragger containing 3D mesh output buffers."""
     normalized_element_size = _positive_finite_number(element_size, "elementSize")
     root = _root_container(geometry_structure)
 
-    # The current translator annotates containers with priority during 3D
-    # pattern extraction, so keep the caller's preview snapshot immutable.
+    # The translator annotates containers with priority during 3D pattern
+    # extraction, so keep the caller's preview snapshot immutable.
     container = copy.deepcopy(root)
     translater = Translater()
     base_face, faces = translater.get_2D_pattern(container)
@@ -68,13 +90,7 @@ def build_mesh_from_structure(
     dragger = Dragger()
     dragger.set_2D(nodes_2d, elements_2d)
     dragger.build(layer_infos, normalized_element_size)
-
-    return MeshResult(
-        nodes=np.asarray(dragger.nodes, dtype=np.float64),
-        elements=np.asarray(dragger.elements, dtype=np.int32),
-        element_comps=np.asarray(dragger.element_comps, dtype=np.int32),
-        comps=dict(dragger.comps),
-    )
+    return dragger
 
 
 def _root_container(geometry_structure: JsonObject) -> JsonObject:
@@ -137,4 +153,3 @@ def _finite_number(value: Any, name: str) -> float:
     if not math.isfinite(number):
         raise ValueError(f"{name} must be a finite number.")
     return number
-

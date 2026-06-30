@@ -10,9 +10,10 @@ Design notes:
       time. Use ``element_num`` and ``node_num`` to read the valid slices.
 """
 
-import json
 import numpy as np
 from matplotlib.path import Path
+
+from .cdb_writer import write_cdb_text
 
 ELEMENT_2D_LEN = 4
 NODE_2D_LEN = 2
@@ -479,3 +480,18 @@ class Dragger:
         if verbose:
             print(f"element_num: {self.element_num}")
             print(f"node_num: {self.node_num}")
+
+    def write(self, path):
+        """Write the generated 3D mesh to a text CDB artifact.
+
+        Only valid rows are exported. Internal buffers may have extra capacity
+        while a mesh is being built, so callers should use this method instead
+        of writing ``self.nodes`` or ``self.elements`` directly.
+        """
+        return write_cdb_text(
+            path,
+            nodes=self.nodes[: self.node_num],
+            elements=self.elements[: self.element_num],
+            element_comps=self.element_comps[: self.element_num],
+            comps=self.comps,
+        )

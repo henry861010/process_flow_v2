@@ -184,7 +184,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(step.status_code, 200, step.text)
         self.assertIn("stepBase64", step.json())
 
-    def test_cdb_export_job_writes_placeholder_file(self):
+    def test_cdb_export_job_writes_text_cdb_file(self):
         output_path = Path(self.tmp.name) / "MODEL.CDB"
 
         response = self.client.post(

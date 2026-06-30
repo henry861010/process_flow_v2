@@ -17,7 +17,7 @@ The current service path is FastAPI + SQLite + Python kernel. CAD export is prov
 | `apps/viewer` | Next.js viewer and flow editor UI. |
 | `packages/cad-py` | Python CadQuery/OCP CAD export package for GLB and STEP AP242. |
 | `packages/kernel-py` | Python geometry kernel, flow validation, geometry hydration, repositories, and preview execution. |
-| `packages/mesher-py` | Python 2.5D mesh generation and placeholder CDB export worker package. |
+| `packages/mesher-py` | Python 2.5D mesh generation and text CDB export worker package. |
 | `packages/process-step-py` | Python process step implementations resolved by `ProcessStepTemplate.program`. |
 | `docs` | Product, data-model, UI, and runtime notes. |
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "process-flow-mesher"
 version = "0.1.0"
-description = "Mesh and placeholder CDB export utilities for process-flow geometry."
+description = "Mesh and text CDB export utilities for process-flow geometry."
 requires-python = ">=3.11"
 dependencies = [
   "matplotlib>=3.8",
