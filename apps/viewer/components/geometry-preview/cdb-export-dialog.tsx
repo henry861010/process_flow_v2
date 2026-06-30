@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Database, Loader2, X } from "lucide-react";
 
 import {
@@ -24,10 +25,15 @@ export function CdbExportDialog({
   onClose: () => void;
   onJobCreated: (job: CdbExportJob) => void;
 }) {
+  const [portalReady, setPortalReady] = React.useState(false);
   const [elementSize, setElementSize] = React.useState("500");
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,8 +73,10 @@ export function CdbExportDialog({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+  if (!portalReady) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
         aria-hidden="true"
         className="absolute inset-0 bg-foreground/35"
@@ -151,7 +159,8 @@ export function CdbExportDialog({
           </Button>
         </footer>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -170,4 +179,3 @@ function validateCdbExportForm(elementSize: number, outputPath: string) {
   }
   return null;
 }
-

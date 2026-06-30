@@ -14,6 +14,7 @@ Users edit topology and instance values in one workflow:
 - Add process step nodes from process step templates.
 - Connect geometry states to target step input slots.
 - Fill the initial instance values.
+- Preview geometry states and track server-side export requests.
 - Save a new flow template and a new instance in one transaction.
 
 Existing templates can be used as a starting point, but they are never updated in place.
@@ -29,6 +30,7 @@ Shared graph behavior is defined in `docs/ui/process-flow-graph.md`. This page o
 - Technology and product metadata form.
 - `Start from template` picker.
 - Step instance dialog behavior for editable topology.
+- Export requests drawer.
 - Save validation and save API call.
 
 ## Technology
@@ -255,6 +257,43 @@ Validation should report the first actionable issue.
 Preview uses the same FastAPI preview contract as the Flow Instance Editor.
 
 The preview request includes the draft template, draft instance, and optional repository snapshots. Preview never saves the draft.
+
+## Export Requests Drawer
+
+The page mounts the shared CDB export requests drawer at the editor root.
+
+The drawer is independent from graph topology editing:
+
+- It is visible before a preview is opened.
+- It remains visible after a preview is closed.
+- It does not participate in topology validation, save output, clear behavior, or `flowEdges[]`.
+- It uses the browser's stable `clientId` to list only that browser's jobs.
+- It receives newly created CDB jobs from the preview overlay through `onCdbJobCreated`.
+- It polls job state through `GET /api/export-jobs?clientId=...`.
+
+Collapsed state:
+
+- Fixed to the right edge at vertical center.
+- Icon-only tab with left chevron and database icon.
+- Active dot appears when any visible job is `queued`, `running`, or `canceling`.
+
+Expanded state:
+
+- Opens from right to left.
+- Width is `min(420px, calc(100vw - 16px))`.
+- Header shows `Export requests`, active or recent count, and `Running` or `Idle`.
+- Body shows an error banner, empty state, and the latest 20 CDB jobs for the browser.
+- Footer states that the drawer is showing the latest 20 requests for this browser.
+
+Job row behavior:
+
+- `queued` and `running` jobs expose a cancel icon button.
+- Terminal jobs remain in the recent list until they age out of the latest 20.
+- Success rows show element count, node count, component count, and duration.
+- Failure rows show a clamped error message in the row.
+- Hovering a row on desktop opens a detail popover to the drawer's left with the full output path, element size, mesh summary, duration, timestamps, job id, full message, and warning.
+
+The CDB export dialog is opened from the Geometry Preview footer. A successful job creation closes the dialog and opens this drawer.
 
 ## Abort
 

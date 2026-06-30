@@ -39,6 +39,8 @@ import { CoordinateListControl } from "@/components/process-flow-fields/coordina
 import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CdbExportJobsPanel } from "@/components/geometry-preview/cdb-export-jobs-panel";
+import type { CdbExportJob } from "@/components/geometry-preview/cdb-export-client";
 import type { GeometryPreviewContext } from "@/components/geometry-preview/geometry-preview-panel";
 import {
   createProcessFlowTemplateInstance,
@@ -60,6 +62,7 @@ const textareaClass =
 type GeometryPreviewPanelProps = {
   preview: GeometryPreviewContext;
   onClose: () => void;
+  onCdbJobCreated?: (job: CdbExportJob) => void;
 };
 
 const GeometryPreviewPanel = dynamic<GeometryPreviewPanelProps>(
@@ -316,6 +319,8 @@ function ProcessFlowTemplateEditorInner() {
   );
   const [geometryPreview, setGeometryPreview] =
     React.useState<GeometryPreviewContext | null>(null);
+  const [cdbJobsRefreshKey, setCdbJobsRefreshKey] = React.useState(0);
+  const [seedCdbJob, setSeedCdbJob] = React.useState<CdbExportJob | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [openGeometryCategories, setOpenGeometryCategories] = React.useState<
     Record<string, boolean>
@@ -359,6 +364,11 @@ function ProcessFlowTemplateEditorInner() {
     () => analyzeGraph(metadata, nodes, edges),
     [metadata, nodes, edges],
   );
+
+  function handleCdbJobCreated(job: CdbExportJob) {
+    setSeedCdbJob(job);
+    setCdbJobsRefreshKey((current) => current + 1);
+  }
 
   const deleteEdge = React.useCallback((edgeId: string) => {
     setEdges((currentEdges) => {
@@ -1280,8 +1290,14 @@ function ProcessFlowTemplateEditorInner() {
         <GeometryPreviewPanel
           preview={geometryPreview}
           onClose={() => setGeometryPreview(null)}
+          onCdbJobCreated={handleCdbJobCreated}
         />
       ) : null}
+
+      <CdbExportJobsPanel
+        refreshKey={cdbJobsRefreshKey}
+        seedJob={seedCdbJob}
+      />
     </main>
   );
 }

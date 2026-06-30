@@ -254,7 +254,7 @@ Panel structure：
 | --- | --- |
 | Header | `Geometry Preview`、status badges、source-to-slot context、close button。 |
 | Body | Shared 3D scene 與 preview-specific right panel。 |
-| Footer | `Save JSON`、`Save GLB` 與 `Save STEP AP242` actions。 |
+| Footer | `Save JSON`、`Save GLB`、`Save STEP AP242`、`Export CDB` actions。 |
 
 Header badges：
 
@@ -278,7 +278,8 @@ Ready state：
 - Generated GLB 被載入 shared scene。
 - Generated geometry JSON 保留在 memory 中供 download。
 - STEP AP242 download 使用同一份 preview geometry snapshot，可能由背景 prefetch 先完成。
-- `Save JSON`、`Save GLB` 與 `Save STEP AP242` enabled。
+- `Save JSON`、`Save GLB`、`Save STEP AP242` 與 `Export CDB` enabled。
+- `Export CDB` 開啟 CDB export dialog，送出後建立 server-side export job，不透過 browser download 傳輸 CDB。
 
 ### 6.2 Preview Layout
 
@@ -556,6 +557,9 @@ Viewer does not support：
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay shell、preview CAD workbench、download actions、section controls、axis view 與 feature overlay settings。 |
 | `apps/viewer/components/geometry-preview/geometry-feature-overlay.tsx` | Geometry JSON feature extraction、summaries、feature envelopes、hatches 與 instanced density glyphs。 |
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Preview GLB 與 preview snapshot STEP API client helpers。 |
+| `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | CDB export element size 與 absolute output path modal。 |
+| `apps/viewer/components/geometry-preview/cdb-export-jobs-panel.tsx` | Editor-level export request drawer、polling、cancel 與 hover detail。 |
+| `apps/viewer/components/geometry-preview/cdb-export-client.ts` | Browser client id、CDB job create/list/cancel API helpers。 |
 | `apps/api/src/process_flow_api/main.py` | FastAPI preview execution routes and response assembly。 |
 | `apps/api/src/process_flow_api/exporter.py` | Preview GLB and STEP AP242 export bridge to the Python CAD worker。 |
 | `packages/cad-py/src/process_flow_cad/worker.py` | Isolated Python CadQuery/OCP worker used by FastAPI。 |

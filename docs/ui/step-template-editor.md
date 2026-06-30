@@ -36,7 +36,7 @@ Delete removes only the process step template record. Existing flow templates ma
 
 ## Export
 
-Export downloads the currently loaded `ProcessStepTemplate[]` as JSON.
+Export downloads the loaded `ProcessStepTemplate[]` as JSON.
 
 Export behavior:
 

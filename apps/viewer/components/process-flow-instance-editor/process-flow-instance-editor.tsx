@@ -26,6 +26,8 @@ import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
 } from "@/components/geometry-preview/geometry-preview-panel";
+import { CdbExportJobsPanel } from "@/components/geometry-preview/cdb-export-jobs-panel";
+import type { CdbExportJob } from "@/components/geometry-preview/cdb-export-client";
 import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-graph";
 import { CoordinateListControl } from "@/components/process-flow-fields/coordinate-list-control";
 import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
@@ -282,6 +284,8 @@ function ProcessFlowInstanceEditorInner() {
     React.useState<string | null>(null);
   const [geometryPreview, setGeometryPreview] =
     React.useState<GeometryPreviewContext | null>(null);
+  const [cdbJobsRefreshKey, setCdbJobsRefreshKey] = React.useState(0);
+  const [seedCdbJob, setSeedCdbJob] = React.useState<CdbExportJob | null>(null);
   const [apiError, setApiError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -308,6 +312,11 @@ function ProcessFlowInstanceEditorInner() {
 
   const selectedTemplate =
     templates.find((template) => template.id === selectedTemplateId) ?? null;
+
+  function handleCdbJobCreated(job: CdbExportJob) {
+    setSeedCdbJob(job);
+    setCdbJobsRefreshKey((current) => current + 1);
+  }
 
   const analysis = React.useMemo(
     () =>
@@ -862,8 +871,14 @@ function ProcessFlowInstanceEditorInner() {
         <GeometryPreviewPanel
           preview={geometryPreview}
           onClose={() => setGeometryPreview(null)}
+          onCdbJobCreated={handleCdbJobCreated}
         />
       ) : null}
+
+      <CdbExportJobsPanel
+        refreshKey={cdbJobsRefreshKey}
+        seedJob={seedCdbJob}
+      />
     </main>
   );
 }

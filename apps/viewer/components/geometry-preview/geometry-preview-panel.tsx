@@ -19,7 +19,6 @@ import {
   type GeometryPreviewRequest,
 } from "@/components/geometry-preview/geometry-preview-client";
 import { CdbExportDialog } from "@/components/geometry-preview/cdb-export-dialog";
-import { CdbExportJobsPanel } from "@/components/geometry-preview/cdb-export-jobs-panel";
 import type { CdbExportJob } from "@/components/geometry-preview/cdb-export-client";
 import {
   GeometryFeatureOverlay,
@@ -83,9 +82,11 @@ const DEFAULT_FEATURE_MAX_INSTANCES = 10000;
 export function GeometryPreviewPanel({
   preview,
   onClose,
+  onCdbJobCreated,
 }: {
   preview: GeometryPreviewContext;
   onClose: () => void;
+  onCdbJobCreated?: (job: CdbExportJob) => void;
 }) {
   const [state, setState] = React.useState<PanelState>({ status: "loading" });
   const [stepError, setStepError] = React.useState<string | null>(null);
@@ -94,8 +95,6 @@ export function GeometryPreviewPanel({
   const stepDownloadInFlightRef = React.useRef(false);
   const mountedRef = React.useRef(true);
   const [cdbDialogOpen, setCdbDialogOpen] = React.useState(false);
-  const [cdbJobsRefreshKey, setCdbJobsRefreshKey] = React.useState(0);
-  const [seedCdbJob, setSeedCdbJob] = React.useState<CdbExportJob | null>(null);
 
   const abortStepExport = React.useCallback(() => {
     const current = stepExportRef.current;
@@ -240,8 +239,7 @@ export function GeometryPreviewPanel({
   }
 
   function handleCdbJobCreated(job: CdbExportJob) {
-    setSeedCdbJob(job);
-    setCdbJobsRefreshKey((current) => current + 1);
+    onCdbJobCreated?.(job);
   }
 
   return (
@@ -334,10 +332,6 @@ export function GeometryPreviewPanel({
           onJobCreated={handleCdbJobCreated}
         />
       ) : null}
-      <CdbExportJobsPanel
-        refreshKey={cdbJobsRefreshKey}
-        seedJob={seedCdbJob}
-      />
     </div>
   );
 }
