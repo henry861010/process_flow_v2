@@ -19,6 +19,7 @@ Important environment variables:
 | `PROCESS_FLOW_API_DB_PATH` | `apps/api/.data/process-flow.sqlite3` | SQLite file path. |
 | `PROCESS_FLOW_API_CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001` | Comma-separated browser origins allowed by CORS. |
 | `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` | Timeout for each GLB or STEP Python CAD worker export. |
+| `CDB_EXPORT_MAX_CONCURRENT_JOBS` | `1` | Maximum number of in-memory CDB export jobs running at once. |
 | `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://localhost:8000` | Viewer-side API base URL. |
 
 The OpenAPI UI is available at `/docs` when the service is running.
@@ -227,6 +228,10 @@ Response:
 | `POST` | `/api/process-flow-instances/{id}/execute` | Runs a saved instance through the Python kernel. |
 | `POST` | `/api/geometry-preview` | Runs a draft preview and exports GLB. |
 | `POST` | `/api/geometry-preview/step` | Exports a preview snapshot as STEP AP242. |
+| `POST` | `/api/geometry-preview/cdb-jobs` | Starts a server-side placeholder CDB export job from a preview snapshot. |
+| `GET` | `/api/export-jobs?clientId=` | Lists recent export jobs for one client id. |
+| `GET` | `/api/export-jobs/{jobId}?clientId=` | Reads one export job for one client id. |
+| `POST` | `/api/export-jobs/{jobId}/cancel` | Requests cancellation for one export job. |
 
 Execute response:
 
@@ -298,6 +303,37 @@ STEP response:
 ```json
 {
   "stepBase64": "..."
+}
+```
+
+CDB job request:
+
+```json
+{
+  "clientId": "browser-generated-client-token",
+  "geometryStructure": {},
+  "elementSize": 500,
+  "outputPath": "/absolute/path/model.cdb",
+  "sourceLabel": "Panel -> main_geometry"
+}
+```
+
+The `outputPath` must be absolute and use a `.cdb` suffix. A `.CDB` suffix is
+accepted and normalized to `.cdb`. The parent folder must already exist. CDB job
+state is stored in memory for the current API process only, and list responses
+are filtered by `clientId`.
+
+CDB job response:
+
+```json
+{
+  "job": {
+    "jobId": "cdb_...",
+    "clientId": "browser-generated-client-token",
+    "kind": "cdb",
+    "status": "queued",
+    "outputPath": "/absolute/path/model.cdb"
+  }
 }
 ```
 

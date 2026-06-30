@@ -15,6 +15,7 @@ This record describes the active geometry preview path from the viewer to FastAP
 7. FastAPI calls the isolated Python CAD worker to export the `geometryStructure` as GLB through CadQuery/OCP.
 8. FastAPI base64-encodes the generated GLB and returns `{ geometryEntityJson, glbBase64 }`.
 9. The preview panel can call `POST /api/geometry-preview/step` with the same `geometryEntityJson.structure` to generate STEP AP242 without re-running the kernel.
+10. The preview panel can call `POST /api/geometry-preview/cdb-jobs` with the same `geometryEntityJson.structure` to start a server-side CDB export job without re-running the kernel.
 
 ## Child Process Export
 
@@ -53,7 +54,10 @@ If the worker times out, exits non-zero, or fails to produce output, FastAPI ret
 | --- | --- |
 | `apps/api/src/process_flow_api/main.py` | FastAPI routes, request validation, kernel calls, response assembly. |
 | `apps/api/src/process_flow_api/exporter.py` | Python CAD worker orchestration for GLB and STEP export. |
+| `apps/api/src/process_flow_api/cdb_jobs.py` | In-memory CDB export job queue, polling state, cancellation, and cleanup. |
+| `apps/api/src/process_flow_api/cdb_exporter.py` | Python mesher worker subprocess orchestration for CDB jobs. |
 | `packages/cad-py/src/process_flow_cad/worker.py` | Isolated Python worker entry point. |
 | `packages/cad-py/src/process_flow_cad/exporter.py` | CadQuery/OCP geometry conversion and GLB/STEP export implementation. |
+| `packages/mesher-py/src/process_flow_mesher/worker.py` | Isolated Python worker entry point for placeholder CDB export. |
 | `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Browser API client helpers for preview and STEP export. |
 | `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay UI and download actions. |

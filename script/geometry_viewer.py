@@ -1,12 +1,15 @@
 import sys
 import json
 import argparse
-sys.path.append("/Users/henry/Desktop/code/process_flow_v2/packages/mesher-py/src/translater/")
-from translater_standard_v1 import Translater
-sys.path.append("/Users/henry/Desktop/code/process_flow_v2/packages/mesher-py/src/mesher/")
-from dragger import Dragger
-from checkerboard import checkerboard_box
-from vision import Vision
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MESHER_SRC = REPO_ROOT / "packages" / "mesher-py" / "src"
+if str(MESHER_SRC) not in sys.path:
+    sys.path.append(str(MESHER_SRC))
+
+from mesher.vision import Vision
+from process_flow_mesher import build_mesh_from_structure
 
 parser = argparse.ArgumentParser(description="The geoemtry strcuture viewer")
 parser.add_argument("-json", '--json', type=str, help="The path to the input json.")
@@ -15,36 +18,10 @@ args = parser.parse_args()
 
 with open(args.json, 'r') as file:
     data = json.load(file)
-    container = data["structure"]["root"]
+    structure = data["structure"] if "structure" in data else data
 
-translater = Translater()
-
-base_face, faces = translater.get_2D_pattern(container)
-x_list = [base_face["dim"][0], base_face["dim"][2]]
-y_list = [base_face["dim"][1], base_face["dim"][3]]
-for face in faces:
-  # box
-  if face["type"] == "BOX":
-    x_list.append(face["dim"][0])
-    x_list.append(face["dim"][2])
-    y_list.append(face["dim"][1])
-    y_list.append(face["dim"][3])
-  
-  # polygon
-  elif face["type"] == "POLYGON":
-    for poly in face["dim"]:
-      for node in poly:
-        x_list.append(node[0])
-        y_list.append(node[1])
-  
-nodes, elements = checkerboard_box(args.element_size, x_list, y_list)
-
-layer_infos = translater.get_3D_pattern(container)
-
-dragger = Dragger()
-dragger.set_2D(nodes, elements)
-dragger.build(layer_infos, args.element_size)
+mesh = build_mesh_from_structure(structure, element_size=args.element_size)
 
 vision = Vision()
-vision.set(dragger.comps, dragger.elements, dragger.element_comps, dragger.nodes)
+vision.set(mesh.comps, mesh.elements, mesh.element_comps, mesh.nodes)
 vision.show()

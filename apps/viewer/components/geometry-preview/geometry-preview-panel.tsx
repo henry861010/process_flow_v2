@@ -18,6 +18,9 @@ import {
   type GeometryEntityDownload,
   type GeometryPreviewRequest,
 } from "@/components/geometry-preview/geometry-preview-client";
+import { CdbExportDialog } from "@/components/geometry-preview/cdb-export-dialog";
+import { CdbExportJobsPanel } from "@/components/geometry-preview/cdb-export-jobs-panel";
+import type { CdbExportJob } from "@/components/geometry-preview/cdb-export-client";
 import {
   GeometryFeatureOverlay,
   extractPreviewFeatures,
@@ -90,6 +93,9 @@ export function GeometryPreviewPanel({
   const stepBlobRef = React.useRef<Blob | null>(null);
   const stepDownloadInFlightRef = React.useRef(false);
   const mountedRef = React.useRef(true);
+  const [cdbDialogOpen, setCdbDialogOpen] = React.useState(false);
+  const [cdbJobsRefreshKey, setCdbJobsRefreshKey] = React.useState(0);
+  const [seedCdbJob, setSeedCdbJob] = React.useState<CdbExportJob | null>(null);
 
   const abortStepExport = React.useCallback(() => {
     const current = stepExportRef.current;
@@ -233,6 +239,11 @@ export function GeometryPreviewPanel({
     }
   }
 
+  function handleCdbJobCreated(job: CdbExportJob) {
+    setSeedCdbJob(job);
+    setCdbJobsRefreshKey((current) => current + 1);
+  }
+
   return (
     <div className="fixed inset-0 z-50 p-3 sm:p-6">
       <div
@@ -304,8 +315,29 @@ export function GeometryPreviewPanel({
             <Download />
             Save STEP AP242
           </Button>
+          <Button
+            variant="outline"
+            disabled={!ready}
+            onClick={() => setCdbDialogOpen(true)}
+          >
+            <Download />
+            Export CDB
+          </Button>
         </footer>
       </section>
+
+      {cdbDialogOpen && state.status === "ready" ? (
+        <CdbExportDialog
+          geometryStructure={state.geometryEntityJson.structure}
+          sourceLabel={`${preview.sourceLabel} -> ${preview.slotLabel}`}
+          onClose={() => setCdbDialogOpen(false)}
+          onJobCreated={handleCdbJobCreated}
+        />
+      ) : null}
+      <CdbExportJobsPanel
+        refreshKey={cdbJobsRefreshKey}
+        seedJob={seedCdbJob}
+      />
     </div>
   );
 }

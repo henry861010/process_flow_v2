@@ -345,7 +345,7 @@ def _geometry_to_z(geometry, isStart=True):
         return z
     
     if geometry["type"] == "CylinderGeometry":
-        return geometry["center"][2] 
+        z = geometry["center"][2]
         if not isStart:
             z += geometry["thk"]
         return z

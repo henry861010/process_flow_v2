@@ -220,6 +220,12 @@ class Dragger:
                 mask = np.logical_xor(mask, element_mask_sub)
 
             return mask
+        elif face_type == "CIRCLE":
+            center_x, center_y, radius = face_dim
+            dx = element_coordinates[:, :, 0] - center_x
+            dy = element_coordinates[:, :, 1] - center_y
+            distance_squared = dx * dx + dy * dy
+            return np.all(distance_squared <= (radius + tolerance) ** 2, axis=1)
         else:
             raise ValueError(f"The face type {face_type} is not supported by Dragger")
         
@@ -438,7 +444,7 @@ class Dragger:
         self.node_2D_to_3D[:] = -1
         self.node_2D_to_3D[node2D_idx] = layer_nodes[-1]
         
-    def build(self, layer_infos, element_size):
+    def build(self, layer_infos, element_size, *, verbose=False):
         """Build 3D mesh data from process object definitions.
 
         Args:
@@ -470,5 +476,6 @@ class Dragger:
         self.nodes = self.nodes[:self.node_num]
         self.node_ids = self.node_ids[:self.node_num]
         
-        print(f"element_num: {self.element_num}")
-        print(f"node_num: {self.node_num}")
+        if verbose:
+            print(f"element_num: {self.element_num}")
+            print(f"node_num: {self.node_num}")

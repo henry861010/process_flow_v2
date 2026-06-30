@@ -132,6 +132,18 @@ class GeometryPreviewStepRequest(BaseModel):
     geometryStructure: JsonObject
 
 
+class CdbExportJobCreateRequest(BaseModel):
+    clientId: str = Field(min_length=1, max_length=160)
+    geometryStructure: JsonObject
+    elementSize: float
+    outputPath: str = Field(min_length=1)
+    sourceLabel: str | None = None
+
+
+class ExportJobCancelRequest(BaseModel):
+    clientId: str = Field(min_length=1, max_length=160)
+
+
 class ExecuteInstanceResponse(BaseModel):
     geometryStructure: JsonObject
     stepOutputs: JsonObject
@@ -145,3 +157,30 @@ class GeometryPreviewResponse(BaseModel):
 
 class GeometryPreviewStepResponse(BaseModel):
     stepBase64: str
+
+
+class ExportJob(BaseModel):
+    jobId: str
+    clientId: str
+    kind: Literal["cdb"]
+    status: Literal["queued", "running", "success", "failed", "canceling", "canceled"]
+    sourceLabel: str | None = None
+    outputPath: str
+    elementSize: float | None = None
+    createdAt: str
+    startedAt: str | None = None
+    finishedAt: str | None = None
+    durationSeconds: float | None = None
+    nodeCount: int | None = None
+    elementCount: int | None = None
+    componentCount: int | None = None
+    message: str | None = None
+    warning: str | None = None
+
+
+class ExportJobResponse(BaseModel):
+    job: ExportJob
+
+
+class ExportJobListResponse(BaseModel):
+    jobs: list[ExportJob]

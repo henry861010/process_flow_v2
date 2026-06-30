@@ -73,7 +73,7 @@ Close actions:
 | Header | Title, source/target context, status badge, close button. |
 | Main viewport | Generated GLB in the shared CAD viewer scene. |
 | Side controls | Section, camera, grid, and axes controls reused from CAD viewer behavior. |
-| Footer actions | `Save JSON`, `Save GLB`, `Save STEP AP242`. |
+| Footer actions | `Save JSON`, `Save GLB`, `Save STEP AP242`, `Export CDB`. |
 
 The panel should feel like an engineering inspection tool: dense, legible, and restrained.
 
@@ -128,8 +128,12 @@ Viewer controls should include:
 | `Save JSON` | Import-ready `GeometryEntity` JSON with `id: null`. |
 | `Save GLB` | Generated binary GLB. |
 | `Save STEP AP242` | STEP AP242 generated from the preview snapshot. |
+| `Export CDB` | Server-side placeholder CDB export job written to an absolute `.cdb` path. |
 
 Downloads are local browser downloads. They do not create database records.
+`Export CDB` does not download through the browser. It starts a server-side job
+that writes directly to the requested absolute path and appears in the preview
+request list.
 
 `Save STEP AP242` calls:
 
@@ -207,6 +211,30 @@ STEP response:
 ```json
 {
   "stepBase64": "..."
+}
+```
+
+CDB job request:
+
+```json
+{
+  "clientId": "browser-generated-client-token",
+  "geometryStructure": {},
+  "elementSize": 500,
+  "outputPath": "/absolute/path/model.cdb",
+  "sourceLabel": "Panel -> main_geometry"
+}
+```
+
+CDB job response:
+
+```json
+{
+  "job": {
+    "jobId": "cdb_...",
+    "status": "queued",
+    "outputPath": "/absolute/path/model.cdb"
+  }
 }
 ```
 

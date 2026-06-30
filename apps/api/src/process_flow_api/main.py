@@ -4,17 +4,23 @@ import base64
 import os
 import re
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from process_flow_kernel import GeometryKernel, InMemoryRepository, validate_flow_graph
 
+from .cdb_jobs import CdbExportJobManager
 from .exporter import export_geometry
 from .models import (
+    CdbExportJobCreateRequest,
     ExecuteInstanceResponse,
+    ExportJobCancelRequest,
+    ExportJobListResponse,
+    ExportJobResponse,
     GeometryEntity,
     GeometryPreviewRequest,
     GeometryPreviewResponse,
@@ -33,8 +39,9 @@ JsonObject = dict[str, Any]
 
 
 def create_app(*, db_path: str | Path | None = None) -> FastAPI:
-    app = FastAPI(title="Process Flow API", version="0.1.0")
+    app = FastAPI(title="Process Flow API", version="0.1.0", lifespan=app_lifespan)
     app.state.store = SQLiteStore(db_path or default_db_path())
+    app.state.export_jobs = CdbExportJobManager()
 
     app.add_middleware(
         CORSMiddleware,
@@ -206,7 +213,45 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         step_bytes = await export_geometry(body.geometryStructure, format="step")
         return {"stepBase64": base64.b64encode(step_bytes).decode("ascii")}
 
+    @app.post("/api/geometry-preview/cdb-jobs", response_model=ExportJobResponse)
+    async def create_geometry_preview_cdb_job(body: CdbExportJobCreateRequest):
+        job = await app.state.export_jobs.create_cdb_job(
+            client_id=body.clientId,
+            geometry_structure=body.geometryStructure,
+            element_size=body.elementSize,
+            output_path=body.outputPath,
+            source_label=body.sourceLabel,
+        )
+        return {"job": job}
+
+    @app.get("/api/export-jobs", response_model=ExportJobListResponse)
+    async def list_export_jobs(clientId: str):
+        jobs = await app.state.export_jobs.list_jobs(client_id=clientId)
+        return {"jobs": jobs}
+
+    @app.get("/api/export-jobs/{job_id}", response_model=ExportJobResponse)
+    async def get_export_job(job_id: str, clientId: str):
+        job = await app.state.export_jobs.get_job(job_id=job_id, client_id=clientId)
+        if job is None:
+            raise NotFoundError(job_id)
+        return {"job": job}
+
+    @app.post("/api/export-jobs/{job_id}/cancel", response_model=ExportJobResponse)
+    async def cancel_export_job(job_id: str, body: ExportJobCancelRequest):
+        job = await app.state.export_jobs.cancel_job(job_id=job_id, client_id=body.clientId)
+        if job is None:
+            raise NotFoundError(job_id)
+        return {"job": job}
+
     return app
+
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    try:
+        yield
+    finally:
+        await app.state.export_jobs.shutdown()
 
 
 def default_db_path() -> Path:

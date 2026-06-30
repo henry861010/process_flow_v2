@@ -17,6 +17,7 @@ The current service path is FastAPI + SQLite + Python kernel. CAD export is prov
 | `apps/viewer` | Next.js viewer and flow editor UI. |
 | `packages/cad-py` | Python CadQuery/OCP CAD export package for GLB and STEP AP242. |
 | `packages/kernel-py` | Python geometry kernel, flow validation, geometry hydration, repositories, and preview execution. |
+| `packages/mesher-py` | Python 2.5D mesh generation and placeholder CDB export worker package. |
 | `packages/process-step-py` | Python process step implementations resolved by `ProcessStepTemplate.program`. |
 | `docs` | Product, data-model, UI, and runtime notes. |
 
@@ -35,7 +36,7 @@ Python packages:
 ```bash
 python3 -m venv venv
 venv/bin/pip install --upgrade pip
-venv/bin/pip install -e packages/kernel-py -e packages/process-step-py -e packages/cad-py -e 'apps/api[test]'
+venv/bin/pip install -e packages/kernel-py -e packages/process-step-py -e packages/cad-py -e packages/mesher-py -e 'apps/api[test]'
 ```
 
 Start the API:
@@ -81,9 +82,11 @@ Important environment variables:
 | `PROCESS_FLOW_API_CORS_ORIGINS` | `http://localhost:3001,http://<frontend-host>:3001` | Browser origins allowed by FastAPI CORS. |
 | `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://<api-host>:8000` | Viewer-side API base URL. |
 | `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` | Timeout for each GLB or STEP CAD worker export. |
+| `CDB_EXPORT_MAX_CONCURRENT_JOBS` | `1` | Maximum number of in-memory CDB export jobs running at once. |
 
 `apps/api` depends on the repository-local packages
-`packages/kernel-py`, `packages/process-step-py`, and `packages/cad-py`; install
+`packages/kernel-py`, `packages/process-step-py`, `packages/cad-py`, and
+`packages/mesher-py`; install
 them together in every new environment.
 
 ## Data And Seed

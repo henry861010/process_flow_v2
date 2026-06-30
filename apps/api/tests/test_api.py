@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -14,9 +15,11 @@ class ProcessFlowApiTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.app = create_app(db_path=Path(self.tmp.name) / "test.sqlite3")
-        self.client = TestClient(self.app)
+        self.client_context = TestClient(self.app)
+        self.client = self.client_context.__enter__()
 
     def tearDown(self):
+        self.client_context.__exit__(None, None, None)
         self.app.state.store.close()
         self.tmp.cleanup()
 
@@ -181,6 +184,92 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(step.status_code, 200, step.text)
         self.assertIn("stepBase64", step.json())
 
+    def test_cdb_export_job_writes_placeholder_file(self):
+        output_path = Path(self.tmp.name) / "MODEL.CDB"
+
+        response = self.client.post(
+            "/api/geometry-preview/cdb-jobs",
+            json={
+                "clientId": "client-a",
+                "geometryStructure": simple_structure(),
+                "elementSize": 5,
+                "outputPath": str(output_path),
+                "sourceLabel": "Unit test",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        job = wait_for_export_job(self.client, response.json()["job"]["jobId"], "client-a")
+        normalized_output_path = Path(self.tmp.name) / "MODEL.cdb"
+        self.assertEqual(job["status"], "success", job)
+        self.assertEqual(job["outputPath"], str(normalized_output_path))
+        self.assertGreater(job["nodeCount"], 0)
+        self.assertGreater(job["elementCount"], 0)
+        self.assertTrue(normalized_output_path.exists())
+        content = normalized_output_path.read_text(encoding="utf-8")
+        self.assertIn("*NODES,index,x,y,z", content)
+        self.assertIn("*ELEMENTS,index,n0,n1,n2,n3,n4,n5,n6,n7", content)
+        self.assertIn("*COMPS,component_id,name", content)
+
+    def test_cdb_export_job_rejects_non_cdb_extension(self):
+        response = self.client.post(
+            "/api/geometry-preview/cdb-jobs",
+            json={
+                "clientId": "client-a",
+                "geometryStructure": simple_structure(),
+                "elementSize": 5,
+                "outputPath": str(Path(self.tmp.name) / "mesh.txt"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn(".cdb", response.json()["message"])
+
+    def test_cdb_export_jobs_are_filtered_by_client_id(self):
+        response = self.client.post(
+            "/api/geometry-preview/cdb-jobs",
+            json={
+                "clientId": "client-a",
+                "geometryStructure": simple_structure(),
+                "elementSize": 5,
+                "outputPath": str(Path(self.tmp.name) / "mesh.cdb"),
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+
+        own_jobs = self.client.get("/api/export-jobs?clientId=client-a")
+        other_jobs = self.client.get("/api/export-jobs?clientId=client-b")
+
+        self.assertEqual(own_jobs.status_code, 200, own_jobs.text)
+        self.assertEqual(other_jobs.status_code, 200, other_jobs.text)
+        self.assertGreaterEqual(len(own_jobs.json()["jobs"]), 1)
+        self.assertEqual(other_jobs.json()["jobs"], [])
+
+    def test_cdb_export_job_cancel_queued(self):
+        self.app.state.export_jobs.max_concurrent_jobs = 0
+        output_path = Path(self.tmp.name) / "queued.cdb"
+        response = self.client.post(
+            "/api/geometry-preview/cdb-jobs",
+            json={
+                "clientId": "client-a",
+                "geometryStructure": simple_structure(),
+                "elementSize": 5,
+                "outputPath": str(output_path),
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        job_id = response.json()["job"]["jobId"]
+        self.assertEqual(response.json()["job"]["status"], "queued")
+
+        cancel = self.client.post(
+            f"/api/export-jobs/{job_id}/cancel",
+            json={"clientId": "client-a"},
+        )
+
+        self.assertEqual(cancel.status_code, 200, cancel.text)
+        self.assertEqual(cancel.json()["job"]["status"], "canceled")
+        self.assertFalse(output_path.exists())
+
 
 def simple_structure():
     return {
@@ -205,6 +294,18 @@ def simple_structure():
             "children": [],
         },
     }
+
+
+def wait_for_export_job(client: TestClient, job_id: str, client_id: str):
+    for _ in range(80):
+        response = client.get(f"/api/export-jobs/{job_id}?clientId={client_id}")
+        if response.status_code != 200:
+            raise AssertionError(response.text)
+        job = response.json()["job"]
+        if job["status"] in {"success", "failed", "canceled"}:
+            return job
+        time.sleep(0.1)
+    raise AssertionError(f"Timed out waiting for export job {job_id}")
 
 def tearDownModule():
     api_main.app.state.store.close()
