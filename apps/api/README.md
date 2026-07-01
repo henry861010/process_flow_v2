@@ -148,15 +148,11 @@ Selection UI should treat `structure` as opaque. Kernel, viewer, and exporter co
 | --- | --- | --- |
 | `GET` | `/api/health` | Returns `{ "status": "ok" }`. |
 | `GET` | `/api/bootstrap` | Returns all step templates, flow templates, flow instances, and geometries. |
-| `POST` | `/api/admin/seed` | Seeds fixtures and returns the bootstrap payload. |
+| `POST` | `/api/reset` | Clears resource tables, reloads fixture data, and returns the bootstrap payload. |
 
-`POST /api/admin/seed` body:
-
-```json
-{ "mode": "ifEmpty" }
-```
-
-`mode` may be `ifEmpty` or `reset`.
+The API initializes the SQLite database with fixture data on startup when all
+resource tables are empty. Frontend bootstrap reads data through
+`GET /api/bootstrap` and does not trigger database writes.
 
 Bootstrap response:
 

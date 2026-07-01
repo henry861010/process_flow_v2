@@ -22,10 +22,7 @@ Home reads from the FastAPI backend through `apps/viewer/lib/process-flow-api.ts
 On page load, Home calls:
 
 ```http
-POST /api/admin/seed
-Content-Type: application/json
-
-{ "mode": "ifEmpty" }
+GET /api/bootstrap
 ```
 
 The response is the bootstrap payload:
@@ -38,8 +35,6 @@ The response is the bootstrap payload:
   "geometries": []
 }
 ```
-
-The same payload shape is also returned by `GET /api/bootstrap`.
 
 Home uses the payload as follows:
 
@@ -68,8 +63,8 @@ The database file is local runtime state and is ignored by git.
 
 Seed behavior:
 
-- `mode: "ifEmpty"` writes fixtures only when all resource tables are empty.
-- `mode: "reset"` clears the four resource tables and reloads fixtures.
+- API startup writes fixtures only when all resource tables are empty.
+- `POST /api/reset` clears the four resource tables and reloads fixtures.
 - Reset returns the fresh bootstrap payload and Home refreshes its table from that response.
 
 ## Seed Data

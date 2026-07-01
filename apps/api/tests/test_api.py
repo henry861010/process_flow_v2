@@ -23,23 +23,58 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.app.state.store.close()
         self.tmp.cleanup()
 
-    def seed(self):
-        response = self.client.post("/api/admin/seed", json={"mode": "reset"})
+    def reset_poc_data(self):
+        response = self.client.post("/api/reset")
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
-    def test_health_and_seed_bootstrap(self):
-        self.assertEqual(self.client.get("/api/health").json(), {"status": "ok"})
-
-        payload = self.seed()
-
+    def assert_seed_payload_counts(self, payload):
         self.assertEqual(len(payload["processStepTemplates"]), 13)
         self.assertEqual(len(payload["processFlowTemplates"]), 2)
         self.assertEqual(len(payload["processFlowInstances"]), 3)
         self.assertEqual(len(payload["geometries"]), 5)
 
+    def test_health_and_startup_bootstrap(self):
+        self.assertEqual(self.client.get("/api/health").json(), {"status": "ok"})
+
+        response = self.client.get("/api/bootstrap")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assert_seed_payload_counts(response.json())
+
+    def test_existing_empty_database_is_seeded_on_startup(self):
+        with tempfile.TemporaryDirectory() as tmp_name:
+            db_path = Path(tmp_name) / "existing-empty.sqlite3"
+            db_path.touch()
+            app = create_app(db_path=db_path)
+            try:
+                with TestClient(app) as client:
+                    response = client.get("/api/bootstrap")
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assert_seed_payload_counts(response.json())
+            finally:
+                app.state.store.close()
+
+    def test_reset_reloads_poc_data(self):
+        source = self.client.get("/api/bootstrap").json()["processFlowInstances"][0]
+        instance = {**source, "id": "flow_inst_reset_test", "name": "Reset Test"}
+        created = self.client.post("/api/process-flow-instances", json=instance)
+        self.assertEqual(created.status_code, 201, created.text)
+
+        payload = self.reset_poc_data()
+
+        self.assert_seed_payload_counts(payload)
+        self.assertNotIn(
+            "flow_inst_reset_test",
+            {instance["id"] for instance in payload["processFlowInstances"]},
+        )
+
+    def test_admin_seed_endpoint_is_removed(self):
+        response = self.client.post("/api/admin/seed", json={"mode": "reset"})
+
+        self.assertEqual(response.status_code, 404, response.text)
+
     def test_step_template_create_duplicate_and_delete(self):
-        self.seed()
+        self.reset_poc_data()
         template = {
             "id": "custom_step",
             "version": "V1.0.0",
@@ -71,7 +106,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 404, missing.text)
 
     def test_geometry_import_assigns_id_for_preview_json(self):
-        self.seed()
+        self.reset_poc_data()
         geometry = {
             "id": None,
             "category": "preview.generated",
@@ -90,7 +125,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertTrue(response.json()["id"].startswith("geom_preview_artifact_"))
 
     def test_create_from_template_instance(self):
-        bootstrap = self.seed()
+        bootstrap = self.reset_poc_data()
         source = bootstrap["processFlowInstances"][0]
         instance = {**source, "id": "flow_inst_test_copy", "name": "Test Copy"}
 
@@ -100,7 +135,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.json()["id"], "flow_inst_test_copy")
 
     def test_create_template_and_bound_instance_transaction(self):
-        self.seed()
+        self.reset_poc_data()
         template = {
             "id": "flow_tpl_transaction_test",
             "name": "Transaction Test",
@@ -148,7 +183,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.json()["processFlowInstance"]["id"], instance["id"])
 
     def test_execute_saved_instance(self):
-        self.seed()
+        self.reset_poc_data()
 
         response = self.client.post("/api/process-flow-instances/flow_inst_cowosl_demo_hbm4_alpha/execute")
 
@@ -159,7 +194,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertGreater(len(payload["stepOutputs"]), 0)
 
     def test_preview_and_step_export(self):
-        bootstrap = self.seed()
+        bootstrap = self.reset_poc_data()
         flow_template = bootstrap["processFlowTemplates"][0]
         draft_instance = bootstrap["processFlowInstances"][0]
 

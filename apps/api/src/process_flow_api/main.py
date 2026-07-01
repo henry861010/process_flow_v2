@@ -29,7 +29,6 @@ from .models import (
     ProcessFlowInstance,
     ProcessFlowTemplate,
     ProcessStepTemplate,
-    SeedRequest,
     TemplateInstanceCreateRequest,
 )
 from .repository import DuplicateItemError, KernelRepository, NotFoundError, SQLiteStore
@@ -72,10 +71,10 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         store = get_store(request)
         return bootstrap_payload(store)
 
-    @app.post("/api/admin/seed")
-    async def seed(request: Request, body: SeedRequest):
+    @app.post("/api/reset")
+    async def reset(request: Request):
         store = get_store(request)
-        store.seed(load_seed_fixtures(), reset=body.mode == "reset")
+        store.seed(load_seed_fixtures(), reset=True)
         return bootstrap_payload(store)
 
     @app.get("/api/process-step-templates")
@@ -248,6 +247,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
+    app.state.store.seed(load_seed_fixtures(), reset=False)
     try:
         yield
     finally:

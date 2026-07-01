@@ -46,13 +46,8 @@ PROCESS_FLOW_API_CORS_ORIGINS=http://localhost:3001 \
 venv/bin/uvicorn process_flow_api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Seed the demo database after the API is running:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/admin/seed \
-  -H "Content-Type: application/json" \
-  -d '{"mode":"ifEmpty"}'
-```
+The API initializes the local SQLite database with demo fixtures on startup
+when all resource tables are empty.
 
 Install frontend dependencies and start the viewer in development mode:
 
@@ -103,7 +98,9 @@ The database is ignored by git. Demo data is stored as JSON fixtures under:
 apps/api/src/process_flow_api/fixtures
 ```
 
-`POST /api/admin/seed` with `{ "mode": "ifEmpty" }` creates the demo dataset only when the database is empty. `{ "mode": "reset" }` clears the SQLite tables and reloads the fixtures.
+On startup, the API creates the database file if needed and loads demo fixtures
+when all resource tables are empty. `POST /api/reset` clears the SQLite tables
+and reloads the fixtures for POC reset workflows.
 
 All process step templates, flow templates, flow instances, and geometries are stored in the same SQLite database. Each resource family has its own table and keeps the canonical JSON payload in a JSON text column plus indexed metadata columns.
 

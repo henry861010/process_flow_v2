@@ -50,9 +50,7 @@ The page reads catalog data from FastAPI through `apps/viewer/lib/process-flow-a
 Initial load uses:
 
 ```http
-POST /api/admin/seed
-
-{ "mode": "ifEmpty" }
+GET /api/bootstrap
 ```
 
 The returned bootstrap payload supplies:

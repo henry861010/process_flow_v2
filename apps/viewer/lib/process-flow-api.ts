@@ -15,12 +15,14 @@ export function processFlowApiBaseUrl() {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body != null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(`${processFlowApiBaseUrl()}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
@@ -34,16 +36,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 }
 
 export async function loadBootstrap(): Promise<BootstrapPayload> {
-  return apiFetch<BootstrapPayload>("/api/admin/seed", {
-    method: "POST",
-    body: JSON.stringify({ mode: "ifEmpty" }),
-  });
+  return apiFetch<BootstrapPayload>("/api/bootstrap");
 }
 
 export async function resetPocData(): Promise<BootstrapPayload> {
-  return apiFetch<BootstrapPayload>("/api/admin/seed", {
+  return apiFetch<BootstrapPayload>("/api/reset", {
     method: "POST",
-    body: JSON.stringify({ mode: "reset" }),
   });
 }
 

@@ -97,10 +97,6 @@ class GeometryEntity(FlexibleModel):
     structure: JsonObject
 
 
-class SeedRequest(BaseModel):
-    mode: Literal["ifEmpty", "reset"] = "ifEmpty"
-
-
 class TemplateInstanceCreateRequest(BaseModel):
     processFlowTemplate: ProcessFlowTemplate
     processFlowInstance: ProcessFlowInstance
