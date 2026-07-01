@@ -19,6 +19,7 @@ from .models import (
     CdbExportJobCreateRequest,
     ExecuteInstanceResponse,
     ExportJobCancelRequest,
+    ExportJobCreateRequest,
     ExportJobListResponse,
     ExportJobResponse,
     GeometryEntity,
@@ -220,6 +221,19 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             element_size=body.elementSize,
             output_path=body.outputPath,
             source_label=body.sourceLabel,
+        )
+        return {"job": job}
+
+    @app.post("/api/geometry-preview/export-jobs", response_model=ExportJobResponse)
+    async def create_geometry_preview_export_job(body: ExportJobCreateRequest):
+        job = await app.state.export_jobs.create_export_job(
+            client_id=body.clientId,
+            kind=body.kind,
+            output_path=body.outputPath,
+            source_label=body.sourceLabel,
+            geometry_structure=body.geometryStructure,
+            geometry_entity_json=body.geometryEntityJson,
+            element_size=body.elementSize,
         )
         return {"job": job}
 

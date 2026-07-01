@@ -136,6 +136,16 @@ class CdbExportJobCreateRequest(BaseModel):
     sourceLabel: str | None = None
 
 
+class ExportJobCreateRequest(BaseModel):
+    clientId: str = Field(min_length=1, max_length=160)
+    kind: Literal["cdb", "json", "step"]
+    outputPath: str = Field(min_length=1)
+    sourceLabel: str | None = None
+    geometryStructure: JsonObject | None = None
+    geometryEntityJson: JsonObject | None = None
+    elementSize: float | None = None
+
+
 class ExportJobCancelRequest(BaseModel):
     clientId: str = Field(min_length=1, max_length=160)
 
@@ -158,7 +168,7 @@ class GeometryPreviewStepResponse(BaseModel):
 class ExportJob(BaseModel):
     jobId: str
     clientId: str
-    kind: Literal["cdb"]
+    kind: Literal["cdb", "json", "step"]
     status: Literal["queued", "running", "success", "failed", "canceling", "canceled"]
     sourceLabel: str | None = None
     outputPath: str

@@ -254,7 +254,7 @@ Panel structure：
 | --- | --- |
 | Header | `Geometry Preview`、status badges、source-to-slot context、close button。 |
 | Body | Shared 3D scene 與 preview-specific right panel。 |
-| Footer | `Save JSON`、`Save STEP AP242`、`Export CDB` actions。 |
+| Footer | `Export JSON`、`Export STEP AP242`、`Export CDB` actions。 |
 
 Header badges：
 
@@ -264,22 +264,22 @@ Header badges：
 Loading state：
 
 - Body 中央顯示 spinner 與 `Generating geometry preview...`。
-- Download actions disabled。
+- Export actions disabled。
 - 關閉 panel 時可以 abort request。
 
 Error state：
 
 - Body 顯示簡短 error message。
-- Download actions disabled。
+- Export actions disabled。
 - Draft flow 不會被變更。
 
 Ready state：
 
 - Generated GLB 被載入 shared scene。
-- Generated geometry JSON 保留在 memory 中供 download。
-- STEP AP242 download 使用同一份 preview geometry snapshot，可能由背景 prefetch 先完成。
-- `Save JSON`、`Save STEP AP242` 與 `Export CDB` enabled。
-- `Export CDB` 開啟 CDB export dialog，送出後建立 server-side export job，不透過 browser download 傳輸 CDB。
+- Generated geometry JSON 保留在 memory 中供 export。
+- JSON、STEP AP242、CDB export 都使用同一份 preview geometry snapshot。
+- `Export JSON`、`Export STEP AP242` 與 `Export CDB` enabled。
+- Export action 開啟 export dialog，送出後建立 server-side export job，後端直接寫入指定 path，並列入 export requests drawer。
 
 ### 6.2 Preview Layout
 
@@ -554,12 +554,12 @@ Viewer does not support：
 | `apps/viewer/components/viewer/cad-viewer-workbench.tsx` | Standalone viewer layout、import state、controls 與 model stats。 |
 | `apps/viewer/components/viewer/viewer-scene.tsx` | Shared React Three Fiber scene、camera、lights、orbit controls、section clipping、grid、axes 與 demo package。 |
 | `apps/viewer/components/viewer/model-loader.ts` | STL / GLB / GLTF loading、model disposal helpers、bounds、stats 與 formatting helpers。 |
-| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay shell、preview CAD workbench、download actions、section controls、axis view 與 feature overlay settings。 |
+| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay shell、preview CAD workbench、export actions、section controls、axis view 與 feature overlay settings。 |
 | `apps/viewer/components/geometry-preview/geometry-feature-overlay.tsx` | Geometry JSON feature extraction、summaries、feature envelopes、hatches 與 instanced density glyphs。 |
-| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Preview GLB 與 preview snapshot STEP API client helpers。 |
-| `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | CDB export element size 與 absolute output path modal。 |
+| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Preview GLB API client helpers。 |
+| `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | JSON、STEP、CDB export absolute output path modal。 |
 | `apps/viewer/components/geometry-preview/cdb-export-jobs-panel.tsx` | Editor-level export request drawer、polling、cancel 與 hover detail。 |
-| `apps/viewer/components/geometry-preview/cdb-export-client.ts` | Browser client id、CDB job create/list/cancel API helpers。 |
+| `apps/viewer/components/geometry-preview/cdb-export-client.ts` | Browser client id、export job create/list/cancel API helpers。 |
 | `apps/api/src/process_flow_api/main.py` | FastAPI preview execution routes and response assembly。 |
 | `apps/api/src/process_flow_api/exporter.py` | Preview GLB and STEP AP242 export bridge to the Python CAD worker。 |
 | `packages/cad-py/src/process_flow_cad/worker.py` | Isolated Python CadQuery/OCP worker used by FastAPI。 |

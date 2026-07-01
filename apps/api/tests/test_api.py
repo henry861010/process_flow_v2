@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import time
 import unittest
@@ -246,6 +247,60 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertIn("*ELEMENTS,index,n0,n1,n2,n3,n4,n5,n6,n7", content)
         self.assertIn("*COMPS,component_id,name", content)
 
+    def test_json_export_job_writes_geometry_entity_file(self):
+        output_path = Path(self.tmp.name) / "PREVIEW.JSON"
+        geometry_entity = preview_geometry_entity()
+
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "client-json",
+                "kind": "json",
+                "geometryEntityJson": geometry_entity,
+                "outputPath": str(output_path),
+                "sourceLabel": "JSON unit test",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        job = wait_for_export_job(self.client, response.json()["job"]["jobId"], "client-json")
+        normalized_output_path = Path(self.tmp.name) / "PREVIEW.json"
+        self.assertEqual(job["status"], "success", job)
+        self.assertEqual(job["kind"], "json")
+        self.assertEqual(job["outputPath"], str(normalized_output_path))
+        self.assertIsNone(job["elementSize"])
+        self.assertTrue(normalized_output_path.exists())
+        content = normalized_output_path.read_text(encoding="utf-8")
+        self.assertEqual(json.loads(content), geometry_entity)
+        self.assertIn('\n  "entityType": "preview"', content)
+        jobs = self.client.get("/api/export-jobs?clientId=client-json")
+        self.assertEqual(jobs.status_code, 200, jobs.text)
+        self.assertIn(job["jobId"], [candidate["jobId"] for candidate in jobs.json()["jobs"]])
+
+    def test_step_export_job_writes_step_file(self):
+        output_path = Path(self.tmp.name) / "MODEL.STEP"
+
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "client-step",
+                "kind": "step",
+                "geometryStructure": simple_structure(),
+                "outputPath": str(output_path),
+                "sourceLabel": "STEP unit test",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        job = wait_for_export_job(self.client, response.json()["job"]["jobId"], "client-step")
+        normalized_output_path = Path(self.tmp.name) / "MODEL.step"
+        self.assertEqual(job["status"], "success", job)
+        self.assertEqual(job["kind"], "step")
+        self.assertEqual(job["outputPath"], str(normalized_output_path))
+        self.assertTrue(normalized_output_path.exists())
+        content = normalized_output_path.read_text(encoding="utf-8", errors="replace")
+        self.assertIn("ISO-10303-21", content)
+
     def test_cdb_export_job_rejects_non_cdb_extension(self):
         response = self.client.post(
             "/api/geometry-preview/cdb-jobs",
@@ -259,6 +314,20 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn(".cdb", response.json()["message"])
+
+    def test_export_job_rejects_wrong_generic_extension(self):
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "client-a",
+                "kind": "step",
+                "geometryStructure": simple_structure(),
+                "outputPath": str(Path(self.tmp.name) / "model.stp"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn(".step", response.json()["message"])
 
     def test_cdb_export_jobs_are_filtered_by_client_id(self):
         response = self.client.post(
@@ -304,6 +373,20 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(cancel.status_code, 200, cancel.text)
         self.assertEqual(cancel.json()["job"]["status"], "canceled")
         self.assertFalse(output_path.exists())
+
+
+def preview_geometry_entity():
+    return {
+        "id": None,
+        "category": "preview.generated",
+        "entityType": "preview",
+        "name": "Preview - unit output",
+        "version": None,
+        "owner": None,
+        "description": "generated",
+        "structureFormat": "standard",
+        "structure": simple_structure(),
+    }
 
 
 def simple_structure():

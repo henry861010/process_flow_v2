@@ -14,12 +14,14 @@ import {
 
 import {
   requestGeometryPreview,
-  requestGeometryPreviewStep,
   type GeometryEntityDownload,
   type GeometryPreviewRequest,
 } from "@/components/geometry-preview/geometry-preview-client";
-import { CdbExportDialog } from "@/components/geometry-preview/cdb-export-dialog";
-import type { CdbExportJob } from "@/components/geometry-preview/cdb-export-client";
+import { GeometryExportDialog } from "@/components/geometry-preview/cdb-export-dialog";
+import type {
+  ExportJob,
+  ExportJobKind,
+} from "@/components/geometry-preview/cdb-export-client";
 import {
   GeometryFeatureOverlay,
   extractPreviewFeatures,
@@ -69,11 +71,6 @@ type PanelState =
     }
   | { status: "error"; message: string };
 
-type StepExportRequest = {
-  controller: AbortController;
-  promise: Promise<Blob>;
-};
-
 const DEFAULT_FEATURE_DENSITY_SCALE = 0.4;
 const DEFAULT_FEATURE_GLYPH_SIZE_SCALE = 1;
 const DEFAULT_FEATURE_OPACITY = 0.6;
@@ -82,60 +79,15 @@ const DEFAULT_FEATURE_MAX_INSTANCES = 10000;
 export function GeometryPreviewPanel({
   preview,
   onClose,
-  onCdbJobCreated,
+  onExportJobCreated,
 }: {
   preview: GeometryPreviewContext;
   onClose: () => void;
-  onCdbJobCreated?: (job: CdbExportJob) => void;
+  onExportJobCreated?: (job: ExportJob) => void;
 }) {
   const [state, setState] = React.useState<PanelState>({ status: "loading" });
-  const [stepError, setStepError] = React.useState<string | null>(null);
-  const stepExportRef = React.useRef<StepExportRequest | null>(null);
-  const stepBlobRef = React.useRef<Blob | null>(null);
-  const stepDownloadInFlightRef = React.useRef(false);
-  const mountedRef = React.useRef(true);
-  const [cdbDialogOpen, setCdbDialogOpen] = React.useState(false);
-
-  const abortStepExport = React.useCallback(() => {
-    const current = stepExportRef.current;
-    if (!current) return;
-    current.controller.abort();
-    stepExportRef.current = null;
-  }, []);
-
-  const startStepExport = React.useCallback((geometryStructure: unknown) => {
-    if (stepBlobRef.current) {
-      return Promise.resolve(stepBlobRef.current);
-    }
-
-    const current = stepExportRef.current;
-    if (current) return current.promise;
-
-    const controller = new AbortController();
-    const requestState: StepExportRequest = {
-      controller,
-      promise: Promise.resolve(new Blob()),
-    };
-    const promise = requestGeometryPreviewStep(
-      { geometryStructure },
-      controller.signal,
-    )
-      .then((response) => {
-        const stepBlob = base64ToBlob(response.stepBase64, "application/step");
-        stepBlobRef.current = stepBlob;
-        return stepBlob;
-      })
-      .catch((error) => {
-        if (stepExportRef.current === requestState) {
-          stepExportRef.current = null;
-        }
-        throw error;
-      });
-
-    requestState.promise = promise;
-    stepExportRef.current = requestState;
-    return promise;
-  }, []);
+  const [exportDialogKind, setExportDialogKind] =
+    React.useState<ExportJobKind | null>(null);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -148,17 +100,8 @@ export function GeometryPreviewPanel({
   }, [onClose]);
 
   React.useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-      abortStepExport();
-    };
-  }, [abortStepExport]);
-
-  React.useEffect(() => {
     const controller = new AbortController();
-    abortStepExport();
-    stepBlobRef.current = null;
-    setStepError(null);
+    setExportDialogKind(null);
     setState({ status: "loading" });
 
     requestGeometryPreview(preview.request, controller.signal)
@@ -184,57 +127,18 @@ export function GeometryPreviewPanel({
 
     return () => {
       controller.abort();
-      abortStepExport();
     };
-  }, [abortStepExport, preview]);
-
-  React.useEffect(() => {
-    if (state.status !== "ready") return;
-    const promise = startStepExport(state.geometryEntityJson.structure);
-    void promise.catch(() => undefined);
-  }, [startStepExport, state]);
+  }, [preview]);
 
   const ready = state.status === "ready";
 
-  function saveJson() {
+  function openExportDialog(kind: ExportJobKind) {
     if (state.status !== "ready") return;
-    downloadBlob(
-      new Blob([JSON.stringify(state.geometryEntityJson, null, 2)], {
-        type: "application/json;charset=utf-8",
-      }),
-      `geometry-preview-${preview.previewId}.json`,
-    );
+    setExportDialogKind(kind);
   }
 
-  async function saveStep() {
-    if (state.status !== "ready") return;
-    if (stepDownloadInFlightRef.current) return;
-
-    if (stepBlobRef.current) {
-      downloadBlob(stepBlobRef.current, `geometry-preview-${preview.previewId}.step`);
-      return;
-    }
-
-    stepDownloadInFlightRef.current = true;
-    setStepError(null);
-    try {
-      const stepBlob = await startStepExport(state.geometryEntityJson.structure);
-      if (!mountedRef.current) return;
-      downloadBlob(stepBlob, `geometry-preview-${preview.previewId}.step`);
-    } catch (error) {
-      if (!mountedRef.current || isAbortError(error)) return;
-      setStepError(
-        error instanceof Error
-          ? error.message
-          : "Unable to generate STEP export.",
-      );
-    } finally {
-      stepDownloadInFlightRef.current = false;
-    }
-  }
-
-  function handleCdbJobCreated(job: CdbExportJob) {
-    onCdbJobCreated?.(job);
+  function handleExportJobCreated(job: ExportJob) {
+    onExportJobCreated?.(job);
   }
 
   return (
@@ -291,23 +195,26 @@ export function GeometryPreviewPanel({
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-white px-4 py-3">
-          {stepError ? (
-            <span className="mr-auto min-w-0 flex-1 truncate text-sm text-destructive">
-              {stepError}
-            </span>
-          ) : null}
-          <Button variant="outline" disabled={!ready} onClick={saveJson}>
+          <Button
+            variant="outline"
+            disabled={!ready}
+            onClick={() => openExportDialog("json")}
+          >
             <FileJson />
-            Save JSON
-          </Button>
-          <Button variant="outline" disabled={!ready} onClick={saveStep}>
-            <Download />
-            Save STEP AP242
+            Export JSON
           </Button>
           <Button
             variant="outline"
             disabled={!ready}
-            onClick={() => setCdbDialogOpen(true)}
+            onClick={() => openExportDialog("step")}
+          >
+            <Download />
+            Export STEP AP242
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!ready}
+            onClick={() => openExportDialog("cdb")}
           >
             <Download />
             Export CDB
@@ -315,12 +222,14 @@ export function GeometryPreviewPanel({
         </footer>
       </section>
 
-      {cdbDialogOpen && state.status === "ready" ? (
-        <CdbExportDialog
+      {exportDialogKind && state.status === "ready" ? (
+        <GeometryExportDialog
+          kind={exportDialogKind}
           geometryStructure={state.geometryEntityJson.structure}
+          geometryEntityJson={state.geometryEntityJson}
           sourceLabel={`${preview.sourceLabel} -> ${preview.slotLabel}`}
-          onClose={() => setCdbDialogOpen(false)}
-          onJobCreated={handleCdbJobCreated}
+          onClose={() => setExportDialogKind(null)}
+          onJobCreated={handleExportJobCreated}
         />
       ) : null}
     </div>
@@ -1069,12 +978,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function isAbortError(error: unknown) {
-  return error instanceof DOMException
-    ? error.name === "AbortError"
-    : error instanceof Error && error.name === "AbortError";
-}
-
 function base64ToBlob(base64: string, mimeType: string) {
   const binary = window.atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -1082,15 +985,4 @@ function base64ToBlob(base64: string, mimeType: string) {
     bytes[index] = binary.charCodeAt(index);
   }
   return new Blob([bytes], { type: mimeType });
-}
-
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

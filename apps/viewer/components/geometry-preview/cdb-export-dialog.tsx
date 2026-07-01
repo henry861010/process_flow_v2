@@ -2,34 +2,40 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Database, Loader2, X } from "lucide-react";
+import { Database, Download, FileJson, Loader2, X } from "lucide-react";
 
 import {
-  createCdbExportJob,
-  getCdbExportClientId,
-  type CdbExportJob,
+  createExportJob,
+  getExportClientId,
+  type ExportJob,
+  type ExportJobKind,
 } from "@/components/geometry-preview/cdb-export-client";
 import { Button } from "@/components/ui/button";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
-export function CdbExportDialog({
+export function GeometryExportDialog({
+  kind,
   geometryStructure,
+  geometryEntityJson,
   sourceLabel,
   onClose,
   onJobCreated,
 }: {
+  kind: ExportJobKind;
   geometryStructure: unknown;
+  geometryEntityJson: unknown;
   sourceLabel: string;
   onClose: () => void;
-  onJobCreated: (job: CdbExportJob) => void;
+  onJobCreated: (job: ExportJob) => void;
 }) {
   const [portalReady, setPortalReady] = React.useState(false);
   const [elementSize, setElementSize] = React.useState("500");
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const config = exportKindConfig(kind);
 
   React.useEffect(() => {
     setPortalReady(true);
@@ -39,9 +45,10 @@ export function CdbExportDialog({
     event.preventDefault();
     if (submitting) return;
 
-    const parsedElementSize = Number(elementSize);
+    const parsedElementSize = kind === "cdb" ? Number(elementSize) : null;
     const trimmedOutputPath = outputPath.trim();
-    const validationError = validateCdbExportForm(
+    const validationError = validateExportForm(
+      kind,
       parsedElementSize,
       trimmedOutputPath,
     );
@@ -53,10 +60,12 @@ export function CdbExportDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const job = await createCdbExportJob({
-        clientId: getCdbExportClientId(),
-        geometryStructure,
-        elementSize: parsedElementSize,
+      const job = await createExportJob({
+        clientId: getExportClientId(),
+        kind,
+        geometryStructure: kind === "json" ? undefined : geometryStructure,
+        geometryEntityJson: kind === "json" ? geometryEntityJson : undefined,
+        elementSize: kind === "cdb" ? parsedElementSize : undefined,
         outputPath: trimmedOutputPath,
         sourceLabel,
       });
@@ -66,7 +75,7 @@ export function CdbExportDialog({
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Unable to create CDB export job.",
+          : `Unable to create ${config.label} export job.`,
       );
     } finally {
       setSubmitting(false);
@@ -89,10 +98,12 @@ export function CdbExportDialog({
         <header className="flex items-center justify-between gap-3 border-b bg-white px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground [&_svg]:h-4 [&_svg]:w-4">
-              <Database />
+              <ExportKindIcon kind={kind} />
             </span>
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold">Export CDB</h3>
+              <h3 className="truncate text-sm font-semibold">
+                Export {config.label}
+              </h3>
               <p className="truncate text-xs text-muted-foreground">
                 {sourceLabel}
               </p>
@@ -111,18 +122,20 @@ export function CdbExportDialog({
         </header>
 
         <div className="space-y-4 px-4 py-4">
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">
-              Element size
-            </span>
-            <input
-              className={inputClass}
-              inputMode="decimal"
-              value={elementSize}
-              disabled={submitting}
-              onChange={(event) => setElementSize(event.target.value)}
-            />
-          </label>
+          {kind === "cdb" ? (
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Element size
+              </span>
+              <input
+                className={inputClass}
+                inputMode="decimal"
+                value={elementSize}
+                disabled={submitting}
+                onChange={(event) => setElementSize(event.target.value)}
+              />
+            </label>
+          ) : null}
 
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-muted-foreground">
@@ -132,7 +145,7 @@ export function CdbExportDialog({
               className={inputClass}
               value={outputPath}
               disabled={submitting}
-              placeholder="/Users/henry/Desktop/model.cdb"
+              placeholder={config.placeholder}
               onChange={(event) => setOutputPath(event.target.value)}
             />
           </label>
@@ -154,7 +167,11 @@ export function CdbExportDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={submitting}>
-            {submitting ? <Loader2 className="animate-spin" /> : <Database />}
+            {submitting ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <ExportKindIcon kind={kind} />
+            )}
             Export
           </Button>
         </footer>
@@ -164,8 +181,43 @@ export function CdbExportDialog({
   );
 }
 
-function validateCdbExportForm(elementSize: number, outputPath: string) {
-  if (!Number.isFinite(elementSize) || elementSize <= 0) {
+export const CdbExportDialog = GeometryExportDialog;
+
+function ExportKindIcon({ kind }: { kind: ExportJobKind }) {
+  if (kind === "json") return <FileJson />;
+  if (kind === "cdb") return <Database />;
+  return <Download />;
+}
+
+function exportKindConfig(kind: ExportJobKind) {
+  if (kind === "json") {
+    return {
+      label: "JSON",
+      extension: ".json",
+      placeholder: "/Users/henry/Desktop/geometry-preview.json",
+    };
+  }
+  if (kind === "step") {
+    return {
+      label: "STEP",
+      extension: ".step",
+      placeholder: "/Users/henry/Desktop/geometry-preview.step",
+    };
+  }
+  return {
+    label: "CDB",
+    extension: ".cdb",
+    placeholder: "/Users/henry/Desktop/model.cdb",
+  };
+}
+
+function validateExportForm(
+  kind: ExportJobKind,
+  elementSize: number | null,
+  outputPath: string,
+) {
+  const config = exportKindConfig(kind);
+  if (kind === "cdb" && (!Number.isFinite(elementSize) || Number(elementSize) <= 0)) {
     return "Element size must be greater than 0.";
   }
   if (!outputPath) {
@@ -174,8 +226,12 @@ function validateCdbExportForm(elementSize: number, outputPath: string) {
   if (!outputPath.startsWith("/")) {
     return "Output path must be absolute.";
   }
-  if (!/\.cdb$/i.test(outputPath)) {
-    return "Output path must use a .cdb file extension.";
+  if (!new RegExp(`${escapeRegExp(config.extension)}$`, "i").test(outputPath)) {
+    return `Output path must use a ${config.extension} file extension.`;
   }
   return null;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

@@ -901,10 +901,9 @@ Geometry preview panel：
 - Edge preview request 使用 `{ type: "edge", previewEdgeId }` target。
 - Terminal final preview request 使用 `{ type: "stepOutput", stepRefId }` target。
 - Kernel 回傳 `geometryStructure: GeometryStructure`；API route 以此產生 GLB，並包成
-  `geometryEntityJson: GeometryEntityDownload` 供 `Save JSON` 使用。
-- `Save STEP AP242` 使用 `geometryEntityJson.structure` 呼叫
-  `POST /api/geometry-preview/step`，下載和當前 preview 畫面對應的 STEP；背景
-  prefetch 不顯示獨立 loading 狀態，panel 關閉時會 abort 尚未完成的 prefetch。
+  `geometryEntityJson: GeometryEntityDownload` 供 `Export JSON` 使用。
+- `Export JSON`、`Export STEP AP242`、`Export CDB` 都會開啟 export dialog，
+  送出 `POST /api/geometry-preview/export-jobs`，由後端直接寫入指定 path。
 - Panel 是全畫面 overlay，`fixed inset-0 z-50 p-3 sm:p-6`。
 - Header 顯示：
   - `Geometry Preview`
@@ -921,10 +920,10 @@ Geometry preview panel：
   - Camera buttons：Fit camera、X、Y、Z。
   - Model stats 顯示 meshes、materials、vertices、triangles、bounds。
 - Footer buttons：
-  - `Save JSON` outline，ready 前 disabled。
-  - `Save STEP AP242` outline，ready 前 disabled。
-  - `Export CDB` outline，ready 前 disabled，click 後開啟 CDB export dialog。
-- CDB export request list 不屬於 graph core 或 preview overlay；它由 flow editor root render 成右側中間 drawer。
+  - `Export JSON` outline，ready 前 disabled。
+  - `Export STEP AP242` outline，ready 前 disabled。
+  - `Export CDB` outline，ready 前 disabled。
+- Export request list 不屬於 graph core 或 preview overlay；它由 flow editor root render 成右側中間 drawer。
 
 ### Rebuild checklist
 

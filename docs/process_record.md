@@ -2,7 +2,7 @@
 
 ## Geometry Preview Flow
 
-This record describes the active geometry preview path from the viewer to FastAPI, Python kernel execution, Python CadQuery/OCP CAD export, and STEP AP242 export.
+This record describes the active geometry preview path from the viewer to FastAPI, Python kernel execution, Python CadQuery/OCP CAD export, and preview export jobs.
 
 ## Request Path
 
@@ -14,9 +14,8 @@ This record describes the active geometry preview path from the viewer to FastAP
 6. FastAPI builds a download-ready `geometryEntityJson`.
 7. FastAPI calls the isolated Python CAD worker to export the `geometryStructure` as GLB through CadQuery/OCP.
 8. FastAPI base64-encodes the generated GLB and returns `{ geometryEntityJson, glbBase64 }`.
-9. The preview panel can call `POST /api/geometry-preview/step` with the same `geometryEntityJson.structure` to generate STEP AP242 without re-running the kernel.
-10. The preview panel can call `POST /api/geometry-preview/cdb-jobs` with the same `geometryEntityJson.structure` to start a server-side CDB export job without re-running the kernel.
-11. The flow editor export requests drawer polls `GET /api/export-jobs?clientId=...` and displays only jobs owned by the browser-generated client id.
+9. The preview panel can call `POST /api/geometry-preview/export-jobs` with the same ready snapshot to write JSON, STEP AP242, or CDB to a server-side path without re-running the kernel.
+10. The flow editor export requests drawer polls `GET /api/export-jobs?clientId=...` and displays only jobs owned by the browser-generated client id.
 
 ## Child Process Export
 
@@ -55,7 +54,7 @@ If the worker times out, exits non-zero, or fails to produce output, FastAPI ret
 | --- | --- |
 | `apps/api/src/process_flow_api/main.py` | FastAPI routes, request validation, kernel calls, response assembly. |
 | `apps/api/src/process_flow_api/exporter.py` | Python CAD worker orchestration for GLB and STEP export. |
-| `apps/api/src/process_flow_api/cdb_jobs.py` | In-memory CDB export job queue, polling state, cancellation, and cleanup. |
+| `apps/api/src/process_flow_api/cdb_jobs.py` | In-memory JSON, STEP, and CDB export job queue, polling state, cancellation, and cleanup. |
 | `apps/api/src/process_flow_api/cdb_exporter.py` | Python mesher worker subprocess orchestration for CDB jobs. |
 | `packages/cad-py/src/process_flow_cad/worker.py` | Isolated Python worker entry point. |
 | `packages/cad-py/src/process_flow_cad/exporter.py` | CadQuery/OCP geometry conversion and GLB/STEP export implementation. |
@@ -63,8 +62,8 @@ If the worker times out, exits non-zero, or fails to produce output, FastAPI ret
 | `packages/mesher-py/src/process_flow_mesher/builder.py` | Geometry structure to `Dragger` and `MeshResult` conversion. |
 | `packages/mesher-py/src/mesher/dragger.py` | 2.5D mesh extrusion engine and `Dragger.write(path)` text CDB export entry point. |
 | `packages/mesher-py/src/mesher/cdb_writer.py` | Text CDB serialization for mesher-owned mesh arrays. |
-| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Browser API client helpers for preview and STEP export. |
-| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay UI and download actions. |
-| `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | CDB export modal for element size and absolute output path. |
-| `apps/viewer/components/geometry-preview/cdb-export-client.ts` | Browser client id and CDB job create/list/cancel helpers. |
+| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Browser API client helpers for preview. |
+| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Preview overlay UI and export actions. |
+| `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | JSON, STEP, and CDB export modal for absolute output paths. |
+| `apps/viewer/components/geometry-preview/cdb-export-client.ts` | Browser client id and export job create/list/cancel helpers. |
 | `apps/viewer/components/geometry-preview/cdb-export-jobs-panel.tsx` | Editor-level export request drawer, polling, cancellation, and hover detail. |

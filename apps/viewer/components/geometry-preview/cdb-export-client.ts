@@ -1,8 +1,11 @@
 import { apiFetch } from "@/lib/process-flow-api";
 
-const CLIENT_ID_STORAGE_KEY = "process-flow:cdb-export-client-id";
+const CLIENT_ID_STORAGE_KEY = "process-flow:export-client-id";
+const LEGACY_CLIENT_ID_STORAGE_KEY = "process-flow:cdb-export-client-id";
 
-export type CdbExportJobStatus =
+export type ExportJobKind = "cdb" | "json" | "step";
+
+export type ExportJobStatus =
   | "queued"
   | "running"
   | "success"
@@ -10,11 +13,11 @@ export type CdbExportJobStatus =
   | "canceling"
   | "canceled";
 
-export type CdbExportJob = {
+export type ExportJob = {
   jobId: string;
   clientId: string;
-  kind: "cdb";
-  status: CdbExportJobStatus;
+  kind: ExportJobKind;
+  status: ExportJobStatus;
   sourceLabel: string | null;
   outputPath: string;
   elementSize: number | null;
@@ -29,21 +32,38 @@ export type CdbExportJob = {
   warning: string | null;
 };
 
-export type CreateCdbExportJobRequest = {
+export type CreateExportJobRequest = {
   clientId: string;
-  geometryStructure: unknown;
-  elementSize: number;
+  kind: ExportJobKind;
   outputPath: string;
   sourceLabel?: string | null;
+  geometryStructure?: unknown;
+  geometryEntityJson?: unknown;
+  elementSize?: number | null;
 };
 
-export function getCdbExportClientId() {
+export type CdbExportJobStatus = ExportJobStatus;
+export type CdbExportJob = ExportJob;
+export type CreateCdbExportJobRequest = Omit<
+  CreateExportJobRequest,
+  "kind"
+> & {
+  geometryStructure: unknown;
+  elementSize: number;
+};
+
+export function getExportClientId() {
   if (typeof window === "undefined") {
     return "server";
   }
 
-  const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY);
-  if (existing) return existing;
+  const existing =
+    window.localStorage.getItem(CLIENT_ID_STORAGE_KEY) ||
+    window.localStorage.getItem(LEGACY_CLIENT_ID_STORAGE_KEY);
+  if (existing) {
+    window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, existing);
+    return existing;
+  }
 
   const generated =
     typeof window.crypto?.randomUUID === "function"
@@ -55,11 +75,13 @@ export function getCdbExportClientId() {
   return generated;
 }
 
-export async function createCdbExportJob(
-  request: CreateCdbExportJobRequest,
-): Promise<CdbExportJob> {
-  const response = await apiFetch<{ job: CdbExportJob }>(
-    "/api/geometry-preview/cdb-jobs",
+export const getCdbExportClientId = getExportClientId;
+
+export async function createExportJob(
+  request: CreateExportJobRequest,
+): Promise<ExportJob> {
+  const response = await apiFetch<{ job: ExportJob }>(
+    "/api/geometry-preview/export-jobs",
     {
       method: "POST",
       body: JSON.stringify(request),
@@ -68,23 +90,29 @@ export async function createCdbExportJob(
   return response.job;
 }
 
-export async function listCdbExportJobs(
-  clientId: string,
-): Promise<CdbExportJob[]> {
-  const response = await apiFetch<{ jobs: CdbExportJob[] }>(
+export async function createCdbExportJob(
+  request: CreateCdbExportJobRequest,
+): Promise<CdbExportJob> {
+  return createExportJob({ ...request, kind: "cdb" });
+}
+
+export async function listExportJobs(clientId: string): Promise<ExportJob[]> {
+  const response = await apiFetch<{ jobs: ExportJob[] }>(
     `/api/export-jobs?clientId=${encodeURIComponent(clientId)}`,
   );
   return response.jobs;
 }
 
-export async function cancelCdbExportJob({
+export const listCdbExportJobs = listExportJobs;
+
+export async function cancelExportJob({
   clientId,
   jobId,
 }: {
   clientId: string;
   jobId: string;
-}): Promise<CdbExportJob> {
-  const response = await apiFetch<{ job: CdbExportJob }>(
+}): Promise<ExportJob> {
+  const response = await apiFetch<{ job: ExportJob }>(
     `/api/export-jobs/${encodeURIComponent(jobId)}/cancel`,
     {
       method: "POST",
@@ -94,3 +122,4 @@ export async function cancelCdbExportJob({
   return response.job;
 }
 
+export const cancelCdbExportJob = cancelExportJob;

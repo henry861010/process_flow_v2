@@ -1,3 +1,5 @@
+import { apiFetch } from "@/lib/process-flow-api";
+
 export type GeometryPreviewTarget =
   | { type: "edge"; previewEdgeId: string }
   | { type: "stepOutput"; stepRefId: string };
@@ -28,14 +30,6 @@ export type GeometryPreviewResponse = {
   glbBase64: string;
 };
 
-export type GeometryPreviewStepRequest = {
-  geometryStructure: unknown;
-};
-
-export type GeometryPreviewStepResponse = {
-  stepBase64: string;
-};
-
 export async function requestGeometryPreview(
   request: GeometryPreviewRequest,
   signal?: AbortSignal,
@@ -46,15 +40,3 @@ export async function requestGeometryPreview(
     signal,
   });
 }
-
-export async function requestGeometryPreviewStep(
-  request: GeometryPreviewStepRequest,
-  signal?: AbortSignal,
-): Promise<GeometryPreviewStepResponse> {
-  return apiFetch<GeometryPreviewStepResponse>("/api/geometry-preview/step", {
-    method: "POST",
-    body: JSON.stringify(request),
-    signal,
-  });
-}
-import { apiFetch } from "@/lib/process-flow-api";

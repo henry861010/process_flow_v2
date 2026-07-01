@@ -6,11 +6,11 @@ Geometry Preview is an overlay used inside the process flow editors. It is not a
 
 | File | Responsibility |
 | --- | --- |
-| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Overlay shell, loading/error/ready state, download actions. |
-| `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | Modal form for CDB element size and absolute output path. |
+| `apps/viewer/components/geometry-preview/geometry-preview-panel.tsx` | Overlay shell, loading/error/ready state, export actions. |
+| `apps/viewer/components/geometry-preview/cdb-export-dialog.tsx` | Modal form for JSON, STEP, and CDB export output paths. |
 | `apps/viewer/components/geometry-preview/cdb-export-jobs-panel.tsx` | Editor-level export request drawer, job polling, cancellation, and hover details. |
-| `apps/viewer/components/geometry-preview/cdb-export-client.ts` | Browser client id, CDB job creation, list, and cancel helpers. |
-| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Client helpers for FastAPI preview and STEP export calls. |
+| `apps/viewer/components/geometry-preview/cdb-export-client.ts` | Browser client id, export job creation, list, and cancel helpers. |
+| `apps/viewer/components/geometry-preview/geometry-preview-client.ts` | Client helpers for FastAPI preview calls. |
 | `apps/api/src/process_flow_api/main.py` | Preview request validation, Python kernel execution, response assembly. |
 | `apps/api/src/process_flow_api/exporter.py` | GLB and STEP export through the Python CadQuery/OCP worker. |
 
@@ -76,7 +76,7 @@ Close actions:
 | Header | Title, source/target context, status badge, close button. |
 | Main viewport | Generated GLB in the shared CAD viewer scene. |
 | Side controls | Section, camera, grid, and axes controls reused from CAD viewer behavior. |
-| Footer actions | `Save JSON`, `Save STEP AP242`, `Export CDB`. |
+| Footer actions | `Export JSON`, `Export STEP AP242`, `Export CDB`. |
 
 The panel should feel like an engineering inspection tool: dense, legible, and restrained.
 
@@ -112,8 +112,8 @@ The displayed message should use the concise API error message.
 After success:
 
 - The generated GLB loads into the shared CAD viewer scene.
-- The generated geometry JSON stays in memory for download.
-- The STEP action uses the exact same preview snapshot.
+- The generated geometry JSON stays in memory for export.
+- JSON, STEP, and CDB actions use the exact same preview snapshot.
 - The graph draft remains unchanged.
 
 Viewer controls should include:
@@ -124,66 +124,73 @@ Viewer controls should include:
 - Axes toggle.
 - Section plane controls.
 
-## Downloads
+## Exports
 
 | Button | Output |
 | --- | --- |
-| `Save JSON` | Import-ready `GeometryEntity` JSON with `id: null`. |
-| `Save STEP AP242` | STEP AP242 generated from the preview snapshot. |
+| `Export JSON` | Import-ready `GeometryEntity` JSON with `id: null`, written to an absolute `.json` path. |
+| `Export STEP AP242` | STEP AP242 generated from the preview snapshot, written to an absolute `.step` path. |
 | `Export CDB` | Server-side text CDB export job written to an absolute `.cdb` path. |
 
-JSON and STEP AP242 are browser downloads. They do not create database records.
+JSON, STEP AP242, and CDB are server-side export jobs. They do not create
+database records, but they do appear in the editor export requests drawer.
 
-`Export CDB` does not download through the browser. It opens the CDB export dialog, starts a server-side job, and writes directly to the requested absolute path. The job appears in the editor export requests drawer.
+Clicking any export action opens the export dialog, starts a server-side job,
+and writes directly to the requested absolute path.
 
-`Save STEP AP242` calls:
+Export job creation calls:
 
 ```http
-POST /api/geometry-preview/step
+POST /api/geometry-preview/export-jobs
 ```
 
 with:
 
 ```json
 {
-  "geometryStructure": {}
+  "clientId": "browser-generated-client-token",
+  "kind": "json | step | cdb",
+  "geometryStructure": {},
+  "geometryEntityJson": {},
+  "elementSize": 500,
+  "outputPath": "/absolute/path/model.step",
+  "sourceLabel": "Panel -> main_geometry"
 }
 ```
 
-The request uses `geometryEntityJson.structure` from the ready preview response. It does not re-read the current graph draft and does not re-run the kernel.
+The request uses `geometryEntityJson` or `geometryEntityJson.structure` from the
+ready preview response. It does not re-read the current graph draft and does not
+re-run the kernel.
 
-Filename format:
+## Export Dialog
 
-- JSON: `geometry-preview-{target}.json`
-- STEP AP242: `geometry-preview-{target}.step`
+Export footer actions are enabled only when the preview is ready.
 
-## CDB Export Dialog
-
-The `Export CDB` footer action is enabled only when the preview is ready.
-
-Clicking the action opens a modal above the preview overlay. The modal is rendered through a portal on `document.body` so it stays above the editor export drawer.
+Clicking an action opens a modal above the preview overlay. The modal is rendered through a portal on `document.body` so it stays above the editor export drawer.
 
 Dialog content:
 
 | Area | Content |
 | --- | --- |
-| Header | Database icon, `Export CDB`, source label, close icon. |
-| Body | `Element size` input and `Output path` input. |
+| Header | Format icon, `Export JSON` / `Export STEP` / `Export CDB`, source label, close icon. |
+| Body | `Output path` input. CDB also shows `Element size`. |
 | Error | Inline destructive message when validation or job creation fails. |
 | Footer | `Cancel` and `Export` actions. |
 
 Client-side validation:
 
-- `elementSize` must be a finite number greater than `0`.
+- CDB `elementSize` must be a finite number greater than `0`.
 - `outputPath` must be non-empty.
 - `outputPath` must be an absolute path beginning with `/`.
-- `outputPath` must end with `.cdb`, case-insensitive.
+- `outputPath` must end with the selected format's suffix: `.json`, `.step`, or `.cdb`, case-insensitive.
 
-The server repeats path validation. A `.CDB` suffix is accepted and normalized to `.cdb`. The parent folder must already exist. Existing files are overwritten by the server-side job.
+The server repeats path validation. Uppercase suffixes are accepted and normalized
+to lowercase. The parent folder must already exist. Existing files are
+overwritten by the server-side job.
 
 Submit behavior:
 
-- The dialog sends `POST /api/geometry-preview/cdb-jobs` with the ready preview `geometryEntityJson.structure`.
+- The dialog sends `POST /api/geometry-preview/export-jobs` with the ready preview snapshot.
 - The request includes a browser-generated `clientId`.
 - The `Export` button shows a spinner while the create-job request is in flight.
 - If job creation succeeds, the dialog closes and the editor export requests drawer opens.
@@ -198,7 +205,7 @@ Collapsed state:
 - Fixed to the right edge at vertical center.
 - Size is `40px` wide by `64px` high.
 - Shape is a left-rounded tab with a border, white background, and viewport shadow.
-- Content is icon-only: left chevron above database icon.
+- Content is icon-only: left chevron above export icon.
 - Accessible label and title are `Open export requests`.
 - If at least one job is `queued`, `running`, or `canceling`, a small primary dot appears on the tab.
 
@@ -208,13 +215,13 @@ Expanded state:
 - Width is `min(420px, calc(100vw - 16px))`.
 - Maximum height is `min(78vh, 640px)`.
 - The drawer opens from right to left and uses a left-rounded border.
-- The drawer z-index is above the preview overlay. The CDB export dialog uses a higher z-index.
+- The drawer z-index is above the preview overlay. The export dialog uses a higher z-index.
 
 Drawer structure:
 
 | Area | Content |
 | --- | --- |
-| Header | Database icon, `Export requests`, active/recent count, `Running` or `Idle` badge, collapse button. |
+| Header | Export icon, `Export requests`, active/recent count, `Running` or `Idle` badge, collapse button. |
 | Body | Error banner, empty state, and job rows. |
 | Footer | `Showing the latest 20 requests for this browser.` |
 
@@ -222,7 +229,7 @@ The drawer always has a collapsed affordance, even when there are no jobs. Empty
 
 ```text
 No export requests
-CDB exports created from preview will appear here.
+Exports created from preview will appear here.
 ```
 
 Job ownership:
@@ -242,10 +249,11 @@ Polling:
 Job row content:
 
 - Status icon.
-- Source label, or `CDB export` fallback.
+- Format icon.
+- Source label, or `{FORMAT} export` fallback.
 - Status badge.
 - Output path in monospace.
-- Success summary: element count, node count, component count, duration.
+- Success summary. CDB shows element count, node count, component count, and duration; JSON and STEP show format and duration.
 - Non-success message, clamped to two lines.
 - Warning message, clamped to two lines.
 - Cancel icon button for `queued` and `running` jobs.
@@ -255,7 +263,8 @@ Hover detail:
 - Desktop hover or pointer movement over a job row shows a read-only detail popover to the left of the drawer.
 - The popover width is `min(520px, calc(100vw - 464px))`.
 - The popover maximum height is `min(70vh, 420px)` and scrolls vertically.
-- The popover shows full source label, status, output path, element size, mesh summary, duration, created time, started time, finished time, job id, full message, and full warning.
+- The popover shows full source label, kind, status, output path, duration, created time, started time, finished time, job id, full message, and full warning.
+- CDB job details also show element size and mesh summary.
 - The row also has a native `title` with the same essential content so long messages remain accessible when the popover is unavailable.
 
 ## API Contract
@@ -307,38 +316,32 @@ Preview response:
 }
 ```
 
-STEP response:
-
-```json
-{
-  "stepBase64": "..."
-}
-```
-
-CDB job request:
+Export job request:
 
 ```json
 {
   "clientId": "browser-generated-client-token",
+  "kind": "step",
   "geometryStructure": {},
-  "elementSize": 500,
-  "outputPath": "/absolute/path/model.cdb",
+  "geometryEntityJson": {},
+  "elementSize": null,
+  "outputPath": "/absolute/path/model.step",
   "sourceLabel": "Panel -> main_geometry"
 }
 ```
 
-CDB job response:
+Export job response:
 
 ```json
 {
   "job": {
-    "jobId": "cdb_...",
+    "jobId": "step_...",
     "clientId": "browser-generated-client-token",
-    "kind": "cdb",
+    "kind": "step",
     "status": "queued",
     "sourceLabel": "Panel -> main_geometry",
-    "outputPath": "/absolute/path/model.cdb",
-    "elementSize": 500,
+    "outputPath": "/absolute/path/model.step",
+    "elementSize": null,
     "createdAt": "2026-06-30T17:14:17.982428+00:00",
     "startedAt": null,
     "finishedAt": null,
@@ -352,7 +355,8 @@ CDB job response:
 }
 ```
 
-Valid CDB job statuses are `queued`, `running`, `success`, `failed`, `canceling`, and `canceled`.
+Valid export job kinds are `json`, `step`, and `cdb`. Valid statuses are
+`queued`, `running`, `success`, `failed`, `canceling`, and `canceled`.
 
 Export job list:
 
@@ -380,9 +384,13 @@ FastAPI validates the request, then calls the Python kernel's preview execution 
 - `stepOutput` preview executes the upstream steps needed to produce that source output.
 - Terminal step output preview executes the requested step's upstream closure.
 
-FastAPI calls the Python CadQuery/OCP exporter worker to convert the resulting `geometryStructure` into GLB or STEP.
+FastAPI calls the Python CadQuery/OCP exporter worker to convert the resulting `geometryStructure` into GLB for preview.
 
-CDB export jobs use the same ready preview snapshot. Job creation does not re-run preview execution. The backend queues the job in memory, runs the Python mesher worker, builds a `Dragger`, calls `Dragger.write(path)`, and updates job state for polling.
+JSON, STEP, and CDB export jobs use the same ready preview snapshot. Job creation
+does not re-run preview execution. JSON jobs write the import-ready
+`GeometryEntity` payload. STEP jobs run the Python CAD worker and write STEP
+AP242. CDB jobs run the Python mesher worker, build a `Dragger`, call
+`Dragger.write(path)`, and update mesh counts for polling.
 
 The text CDB artifact records mesh arrays in deterministic sections:
 
@@ -398,8 +406,8 @@ The text CDB artifact records mesh arrays in deterministic sections:
 | Flow editor | Maintains draft template and instance state. |
 | Flow editor export drawer | Holds refresh state, displays browser-owned jobs, polls status, and sends cancel requests. |
 | Preview panel | Sends draft data to FastAPI and manages overlay state. |
-| CDB export dialog | Validates user input and creates a CDB export job from the ready preview snapshot. |
-| FastAPI | Validates request, calls Python kernel, bridges CAD export and CDB job creation. |
+| Export dialog | Validates user input and creates JSON, STEP, or CDB export jobs from the ready preview snapshot. |
+| FastAPI | Validates request, calls Python kernel, bridges CAD preview and export job creation. |
 | Python kernel | Resolves flow graph and process step execution. |
 | Python CAD exporter | Converts geometry structure to GLB or STEP AP242. |
 | Python mesher exporter | Converts geometry structure to a `Dragger` and writes the text CDB artifact through `Dragger.write(path)`. |
