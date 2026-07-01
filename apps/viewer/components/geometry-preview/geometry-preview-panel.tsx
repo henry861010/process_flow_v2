@@ -206,11 +206,6 @@ export function GeometryPreviewPanel({
     );
   }
 
-  function saveGlb() {
-    if (state.status !== "ready") return;
-    downloadBlob(state.glbBlob, `geometry-preview-${preview.previewId}.glb`);
-  }
-
   async function saveStep() {
     if (state.status !== "ready") return;
     if (stepDownloadInFlightRef.current) return;
@@ -305,11 +300,7 @@ export function GeometryPreviewPanel({
             <FileJson />
             Save JSON
           </Button>
-          <Button variant="outline" disabled={!ready} onClick={saveGlb}>
-            <Download />
-            Save GLB
-          </Button>
-          <Button disabled={!ready} onClick={saveStep}>
+          <Button variant="outline" disabled={!ready} onClick={saveStep}>
             <Download />
             Save STEP AP242
           </Button>

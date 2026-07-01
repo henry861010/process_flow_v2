@@ -254,7 +254,7 @@ Panel structure：
 | --- | --- |
 | Header | `Geometry Preview`、status badges、source-to-slot context、close button。 |
 | Body | Shared 3D scene 與 preview-specific right panel。 |
-| Footer | `Save JSON`、`Save GLB`、`Save STEP AP242`、`Export CDB` actions。 |
+| Footer | `Save JSON`、`Save STEP AP242`、`Export CDB` actions。 |
 
 Header badges：
 
@@ -278,7 +278,7 @@ Ready state：
 - Generated GLB 被載入 shared scene。
 - Generated geometry JSON 保留在 memory 中供 download。
 - STEP AP242 download 使用同一份 preview geometry snapshot，可能由背景 prefetch 先完成。
-- `Save JSON`、`Save GLB`、`Save STEP AP242` 與 `Export CDB` enabled。
+- `Save JSON`、`Save STEP AP242` 與 `Export CDB` enabled。
 - `Export CDB` 開啟 CDB export dialog，送出後建立 server-side export job，不透過 browser download 傳輸 CDB。
 
 ### 6.2 Preview Layout

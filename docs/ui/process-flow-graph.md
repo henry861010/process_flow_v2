@@ -923,8 +923,7 @@ Geometry preview panel：
   - Model stats 顯示 meshes、materials、vertices、triangles、bounds。
 - Footer buttons：
   - `Save JSON` outline，ready 前 disabled。
-  - `Save GLB` outline，ready 前 disabled。
-  - `Save STEP AP242` primary，ready 前 disabled。
+  - `Save STEP AP242` outline，ready 前 disabled。
   - `Export CDB` outline，ready 前 disabled，click 後開啟 CDB export dialog。
 - CDB export request list 不屬於 graph core 或 preview overlay；它由 flow editor root render 成右側中間 drawer。
 

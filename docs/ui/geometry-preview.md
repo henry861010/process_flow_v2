@@ -76,7 +76,7 @@ Close actions:
 | Header | Title, source/target context, status badge, close button. |
 | Main viewport | Generated GLB in the shared CAD viewer scene. |
 | Side controls | Section, camera, grid, and axes controls reused from CAD viewer behavior. |
-| Footer actions | `Save JSON`, `Save GLB`, `Save STEP AP242`, `Export CDB`. |
+| Footer actions | `Save JSON`, `Save STEP AP242`, `Export CDB`. |
 
 The panel should feel like an engineering inspection tool: dense, legible, and restrained.
 
@@ -129,11 +129,10 @@ Viewer controls should include:
 | Button | Output |
 | --- | --- |
 | `Save JSON` | Import-ready `GeometryEntity` JSON with `id: null`. |
-| `Save GLB` | Generated binary GLB. |
 | `Save STEP AP242` | STEP AP242 generated from the preview snapshot. |
 | `Export CDB` | Server-side text CDB export job written to an absolute `.cdb` path. |
 
-JSON, GLB, and STEP AP242 are browser downloads. They do not create database records.
+JSON and STEP AP242 are browser downloads. They do not create database records.
 
 `Export CDB` does not download through the browser. It opens the CDB export dialog, starts a server-side job, and writes directly to the requested absolute path. The job appears in the editor export requests drawer.
 
@@ -156,7 +155,6 @@ The request uses `geometryEntityJson.structure` from the ready preview response.
 Filename format:
 
 - JSON: `geometry-preview-{target}.json`
-- GLB: `geometry-preview-{target}.glb`
 - STEP AP242: `geometry-preview-{target}.step`
 
 ## CDB Export Dialog
