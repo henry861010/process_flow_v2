@@ -44,6 +44,8 @@ export type ProcessFlowGraphNodeData = Record<string, unknown> & {
   graphMode?: ProcessFlowGraphMode;
   displayLabel?: string;
   displaySublabel?: string;
+  icon?: string;
+  iconScale?: number;
   editId?: string;
   pickId?: string;
   status?: ProcessFlowGraphNodeStatus;
@@ -118,6 +120,9 @@ const nodeTypes = {
 const edgeTypes = {
   dataFlow: DataFlowEdge,
 };
+
+const DEFAULT_GEOMETRY_ICON_SCALE = 0.8;
+const warnedMissingGeometryIconUrls = new Set<string>();
 
 export function ProcessFlowGraph<
   TNode extends Node = Node,
@@ -213,13 +218,95 @@ export function ProcessFlowGraph<
   );
 }
 
-function InitialGeometryNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>) {
+function InitialGeometryNode({
+  id,
+  data,
+  selected,
+}: NodeProps<Node<ProcessFlowGraphNodeData>>) {
   const graphMode = data.graphMode ?? "edit";
   const status = data.status ?? "incomplete";
   const complete = status === "complete";
   const label = data.displayLabel ?? "Select geometry";
   const sublabel = data.displaySublabel;
   const pickId = data.pickId ?? id;
+  const iconUrl = getGeometryIconUrl(data.icon);
+  const iconLoadStatus = useGeometryIconLoadStatus(iconUrl);
+  const iconScale = normalizeGeometryIconScale(data.iconScale);
+  const statusClasses = getInitialGeometryStatusClasses(status, graphMode);
+
+  if (iconUrl && iconLoadStatus === "ready") {
+    return (
+      <div
+        className={cn(
+          "relative flex items-center justify-center text-center transition",
+          graphMode === "edit"
+            ? "group h-[132px] w-[132px]"
+            : "h-[138px] w-[138px] cursor-pointer hover:shadow-md",
+          "rounded-xl ring-2 ring-transparent hover:ring-primary/20",
+          selected && "ring-primary/40",
+        )}
+        title={graphMode === "view" ? "Select initial geometry" : undefined}
+        onDoubleClick={(event) => {
+          if (graphMode !== "view") {
+            return;
+          }
+          event.stopPropagation();
+          data.onPick?.(pickId);
+        }}
+      >
+        <Handle
+          type="source"
+          id="out"
+          position={Position.Right}
+          isConnectable={graphMode === "edit"}
+          className="!h-4 !w-4 !border-2 !border-white !bg-primary"
+        />
+        <div
+          aria-hidden="true"
+          className={cn("transition-colors", statusClasses.icon)}
+          style={getGeometryIconMaskStyle(iconUrl, iconScale)}
+        />
+        <div
+          className={cn(
+            "pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 text-center",
+            graphMode === "edit" ? "w-[132px]" : "w-[138px]",
+          )}
+        >
+          <div className="line-clamp-2 text-xs font-semibold leading-tight">{label}</div>
+          {sublabel ? (
+            <div
+              className={cn(
+                "mt-1 truncate text-[10px] text-muted-foreground",
+                graphMode === "edit" ? "max-w-[132px]" : "max-w-[138px]",
+              )}
+            >
+              {sublabel}
+            </div>
+          ) : null}
+          {graphMode === "view" ? (
+            <Badge
+              variant={complete ? "signal" : "outline"}
+              className={cn("mt-2", !complete && "border-amber-300 text-amber-700")}
+            >
+              {data.statusLabel ?? (complete ? "Selected" : "Required")}
+            </Badge>
+          ) : null}
+        </div>
+        {graphMode === "edit" && data.onDelete ? (
+          <button
+            className="nodrag absolute -right-1 -top-1 hidden h-7 w-7 items-center justify-center rounded-full border bg-white text-muted-foreground shadow-sm transition hover:text-destructive group-hover:flex"
+            title="Delete geometry node"
+            onClick={(event) => {
+              event.stopPropagation();
+              data.onDelete?.(id);
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -228,11 +315,7 @@ function InitialGeometryNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeDa
         graphMode === "edit"
           ? "group h-[132px] w-[132px]"
           : "h-[138px] w-[138px] cursor-pointer hover:shadow-md",
-        complete
-          ? "border-emerald-500"
-          : graphMode === "edit"
-            ? "border-destructive"
-            : "border-amber-500",
+        statusClasses.border,
       )}
       title={graphMode === "view" ? "Select initial geometry" : undefined}
       onDoubleClick={(event) => {
@@ -526,4 +609,116 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
 
 function getGraphNodeData(node: Node): Partial<ProcessFlowGraphNodeData> {
   return (node.data ?? {}) as Partial<ProcessFlowGraphNodeData>;
+}
+
+function getInitialGeometryStatusClasses(
+  status: ProcessFlowGraphNodeStatus,
+  graphMode: ProcessFlowGraphMode,
+) {
+  if (status === "complete") {
+    return {
+      border: "border-emerald-500",
+      icon: "bg-emerald-500",
+    };
+  }
+
+  if (graphMode === "edit") {
+    return {
+      border: "border-destructive",
+      icon: "bg-destructive",
+    };
+  }
+
+  return {
+    border: "border-amber-500",
+    icon: "bg-amber-500",
+  };
+}
+
+function getGeometryIconUrl(icon: unknown) {
+  if (typeof icon !== "string") {
+    return null;
+  }
+
+  const segments = icon
+    .trim()
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return `/resources/icons/${segments.map(encodeURIComponent).join("/")}.svg`;
+}
+
+function normalizeGeometryIconScale(iconScale: unknown) {
+  return typeof iconScale === "number" &&
+    Number.isFinite(iconScale) &&
+    iconScale > 0 &&
+    iconScale <= 1
+    ? iconScale
+    : DEFAULT_GEOMETRY_ICON_SCALE;
+}
+
+function getGeometryIconMaskStyle(
+  iconUrl: string,
+  iconScale: number,
+): React.CSSProperties {
+  const size = `${iconScale * 100}%`;
+
+  return {
+    width: size,
+    height: size,
+    maskImage: `url("${iconUrl}")`,
+    WebkitMaskImage: `url("${iconUrl}")`,
+    maskPosition: "center",
+    WebkitMaskPosition: "center",
+    maskRepeat: "no-repeat",
+    WebkitMaskRepeat: "no-repeat",
+    maskSize: "contain",
+    WebkitMaskSize: "contain",
+  };
+}
+
+function useGeometryIconLoadStatus(iconUrl: string | null) {
+  const [status, setStatus] = React.useState<
+    "idle" | "checking" | "ready" | "missing"
+  >(iconUrl ? "checking" : "idle");
+
+  React.useEffect(() => {
+    if (!iconUrl) {
+      setStatus("idle");
+      return;
+    }
+
+    let active = true;
+    const image = new Image();
+    setStatus("checking");
+
+    image.onload = () => {
+      if (active) {
+        setStatus("ready");
+      }
+    };
+    image.onerror = () => {
+      if (!active) {
+        return;
+      }
+
+      setStatus("missing");
+      if (!warnedMissingGeometryIconUrls.has(iconUrl)) {
+        warnedMissingGeometryIconUrls.add(iconUrl);
+        console.warn(`Geometry icon not found, falling back to block: ${iconUrl}`);
+      }
+    };
+    image.src = iconUrl;
+
+    return () => {
+      active = false;
+    };
+  }, [iconUrl]);
+
+  return status;
 }

@@ -180,6 +180,8 @@ type GeometryEntity = {
   owner: string;
   description: string;
   entityType: string;
+  icon?: string;
+  iconScale?: number;
   structureFormat: string;
   structure?: unknown;
 };
@@ -339,19 +341,25 @@ function ProcessFlowInstanceEditorInner() {
     () =>
       nodes.map((node) => {
         if (isInitialGeometryNode(node)) {
+          const selectedGeometry = geometries.find(
+            (geometry) => geometry.id === node.data.selectedGeometryEntityId,
+          );
           const complete =
             Boolean(node.data.selectedGeometryEntityId) &&
-            geometries.some(
-              (geometry) => geometry.id === node.data.selectedGeometryEntityId,
-            );
+            Boolean(selectedGeometry);
           const nextNode: InitialGeometryFlowNode = {
             ...node,
             draggable: false,
             data: {
               ...node.data,
               graphMode: "view",
-              displayLabel: node.data.selectedGeometryDisplayName ?? "Select geometry",
+              displayLabel:
+                selectedGeometry?.name ??
+                node.data.selectedGeometryDisplayName ??
+                "Select geometry",
               displaySublabel: node.data.targetFieldName,
+              icon: selectedGeometry?.icon,
+              iconScale: selectedGeometry?.iconScale,
               pickId: node.data.sourceEdgeId,
               status: complete ? "complete" : "incomplete",
               validationStatus: complete ? "complete" : "incomplete",

@@ -216,6 +216,8 @@ type GeometryEntity = {
   owner: string;
   description: string;
   entityType: string;
+  icon?: string;
+  iconScale?: number;
   structureFormat: "standard";
   structure?: unknown;
 };
@@ -420,6 +422,8 @@ function ProcessFlowTemplateEditorInner() {
                 geometry?.entityType ??
                 node.data.placeholderSublabel ??
                 "Geometry required",
+              icon: geometry?.icon,
+              iconScale: geometry?.iconScale,
               status: connected && hasGeometry ? "complete" : "incomplete",
               isConnected: connected && hasGeometry,
               onDelete: deleteNode,
