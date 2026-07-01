@@ -535,7 +535,7 @@ function ProcessFlowInstanceEditorInner() {
     setGeometryPreview(null);
   }
 
-  function abortDraft() {
+  function cancelDraft() {
     clearDraft();
     router.push("/");
   }
@@ -704,12 +704,22 @@ function ProcessFlowInstanceEditorInner() {
               <p className="mt-1 text-sm text-destructive">{apiError}</p>
             ) : null}
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/">
-              <ArrowLeft />
-              Home
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/">
+                <ArrowLeft />
+                Home
+              </Link>
+            </Button>
+            <Button variant="outline" onClick={cancelDraft}>
+              <RotateCcw />
+              Cancel
+            </Button>
+            <Button disabled={!analysis.canSave} onClick={() => void saveInstance()}>
+              <Save />
+              Save
+            </Button>
+          </div>
         </div>
 
         <div className="mt-3 grid grid-cols-1 items-end gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(260px,1fr)]">
@@ -824,17 +834,6 @@ function ProcessFlowInstanceEditorInner() {
           ) : null
         }
       />
-
-      <div className="fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-md border bg-white p-2 shadow-viewport">
-        <Button variant="outline" onClick={abortDraft}>
-          <RotateCcw />
-          Abort
-        </Button>
-        <Button disabled={!analysis.canSave} onClick={() => void saveInstance()}>
-          <Save />
-          Save
-        </Button>
-      </div>
 
       {editingStepNode ? (
         <StepInstanceDialog

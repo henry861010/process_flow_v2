@@ -547,7 +547,7 @@ Header：
 
 - 左側 icon 是 `GitBranch`，標題 `Process Flow Instance Editor`。
 - subtitle：`Create a product instance from an immutable flow template.`
-- 右側只有 `Home`。
+- 右側 action group 有 `Home`、`Cancel`、`Save`。
 - Form 是三欄：
   `Product / instance name`、`Process flow template` select、selected template summary card。
 - Product / instance name required，placeholder 是
@@ -570,11 +570,10 @@ Graph empty state：
 - Empty state 是 `pointer-events-none absolute inset-0 flex items-center justify-center p-6`。
 - 空圖仍顯示 React Flow controls，但不顯示 minimap。
 
-Floating actions：
+Header actions：
 
-- 右下角固定 action bar：
-  `fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-md border bg-white p-2 shadow-viewport`。
-- Buttons：`Abort` outline + `RotateCcw` icon、`Save` primary + `Save` icon。
+- 位置與 Flow Template Editor 相同，在 header 右上角。
+- Buttons：`Cancel` outline + `RotateCcw` icon、`Save` primary + `Save` icon。
 - Save disabled until `analysis.canSave`。
 
 Readonly graph after selecting template：
@@ -936,7 +935,7 @@ Geometry preview panel：
 - Template editor 要有 header actions、metadata form、validation pill、status strip、
   左 geometry library、右 process step templates、中間 editable graph。
 - Instance editor 要有 template selector、template summary、status strip、
-  readonly graph empty state、右下固定 Abort / Save action bar。
+  readonly graph empty state、右上角 Cancel / Save header actions。
 - Flow editors 要有右側中間 export request drawer：collapsed icon tab、right-to-left expanded panel、
   latest 20 browser-owned jobs、cancel action、desktop hover full-detail popover。
 - Initial geometry node 要是圓形，edit 132px、view 138px，狀態用 emerald / amber / destructive border。

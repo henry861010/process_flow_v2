@@ -131,11 +131,11 @@ The empty state only prompts the user to select a flow template.
 Header contains:
 
 - Page title.
-- Home button.
+- Top-right Home button.
+- Top-right Cancel and Save actions.
 - `Product / instance name` required input.
 - Process flow template selector.
 - Selected template name and version after selection.
-- Save and Abort actions.
 
 `Product / instance name` is reset when the user confirms switching templates.
 
@@ -295,6 +295,6 @@ Job row behavior:
 
 The CDB export dialog is opened from the Geometry Preview footer. A successful job creation closes the dialog and opens this drawer.
 
-## Abort
+## Cancel
 
-Abort discards the current draft and returns to Home. It does not call a delete API because no resource is created until Save succeeds.
+Cancel discards the current draft and returns to Home. It does not call a delete API because no resource is created until Save succeeds.
