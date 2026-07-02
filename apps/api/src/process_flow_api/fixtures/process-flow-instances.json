@@ -28,6 +28,10 @@
                 -520
               ]
             ]
+          },
+          {
+            "fieldId": "tref",
+            "value": 25
           }
         ]
       },
@@ -46,6 +50,10 @@
           {
             "fieldId": "thickness",
             "value": 180
+          },
+          {
+            "fieldId": "tref",
+            "value": 175
           }
         ]
       },
@@ -107,6 +115,10 @@
                 }
               ]
             }
+          },
+          {
+            "fieldId": "tref",
+            "value": 200
           }
         ]
       },
@@ -133,6 +145,10 @@
           {
             "fieldId": "koz",
             "value": 18
+          },
+          {
+            "fieldId": "tref",
+            "value": 245
           }
         ]
       }
@@ -171,6 +187,10 @@
                 -560
               ]
             ]
+          },
+          {
+            "fieldId": "tref",
+            "value": 25
           }
         ]
       },
@@ -189,6 +209,10 @@
           {
             "fieldId": "thickness",
             "value": 210
+          },
+          {
+            "fieldId": "tref",
+            "value": 175
           }
         ]
       },
@@ -228,6 +252,10 @@
                 }
               ]
             }
+          },
+          {
+            "fieldId": "tref",
+            "value": 200
           }
         ]
       },
@@ -254,6 +282,10 @@
           {
             "fieldId": "koz",
             "value": 20
+          },
+          {
+            "fieldId": "tref",
+            "value": 245
           }
         ]
       }
@@ -284,6 +316,10 @@
                 -800
               ]
             ]
+          },
+          {
+            "fieldId": "tref",
+            "value": 25
           }
         ]
       },
@@ -310,6 +346,10 @@
           {
             "fieldId": "koz",
             "value": 12
+          },
+          {
+            "fieldId": "tref",
+            "value": 250
           }
         ]
       },
@@ -320,6 +360,10 @@
           {
             "fieldId": "main_geometry",
             "value": null
+          },
+          {
+            "fieldId": "tref",
+            "value": 25
           }
         ]
       },
@@ -346,6 +390,10 @@
           {
             "fieldId": "koz",
             "value": 35
+          },
+          {
+            "fieldId": "tref",
+            "value": 245
           }
         ]
       }

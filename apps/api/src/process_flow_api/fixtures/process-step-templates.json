@@ -41,6 +41,16 @@
           "min": 0,
           "exclusiveMin": true
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -99,6 +109,16 @@
         "validation": {
           "min": 0
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -185,6 +205,16 @@
             }
           ]
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -220,6 +250,16 @@
           "min": 0,
           "exclusiveMin": true
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -281,6 +321,16 @@
         "controlType": "number",
         "selectionMode": null,
         "unit": "um"
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -302,6 +352,16 @@
         "controlType": null,
         "selectionMode": null,
         "unit": null
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -333,6 +393,16 @@
         "controlType": null,
         "selectionMode": null,
         "unit": null
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -354,6 +424,16 @@
         "controlType": null,
         "selectionMode": null,
         "unit": null
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -412,6 +492,16 @@
         "validation": {
           "min": 0
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -484,6 +574,16 @@
         "validation": {
           "min": 0
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -556,6 +656,16 @@
         "validation": {
           "min": 0
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -628,6 +738,16 @@
         "validation": {
           "min": 0
         }
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   },
@@ -669,6 +789,16 @@
         "controlType": "coordinateList",
         "selectionMode": null,
         "unit": "um"
+      },
+      {
+        "id": "tref",
+        "name": "tref",
+        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
+        "scope": "processParameter",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "degC"
       }
     ]
   }
