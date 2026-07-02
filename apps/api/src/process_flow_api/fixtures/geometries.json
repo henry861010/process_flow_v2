@@ -1,8 +1,8 @@
 [
   {
-    "id": "geom_example_wafer",
-    "category": "wafer",
-    "name": "Wafer",
+    "id": "wafer_v1_0_1",
+    "category": "carrier.wafer",
+    "name": "Wafer 1",
     "version": "v1.0.0",
     "owner": "demo.example",
     "description": "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
@@ -37,9 +37,83 @@
     }
   },
   {
-    "id": "geom_example_panel",
-    "category": "panel",
-    "name": "Panel",
+    "id": "wafer_v1_0_2",
+    "category": "carrier.wafer",
+    "name": "Wafer 2",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
+    "entityType": "wafer",
+    "icon": "carrier.wafer",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-wafer",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "CylinderGeometry",
+              "center": [
+                0,
+                0,
+                -250
+              ],
+              "bottom_radius": 300000,
+              "thk": 500
+            },
+            "material": "Si"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "wafer_v1_0_3",
+    "category": "carrier.wafer",
+    "name": "Wafer 3",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
+    "entityType": "wafer",
+    "icon": "carrier.wafer",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-wafer",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "CylinderGeometry",
+              "center": [
+                0,
+                0,
+                -250
+              ],
+              "bottom_radius": 300000,
+              "thk": 500
+            },
+            "material": "Si"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "panel_v1_0_0",
+    "category": "carrier.panel",
+    "name": "Panel1",
     "version": "v1.0.0",
     "owner": "demo.example",
     "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
@@ -78,9 +152,132 @@
     }
   },
   {
-    "id": "geom_example_hbm",
+    "id": "panel_v1_0_1",
+    "category": "carrier.panel",
+    "name": "Panel 1",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
+    "entityType": "panel",
+    "icon": "carrier.panel",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-panel",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -155000,
+                -155000,
+                -250
+              ],
+              "top_right": [
+                155000,
+                155000,
+                -250
+              ],
+              "thk": 500
+            },
+            "material": "glass"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "panel_v1_0_2",
+    "category": "carrier.panel",
+    "name": "Panel 2",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
+    "entityType": "panel",
+    "icon": "carrier.panel",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-panel",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -155000,
+                -155000,
+                -250
+              ],
+              "top_right": [
+                155000,
+                155000,
+                -250
+              ],
+              "thk": 500
+            },
+            "material": "glass"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "panel_v1_0_3",
+    "category": "carrier.panel",
+    "name": "Panel 3",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
+    "entityType": "panel",
+    "icon": "carrier.panel",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-panel",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -155000,
+                -155000,
+                -250
+              ],
+              "top_right": [
+                155000,
+                155000,
+                -250
+              ],
+              "thk": 500
+            },
+            "material": "glass"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "hbm_v1_3_1",
     "category": "die.hbm",
-    "name": "HBM",
+    "name": "HBM3",
     "version": "v1.0.0",
     "owner": "demo.example",
     "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
@@ -119,7 +316,253 @@
     }
   },
   {
-    "id": "geom_example_soc",
+    "id": "hbm_v1_3.5_1",
+    "category": "die.hbm",
+    "name": "HBM3E",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-hbm",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -700,
+                -500,
+                -25
+              ],
+              "top_right": [
+                700,
+                500,
+                -25
+              ],
+              "thk": 50
+            },
+            "material": "Si-HBM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "hbm_v1_2_1",
+    "category": "die.hbm",
+    "name": "HBM2",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-hbm",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -700,
+                -500,
+                -25
+              ],
+              "top_right": [
+                700,
+                500,
+                -25
+              ],
+              "thk": 50
+            },
+            "material": "Si-HBM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "hbm_v1_4_1",
+    "category": "die.hbm",
+    "name": "HBM4",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-hbm",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -700,
+                -500,
+                -25
+              ],
+              "top_right": [
+                700,
+                500,
+                -25
+              ],
+              "thk": 50
+            },
+            "material": "Si-HBM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "hbm_v1_7_1",
+    "category": "die.hbm",
+    "name": "HBM7",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-hbm",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -700,
+                -500,
+                -25
+              ],
+              "top_right": [
+                700,
+                500,
+                -25
+              ],
+              "thk": 50
+            },
+            "material": "Si-HBM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "dram_v1_0_1",
+    "category": "die.dram",
+    "name": "DRAM1",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-hbm",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -700,
+                -500,
+                -25
+              ],
+              "top_right": [
+                700,
+                500,
+                -25
+              ],
+              "thk": 50
+            },
+            "material": "Si-HBM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "dram_v1_0_2",
+    "category": "die.dram",
+    "name": "DRAM2",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "example-hbm",
+        "bodies": [
+          {
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [
+                -700,
+                -500,
+                -25
+              ],
+              "top_right": [
+                700,
+                500,
+                -25
+              ],
+              "thk": 50
+            },
+            "material": "Si-HBM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "soc_v1_0_0",
     "category": "die.soc",
     "name": "SoC",
     "version": "v1.0.0",
@@ -160,7 +603,7 @@
     }
   },
   {
-    "id": "geom_example_carrier",
+    "id": "test1",
     "category": "test.carrier",
     "name": "carrier",
     "version": "v1.0.0",

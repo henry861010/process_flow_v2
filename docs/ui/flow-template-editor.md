@@ -62,7 +62,7 @@ The returned bootstrap payload supplies:
 | `geometries` | Left-side initial geometry palette. |
 | `processFlowInstances` | Not required for topology editing; available for consistency with Home bootstrap. |
 
-Palette and selector UI should use metadata fields such as `id`, `name`, `category`, `version`, and `entityType`.
+Palette and selector UI uses metadata fields such as `id`, `name`, `category`, `version`, and `entityType`.
 
 ## Save API
 
@@ -138,16 +138,48 @@ Header actions:
 
 ### Geometry Palette
 
-The geometry palette lists `geometries` from bootstrap.
+The geometry palette lists `geometries` from bootstrap as a hierarchical category browser.
 
-It displays:
+Category model:
+
+- `GeometryEntity.category` is the only hierarchy source.
+- `.` separates category path segments.
+- Empty category values are displayed under `uncategorized`.
+- Root displays the first category segment for every geometry.
+- Category folders are sorted alphabetically.
+- Geometry cards keep repository order within their direct category level.
+
+Navigation model:
+
+- The palette displays a clickable breadcrumb in the form `Root / segment / segment`.
+- The breadcrumb is an unframed inline path indicator, not a card or category folder.
+- Clicking `Root` returns to the root category level.
+- Clicking a breadcrumb segment returns to that category level.
+- If the current level has no direct geometry and exactly one child folder, the browser advances through that single-child chain automatically.
+- The breadcrumb always shows the resolved full path after automatic advancement.
+
+Level content:
+
+- Child category folders appear before geometry cards.
+- A folder represents the next category segment and is navigation only.
+- A folder is not draggable because it can contain multiple geometry records.
+- Geometry cards appear only at their exact category path. For example, `die.hbm` records appear under `Root / die / hbm`, not under `Root / die`.
+
+Geometry cards display:
 
 - `name`
-- `category`
 - `entityType`
 - `id`
+- `description`
 
-Adding a geometry creates an initial geometry node. The editor does not parse `GeometryEntity.structure`.
+Dragging a geometry card creates an initial geometry node. The editor does not parse `GeometryEntity.structure`.
+
+Search:
+
+- The search input matches `name`, `id`, `version`, `category`, `entityType`, and `description`.
+- Search results are a flat list across all category paths.
+- Search results do not render category folders or category grouping.
+- Each search result card displays its full category path beneath the geometry name.
 
 ### Process Step Template Palette
 
@@ -248,7 +280,7 @@ Save is enabled only when:
 - Each process step output has at most one outgoing edge.
 - The graph is acyclic.
 
-Validation should report the first actionable issue.
+Validation reports the first actionable issue.
 
 ## Preview
 

@@ -12,6 +12,8 @@ import {
 } from "@xyflow/react";
 import {
   ArrowLeft,
+  ChevronRight,
+  Folder,
   GitBranch,
   Layers3,
   Plus,
@@ -33,6 +35,13 @@ import { CoordinateListControl } from "@/components/process-flow-fields/coordina
 import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  filterGeometrySearchResults,
+  formatGeometryCategoryPath,
+  getAutoResolvedGeometryPath,
+  getGeometryHierarchyLevel,
+  type GeometryCategoryFolder,
+} from "@/lib/geometry-library";
 import {
   createProcessFlowInstance,
   loadBootstrap,
@@ -1053,26 +1062,20 @@ function GeometryPickerDialog({
   onSelect: (geometryId: string) => void;
 }) {
   const [query, setQuery] = React.useState("");
-  const groups = React.useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const filtered = geometries.filter((geometry) => {
-      if (!normalizedQuery) {
-        return true;
-      }
-      return [
-        geometry.name,
-        geometry.id,
-        geometry.version,
-        geometry.category,
-        geometry.entityType,
-        geometry.description,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery);
-    });
-    return groupByCategory(filtered);
-  }, [geometries, query]);
+  const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
+  const resolvedCategoryPath = React.useMemo(
+    () => getAutoResolvedGeometryPath(geometries, categoryPath),
+    [geometries, categoryPath],
+  );
+  const categoryLevel = React.useMemo(
+    () => getGeometryHierarchyLevel(geometries, resolvedCategoryPath),
+    [geometries, resolvedCategoryPath],
+  );
+  const searchResults = React.useMemo(
+    () => filterGeometrySearchResults(geometries, query, geometrySearchText),
+    [geometries, query],
+  );
+  const searching = query.trim().length > 0;
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1123,53 +1126,163 @@ function GeometryPickerDialog({
             <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
               No geometry entities from API.
             </div>
-          ) : groups.length === 0 ? (
+          ) : searching && searchResults.length === 0 ? (
             <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
               No geometry matched the search.
             </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {groups.map((group) => (
-                <section key={group.category} className="rounded-md border bg-white">
-                  <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
-                    <span className="truncate text-sm font-medium">
-                      {group.category}
-                    </span>
-                    <Badge variant="secondary">{group.items.length}</Badge>
-                  </div>
-                  <div className="grid gap-2 p-2 md:grid-cols-2">
-                    {group.items.map((geometry) => (
-                      <button
-                        key={geometry.id}
-                        className={cn(
-                          "rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary hover:bg-muted/20",
-                          node.data.selectedGeometryEntityId === geometry.id &&
-                            "border-primary ring-2 ring-primary/20",
-                        )}
-                        onClick={() => onSelect(geometry.id)}
-                      >
-                        <div className="font-medium leading-snug">
-                          {geometry.name}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {geometry.version} / {geometry.id}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          <Badge variant="outline">{geometry.entityType}</Badge>
-                        </div>
-                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                          {geometry.description}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </section>
+          ) : searching ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              {searchResults.map((geometry) => (
+                <GeometryPickerItem
+                  key={geometry.id}
+                  geometry={geometry}
+                  selected={node.data.selectedGeometryEntityId === geometry.id}
+                  showCategoryPath
+                  onSelect={() => onSelect(geometry.id)}
+                />
               ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <GeometryPickerBreadcrumb
+                path={categoryLevel.path}
+                onPathChange={setCategoryPath}
+              />
+              {categoryLevel.folders.length === 0 &&
+              categoryLevel.geometries.length === 0 ? (
+                <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
+                  No geometry in this category.
+                </div>
+              ) : null}
+              {categoryLevel.folders.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {categoryLevel.folders.map((folder) => (
+                    <GeometryPickerFolderButton
+                      key={folder.path.join(".")}
+                      folder={folder}
+                      onClick={() => setCategoryPath(folder.path)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {categoryLevel.geometries.length > 0 ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {categoryLevel.geometries.map((geometry) => (
+                    <GeometryPickerItem
+                      key={geometry.id}
+                      geometry={geometry}
+                      selected={node.data.selectedGeometryEntityId === geometry.id}
+                      onSelect={() => onSelect(geometry.id)}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
       </section>
     </div>
+  );
+}
+
+function GeometryPickerBreadcrumb({
+  path,
+  onPathChange,
+}: {
+  path: string[];
+  onPathChange: (path: string[]) => void;
+}) {
+  return (
+    <nav
+      aria-label="Geometry category path"
+      className="flex w-fit max-w-full items-center gap-1 overflow-hidden whitespace-nowrap px-0.5 text-xs text-muted-foreground"
+    >
+      <button
+        type="button"
+        className="shrink-0 rounded-sm px-1 py-0.5 font-medium text-primary hover:bg-muted"
+        onClick={() => onPathChange([])}
+      >
+        Root
+      </button>
+      {path.map((segment, index) => (
+        <React.Fragment key={`${segment}-${index}`}>
+          <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">
+            /
+          </span>
+          <button
+            type="button"
+            className="min-w-0 rounded-sm px-1 py-0.5 font-medium text-primary hover:bg-muted"
+            onClick={() => onPathChange(path.slice(0, index + 1))}
+          >
+            <span className="block max-w-[12rem] truncate">{segment}</span>
+          </button>
+        </React.Fragment>
+      ))}
+    </nav>
+  );
+}
+
+function GeometryPickerFolderButton({
+  folder,
+  onClick,
+}: {
+  folder: GeometryCategoryFolder;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-sm shadow-sm transition hover:border-primary hover:bg-muted/20"
+      onClick={onClick}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <Folder className="h-4 w-4 shrink-0 text-primary" />
+        <span className="truncate font-medium">{folder.name}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        <Badge variant="secondary">{folder.count}</Badge>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </span>
+    </button>
+  );
+}
+
+function GeometryPickerItem({
+  geometry,
+  selected,
+  showCategoryPath = false,
+  onSelect,
+}: {
+  geometry: GeometryEntity;
+  selected: boolean;
+  showCategoryPath?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary hover:bg-muted/20",
+        selected && "border-primary ring-2 ring-primary/20",
+      )}
+      onClick={onSelect}
+    >
+      <div className="font-medium leading-snug">{geometry.name}</div>
+      {showCategoryPath ? (
+        <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+          {formatGeometryCategoryPath(geometry.category)}
+        </div>
+      ) : null}
+      <div className="mt-1 text-xs text-muted-foreground">
+        {geometry.version} / {geometry.id}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <Badge variant="outline">{geometry.entityType}</Badge>
+      </div>
+      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+        {geometry.description}
+      </p>
+    </button>
   );
 }
 
@@ -2663,17 +2776,17 @@ function initialNodeId(edgeId: string) {
   return `initial:${edgeId}`;
 }
 
-function groupByCategory<T extends { category: string }>(items: T[]) {
-  const groups = new Map<string, T[]>();
-  items.forEach((item) => {
-    const category = item.category || "uncategorized";
-    groups.set(category, [...(groups.get(category) ?? []), item]);
-  });
-  return Array.from(groups.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([category, groupItems]) => ({ category, items: groupItems }));
-}
-
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function geometrySearchText(geometry: GeometryEntity) {
+  return [
+    geometry.name,
+    geometry.id,
+    geometry.version,
+    geometry.category,
+    geometry.entityType,
+    geometry.description,
+  ].join(" ");
 }

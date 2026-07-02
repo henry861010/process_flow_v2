@@ -60,7 +60,7 @@ The returned bootstrap payload supplies:
 | `geometries` | Initial geometry picker source. |
 | `processFlowInstances` | Not required for draft editing; available for consistency with Home bootstrap. |
 
-The selector UI should use resource metadata such as `id`, `name`, `version`, and `category`. It should not parse geometry internals.
+The selector UI uses resource metadata such as `id`, `name`, `version`, and `category`. It does not parse geometry internals.
 
 ## Save API
 
@@ -181,18 +181,56 @@ The graph uses left-to-right dataflow layout:
 - Users may pan and zoom.
 - Users may not drag nodes, create edges, delete edges, reconnect edges, or otherwise modify topology.
 
-The layout should prioritize readable process depth and merge paths over decorative presentation.
+The layout prioritizes readable process depth and merge paths over decorative presentation.
 
 ## Initial Geometry Picker
 
 Clicking an initial geometry node opens a geometry picker backed by `geometries` from bootstrap.
 
-Picker behavior:
+Category model:
 
-- Search by geometry `name`, `id`, `category`, or `entityType`.
-- Display `name`, `category`, `entityType`, and `id`.
-- Selecting a geometry writes that id into the target step field value for the corresponding `geometryRef` edge.
-- The picker does not inspect `GeometryEntity.structure`.
+- `GeometryEntity.category` is the only hierarchy source.
+- `.` separates category path segments.
+- Empty category values are displayed under `uncategorized`.
+- Root displays the first category segment for every geometry.
+- Category folders are sorted alphabetically.
+- Geometry cards keep repository order within their direct category level.
+
+Navigation model:
+
+- The picker displays a clickable breadcrumb in the form `Root / segment / segment`.
+- The breadcrumb is an unframed inline path indicator, not a card or category folder.
+- Clicking `Root` returns to the root category level.
+- Clicking a breadcrumb segment returns to that category level.
+- If the current level has no direct geometry and exactly one child folder, the browser advances through that single-child chain automatically.
+- The breadcrumb always shows the resolved full path after automatic advancement.
+
+Level content:
+
+- Child category folders appear before geometry cards.
+- A folder represents the next category segment and is navigation only.
+- A folder is not selectable as a geometry because it can contain multiple geometry records.
+- Geometry cards appear only at their exact category path. For example, `die.hbm` records appear under `Root / die / hbm`, not under `Root / die`.
+
+Geometry cards display:
+
+- `name`
+- `version`
+- `id`
+- `entityType`
+- `description`
+
+Selecting a geometry writes that id into the target step field value for the corresponding `geometryRef` edge.
+
+Search:
+
+- The search input matches `name`, `id`, `version`, `category`, `entityType`, and `description`.
+- Search results are a flat list across all category paths.
+- Search results do not render category folders or category grouping.
+- Each search result card displays its full category path beneath the geometry name.
+- The currently selected geometry remains highlighted when it appears in the active view.
+
+The picker does not inspect `GeometryEntity.structure`.
 
 If the selected geometry id disappears from the loaded repository snapshot, validation marks the draft invalid.
 
@@ -223,7 +261,7 @@ Save is enabled only when:
 - Step output geometry fields use `null`.
 - The flow graph validates as acyclic, one incoming edge per target slot, and no step output fan-out.
 
-Validation messages should identify the first actionable issue.
+Validation messages identify the first actionable issue.
 
 ## Preview
 

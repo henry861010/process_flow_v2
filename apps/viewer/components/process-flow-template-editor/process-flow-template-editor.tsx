@@ -23,7 +23,9 @@ import {
   Boxes,
   Check,
   ChevronDown,
+  ChevronRight,
   FileJson,
+  Folder,
   GitBranch,
   GitFork,
   Link2Off,
@@ -42,6 +44,14 @@ import { Button } from "@/components/ui/button";
 import { ExportJobsPanel } from "@/components/geometry-preview/cdb-export-jobs-panel";
 import type { ExportJob } from "@/components/geometry-preview/cdb-export-client";
 import type { GeometryPreviewContext } from "@/components/geometry-preview/geometry-preview-panel";
+import {
+  filterGeometrySearchResults,
+  formatGeometryCategoryPath,
+  getAutoResolvedGeometryPath,
+  getGeometryHierarchyLevel,
+  type GeometryCategoryFolder,
+  type GeometryHierarchyLevel,
+} from "@/lib/geometry-library";
 import {
   createProcessFlowTemplateInstance,
   listProcessFlowTemplates,
@@ -324,9 +334,8 @@ function ProcessFlowTemplateEditorInner() {
   const [exportJobsRefreshKey, setExportJobsRefreshKey] = React.useState(0);
   const [seedExportJob, setSeedExportJob] = React.useState<ExportJob | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
-  const [openGeometryCategories, setOpenGeometryCategories] = React.useState<
-    Record<string, boolean>
-  >({});
+  const [geometryCategoryPath, setGeometryCategoryPath] = React.useState<string[]>([]);
+  const [geometrySearch, setGeometrySearch] = React.useState("");
   const [openStepCategories, setOpenStepCategories] = React.useState<
     Record<string, boolean>
   >({});
@@ -564,7 +573,19 @@ function ProcessFlowTemplateEditorInner() {
     [editingStepNodeId, nodes],
   );
 
-  const geometryGroups = React.useMemo(() => groupByCategory(geometries), [geometries]);
+  const resolvedGeometryCategoryPath = React.useMemo(
+    () => getAutoResolvedGeometryPath(geometries, geometryCategoryPath),
+    [geometries, geometryCategoryPath],
+  );
+  const geometryLevel = React.useMemo(
+    () => getGeometryHierarchyLevel(geometries, resolvedGeometryCategoryPath),
+    [geometries, resolvedGeometryCategoryPath],
+  );
+  const geometrySearchResults = React.useMemo(
+    () =>
+      filterGeometrySearchResults(geometries, geometrySearch, geometrySearchText),
+    [geometries, geometrySearch],
+  );
   const stepGroups = React.useMemo(
     () => groupByCategory(stepTemplates),
     [stepTemplates],
@@ -1152,26 +1173,14 @@ function ProcessFlowTemplateEditorInner() {
         <aside className="min-h-[240px] border-r bg-white lg:min-h-0">
           <PaletteHeader icon={<Boxes className="h-4 w-4" />} title="Geometry library" />
           <div className="h-[240px] overflow-y-auto p-3 lg:h-[calc(100%-49px)]">
-            <div className="flex flex-col gap-3">
-              {geometryGroups.map((group) => (
-                <PaletteGroup
-                  key={group.category}
-                  category={group.category}
-                  count={group.items.length}
-                  open={openGeometryCategories[group.category] === true}
-                  onToggle={() =>
-                    setOpenGeometryCategories((current) => ({
-                      ...current,
-                      [group.category]: current[group.category] !== true,
-                    }))
-                  }
-                >
-                  {group.items.map((geometry) => (
-                    <GeometryPaletteItem key={geometry.id} geometry={geometry} />
-                  ))}
-                </PaletteGroup>
-              ))}
-            </div>
+            <GeometryLibraryPalette
+              geometries={geometries}
+              level={geometryLevel}
+              search={geometrySearch}
+              searchResults={geometrySearchResults}
+              onPathChange={setGeometryCategoryPath}
+              onSearchChange={setGeometrySearch}
+            />
           </div>
         </aside>
 
@@ -1321,6 +1330,146 @@ function PaletteHeader({
   );
 }
 
+function GeometryLibraryPalette({
+  geometries,
+  level,
+  search,
+  searchResults,
+  onPathChange,
+  onSearchChange,
+}: {
+  geometries: GeometryEntity[];
+  level: GeometryHierarchyLevel<GeometryEntity>;
+  search: string;
+  searchResults: GeometryEntity[];
+  onPathChange: (path: string[]) => void;
+  onSearchChange: (value: string) => void;
+}) {
+  const searching = search.trim().length > 0;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="flex h-9 items-center gap-2 rounded-md border bg-white px-3 text-sm shadow-sm">
+        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <input
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search geometry"
+        />
+      </label>
+
+      {geometries.length === 0 ? (
+        <GeometryPaletteEmptyState>No geometry entities from API.</GeometryPaletteEmptyState>
+      ) : searching ? (
+        searchResults.length === 0 ? (
+          <GeometryPaletteEmptyState>No geometry matched the search.</GeometryPaletteEmptyState>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {searchResults.map((geometry) => (
+              <GeometryPaletteItem
+                key={geometry.id}
+                geometry={geometry}
+                showCategoryPath
+              />
+            ))}
+          </div>
+        )
+      ) : (
+        <>
+          <GeometryBreadcrumb path={level.path} onPathChange={onPathChange} />
+          {level.folders.length === 0 && level.geometries.length === 0 ? (
+            <GeometryPaletteEmptyState>No geometry in this category.</GeometryPaletteEmptyState>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {level.folders.map((folder) => (
+                <GeometryFolderButton
+                  key={folder.path.join(".")}
+                  folder={folder}
+                  onClick={() => onPathChange(folder.path)}
+                />
+              ))}
+              {level.geometries.map((geometry) => (
+                <GeometryPaletteItem key={geometry.id} geometry={geometry} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function GeometryBreadcrumb({
+  path,
+  onPathChange,
+}: {
+  path: string[];
+  onPathChange: (path: string[]) => void;
+}) {
+  return (
+    <nav
+      aria-label="Geometry category path"
+      className="flex w-fit max-w-full items-center gap-1 overflow-hidden whitespace-nowrap px-0.5 text-xs text-muted-foreground"
+    >
+      <button
+        type="button"
+        className="shrink-0 rounded-sm px-1 py-0.5 font-medium text-primary hover:bg-muted"
+        onClick={() => onPathChange([])}
+      >
+        Root
+      </button>
+      {path.map((segment, index) => (
+        <React.Fragment key={`${segment}-${index}`}>
+          <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">
+            /
+          </span>
+          <button
+            type="button"
+            className="min-w-0 rounded-sm px-1 py-0.5 font-medium text-primary hover:bg-muted"
+            onClick={() => onPathChange(path.slice(0, index + 1))}
+          >
+            <span className="block max-w-[7rem] truncate">{segment}</span>
+          </button>
+        </React.Fragment>
+      ))}
+    </nav>
+  );
+}
+
+function GeometryFolderButton({
+  folder,
+  onClick,
+}: {
+  folder: GeometryCategoryFolder;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-sm shadow-sm transition hover:border-primary/60 hover:bg-muted/20"
+      onClick={onClick}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <Folder className="h-4 w-4 shrink-0 text-primary" />
+        <span className="truncate font-medium">{folder.name}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        <Badge variant="secondary">{folder.count}</Badge>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </span>
+    </button>
+  );
+}
+
+function GeometryPaletteEmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-dashed bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
 function PaletteGroup({
   category,
   count,
@@ -1337,6 +1486,7 @@ function PaletteGroup({
   return (
     <section className="overflow-hidden rounded-md border bg-white">
       <button
+        type="button"
         className="flex w-full items-center justify-between gap-2 bg-muted/40 px-3 py-2 text-left text-sm"
         onClick={onToggle}
       >
@@ -1353,7 +1503,13 @@ function PaletteGroup({
   );
 }
 
-function GeometryPaletteItem({ geometry }: { geometry: GeometryEntity }) {
+function GeometryPaletteItem({
+  geometry,
+  showCategoryPath = false,
+}: {
+  geometry: GeometryEntity;
+  showCategoryPath?: boolean;
+}) {
   return (
     <div
       draggable
@@ -1367,6 +1523,11 @@ function GeometryPaletteItem({ geometry }: { geometry: GeometryEntity }) {
         <Box className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <div className="min-w-0">
           <div className="line-clamp-2 font-medium leading-snug">{geometry.name}</div>
+          {showCategoryPath ? (
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              {formatGeometryCategoryPath(geometry.category)}
+            </div>
+          ) : null}
           <div className="mt-1 truncate text-xs text-muted-foreground">
             {geometry.entityType} / {geometry.id}
           </div>
@@ -3427,6 +3588,17 @@ function groupByCategory<T extends { category: string }>(items: T[]) {
   return Array.from(groups.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([category, groupItems]) => ({ category, items: groupItems }));
+}
+
+function geometrySearchText(geometry: GeometryEntity) {
+  return [
+    geometry.name,
+    geometry.id,
+    geometry.version,
+    geometry.category,
+    geometry.entityType,
+    geometry.description,
+  ].join(" ");
 }
 
 function downloadJson(filename: string, data: unknown) {
