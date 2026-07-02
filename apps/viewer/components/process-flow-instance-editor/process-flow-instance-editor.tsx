@@ -12,18 +12,16 @@ import {
 } from "@xyflow/react";
 import {
   ArrowLeft,
-  ChevronRight,
-  Folder,
   GitBranch,
   Layers3,
   Plus,
   RotateCcw,
   Save,
-  Search,
   Trash2,
   X,
 } from "lucide-react";
 
+import { CategoryLibraryBrowser } from "@/components/category-library/category-library-browser";
 import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
@@ -35,13 +33,7 @@ import { CoordinateListControl } from "@/components/process-flow-fields/coordina
 import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  filterGeometrySearchResults,
-  formatGeometryCategoryPath,
-  getAutoResolvedGeometryPath,
-  getGeometryHierarchyLevel,
-  type GeometryCategoryFolder,
-} from "@/lib/geometry-library";
+import { formatCategoryPath } from "@/lib/category-library";
 import {
   createProcessFlowInstance,
   loadBootstrap,
@@ -1063,19 +1055,6 @@ function GeometryPickerDialog({
 }) {
   const [query, setQuery] = React.useState("");
   const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
-  const resolvedCategoryPath = React.useMemo(
-    () => getAutoResolvedGeometryPath(geometries, categoryPath),
-    [geometries, categoryPath],
-  );
-  const categoryLevel = React.useMemo(
-    () => getGeometryHierarchyLevel(geometries, resolvedCategoryPath),
-    [geometries, resolvedCategoryPath],
-  );
-  const searchResults = React.useMemo(
-    () => filterGeometrySearchResults(geometries, query, geometrySearchText),
-    [geometries, query],
-  );
-  const searching = query.trim().length > 0;
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1110,140 +1089,34 @@ function GeometryPickerDialog({
               <X />
             </Button>
           </div>
-          <label className="mt-4 flex items-center gap-2 rounded-md border bg-white px-3 py-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input
-              className="h-6 min-w-0 flex-1 bg-transparent text-sm outline-none"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search geometry"
-            />
-          </label>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {geometries.length === 0 ? (
-            <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-              No geometry entities from API.
-            </div>
-          ) : searching && searchResults.length === 0 ? (
-            <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-              No geometry matched the search.
-            </div>
-          ) : searching ? (
-            <div className="grid gap-2 md:grid-cols-2">
-              {searchResults.map((geometry) => (
-                <GeometryPickerItem
-                  key={geometry.id}
-                  geometry={geometry}
-                  selected={node.data.selectedGeometryEntityId === geometry.id}
-                  showCategoryPath
-                  onSelect={() => onSelect(geometry.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <GeometryPickerBreadcrumb
-                path={categoryLevel.path}
-                onPathChange={setCategoryPath}
+          <CategoryLibraryBrowser
+            items={geometries}
+            path={categoryPath}
+            search={query}
+            searchPlaceholder="Search geometry"
+            emptyLabel="No geometry entities from API."
+            noSearchResultsLabel="No geometry matched the search."
+            noCategoryItemsLabel="No geometry in this category."
+            getSearchText={geometrySearchText}
+            itemKey={(geometry) => geometry.id}
+            itemListClassName="grid gap-2 md:grid-cols-2"
+            renderItem={(geometry, { showCategoryPath }) => (
+              <GeometryPickerItem
+                geometry={geometry}
+                selected={node.data.selectedGeometryEntityId === geometry.id}
+                showCategoryPath={showCategoryPath}
+                onSelect={() => onSelect(geometry.id)}
               />
-              {categoryLevel.folders.length === 0 &&
-              categoryLevel.geometries.length === 0 ? (
-                <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-                  No geometry in this category.
-                </div>
-              ) : null}
-              {categoryLevel.folders.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  {categoryLevel.folders.map((folder) => (
-                    <GeometryPickerFolderButton
-                      key={folder.path.join(".")}
-                      folder={folder}
-                      onClick={() => setCategoryPath(folder.path)}
-                    />
-                  ))}
-                </div>
-              ) : null}
-              {categoryLevel.geometries.length > 0 ? (
-                <div className="grid gap-2 md:grid-cols-2">
-                  {categoryLevel.geometries.map((geometry) => (
-                    <GeometryPickerItem
-                      key={geometry.id}
-                      geometry={geometry}
-                      selected={node.data.selectedGeometryEntityId === geometry.id}
-                      onSelect={() => onSelect(geometry.id)}
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )}
+            )}
+            onPathChange={setCategoryPath}
+            onSearchChange={setQuery}
+          />
         </div>
       </section>
     </div>
-  );
-}
-
-function GeometryPickerBreadcrumb({
-  path,
-  onPathChange,
-}: {
-  path: string[];
-  onPathChange: (path: string[]) => void;
-}) {
-  return (
-    <nav
-      aria-label="Geometry category path"
-      className="flex w-fit max-w-full items-center gap-1 overflow-hidden whitespace-nowrap px-0.5 text-xs text-muted-foreground"
-    >
-      <button
-        type="button"
-        className="shrink-0 rounded-sm px-1 py-0.5 font-medium text-primary hover:bg-muted"
-        onClick={() => onPathChange([])}
-      >
-        Root
-      </button>
-      {path.map((segment, index) => (
-        <React.Fragment key={`${segment}-${index}`}>
-          <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">
-            /
-          </span>
-          <button
-            type="button"
-            className="min-w-0 rounded-sm px-1 py-0.5 font-medium text-primary hover:bg-muted"
-            onClick={() => onPathChange(path.slice(0, index + 1))}
-          >
-            <span className="block max-w-[12rem] truncate">{segment}</span>
-          </button>
-        </React.Fragment>
-      ))}
-    </nav>
-  );
-}
-
-function GeometryPickerFolderButton({
-  folder,
-  onClick,
-}: {
-  folder: GeometryCategoryFolder;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-sm shadow-sm transition hover:border-primary hover:bg-muted/20"
-      onClick={onClick}
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        <Folder className="h-4 w-4 shrink-0 text-primary" />
-        <span className="truncate font-medium">{folder.name}</span>
-      </span>
-      <span className="flex shrink-0 items-center gap-2">
-        <Badge variant="secondary">{folder.count}</Badge>
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      </span>
-    </button>
   );
 }
 
@@ -1270,7 +1143,7 @@ function GeometryPickerItem({
       <div className="font-medium leading-snug">{geometry.name}</div>
       {showCategoryPath ? (
         <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-          {formatGeometryCategoryPath(geometry.category)}
+          {formatCategoryPath(geometry.category)}
         </div>
       ) : null}
       <div className="mt-1 text-xs text-muted-foreground">

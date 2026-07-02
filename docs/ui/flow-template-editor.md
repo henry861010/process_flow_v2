@@ -136,18 +136,16 @@ Header actions:
 
 ## Palettes
 
-### Geometry Palette
+Both side palettes use the shared category browser pattern.
 
-The geometry palette lists `geometries` from bootstrap as a hierarchical category browser.
+Category browser model:
 
-Category model:
-
-- `GeometryEntity.category` is the only hierarchy source.
+- Each item uses its `category` field as the only hierarchy source.
 - `.` separates category path segments.
 - Empty category values are displayed under `uncategorized`.
-- Root displays the first category segment for every geometry.
+- Root displays the first category segment for every item.
 - Category folders are sorted alphabetically.
-- Geometry cards keep repository order within their direct category level.
+- Item cards keep repository order within their direct category level.
 
 Navigation model:
 
@@ -155,15 +153,25 @@ Navigation model:
 - The breadcrumb is an unframed inline path indicator, not a card or category folder.
 - Clicking `Root` returns to the root category level.
 - Clicking a breadcrumb segment returns to that category level.
-- If the current level has no direct geometry and exactly one child folder, the browser advances through that single-child chain automatically.
+- If the current level has no direct items and exactly one child folder, the browser advances through that single-child chain automatically.
 - The breadcrumb always shows the resolved full path after automatic advancement.
 
 Level content:
 
-- Child category folders appear before geometry cards.
+- Child category folders appear before item cards.
 - A folder represents the next category segment and is navigation only.
-- A folder is not draggable because it can contain multiple geometry records.
-- Geometry cards appear only at their exact category path. For example, `die.hbm` records appear under `Root / die / hbm`, not under `Root / die`.
+- A folder is not draggable because it can contain multiple records.
+- Item cards appear only at their exact category path. For example, `die.hbm` records appear under `Root / die / hbm`, not under `Root / die`.
+
+Search model:
+
+- Search results are a flat list across all category paths.
+- Search results do not render category folders or category grouping.
+- Each search result card displays its full category path beneath the item name.
+
+### Geometry Palette
+
+The geometry palette lists `geometries` from bootstrap as a hierarchical category browser.
 
 Geometry cards display:
 
@@ -177,23 +185,31 @@ Dragging a geometry card creates an initial geometry node. The editor does not p
 Search:
 
 - The search input matches `name`, `id`, `version`, `category`, `entityType`, and `description`.
-- Search results are a flat list across all category paths.
-- Search results do not render category folders or category grouping.
-- Each search result card displays its full category path beneath the geometry name.
 
 ### Process Step Template Palette
 
-The process step palette lists `processStepTemplates` from bootstrap.
+The process step palette lists `processStepTemplates` from bootstrap as a hierarchical category browser.
 
-It displays:
+Process step template cards display:
 
 - `name`
-- `category`
 - `version`
 - field count
-- `program`
+- geometry input slot count
+- repeater badge when any field definition is repeatable
+
+Search:
+
+- The search input matches `name`, `id`, `version`, `category`, `program`, `description`, and `owner`.
 
 Adding a step creates a draft process step node with a generated `stepRefId`.
+
+Step template card behavior:
+
+- Clicking an enabled card adds the step near the current graph focus.
+- Dragging an enabled card onto the graph creates the step at the drop location.
+- Disabled cards cannot be clicked or dragged.
+- A card is disabled when the process step template has no top-level `geometryRef` input slot.
 
 ## Start From Template
 

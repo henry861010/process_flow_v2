@@ -185,7 +185,7 @@ The layout prioritizes readable process depth and merge paths over decorative pr
 
 ## Initial Geometry Picker
 
-Clicking an initial geometry node opens a geometry picker backed by `geometries` from bootstrap.
+Clicking an initial geometry node opens a geometry picker backed by `geometries` from bootstrap. The picker uses the same shared category browser pattern as the Flow Template Editor palettes.
 
 Category model:
 

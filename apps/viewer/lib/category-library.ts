@@ -1,20 +1,20 @@
-export type GeometryCategoryRecord = {
+export type CategoryRecord = {
   category: string;
 };
 
-export type GeometryCategoryFolder = {
+export type CategoryFolder = {
   name: string;
   path: string[];
   count: number;
 };
 
-export type GeometryHierarchyLevel<T extends GeometryCategoryRecord> = {
+export type CategoryHierarchyLevel<T extends CategoryRecord> = {
   path: string[];
-  folders: GeometryCategoryFolder[];
-  geometries: T[];
+  folders: CategoryFolder[];
+  items: T[];
 };
 
-export function getGeometryCategoryPath(category: string) {
+export function getCategoryPath(category: string) {
   const segments = category
     .split(".")
     .map((segment) => segment.trim())
@@ -22,25 +22,25 @@ export function getGeometryCategoryPath(category: string) {
   return segments.length > 0 ? segments : ["uncategorized"];
 }
 
-export function formatGeometryCategoryPath(category: string) {
-  return getGeometryCategoryPath(category).join(" / ");
+export function formatCategoryPath(category: string) {
+  return getCategoryPath(category).join(" / ");
 }
 
-export function getGeometryHierarchyLevel<T extends GeometryCategoryRecord>(
-  geometries: T[],
+export function getCategoryHierarchyLevel<T extends CategoryRecord>(
+  items: T[],
   path: string[],
-): GeometryHierarchyLevel<T> {
-  const folders = new Map<string, GeometryCategoryFolder>();
-  const directGeometries: T[] = [];
+): CategoryHierarchyLevel<T> {
+  const folders = new Map<string, CategoryFolder>();
+  const directItems: T[] = [];
 
-  geometries.forEach((geometry) => {
-    const categoryPath = getGeometryCategoryPath(geometry.category);
+  items.forEach((item) => {
+    const categoryPath = getCategoryPath(item.category);
     if (!pathIsPrefix(path, categoryPath)) {
       return;
     }
 
     if (categoryPath.length === path.length) {
-      directGeometries.push(geometry);
+      directItems.push(item);
       return;
     }
 
@@ -63,37 +63,37 @@ export function getGeometryHierarchyLevel<T extends GeometryCategoryRecord>(
     folders: Array.from(folders.values()).sort((left, right) =>
       left.name.localeCompare(right.name),
     ),
-    geometries: directGeometries,
+    items: directItems,
   };
 }
 
-export function getAutoResolvedGeometryPath<T extends GeometryCategoryRecord>(
-  geometries: T[],
+export function getAutoResolvedCategoryPath<T extends CategoryRecord>(
+  items: T[],
   initialPath: string[],
 ) {
   let path = [...initialPath];
-  let level = getGeometryHierarchyLevel(geometries, path);
+  let level = getCategoryHierarchyLevel(items, path);
 
-  while (level.geometries.length === 0 && level.folders.length === 1) {
+  while (level.items.length === 0 && level.folders.length === 1) {
     path = level.folders[0].path;
-    level = getGeometryHierarchyLevel(geometries, path);
+    level = getCategoryHierarchyLevel(items, path);
   }
 
   return path;
 }
 
-export function filterGeometrySearchResults<T>(
-  geometries: T[],
+export function filterCategorySearchResults<T>(
+  items: T[],
   query: string,
-  getSearchText: (geometry: T) => string,
+  getSearchText: (item: T) => string,
 ) {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
     return [];
   }
 
-  return geometries.filter((geometry) =>
-    getSearchText(geometry).toLowerCase().includes(normalizedQuery),
+  return items.filter((item) =>
+    getSearchText(item).toLowerCase().includes(normalizedQuery),
   );
 }
 
