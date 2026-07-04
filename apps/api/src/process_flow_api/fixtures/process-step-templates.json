@@ -43,8 +43,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -111,8 +111,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -207,8 +207,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -252,8 +252,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -323,8 +323,8 @@
         "unit": "um"
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -354,8 +354,8 @@
         "unit": null
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -395,8 +395,8 @@
         "unit": null
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -426,8 +426,8 @@
         "unit": null
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -494,8 +494,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -576,8 +576,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -658,8 +658,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -740,8 +740,8 @@
         }
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",
@@ -791,8 +791,8 @@
         "unit": "um"
       },
       {
-        "id": "tref",
-        "name": "tref",
+        "id": "workingTemp",
+        "name": "Working temperature",
         "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
         "scope": "processParameter",
         "valueType": "float",

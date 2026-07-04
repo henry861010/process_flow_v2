@@ -146,6 +146,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             "stepRefs": [
                 {
                     "stepRefId": "molding",
+                    "stepLabel": "molding",
                     "processStepTemplateId": "step_tpl_molding_1_0_0",
                 }
             ],
@@ -181,6 +182,10 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.json()["processFlowTemplate"]["id"], template["id"])
+        self.assertEqual(
+            response.json()["processFlowTemplate"]["stepRefs"][0]["stepLabel"],
+            "molding",
+        )
         self.assertEqual(response.json()["processFlowInstance"]["id"], instance["id"])
 
     def test_execute_saved_instance(self):

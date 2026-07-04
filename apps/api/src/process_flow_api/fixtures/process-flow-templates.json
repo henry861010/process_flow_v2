@@ -8,18 +8,22 @@
     "stepRefs": [
       {
         "stepRefId": "pnp_hbm",
+        "stepLabel": "PnP",
         "processStepTemplateId": "step_tpl_pnp_1_0_0"
       },
       {
         "stepRefId": "mold_cap",
+        "stepLabel": "molding",
         "processStepTemplateId": "step_tpl_molding_1_0_0"
       },
       {
         "stepRefId": "rdl_build",
+        "stepLabel": "RDL layer",
         "processStepTemplateId": "step_tpl_rdl_1_0_0"
       },
       {
         "stepRefId": "c4_bump",
+        "stepLabel": "C4 Bump",
         "processStepTemplateId": "step_tpl_c4_bump_formation_1_0_0"
       }
     ],
@@ -88,18 +92,22 @@
     "stepRefs": [
       {
         "stepRefId": "pnp_soc",
+        "stepLabel": "PnP",
         "processStepTemplateId": "step_tpl_pnp_1_0_0"
       },
       {
         "stepRefId": "micro_bump",
+        "stepLabel": "Micro Bump",
         "processStepTemplateId": "step_tpl_ubump_formation_1_0_0"
       },
       {
         "stepRefId": "flip_package",
+        "stepLabel": "Flip",
         "processStepTemplateId": "step_tpl_flip_1_0_0"
       },
       {
         "stepRefId": "bga_array",
+        "stepLabel": "BGA Bump",
         "processStepTemplateId": "step_tpl_bga_bump_formation_1_0_0"
       }
     ],

@@ -80,6 +80,7 @@ The API accepts and returns camelCase JSON.
   "stepRefs": [
     {
       "stepRefId": "pnp_hbm",
+      "stepLabel": "PnP",
       "processStepTemplateId": "step_tpl_pnp_1_0_0"
     }
   ],
@@ -97,6 +98,8 @@ The API accepts and returns camelCase JSON.
 ```
 
 `flowEdges[]` is the topology source of truth. `stepRefs[]` order is not runtime order.
+`stepRefId` is the flow-local stable reference used by edges and instances;
+`stepLabel` is the user-facing name shown for that step in this flow template.
 
 ### ProcessFlowInstance
 

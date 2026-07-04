@@ -1014,6 +1014,12 @@ FieldDefinition editor 與資料驗證應只允許下列 `valueType`、`controlT
       - 是 flow 內穩定 reference，用於 flow edge、instance value set、diff 與 UI anchor。
       - 為什麼process step 引用不直接用 global id ? 因為同一個 process step template 可能被在同一個 process flow template 被引用多次，如果想同，在instance就會造成同時有兩個指向相同 process step 卻用不同 value。因此 `flowEdges[]` 必須使用 `stepRefId` 連接 nodes，不可使用 global 
       - array order 不代表 process flow 順序。真正的 flow topology 由 `flowEdges[]` 表示
+  - `stepLabel`：使用者對此 process step 在此 process flow template 中指定的人可讀名稱。
+      - 例如同一個 RDL process step template 可在同一個 flow 中分別命名為 `frontside RDL` 與 `backside RDL`。
+      - `stepLabel` 只用於 UI display、搜尋與閱讀，不作為 graph identity，也不取代 `stepRefId`。
+      - `stepLabel` 不要求在同一個 process flow template 中唯一，允許多個 step 使用相同 label。
+      - 若 `stepLabel` 缺失或為空字串，UI 應 fallback 顯示對應 `ProcessStepTemplate.name`。
+      - `stepLabel` 只保存在 `ProcessFlowTemplate.stepRefs[]`。`ProcessFlowInstance.stepValueSets[]` 不複製此欄位，instance 顯示時從綁定的 immutable flow template 讀取。
   - `processStepTemplateId`：引用 process step template 的 global ID
 - `flowEdges`：代表 process graph 的 directed acyclic edges。
   - `flowEdges[]` 中每個 item 包含參數：
@@ -1078,31 +1084,33 @@ geometry resolve 階段處理；`validate_flow_graph()` 只檢查 geometry field
 `validate_flow_graph()` 必須檢查下列規則：
 
 1. `ProcessFlowTemplate.stepRefs[]` 中每個 `stepRefId` 必須是唯一且非空字串。
-2. 每個 `stepRefs[].processStepTemplateId` 必須能 resolve 到存在的
+2. 若 `ProcessFlowTemplate.stepRefs[].stepLabel` 存在，必須是 string；不檢查唯一性。
+   缺失或空字串不阻擋 runtime，UI 顯示時 fallback 到對應 `ProcessStepTemplate.name`。
+3. 每個 `stepRefs[].processStepTemplateId` 必須能 resolve 到存在的
    `ProcessStepTemplate`。
-3. `ProcessFlowInstance.processFlowTemplateId` 必須等於正在執行的
+4. `ProcessFlowInstance.processFlowTemplateId` 必須等於正在執行的
    `ProcessFlowTemplate.id`。
-4. Instance 中每個 step 必須有且只能有一個 `StepValueSet`。每個
+5. Instance 中每個 step 必須有且只能有一個 `StepValueSet`。每個
    `StepValueSet.stepRefId` 必須存在於 `ProcessFlowTemplate.stepRefs[]`。
-5. 每個 `StepValueSet.processStepTemplateId` 必須與其 `stepRefId` resolve 到的
+6. 每個 `StepValueSet.processStepTemplateId` 必須與其 `stepRefId` resolve 到的
    `ProcessStepTemplate.id` 一致。
-6. 每個 `flowEdges[].target.stepRefId` 必須存在於
+7. 每個 `flowEdges[].target.stepRefId` 必須存在於
    `ProcessFlowTemplate.stepRefs[]`。
-7. 每個 `flowEdges[].target.targetFieldId` 必須存在於 target step 的
+8. 每個 `flowEdges[].target.targetFieldId` 必須存在於 target step 的
    `ProcessStepTemplate.fieldDefinitions[]`，且該 field 的 `valueType` 必須是
    `geometryRef`。
-8. 每個 target `geometryRef` field 必須剛好有一條 incoming edge；同一個
+9. 每個 target `geometryRef` field 必須剛好有一條 incoming edge；同一個
    `{ stepRefId, targetFieldId }` 不可被多條 edge 指向。
-9. 若 edge `source.sourceType` 是 `geometryRef`，target field 的
+10. 若 edge `source.sourceType` 是 `geometryRef`，target field 的
    `FieldValue.value` 必須是非空 geometry entity id string。此情況不允許使用
    `null`。
-10. 若 edge `source.sourceType` 是 `stepOutput`，`source.stepRefId` 必須存在於
+11. 若 edge `source.sourceType` 是 `stepOutput`，`source.stepRefId` 必須存在於
     `ProcessFlowTemplate.stepRefs[]`，不可等於 target `stepRefId`，且 target
     field 的 `FieldValue.value` 必須是 `null`。
-11. 所有 `stepOutput` edges 必須形成 directed acyclic graph，不能有 cycle。
-12. 同一個 source `stepOutput` 最多只能出現在一條 outgoing edge 中；也就是同一個
+12. 所有 `stepOutput` edges 必須形成 directed acyclic graph，不能有 cycle。
+13. 同一個 source `stepOutput` 最多只能出現在一條 outgoing edge 中；也就是同一個
     process step output 不可 fan-out 到多個 downstream geometry input。
-13. `flowEdges[].source.sourceType` 只允許 `geometryRef` 或 `stepOutput`。其他
+14. `flowEdges[].source.sourceType` 只允許 `geometryRef` 或 `stepOutput`。其他
     source type 不可執行。
 
 ## ProcessFlowInstance

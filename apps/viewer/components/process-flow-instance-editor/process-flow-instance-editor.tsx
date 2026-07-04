@@ -155,6 +155,7 @@ type ProcessFlowTemplate = {
   owner?: string;
   stepRefs: Array<{
     stepRefId: string;
+    stepLabel?: string;
     processStepTemplateId: string;
   }>;
   flowEdges: SavedFlowEdge[];
@@ -193,6 +194,7 @@ type InitialGeometryNodeData = Record<string, unknown> & {
   nodeKind: "initialGeometry";
   sourceEdgeId: string;
   targetStepRefId: string;
+  targetStepLabel: string;
   targetFieldId: string;
   targetFieldName: string;
   selectedGeometryEntityId: string | null;
@@ -204,6 +206,7 @@ type InitialGeometryNodeData = Record<string, unknown> & {
 type ProcessStepNodeData = Record<string, unknown> & {
   nodeKind: "processStep";
   stepRefId: string;
+  stepLabel: string;
   processStepTemplateId: string;
   template: ProcessStepTemplate;
   fieldValues: FieldValue[];
@@ -380,14 +383,15 @@ function ProcessFlowInstanceEditorInner() {
           analysis,
           selectedTemplate,
         );
-        const terminalSourceLabel = node.data.template.name;
+        const terminalSourceLabel = stepDisplayLabel(node);
         const nextNode: ProcessStepFlowNode = {
           ...node,
           draggable: false,
           data: {
             ...node.data,
             graphMode: "view",
-            displaySublabel: node.data.stepRefId,
+            displayLabel: stepDisplayLabel(node),
+            displaySublabel: node.data.template.name,
             editId: node.data.stepRefId,
             status: completion.complete ? "complete" : "incomplete",
             validationStatus: completion.complete ? "complete" : "incomplete",
@@ -916,6 +920,7 @@ function StepInstanceDialog({
     blockingFieldName: null,
   };
   const incomingEdges = edges.filter((edge) => edge.target === node.id);
+  const label = stepDisplayLabel(node);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -942,11 +947,11 @@ function StepInstanceDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h2 className="truncate text-lg font-semibold">
-                {node.data.template.name}
+                {label}
               </h2>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                 <span className="max-w-[280px] truncate">
-                  {node.data.stepRefId}
+                  {node.data.template.name}
                 </span>
                 <Badge variant="signal">from template</Badge>
                 <Badge variant={completion.complete ? "signal" : "outline"}>
@@ -1082,7 +1087,7 @@ function GeometryPickerDialog({
             <div className="min-w-0">
               <h2 className="text-lg font-semibold">Geometry picker</h2>
               <div className="mt-1 truncate text-sm text-muted-foreground">
-                {node.data.targetStepRefId} / {node.data.targetFieldName}
+                {node.data.targetStepLabel} / {node.data.targetFieldName}
               </div>
             </div>
             <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
@@ -1483,6 +1488,7 @@ function buildDraftFromTemplate(
         data: {
           nodeKind: "processStep",
           stepRefId: stepRef.stepRefId,
+          stepLabel: normalizeStepLabel(stepRef.stepLabel, stepTemplate.name),
           processStepTemplateId: stepRef.processStepTemplateId,
           template: stepTemplate,
           fieldValues: createInitialFieldValuesForStep(
@@ -1512,6 +1518,13 @@ function buildDraftFromTemplate(
     const targetField = targetTemplate?.fieldDefinitions.find(
       (field) => field.id === edge.target.targetFieldId,
     );
+    const targetStepRef = template.stepRefs.find(
+      (stepRef) => stepRef.stepRefId === edge.target.stepRefId,
+    );
+    const targetStepLabel = normalizeStepLabel(
+      targetStepRef?.stepLabel,
+      targetTemplate?.name ?? edge.target.stepRefId,
+    );
     return [
       {
         id: initialNodeId(edge.edgeId),
@@ -1522,6 +1535,7 @@ function buildDraftFromTemplate(
           nodeKind: "initialGeometry",
           sourceEdgeId: edge.edgeId,
           targetStepRefId: edge.target.stepRefId,
+          targetStepLabel,
           targetFieldId: edge.target.targetFieldId,
           targetFieldName: targetField?.name ?? edge.target.targetFieldId,
           selectedGeometryEntityId: null,
@@ -1890,11 +1904,11 @@ function analyzeDraft(
       (stepRef) => !stepCompletion.get(stepRef.stepRefId)?.complete,
     );
     if (incompleteInitial) {
-      validationMessage = `${incompleteInitial.data.targetStepRefId}: select geometry for ${incompleteInitial.data.targetFieldName}.`;
+      validationMessage = `${incompleteInitial.data.targetStepLabel}: select geometry for ${incompleteInitial.data.targetFieldName}.`;
     } else if (firstIncompleteStep) {
       const node = findProcessNodeByStepRef(nodes, firstIncompleteStep.stepRefId);
       const completion = stepCompletion.get(firstIncompleteStep.stepRefId);
-      validationMessage = `${node?.data.template.name ?? firstIncompleteStep.stepRefId}: ${completion?.blockingFieldName ?? "Field"} is required.`;
+      validationMessage = `${node ? stepDisplayLabel(node) : firstIncompleteStep.stepRefId}: ${completion?.blockingFieldName ?? "Field"} is required.`;
     }
   }
 
@@ -2635,10 +2649,18 @@ function isProcessStepNode(node: FlowNode): node is ProcessStepFlowNode {
 }
 
 function sourceLabelForNode(node: FlowNode) {
-  if (node.data.nodeKind === "initialGeometry") {
+  if (isInitialGeometryNode(node)) {
     return node.data.selectedGeometryDisplayName ?? "Initial geometry";
   }
-  return `${node.data.template.name} output`;
+  return `${stepDisplayLabel(node)} output`;
+}
+
+function stepDisplayLabel(node: ProcessStepFlowNode) {
+  return normalizeStepLabel(node.data.stepLabel, node.data.template.name);
+}
+
+function normalizeStepLabel(label: unknown, fallback: string) {
+  return typeof label === "string" && label.trim() ? label.trim() : fallback;
 }
 
 function stepNodeId(stepRefId: string) {

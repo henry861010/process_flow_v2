@@ -19,6 +19,10 @@ def validate_flow_graph(process_flow_template, process_flow_instance, step_templ
         step_refs_by_id[step_ref_id] = step_ref
         step_ref_ids.append(step_ref_id)
 
+        step_label = step_ref.get("stepLabel")
+        if step_label is not None and not isinstance(step_label, str):
+            raise ValueError("ProcessFlowTemplate.stepRefs[] stepLabel must be a string when provided")
+
         template_id = step_ref.get("processStepTemplateId")
         if template_id not in step_templates_by_id:
             raise ValueError(f"Process step template not found: {template_id}")

@@ -59,6 +59,7 @@ class FlowEdge(FlexibleModel):
 
 class StepRef(FlexibleModel):
     stepRefId: str
+    stepLabel: str | None = None
     processStepTemplateId: str
 
 

@@ -202,7 +202,10 @@ Search:
 
 - The search input matches `name`, `id`, `version`, `category`, `program`, `description`, and `owner`.
 
-Adding a step creates a draft process step node with a generated `stepRefId`.
+Adding a step creates a draft process step node with a generated `stepRefId`
+and a user-editable `stepLabel`. The default `stepLabel` is the selected
+`ProcessStepTemplate.name`. Graph nodes display `stepLabel` as the primary
+label and the process step template name as secondary read-only text.
 
 Step template card behavior:
 

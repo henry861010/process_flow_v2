@@ -107,6 +107,8 @@ Save rules:
 - `stepValueSets[]` are built only from selected template `stepRefs[]`.
 - Each `StepValueSet.stepRefId` must match a selected template step ref.
 - Each `StepValueSet.processStepTemplateId` must match the selected template step ref.
+- `stepLabel` is read from the selected `ProcessFlowTemplate.stepRefs[]`; it is
+  displayed in the instance editor but not copied into `StepValueSet`.
 - `fieldValues[]` follow the resolved process step template `fieldDefinitions[]`.
 - All field definitions are required.
 - A geometry field supplied by a `geometryRef` edge stores the selected `GeometryEntity.id`.

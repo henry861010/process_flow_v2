@@ -191,6 +191,7 @@ type ProcessFlowTemplate = {
   owner: string;
   stepRefs: Array<{
     stepRefId: string;
+    stepLabel?: string;
     processStepTemplateId: string;
   }>;
   flowEdges: SavedFlowEdge[];
@@ -240,6 +241,7 @@ type InitialGeometryNodeData = Record<string, unknown> & {
 type ProcessStepNodeData = Record<string, unknown> & {
   nodeKind: "processStep";
   stepRefId: string;
+  stepLabel: string;
   template: ProcessStepTemplate;
   fieldValues: FieldValue[];
   geometryInputFields: FieldDefinition[];
@@ -444,12 +446,14 @@ function ProcessFlowTemplateEditorInner() {
           node,
           analysis,
         );
-        const terminalSourceLabel = node.data.template.name;
+        const terminalSourceLabel = stepDisplayLabel(node);
         const nextNode: ProcessStepFlowNode = {
           ...node,
           data: {
             ...node.data,
             graphMode: "edit",
+            displayLabel: stepDisplayLabel(node),
+            displaySublabel: node.data.template.name,
             editId: node.id,
             status: analysis.reachableStepNodeIds.has(node.id)
               ? completion.complete
@@ -760,6 +764,7 @@ function ProcessFlowTemplateEditorInner() {
         data: {
           nodeKind: "processStep",
           stepRefId,
+          stepLabel: template.name,
           template,
           fieldValues: template.fieldDefinitions.map(createDefaultFieldValue),
           geometryInputFields,
@@ -839,6 +844,23 @@ function ProcessFlowTemplateEditorInner() {
 
   function updateStepFieldValue(nodeId: string, fieldId: string, value: unknown) {
     setStepFieldValue(setNodes, nodeId, fieldId, value);
+  }
+
+  function updateStepLabel(nodeId: string, value: string) {
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => {
+        if (!isProcessStepNode(node) || node.id !== nodeId) {
+          return node;
+        }
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            stepLabel: value,
+          },
+        };
+      }),
+    );
   }
 
   function updateRepeaterFieldValue(
@@ -956,6 +978,7 @@ function ProcessFlowTemplateEditorInner() {
       owner: "local.user",
       stepRefs: reachableStepNodes.map((node) => ({
         stepRefId: node.data.stepRefId,
+        stepLabel: stepDisplayLabel(node),
         processStepTemplateId: node.data.template.id,
       })),
       flowEdges: reachableEdges.map((edge) => {
@@ -1263,6 +1286,7 @@ function ProcessFlowTemplateEditorInner() {
           analysis={analysis}
           geometries={geometries}
           onClose={() => setEditingStepNodeId(null)}
+          onStepLabelChange={(value) => updateStepLabel(editingStepNode.id, value)}
           onFieldChange={(fieldId, value) =>
             updateStepFieldValue(editingStepNode.id, fieldId, value)
           }
@@ -1590,6 +1614,7 @@ function StepInstanceDialog({
   analysis,
   geometries,
   onClose,
+  onStepLabelChange,
   onFieldChange,
   onRepeaterChange,
   onUnlink,
@@ -1600,6 +1625,7 @@ function StepInstanceDialog({
   analysis: GraphAnalysis;
   geometries: GeometryEntity[];
   onClose: () => void;
+  onStepLabelChange: (value: string) => void;
   onFieldChange: (fieldId: string, value: unknown) => void;
   onRepeaterChange: (
     field: FieldDefinition,
@@ -1611,7 +1637,9 @@ function StepInstanceDialog({
     complete: false,
     blockingFieldName: null,
   };
+  const isReachable = analysis.reachableStepNodeIds.has(node.id);
   const incomingEdges = edges.filter((edge) => edge.target === node.id);
+  const label = stepDisplayLabel(node);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1637,11 +1665,13 @@ function StepInstanceDialog({
         <header className="shrink-0 border-b bg-white px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h2 className="truncate text-lg font-semibold">{node.data.template.name}</h2>
+              <h2 className="truncate text-lg font-semibold">{label}</h2>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span className="max-w-[280px] truncate">{node.data.stepRefId}</span>
-                <Badge variant={node.data.isReachable ? "signal" : "outline"}>
-                  {node.data.isReachable ? "in flow" : "outside flow"}
+                <span className="max-w-[280px] truncate">
+                  {node.data.template.name}
+                </span>
+                <Badge variant={isReachable ? "signal" : "outline"}>
+                  {isReachable ? "in flow" : "outside flow"}
                 </Badge>
                 <Badge variant={completion.complete ? "signal" : "outline"}>
                   {completion.complete ? "Complete" : "Incomplete"}
@@ -1655,6 +1685,29 @@ function StepInstanceDialog({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <section className="mb-5 rounded-md border bg-white">
+            <div className="border-b px-4 py-3 text-sm font-semibold">
+              Step identity
+            </div>
+            <div className="grid gap-4 p-4 sm:grid-cols-2">
+              <FormField label="Step label">
+                <input
+                  className={inputClass}
+                  value={node.data.stepLabel}
+                  onChange={(event) => onStepLabelChange(event.target.value)}
+                />
+              </FormField>
+              <FormField label="Process step template">
+                <input
+                  className={inputClass}
+                  value={node.data.template.name}
+                  disabled
+                  readOnly
+                />
+              </FormField>
+            </div>
+          </section>
+
           <section className="mb-5 rounded-md border bg-white">
             <div className="border-b px-4 py-3 text-sm font-semibold">
               Input mapping
@@ -2077,6 +2130,7 @@ function buildDraftGraphFromTemplate(
         data: {
           nodeKind: "processStep",
           stepRefId: stepRef.stepRefId,
+          stepLabel: normalizeStepLabel(stepRef.stepLabel, stepTemplate.name),
           template: stepTemplate,
           fieldValues: stepTemplate.fieldDefinitions.map(createDefaultFieldValue),
           geometryInputFields: getGeometryInputFields(stepTemplate),
@@ -2602,7 +2656,7 @@ function analyzeGraph(
     validationMessage = firstGeometryError;
   } else if (firstIncompleteStep) {
     const completion = stepCompletion.get(firstIncompleteStep.id);
-    validationMessage = `${firstIncompleteStep.data.template.name}: ${completion?.blockingFieldName ?? "Field"} is required.`;
+    validationMessage = `${stepDisplayLabel(firstIncompleteStep)}: ${completion?.blockingFieldName ?? "Field"} is required.`;
   }
 
   return {
@@ -2741,13 +2795,13 @@ function findFirstGeometryInputError(
       const value = getFieldValue(node.data.fieldValues, field.id);
       const edgeData = edge ? getFlowEdgeData(edge) : null;
       if (edgeData?.sourceType === "geometryRef" && !isExplicitGeometryId(edgeData.sourceGeometryEntityId)) {
-        return `${node.data.template.name}: ${field.name} needs a geometry entity id.`;
+        return `${stepDisplayLabel(node)}: ${field.name} needs a geometry entity id.`;
       }
       if (!edge && value === null) {
-        return `${node.data.template.name}: ${field.name} cannot be null without an upstream step output.`;
+        return `${stepDisplayLabel(node)}: ${field.name} cannot be null without an upstream step output.`;
       }
       if (!edge && !isExplicitGeometryId(value)) {
-        return `${node.data.template.name}: select geometry for ${field.name}.`;
+        return `${stepDisplayLabel(node)}: select geometry for ${field.name}.`;
       }
     }
   }
@@ -2928,6 +2982,7 @@ function buildDraftFlowTemplateForPreview(
     owner: "local.user",
     stepRefs: stepNodes.map((node) => ({
       stepRefId: node.data.stepRefId,
+      stepLabel: stepDisplayLabel(node),
       processStepTemplateId: node.data.template.id,
     })),
     flowEdges: edges.flatMap((edge) => {
@@ -3364,11 +3419,19 @@ function sourceLabelForNode(node: FlowNode) {
   if (isInitialGeometryNode(node)) {
     return initialGeometryLabel(node);
   }
-  return `${node.data.template.name} output`;
+  return `${stepDisplayLabel(node)} output`;
 }
 
 function initialGeometryLabel(node: InitialGeometryFlowNode) {
   return node.data.geometry?.name ?? node.data.placeholderLabel ?? "Select geometry";
+}
+
+function stepDisplayLabel(node: ProcessStepFlowNode) {
+  return normalizeStepLabel(node.data.stepLabel, node.data.template.name);
+}
+
+function normalizeStepLabel(label: unknown, fallback: string) {
+  return typeof label === "string" && label.trim() ? label.trim() : fallback;
 }
 
 function uniqueStepRefId(template: ProcessStepTemplate, nodes: FlowNode[]) {

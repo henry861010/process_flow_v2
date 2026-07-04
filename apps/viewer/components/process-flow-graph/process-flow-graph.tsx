@@ -376,6 +376,15 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
   const outside = status === "outside";
   const inputFields = data.geometryInputFields ?? [];
   const template = data.template ?? { name: data.displayLabel ?? "Process step", version: "" };
+  const displayLabel =
+    typeof data.displayLabel === "string" && data.displayLabel.trim()
+      ? data.displayLabel.trim()
+      : undefined;
+  const displaySublabel =
+    typeof data.displaySublabel === "string" && data.displaySublabel.trim()
+      ? data.displaySublabel.trim()
+      : undefined;
+  const nodeTitle = displayLabel ?? template.name;
   const editId = data.editId ?? data.stepRefId ?? id;
   const activeTargetFieldId = useConnection((connection) =>
     connection.toHandle?.nodeId === id && connection.toHandle.type === "target"
@@ -478,8 +487,13 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="line-clamp-2 text-sm font-semibold leading-snug">
-                {template.name}
+                {nodeTitle}
               </div>
+              {displaySublabel ? (
+                <div className="mt-1 truncate text-xs text-muted-foreground">
+                  {displaySublabel}
+                </div>
+              ) : null}
             </div>
             <div className="flex shrink-0 gap-1 opacity-0 transition group-hover:opacity-100">
               {data.onEdit ? (
@@ -511,11 +525,11 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
         ) : (
           <>
             <div className="line-clamp-2 text-sm font-semibold leading-snug">
-              {template.name}
+              {nodeTitle}
             </div>
-            {data.displaySublabel ? (
+            {displaySublabel ? (
               <div className="mt-1 truncate text-xs text-muted-foreground">
-                {data.displaySublabel}
+                {displaySublabel}
               </div>
             ) : null}
           </>

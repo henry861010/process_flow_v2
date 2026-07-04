@@ -113,6 +113,41 @@ class FlowValidationTests(unittest.TestCase):
             {"step_tpl_molding_1_0_0": real_molding_step_template()},
         )
 
+    def test_validate_flow_graph_accepts_duplicate_and_empty_step_labels(self):
+        template = flow_template_ecl_to_molding()
+        template["stepRefs"][0]["stepLabel"] = "RDL"
+        template["stepRefs"][1]["stepLabel"] = "RDL"
+
+        validate_flow_graph(
+            template,
+            flow_instance_ecl_to_molding(),
+            {
+                "step_tpl_ecl_1_0_0": real_ecl_step_template(),
+                "step_tpl_molding_1_0_0": real_molding_step_template(),
+            },
+        )
+
+        template["stepRefs"][1]["stepLabel"] = ""
+        validate_flow_graph(
+            template,
+            flow_instance_ecl_to_molding(),
+            {
+                "step_tpl_ecl_1_0_0": real_ecl_step_template(),
+                "step_tpl_molding_1_0_0": real_molding_step_template(),
+            },
+        )
+
+    def test_validate_flow_graph_rejects_non_string_step_label(self):
+        template = flow_template_molding()
+        template["stepRefs"][0]["stepLabel"] = 123
+
+        with self.assertRaisesRegex(ValueError, "stepLabel must be a string"):
+            validate_flow_graph(
+                template,
+                flow_instance_molding(),
+                {"step_tpl_molding_1_0_0": real_molding_step_template()},
+            )
+
     def test_validate_flow_graph_rejects_step_output_value_string(self):
         template = flow_template_ecl_to_molding()
         instance = flow_instance_ecl_to_molding()

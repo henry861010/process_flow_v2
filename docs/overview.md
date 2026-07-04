@@ -88,7 +88,7 @@ flowchart TD
 
 - `ProcessStepTemplate -> FieldDefinition`：定義單一 station 有哪些欄位，以及每個欄位如何輸入與驗證。
 - `ProcessFlowTemplate -> GeometrySlot`：定義 process graph 的 geometry input category 與流程入口。Template 不保存某個 TV/Product 實際選到的 geometry object。
-- `ProcessFlowTemplate -> StepRef -> ProcessStepTemplate`：定義 package technology graph 由哪些 station nodes 組成。`StepRef.stepRefId` 是 flow-local stable id，不是 global process step template id。
+- `ProcessFlowTemplate -> StepRef -> ProcessStepTemplate`：定義 package technology graph 由哪些 station nodes 組成。`StepRef.stepRefId` 是 flow-local stable id，不是 global process step template id；`StepRef.stepLabel` 是該 step 在此 flow template 中的人可讀名稱。
 - `ProcessFlowTemplate -> FlowEdge`：定義 geometry slots、step outputs 與 target step input slots 之間的有向連接關係。Flow graph 必須 acyclic。
 - `ProcessFlowInstance -> StepValueSet -> FieldValue`：保存某個 TV/Product 在每個 station 的實際填值。
 - `FieldValue -> FieldDefinition`：透過 `fieldId` 回到欄位定義，決定 value shape、validation、reference 與 UI 行為。
