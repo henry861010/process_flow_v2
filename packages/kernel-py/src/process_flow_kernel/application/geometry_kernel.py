@@ -6,6 +6,7 @@ from typing import Any
 from .context import ProcessStepContext
 from .execution_result import GeometryKernelExecutionResult
 from .flow_validation import validate_flow_graph
+from .material_instances import MaterialInstanceTracker, prepare_step_material_instances
 from .options import ExecuteOptions
 from ..domain.process_geometry_state import ProcessGeometryState
 from ..infrastructure.module_resolver import ProcessStepModuleResolver
@@ -56,18 +57,29 @@ class GeometryKernel:
         step_refs_by_id = {step_ref["stepRefId"]: step_ref for step_ref in step_refs}
         ordered_step_refs = _topological_step_refs(step_refs, process_flow_template.get("flowEdges", []))
         step_outputs = {}
+        material_tracker = MaterialInstanceTracker()
 
         for step_ref in ordered_step_refs:
             step_template = step_templates_by_id[step_ref["processStepTemplateId"]]
             step_value_set = step_value_sets_by_ref_id[step_ref["stepRefId"]]
             field_values = step_value_set.get("fieldValues", [])
-            runtime_geometry_inputs = self._resolve_geometry_inputs(
+            runtime_geometry_inputs, geometry_input_sources = self._resolve_geometry_inputs(
                 step_ref=step_ref,
                 step_template=step_template,
                 step_value_set=step_value_set,
                 process_flow_template=process_flow_template,
                 step_outputs=step_outputs,
             )
+            values = _build_values(step_template.get("fieldDefinitions", []), field_values)
+            material_preparation = prepare_step_material_instances(
+                geometry_inputs=runtime_geometry_inputs,
+                geometry_input_sources=geometry_input_sources,
+                step_template=step_template,
+                values=values,
+                tracker=material_tracker,
+            )
+            runtime_geometry_inputs = material_preparation.geometry_inputs
+            values = material_preparation.values
             input_geometry = _main_or_first_geometry(runtime_geometry_inputs)
             state = (
                 _geometry_input_to_process_geometry_state(input_geometry)
@@ -75,7 +87,6 @@ class GeometryKernel:
                 else ProcessGeometryState.create()
             )
             geometry_inputs = _serialize_geometry_input_map(runtime_geometry_inputs)
-            values = _build_values(step_template.get("fieldDefinitions", []), field_values)
             process_module = self._module_resolver.resolve(step_template)
 
             def resolve_geometry(field_id):
@@ -261,6 +272,7 @@ class GeometryKernel:
         step_outputs,
     ):
         geometry_inputs = {}
+        geometry_input_sources = {}
         geometry_fields = [field for field in step_template.get("fieldDefinitions", []) if _is_geometry_field(field)]
         for field in geometry_fields:
             edge = _find_incoming_edge(
@@ -269,6 +281,7 @@ class GeometryKernel:
                 field["id"],
             )
             source_type = edge.get("source", {}).get("sourceType")
+            geometry_input_sources[field["id"]] = source_type
             if source_type == "stepOutput":
                 upstream_step_ref_id = edge["source"]["stepRefId"]
                 upstream_geometry = step_outputs.get(upstream_step_ref_id)
@@ -287,7 +300,7 @@ class GeometryKernel:
             if "structure" not in entity or entity["structure"] is None:
                 raise ValueError(f"Geometry entity {field_value} is missing structure")
             geometry_inputs[field["id"]] = normalize_geometry_structure(entity["structure"])
-        return geometry_inputs
+        return geometry_inputs, geometry_input_sources
 
     def _get_by_id_or_throw(self, repository, id_, label):
         if id_ is None or id_ == "":

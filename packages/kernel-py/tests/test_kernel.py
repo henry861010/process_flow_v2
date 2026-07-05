@@ -1,3 +1,4 @@
+import copy
 import unittest
 
 from process_flow_kernel import (
@@ -324,6 +325,47 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(geometry["root"]["bodies"][2]["material"], "EMC-A")
         self.assertEqual(geometry["root"]["bodies"][2]["geometry"]["bottom_left"], [-50, -50, 14])
 
+    def test_kernel_material_instances_seed_external_main_and_keep_raw_values(self):
+        module = ContextRecordingModule()
+        instance = flow_instance_molding()
+        instance["stepValueSets"][0]["fieldValues"][1]["value"] = "abc_dup_layer"
+        kernel = GeometryKernel(
+            geometry_repository=InMemoryRepository(
+                [geometry_entity("geom_kernel_input", kernel_input_geometry_with_material("abc_dup_layer_dup7"))]
+            ),
+            process_flow_instance_repository=InMemoryRepository([instance]),
+            process_flow_template_repository=InMemoryRepository([flow_template_molding()]),
+            process_step_repository=InMemoryRepository([real_molding_step_template()]),
+            module_resolver=FixedModuleResolver(module),
+        )
+
+        geometry = kernel.execute("flow_inst_kernel_test").geometry()
+
+        self.assertEqual(module.context.get_param("material"), "abc_dup_layer_dup2")
+        self.assertEqual(module.context.raw_field_values[1]["value"], "abc_dup_layer")
+        self.assertEqual(module.context.input_geometry["root"]["bodies"][0]["material"], "abc_dup_layer")
+        self.assertEqual(
+            [body["material"] for body in geometry["root"]["bodies"]],
+            ["abc_dup_layer", "abc_dup_layer_dup2"],
+        )
+
+    def test_kernel_material_instances_duplicate_across_sequential_steps(self):
+        instance = flow_instance_ecl_to_molding()
+        instance["stepValueSets"][0]["fieldValues"][1]["value"] = "Poly"
+        instance["stepValueSets"][1]["fieldValues"][1]["value"] = "Poly"
+        kernel = create_kernel(
+            process_step_templates=[real_ecl_step_template(), real_molding_step_template()],
+            flow_template=flow_template_ecl_to_molding(),
+            flow_instance=instance,
+        )
+
+        geometry = kernel.execute("flow_inst_kernel_test").geometry()
+
+        self.assertEqual(
+            [body["material"] for body in geometry["root"]["bodies"]],
+            ["carrier", "Poly", "Poly_dup2"],
+        )
+
     def test_kernel_preview_initial_geometry_edge(self):
         kernel = create_kernel(
             process_step_templates=[real_ecl_step_template(), real_molding_step_template()],
@@ -401,6 +443,25 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(len(geometry["root"]["vias"]), 2)
         self.assertEqual([via["direction"] for via in geometry["root"]["vias"]], ["-z", "-z"])
 
+    def test_kernel_material_instances_share_repeated_rdl_materials_in_one_step(self):
+        instance = flow_instance_rdl()
+        layer_items = instance["stepValueSets"][0]["fieldValues"][1]["value"]["items"]
+        for item in layer_items:
+            for field_value in item["fieldValues"]:
+                if field_value["fieldId"] in ("Dielectric", "Conductivity"):
+                    field_value["value"] = "Cu"
+        kernel = create_kernel(
+            process_step_templates=[real_rdl_step_template()],
+            flow_template=flow_template_rdl(),
+            flow_instance=instance,
+        )
+
+        geometry = kernel.execute("flow_inst_kernel_test").geometry()
+
+        self.assertEqual([body["material"] for body in geometry["root"]["bodies"][1:]], ["Cu", "Cu", "Cu"])
+        self.assertEqual(geometry["root"]["circuits"][0]["material"], "Cu")
+        self.assertEqual([via["material"] for via in geometry["root"]["vias"]], ["Cu", "Cu"])
+
     def test_kernel_imports_real_pnp_and_passes_cursor_downstream(self):
         kernel = create_kernel(
             geometry_entities=[
@@ -423,6 +484,30 @@ class KernelExecutionTests(unittest.TestCase):
         )
         self.assertEqual(geometry["root"]["bodies"][1]["geometry"]["bottom_left"], [-50, -50, 10])
         self.assertEqual(len(geometry["root"]["children"]), 2)
+
+    def test_kernel_material_instances_rename_sub_geometry_for_current_step(self):
+        kernel = create_kernel(
+            geometry_entities=[
+                geometry_entity("geom_kernel_input", kernel_input_geometry_with_material("Si_dup5")),
+                geometry_entity("geom_kernel_die", kernel_die_geometry_with_materials("Si_dup9", "SnAg_dup3")),
+            ],
+            process_step_templates=[real_pnp_step_template(), real_molding_step_template()],
+            flow_template=flow_template_pnp_to_molding(),
+            flow_instance=flow_instance_pnp_to_molding(),
+        )
+
+        result = kernel.execute("flow_inst_kernel_test")
+        pnp_output = result.step_output("pnp")
+
+        self.assertEqual(pnp_output["root"]["bodies"][0]["material"], "Si")
+        self.assertEqual(
+            [child["bodies"][0]["material"] for child in pnp_output["root"]["children"]],
+            ["Si_dup2", "Si_dup2"],
+        )
+        self.assertEqual(
+            [child["bumps"][0]["material"] for child in pnp_output["root"]["children"]],
+            ["SnAg", "SnAg"],
+        )
 
     def test_kernel_imports_real_saw_and_passes_cropped_footprint_downstream(self):
         kernel = create_kernel(
@@ -1067,6 +1152,12 @@ def kernel_input_geometry():
     }
 
 
+def kernel_input_geometry_with_material(material):
+    geometry = copy.deepcopy(kernel_input_geometry())
+    geometry["root"]["bodies"][0]["material"] = material
+    return geometry
+
+
 def kernel_die_geometry():
     return {
         "schemaVersion": "1.0.0",
@@ -1102,6 +1193,13 @@ def kernel_die_geometry():
             "children": [],
         },
     }
+
+
+def kernel_die_geometry_with_materials(body_material, bump_material):
+    geometry = copy.deepcopy(kernel_die_geometry())
+    geometry["root"]["bodies"][0]["material"] = body_material
+    geometry["root"]["bumps"][0]["material"] = bump_material
+    return geometry
 
 
 if __name__ == "__main__":

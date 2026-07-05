@@ -149,6 +149,67 @@ created `Body`, `Via`, `Circuit`, or `Bump` instance.
 }
 ```
 
+### 4.2 Material Instance Naming
+
+Geometry material names also carry process birth/death grouping semantics for
+simulation export. The kernel therefore distinguishes between a base material
+name and a material instance name.
+
+Definitions:
+
+| Term | Description |
+| --- | --- |
+| Base material name | The material identity before process-instance suffixing. |
+| Material instance name | The name written into runtime geometry and used by downstream mesh components. |
+| Terminal dup suffix | A suffix matching `_dup<number>` at the end of the material string. Only the terminal suffix has instance semantics. |
+
+The base material name is derived by removing only the terminal dup suffix.
+
+Examples:
+
+| Input material | Base material |
+| --- | --- |
+| `mat_si` | `mat_si` |
+| `mat_si_dup2` | `mat_si` |
+| `abc_dup_layer` | `abc_dup_layer` |
+| `abc_dup_layer_dup3` | `abc_dup_layer` |
+
+During one process-flow execution, the kernel assigns material instance names
+with these rules:
+
+1. The first use of a base material keeps the base material name.
+2. The second use of the same base material becomes `<base>_dup2`.
+3. The third use becomes `<base>_dup3`, and so on.
+4. A process step is the atomic material birth group. All occurrences of the
+   same base material born within the same step share the same material instance
+   name.
+5. `materialRef` process parameters participate in material instance naming.
+   This includes nested `materialRef` fields inside `fieldGroupArray` values.
+6. `rawFieldValues` remain the user-entered values. Process-step modules should
+   use normalized `values`, where material parameters already contain the
+   assigned material instance names.
+
+Geometry input rules:
+
+- External `main_geometry` inputs are normalized at the start of execution:
+  terminal dup suffixes are stripped, and each unique base material counts as
+  already used once.
+- Upstream `stepOutput` used as `main_geometry` is flow history and must retain
+  its material instance names.
+- Geometry inputs other than `main_geometry` are born into the receiving step.
+  Their materials are stripped to base names and then assigned the receiving
+  step's material instance names.
+
+Process-step modules must not append `_dup<number>` themselves. They receive
+materials through `values` and geometry input states after the kernel has
+applied the material instance contract.
+
+If a process requires finer birth/death granularity than one process step, that
+granularity must be represented explicitly in the process-flow model. For
+example, separate process steps can represent separate material birth groups.
+A single step with repeated internal layers is treated as one birth group unless
+the process model defines an explicit finer-grained birth contract.
+
 ## 5. Public Runtime Object: `ProcessGeometryState`
 
 `ProcessGeometryState` is the primary API for process-step authors.
@@ -1440,6 +1501,8 @@ Rules:
 - Do not call `state.container()`.
 - Do not create `Body`, `Via`, `Circuit`, `Bump`, or `Container`.
 - Do use high-level state methods.
+- Do use material values provided by `values`; do not manually append or strip
+  material instance suffixes.
 - Return `state` unless the step intentionally creates a new state.
 
 ### 17.1 Panel Process Example
@@ -1573,6 +1636,7 @@ The kernel is responsible for:
 - serializing to normalized `GeometryStructure`
 - hydrating states through public constructors
 - keeping runtime fields out of persisted geometry
+- applying material instance naming before process-step modules run
 
 ### 18.2 Hydration Rules
 
@@ -1694,6 +1758,7 @@ Kernel responsibilities:
 
 - resolve geometry refs
 - hydrate states
+- assign material instance names
 - execute process modules
 - normalize outputs
 - return immutable result payloads
