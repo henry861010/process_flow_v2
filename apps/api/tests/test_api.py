@@ -117,6 +117,35 @@ class ProcessFlowApiTests(unittest.TestCase):
         missing = self.client.get("/api/process-step-templates/custom_step")
         self.assertEqual(missing.status_code, 404, missing.text)
 
+    def test_step_template_rejects_legacy_geometry_value_type(self):
+        self.reset_poc_data()
+        legacy_geometry_value_type = "geo" + "metry"
+        template = {
+            "id": "legacy_geometry_step",
+            "version": "V1.0.0",
+            "name": "Legacy geometry step",
+            "category": "custom",
+            "program": "layer/molding",
+            "description": "",
+            "owner": "test",
+            "fieldDefinitions": [
+                {
+                    "id": "main_geometry",
+                    "name": "main_geometry",
+                    "scope": "inputState",
+                    "valueType": legacy_geometry_value_type,
+                    "controlType": None,
+                    "selectionMode": None,
+                    "unit": None,
+                }
+            ],
+        }
+
+        response = self.client.post("/api/process-step-templates", json=template)
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("geometryRef", response.json()["message"])
+
     def test_geometry_import_assigns_id_for_preview_json(self):
         self.reset_poc_data()
         geometry = {

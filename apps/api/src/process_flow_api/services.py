@@ -5,8 +5,7 @@ from typing import Any
 
 from process_flow_kernel import GeometryKernel, InMemoryRepository, validate_flow_graph
 
-from .compat import is_geometry_value_type
-from .exporter import export_geometry
+from .geometry_preview_exporter import export_geometry
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,
@@ -35,12 +34,23 @@ def require_item(item: JsonObject | None, id_: str) -> JsonObject:
 
 def validate_process_step_template(template: JsonObject) -> None:
     fields = template.get("fieldDefinitions", [])
+    fields_to_check = list(fields)
+    while fields_to_check:
+        field = fields_to_check.pop()
+        if field.get("valueType") == "geometry":
+            raise ValueError(
+                f"Field {field.get('id')} uses legacy valueType geometry; use geometryRef"
+            )
+        repeat_definition = field.get("repeatDefinition")
+        if isinstance(repeat_definition, dict):
+            fields_to_check.extend(repeat_definition.get("itemFieldDefinitions", []))
+
     if not any(
         field.get("id") == "main_geometry"
-        and is_geometry_value_type(field.get("valueType"))
+        and field.get("valueType") == "geometryRef"
         for field in fields
     ):
-        raise ValueError("Process step template must include a main_geometry geometry field")
+        raise ValueError("Process step template must include a main_geometry geometryRef field")
 
 
 def load_step_templates_for_template(
