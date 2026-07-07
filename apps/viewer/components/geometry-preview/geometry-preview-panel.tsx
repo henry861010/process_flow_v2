@@ -680,6 +680,7 @@ function PreviewCadWorkbench({
                         )})`,
                       ],
                       ["Direction", selectedFeature.direction ?? "n/a"],
+                      ["KOZ", selectedFeature.koz === null ? "n/a" : formatNumber(selectedFeature.koz)],
                       ["Container", selectedFeature.containerPath],
                       ["Bounds", formatFeatureBounds(selectedFeature)],
                     ]}

@@ -192,6 +192,7 @@ def feature_structure():
             "material": "copper",
             "density": 0.5,
             "direction": "+z",
+            "koz": 0,
         }
     )
     return structure

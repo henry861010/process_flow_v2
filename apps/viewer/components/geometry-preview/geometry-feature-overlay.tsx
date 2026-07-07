@@ -28,6 +28,7 @@ export type PreviewFeature = {
   density: number;
   normalizedDensity: number;
   direction: "+z" | "-z" | null;
+  koz: number | null;
   geometry: PreviewGeometry;
   bounds: BoundsTuple;
   containerId: string;
@@ -223,6 +224,7 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
       const direction = item.direction === "+z" || item.direction === "-z"
         ? item.direction
         : null;
+      const koz = optionalFiniteNumber(item.koz);
 
       features.push({
         id,
@@ -231,6 +233,7 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
         density,
         normalizedDensity: normalizeDensity(density),
         direction,
+        koz,
         geometry,
         bounds: geometryBounds(geometry),
         containerId: context.id,
@@ -1055,6 +1058,11 @@ function stringValue(value: unknown, fallback: string) {
 function finiteNumber(value: unknown, fallback: number) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function optionalFiniteNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function clamp(value: number, min: number, max: number) {

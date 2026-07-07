@@ -5,6 +5,7 @@ from process_flow_kernel import (
     Body,
     BoxGeometry,
     Bump,
+    Circuit,
     Container,
     ExecuteOptions,
     GeometryKernel,
@@ -54,6 +55,26 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(root.bumps()[0].direction(), "+z")
         self.assertEqual(root.json()["root"]["vias"][0]["direction"], "-z")
         self.assertEqual(root.json()["root"]["bumps"][0]["direction"], "+z")
+
+    def test_density_features_serialize_koz_and_hydration_requires_it(self):
+        with self.assertRaisesRegex(ValueError, "Bump koz must be non-negative"):
+            Bump(BoxGeometry([0, 0, 0], [1, 1, 0], 1), 0.5, "SnAg", "+z", koz=-1)
+
+        root = Container(key="feature-koz")
+        root.add_via(Via(BoxGeometry([0, 0, 0], [1, 1, 0], 2), 0.5, "Cu", "+z", koz=1.25))
+        root.add_circuit(Circuit(BoxGeometry([1, 1, 0], [2, 2, 0], 1), 0.3, "Cu", koz=2.5))
+        root.add_bump(Bump(BoxGeometry([0, 0, 2], [1, 1, 2], 1), 0.8, "SnAg", "-z"))
+
+        output = root.json()
+
+        self.assertEqual(output["root"]["vias"][0]["koz"], 1.25)
+        self.assertEqual(output["root"]["circuits"][0]["koz"], 2.5)
+        self.assertEqual(output["root"]["bumps"][0]["koz"], 0)
+
+        missing_koz = kernel_die_geometry()
+        missing_koz["root"]["bumps"][0].pop("koz")
+        with self.assertRaisesRegex(ValueError, "Bump feature missing field koz"):
+            ProcessGeometryState.from_structure(missing_koz)
 
     def test_polygon_loop_odd_even_classification(self):
         regions = classify_polygon_loops(
@@ -440,8 +461,10 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(len(geometry["root"]["circuits"]), 1)
         self.assertEqual(geometry["root"]["circuits"][0]["material"], "Cu")
         self.assertEqual(geometry["root"]["circuits"][0]["density"], 60)
+        self.assertEqual(geometry["root"]["circuits"][0]["koz"], 0)
         self.assertEqual(len(geometry["root"]["vias"]), 2)
         self.assertEqual([via["direction"] for via in geometry["root"]["vias"]], ["-z", "-z"])
+        self.assertEqual([via["koz"] for via in geometry["root"]["vias"]], [0, 0])
 
     def test_kernel_material_instances_share_repeated_rdl_materials_in_one_step(self):
         instance = flow_instance_rdl()
@@ -561,7 +584,9 @@ class KernelExecutionTests(unittest.TestCase):
                 self.assertEqual(geometry["root"]["bumps"][0]["material"], "SnAg")
                 self.assertEqual(geometry["root"]["bumps"][0]["density"], 75)
                 self.assertEqual(geometry["root"]["bumps"][0]["direction"], "+z")
-                self.assertEqual(geometry["root"]["bumps"][0]["geometry"]["bottom_left"], [-45, -45, 10])
+                self.assertEqual(geometry["root"]["bumps"][0]["koz"], 5)
+                self.assertEqual(geometry["root"]["bumps"][0]["geometry"]["bottom_left"], [-50, -50, 10])
+                self.assertEqual(geometry["root"]["bumps"][0]["geometry"]["top_right"], [50, 50, 10])
 
     def test_carrier_bond_debond_and_flip_state_semantics(self):
         state = ProcessGeometryState.create({"key": "main"})
@@ -1188,6 +1213,7 @@ def kernel_die_geometry():
                     "material": "SnAg",
                     "density": 0.8,
                     "direction": "-z",
+                    "koz": 0,
                 }
             ],
             "children": [],

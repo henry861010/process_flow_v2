@@ -12,6 +12,6 @@ def execute_bump_formation(context: ProcessStepContext, *, name: str) -> Process
         density=density,
         thickness=thk,
         direction="+z",
-        xy_inset=koz,
+        koz=koz,
     )
     return state

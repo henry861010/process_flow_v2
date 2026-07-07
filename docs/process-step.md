@@ -141,6 +141,8 @@ Template metadata：
    `state.depositLayer({ material: Dielectric, thickness: thk })` 建立
    dielectric body，並將 cursor 推進到該層頂面。
 6. Body、Circuit、Via 都加入 `main_geometry` root scope。
+7. RDL step 目前沒有 keep out zone 輸入參數，因此建立的 Via 與 Circuit feature
+   都保存 `koz: 0`。
 
 設計要點：
 
@@ -150,6 +152,8 @@ Template metadata：
   envelope 正好落在剛沉積的 layer 中，方向固定為 `"-z"`。
 - Circuit 建立在偶數層 dielectric deposit 之前，使用當下的 `cursorZ()` 作為
   feature bottom Z；這避免新增額外 `ProcessGeometryState` method。
+- Via 與 Circuit geometry 保存 full-area process footprint；`koz` 固定為 0，
+  不在 kernel 階段做 keep out zone footprint 轉換。
 - `density` 必須是 0 到 100 的 finite number。Runtime 保存此數值，不在 process
   step 中做百分比轉換。
 - `layers` 至少需要一個 item；每層 `Dielectric` / `Conductivity` 必須是非空字串，
@@ -479,7 +483,7 @@ Template metadata：
 | `material` | `materialRef` | `processParameter` | Bump material 名稱或 material DB entity id。 |
 | `thk` | `float` | `processParameter` | 正值 bump 厚度，單位依照 geometry state 的 unit system 解讀。 |
 | `density` | `float` | `processParameter` | Bump density，保存為 0 到 100 的 percentage value。 |
-| `koz` | `float` | `processParameter` | Keep out zone，表示 bump footprint 相對 process footprint 的 XY 內縮距離。 |
+| `koz` | `float` | `processParameter` | Keep out zone distance，保存到 bump feature，供下游 CDB generation 使用。 |
 
 實作行為：
 
@@ -488,18 +492,20 @@ Template metadata：
 2. 驗證 `material` 為非空字串、`thk` 為正值、`density` 為 0 到 100 的 finite
    number、`koz` 為非負 finite number。
 3. 呼叫 `main_geometry.addBumpAboveCursor({ material, density,
-   thickness: thk, direction: "+z", xyInset: koz })`。
-4. Bump geometry 使用 `main_geometry` 目前的 process footprint，並依 `koz`
+   thickness: thk, direction: "+z", koz })`。
+4. Bump geometry 使用 `main_geometry` 目前的 process footprint，不會依 `koz`
    做 XY 內縮。Bump bottom Z 為 `main_geometry.cursorZ()`，top Z 為
    `main_geometry.cursorZ() + thk`。
 5. 新增的 bump feature 會加入 `main_geometry` root scope 的 `bumps`。
-6. 此 step 不會推進或修改 `main_geometry.cursorZ()`。
+6. 新增的 bump feature 會保存使用者輸入的 `koz`。
+7. 此 step 不會推進或修改 `main_geometry.cursorZ()`。
 
 設計要點：
 
 - 此 step 不直接建立或修改 `Container`、`Body`、`Bump` 或 raw geometry object。
-- `koz` 內縮透過 geometry primitive 的 public copy API 執行；Box、Cylinder 與
-  Cone footprint 支援此操作。Polygon footprint 不支援非零 `koz`。
+- `koz` 是 bump feature metadata，不在 process kernel 階段 baked into
+  bump geometry。下游 CDB generation 若需要 keep out zone footprint，應在轉換時
+  依 feature `koz` 處理。
 - Bump direction 固定為 `"+z"`，不由 geometry envelope 的 Z 位置推論。
 - Feature scope 仍由 root `bumps` array 決定；bump 不會自動向 child container
   或 parent container 傳播。

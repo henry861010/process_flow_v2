@@ -298,19 +298,20 @@ class ProcessGeometryState:
             scope=scope,
         )
 
-    def add_via(self, *, material, density, direction, geometry, scope=ROOT_SCOPE):
+    def add_via(self, *, material, density, direction, geometry, scope=ROOT_SCOPE, koz=0):
         return self._add_feature_object(
             Via(
                 _geometry_from_spec(geometry),
                 _finite_number(density, "density"),
                 _require_string(material, "material"),
                 _require_direction(direction, "via direction"),
+                _non_negative_number(koz, "via koz"),
             ),
             "via",
             scope,
         )
 
-    def add_via_below_cursor(self, *, material, density, thickness, direction="-z", scope=ROOT_SCOPE):
+    def add_via_below_cursor(self, *, material, density, thickness, direction="-z", scope=ROOT_SCOPE, koz=0):
         via_thickness = _positive_number(thickness, "thickness")
         geometry = _geometry_from_footprint(
             self.require_process_footprint(),
@@ -323,12 +324,13 @@ class ProcessGeometryState:
                 _finite_number(density, "density"),
                 _require_string(material, "material"),
                 _require_direction(direction, "via direction"),
+                _non_negative_number(koz, "via koz"),
             ),
             "via",
             scope,
         )
 
-    def add_via_above_cursor(self, *, material, density, thickness, direction="+z", scope=ROOT_SCOPE):
+    def add_via_above_cursor(self, *, material, density, thickness, direction="+z", scope=ROOT_SCOPE, koz=0):
         via_thickness = _positive_number(thickness, "thickness")
         geometry = _geometry_from_footprint(
             self.require_process_footprint(),
@@ -341,23 +343,25 @@ class ProcessGeometryState:
                 _finite_number(density, "density"),
                 _require_string(material, "material"),
                 _require_direction(direction, "via direction"),
+                _non_negative_number(koz, "via koz"),
             ),
             "via",
             scope,
         )
 
-    def add_circuit(self, *, material, density, geometry, scope=ROOT_SCOPE):
+    def add_circuit(self, *, material, density, geometry, scope=ROOT_SCOPE, koz=0):
         return self._add_feature_object(
             Circuit(
                 _geometry_from_spec(geometry),
                 _finite_number(density, "density"),
                 _require_string(material, "material"),
+                _non_negative_number(koz, "circuit koz"),
             ),
             "circuit",
             scope,
         )
 
-    def add_circuit_at_cursor(self, *, material, density, thickness, scope=ROOT_SCOPE):
+    def add_circuit_at_cursor(self, *, material, density, thickness, scope=ROOT_SCOPE, koz=0):
         circuit_thickness = _positive_number(thickness, "thickness")
         return self._add_feature_object(
             Circuit(
@@ -368,18 +372,20 @@ class ProcessGeometryState:
                 ),
                 _finite_number(density, "density"),
                 _require_string(material, "material"),
+                _non_negative_number(koz, "circuit koz"),
             ),
             "circuit",
             scope,
         )
 
-    def add_bump(self, *, material, density, direction, geometry, scope=ROOT_SCOPE):
+    def add_bump(self, *, material, density, direction, geometry, scope=ROOT_SCOPE, koz=0):
         return self._add_feature_object(
             Bump(
                 _geometry_from_spec(geometry),
                 _finite_number(density, "density"),
                 _require_string(material, "material"),
                 _require_direction(direction, "bump direction"),
+                _non_negative_number(koz, "bump koz"),
             ),
             "bump",
             scope,
@@ -393,20 +399,21 @@ class ProcessGeometryState:
         thickness,
         direction="+z",
         scope=ROOT_SCOPE,
-        xy_inset=0,
+        koz=0,
     ):
         bump_thickness = _positive_number(thickness, "thickness")
         geometry = _geometry_from_footprint(
             self.require_process_footprint(),
             self._cursor_z,
             bump_thickness,
-        ).copy_with_xy_inset(xy_inset)
+        )
         return self._add_feature_object(
             Bump(
                 geometry,
                 _finite_number(density, "density"),
                 _require_string(material, "material"),
                 _require_direction(direction, "bump direction"),
+                _non_negative_number(koz, "bump koz"),
             ),
             "bump",
             scope,
@@ -729,6 +736,7 @@ def _container_from_payload(container):
                 via["density"],
                 via["material"],
                 via.get("direction"),
+                _required_feature_field(via, "Via", "koz"),
             )
         )
     for circuit in container.get("circuits", []):
@@ -737,6 +745,7 @@ def _container_from_payload(container):
                 _geometry_from_payload(circuit["geometry"]),
                 circuit["density"],
                 circuit["material"],
+                _required_feature_field(circuit, "Circuit", "koz"),
             )
         )
     for bump in container.get("bumps", []):
@@ -746,6 +755,7 @@ def _container_from_payload(container):
                 bump["density"],
                 bump["material"],
                 bump.get("direction"),
+                _required_feature_field(bump, "Bump", "koz"),
             )
         )
     for child in container.get("children", []):
@@ -776,6 +786,12 @@ def _geometry_field(geometry, field_name):
     if field_name not in geometry:
         raise ValueError(f"Geometry {geometry.get('type')} missing field {field_name}")
     return geometry[field_name]
+
+
+def _required_feature_field(feature, feature_type, field_name):
+    if field_name not in feature:
+        raise ValueError(f"{feature_type} feature missing field {field_name}")
+    return feature[field_name]
 
 
 def _geometry_from_spec(spec):
