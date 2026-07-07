@@ -1,27 +1,22 @@
 from __future__ import annotations
 
-import base64
 import os
-import re
-import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from process_flow_kernel import GeometryKernel, InMemoryRepository, validate_flow_graph
 
-from .cdb_jobs import CdbExportJobManager
-from .exporter import export_geometry
+from .file_export_jobs import FileExportJobManager
+from .identifiers import generated_geometry_id
 from .models import (
-    CdbExportJobCreateRequest,
+    CdbFileExportCreateRequest,
     ExecuteInstanceResponse,
-    ExportJobCancelRequest,
-    ExportJobCreateRequest,
-    ExportJobListResponse,
-    ExportJobResponse,
+    FileExportCancelRequest,
+    FileExportCreateRequest,
+    FileExportJobListResponse,
+    FileExportJobResponse,
     GeometryEntity,
     GeometryPreviewRequest,
     GeometryPreviewResponse,
@@ -32,16 +27,24 @@ from .models import (
     ProcessStepTemplate,
     TemplateInstanceCreateRequest,
 )
-from .repository import DuplicateItemError, KernelRepository, NotFoundError, SQLiteStore
+from .repository import DuplicateItemError, NotFoundError, SQLiteStore
 from .seed import load_seed_fixtures
-
-JsonObject = dict[str, Any]
+from .services import (
+    bootstrap_payload,
+    create_flow_instance,
+    create_template_instance,
+    execute_instance,
+    preview_geometry,
+    preview_step_geometry,
+    require_item,
+    validate_process_step_template,
+)
 
 
 def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="Process Flow API", version="0.1.0", lifespan=app_lifespan)
     app.state.store = SQLiteStore(db_path or default_db_path())
-    app.state.export_jobs = CdbExportJobManager()
+    app.state.file_export_jobs = FileExportJobManager()
 
     app.add_middleware(
         CORSMiddleware,
@@ -135,18 +138,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/process-flow-template-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_template_instance(request: Request, body: TemplateInstanceCreateRequest):
-        store = get_store(request)
-        template = body.processFlowTemplate.payload()
-        instance = body.processFlowInstance.payload()
-        if instance.get("processFlowTemplateId") != template.get("id"):
-            raise ValueError("ProcessFlowInstance.processFlowTemplateId must match ProcessFlowTemplate.id")
-        step_templates = load_step_templates_for_template(store, template)
-        validate_flow_graph(template, instance, step_templates)
-        created_template, created_instance = store.insert_template_and_instance(template, instance)
-        return {
-            "processFlowTemplate": created_template,
-            "processFlowInstance": created_instance,
-        }
+        return create_template_instance(get_store(request), body)
 
     @app.get("/api/process-flow-instances")
     async def list_process_flow_instances(request: Request):
@@ -158,64 +150,23 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/process-flow-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_instance(request: Request, body: ProcessFlowInstance):
-        store = get_store(request)
-        payload = body.payload()
-        template = require_item(
-            store.get_process_flow_template(payload["processFlowTemplateId"]),
-            payload["processFlowTemplateId"],
-        )
-        step_templates = load_step_templates_for_template(store, template)
-        validate_flow_graph(template, payload, step_templates)
-        return store.insert_process_flow_instance(payload)
+        return create_flow_instance(get_store(request), body)
 
     @app.post("/api/process-flow-instances/{instance_id}/execute", response_model=ExecuteInstanceResponse)
     async def execute_process_flow_instance(request: Request, instance_id: str):
-        store = get_store(request)
-        require_item(store.get_process_flow_instance(instance_id), instance_id)
-        kernel = kernel_for_store(store)
-        result = kernel.execute(instance_id)
-        return {
-            "geometryStructure": result.geometry(),
-            "stepOutputs": result.step_outputs(),
-            "terminalStepRefIds": result.terminal_step_ref_ids(),
-        }
+        return execute_instance(get_store(request), instance_id)
 
     @app.post("/api/geometry-preview", response_model=GeometryPreviewResponse)
     async def geometry_preview(request: Request, body: GeometryPreviewRequest):
-        store = get_store(request)
-        kernel = kernel_for_preview_request(store, body)
-        flow_template = body.flowTemplate.payload()
-        draft_instance = body.draftInstance.payload()
-        validate_preview_request(store, body)
-        preview = kernel.execute_preview(
-            {
-                "processFlowTemplate": flow_template,
-                "processFlowInstance": draft_instance,
-                "target": body.target.payload(),
-            }
-        )
-        geometry_structure = preview["geometryStructure"]
-        glb_bytes = await export_geometry(geometry_structure, format="glb")
-        geometry_entity_json = build_geometry_entity_download(
-            geometry_structure=geometry_structure,
-            target=body.target.payload(),
-            source_kind=preview["sourceKind"],
-            output_step_ref_id=preview["outputStepRefId"],
-            source_label=body.sourceLabel,
-        )
-        return {
-            "geometryEntityJson": geometry_entity_json,
-            "glbBase64": base64.b64encode(glb_bytes).decode("ascii"),
-        }
+        return await preview_geometry(get_store(request), body)
 
     @app.post("/api/geometry-preview/step", response_model=GeometryPreviewStepResponse)
     async def geometry_preview_step(body: GeometryPreviewStepRequest):
-        step_bytes = await export_geometry(body.geometryStructure, format="step")
-        return {"stepBase64": base64.b64encode(step_bytes).decode("ascii")}
+        return await preview_step_geometry(body)
 
-    @app.post("/api/geometry-preview/cdb-jobs", response_model=ExportJobResponse)
-    async def create_geometry_preview_cdb_job(body: CdbExportJobCreateRequest):
-        job = await app.state.export_jobs.create_cdb_job(
+    @app.post("/api/geometry-preview/cdb-jobs", response_model=FileExportJobResponse)
+    async def create_geometry_preview_cdb_file_export(body: CdbFileExportCreateRequest):
+        job = await app.state.file_export_jobs.create_cdb_file_export(
             client_id=body.clientId,
             geometry_structure=body.geometryStructure,
             element_size=body.elementSize,
@@ -224,9 +175,9 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         )
         return {"job": job}
 
-    @app.post("/api/geometry-preview/export-jobs", response_model=ExportJobResponse)
-    async def create_geometry_preview_export_job(body: ExportJobCreateRequest):
-        job = await app.state.export_jobs.create_export_job(
+    @app.post("/api/geometry-preview/export-jobs", response_model=FileExportJobResponse)
+    async def create_geometry_preview_file_export(body: FileExportCreateRequest):
+        job = await app.state.file_export_jobs.create_file_export_job(
             client_id=body.clientId,
             kind=body.kind,
             output_path=body.outputPath,
@@ -237,21 +188,21 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         )
         return {"job": job}
 
-    @app.get("/api/export-jobs", response_model=ExportJobListResponse)
-    async def list_export_jobs(clientId: str):
-        jobs = await app.state.export_jobs.list_jobs(client_id=clientId)
+    @app.get("/api/export-jobs", response_model=FileExportJobListResponse)
+    async def list_file_export_jobs(clientId: str):
+        jobs = await app.state.file_export_jobs.list_jobs(client_id=clientId)
         return {"jobs": jobs}
 
-    @app.get("/api/export-jobs/{job_id}", response_model=ExportJobResponse)
-    async def get_export_job(job_id: str, clientId: str):
-        job = await app.state.export_jobs.get_job(job_id=job_id, client_id=clientId)
+    @app.get("/api/export-jobs/{job_id}", response_model=FileExportJobResponse)
+    async def get_file_export_job(job_id: str, clientId: str):
+        job = await app.state.file_export_jobs.get_job(job_id=job_id, client_id=clientId)
         if job is None:
             raise NotFoundError(job_id)
         return {"job": job}
 
-    @app.post("/api/export-jobs/{job_id}/cancel", response_model=ExportJobResponse)
-    async def cancel_export_job(job_id: str, body: ExportJobCancelRequest):
-        job = await app.state.export_jobs.cancel_job(job_id=job_id, client_id=body.clientId)
+    @app.post("/api/export-jobs/{job_id}/cancel", response_model=FileExportJobResponse)
+    async def cancel_file_export_job(job_id: str, body: FileExportCancelRequest):
+        job = await app.state.file_export_jobs.cancel_job(job_id=job_id, client_id=body.clientId)
         if job is None:
             raise NotFoundError(job_id)
         return {"job": job}
@@ -265,7 +216,7 @@ async def app_lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await app.state.export_jobs.shutdown()
+        await app.state.file_export_jobs.shutdown()
 
 
 def default_db_path() -> Path:
@@ -289,140 +240,6 @@ def cors_origins() -> list[str]:
 
 def get_store(request: Request) -> SQLiteStore:
     return request.app.state.store
-
-
-def bootstrap_payload(store: SQLiteStore) -> JsonObject:
-    return {
-        "processStepTemplates": store.list_process_step_templates(),
-        "processFlowTemplates": store.list_process_flow_templates(),
-        "processFlowInstances": store.list_process_flow_instances(),
-        "geometries": store.list_geometries(),
-    }
-
-
-def require_item(item: JsonObject | None, id_: str) -> JsonObject:
-    if item is None:
-        raise NotFoundError(id_)
-    return item
-
-
-def validate_process_step_template(template: JsonObject) -> None:
-    fields = template.get("fieldDefinitions", [])
-    if not any(
-        field.get("id") == "main_geometry" and field.get("valueType") in ("geometryRef", "geometry")
-        for field in fields
-    ):
-        raise ValueError("Process step template must include a main_geometry geometry field")
-
-
-def load_step_templates_for_template(store: SQLiteStore, template: JsonObject) -> list[JsonObject]:
-    result = []
-    seen = set()
-    for step_ref in template.get("stepRefs", []):
-        template_id = step_ref.get("processStepTemplateId")
-        if template_id in seen:
-            continue
-        seen.add(template_id)
-        result.append(require_item(store.get_process_step_template(template_id), template_id))
-    return result
-
-
-def kernel_for_store(store: SQLiteStore) -> GeometryKernel:
-    return GeometryKernel(
-        geometry_repository=KernelRepository(store, "geometry"),
-        process_step_repository=KernelRepository(store, "process_step"),
-        process_flow_template_repository=KernelRepository(store, "process_flow_template"),
-        process_flow_instance_repository=KernelRepository(store, "process_flow_instance"),
-    )
-
-
-def kernel_for_preview_request(store: SQLiteStore, body: GeometryPreviewRequest) -> GeometryKernel:
-    if body.geometries is not None:
-        geometry_repository = InMemoryRepository([geometry.payload() for geometry in body.geometries])
-    else:
-        geometry_repository = KernelRepository(store, "geometry")
-    if body.processStepTemplates is not None:
-        process_step_repository = InMemoryRepository(
-            [template.payload() for template in body.processStepTemplates]
-        )
-    else:
-        process_step_repository = KernelRepository(store, "process_step")
-    return GeometryKernel(
-        geometry_repository=geometry_repository,
-        process_step_repository=process_step_repository,
-        process_flow_template_repository=InMemoryRepository([body.flowTemplate.payload()]),
-        process_flow_instance_repository=InMemoryRepository([body.draftInstance.payload()]),
-    )
-
-
-def validate_preview_request(store: SQLiteStore, body: GeometryPreviewRequest) -> None:
-    target = body.target.payload()
-    flow_template = body.flowTemplate.payload()
-    draft_instance = body.draftInstance.payload()
-    if target["type"] == "edge":
-        edge = next(
-            (candidate for candidate in flow_template.get("flowEdges", []) if candidate.get("edgeId") == target["previewEdgeId"]),
-            None,
-        )
-        if edge is None:
-            raise ValueError(f"Preview edge not found: {target['previewEdgeId']}")
-        if edge.get("source", {}).get("sourceType") == "geometryRef":
-            value = find_field_value(
-                draft_instance.get("stepValueSets", []),
-                edge.get("target", {}).get("stepRefId"),
-                edge.get("target", {}).get("targetFieldId"),
-            )
-            if not isinstance(value, str) or value.strip() == "":
-                raise ValueError("Select initial geometry before previewing this edge.")
-            if body.geometries is None and store.get_geometry(value) is None:
-                raise ValueError(f"Selected geometry not found: {value}")
-            if body.geometries is not None and not any(geometry.id == value for geometry in body.geometries):
-                raise ValueError(f"Selected geometry not found: {value}")
-            return
-
-
-def find_field_value(step_value_sets: list[JsonObject], step_ref_id: str, field_id: str) -> Any:
-    for value_set in step_value_sets:
-        if value_set.get("stepRefId") != step_ref_id:
-            continue
-        for field_value in value_set.get("fieldValues", []):
-            if field_value.get("fieldId") == field_id:
-                return field_value.get("value")
-    return None
-
-
-def build_geometry_entity_download(
-    *,
-    geometry_structure: JsonObject,
-    target: JsonObject,
-    source_kind: str,
-    output_step_ref_id: str | None,
-    source_label: str | None,
-) -> JsonObject:
-    preview_id = target.get("previewEdgeId") if target.get("type") == "edge" else f"step-output-{target.get('stepRefId')}"
-    label = source_label or output_step_ref_id or preview_id
-    name = f"Preview - {label}" if str(label).lower().endswith("output") else f"Preview - {label} output"
-    return {
-        "id": None,
-        "category": "preview.generated",
-        "entityType": "preview",
-        "name": name,
-        "version": None,
-        "owner": None,
-        "description": f"Generated geometry preview for {preview_id}; source kind {source_kind}.",
-        "structureFormat": "standard",
-        "structure": geometry_structure,
-    }
-
-
-def generated_geometry_id(payload: JsonObject) -> str:
-    base = slug(payload.get("name") or payload.get("entityType") or "geometry")
-    return f"geom_{base}_{uuid.uuid4().hex[:12]}"
-
-
-def slug(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
-    return normalized or "geometry"
 
 
 app = create_app()

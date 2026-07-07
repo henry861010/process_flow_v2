@@ -3,9 +3,9 @@ import { apiFetch } from "@/lib/process-flow-api";
 const CLIENT_ID_STORAGE_KEY = "process-flow:export-client-id";
 const LEGACY_CLIENT_ID_STORAGE_KEY = "process-flow:cdb-export-client-id";
 
-export type ExportJobKind = "cdb" | "json" | "step";
+export type FileExportKind = "cdb" | "json" | "step";
 
-export type ExportJobStatus =
+export type FileExportStatus =
   | "queued"
   | "running"
   | "success"
@@ -13,11 +13,11 @@ export type ExportJobStatus =
   | "canceling"
   | "canceled";
 
-export type ExportJob = {
+export type FileExportJob = {
   jobId: string;
   clientId: string;
-  kind: ExportJobKind;
-  status: ExportJobStatus;
+  kind: FileExportKind;
+  status: FileExportStatus;
   sourceLabel: string | null;
   outputPath: string;
   elementSize: number | null;
@@ -32,9 +32,9 @@ export type ExportJob = {
   warning: string | null;
 };
 
-export type CreateExportJobRequest = {
+export type CreateFileExportJobRequest = {
   clientId: string;
-  kind: ExportJobKind;
+  kind: FileExportKind;
   outputPath: string;
   sourceLabel?: string | null;
   geometryStructure?: unknown;
@@ -42,17 +42,7 @@ export type CreateExportJobRequest = {
   elementSize?: number | null;
 };
 
-export type CdbExportJobStatus = ExportJobStatus;
-export type CdbExportJob = ExportJob;
-export type CreateCdbExportJobRequest = Omit<
-  CreateExportJobRequest,
-  "kind"
-> & {
-  geometryStructure: unknown;
-  elementSize: number;
-};
-
-export function getExportClientId() {
+export function getFileExportClientId() {
   if (typeof window === "undefined") {
     return "server";
   }
@@ -75,12 +65,10 @@ export function getExportClientId() {
   return generated;
 }
 
-export const getCdbExportClientId = getExportClientId;
-
-export async function createExportJob(
-  request: CreateExportJobRequest,
-): Promise<ExportJob> {
-  const response = await apiFetch<{ job: ExportJob }>(
+export async function createFileExportJob(
+  request: CreateFileExportJobRequest,
+): Promise<FileExportJob> {
+  const response = await apiFetch<{ job: FileExportJob }>(
     "/api/geometry-preview/export-jobs",
     {
       method: "POST",
@@ -90,29 +78,23 @@ export async function createExportJob(
   return response.job;
 }
 
-export async function createCdbExportJob(
-  request: CreateCdbExportJobRequest,
-): Promise<CdbExportJob> {
-  return createExportJob({ ...request, kind: "cdb" });
-}
-
-export async function listExportJobs(clientId: string): Promise<ExportJob[]> {
-  const response = await apiFetch<{ jobs: ExportJob[] }>(
+export async function listFileExportJobs(
+  clientId: string,
+): Promise<FileExportJob[]> {
+  const response = await apiFetch<{ jobs: FileExportJob[] }>(
     `/api/export-jobs?clientId=${encodeURIComponent(clientId)}`,
   );
   return response.jobs;
 }
 
-export const listCdbExportJobs = listExportJobs;
-
-export async function cancelExportJob({
+export async function cancelFileExportJob({
   clientId,
   jobId,
 }: {
   clientId: string;
   jobId: string;
-}): Promise<ExportJob> {
-  const response = await apiFetch<{ job: ExportJob }>(
+}): Promise<FileExportJob> {
+  const response = await apiFetch<{ job: FileExportJob }>(
     `/api/export-jobs/${encodeURIComponent(jobId)}/cancel`,
     {
       method: "POST",
@@ -121,5 +103,3 @@ export async function cancelExportJob({
   );
   return response.job;
 }
-
-export const cancelCdbExportJob = cancelExportJob;

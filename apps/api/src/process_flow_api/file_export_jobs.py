@@ -4,7 +4,6 @@ import asyncio
 import json
 import math
 import os
-import sys
 import tempfile
 import uuid
 from collections import OrderedDict
@@ -13,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
+from .cad_exporter import cad_worker_error_message, start_cad_worker
 from .cdb_exporter import (
     cdb_worker_error_message,
     parse_cdb_worker_stdout,
@@ -20,8 +20,8 @@ from .cdb_exporter import (
 )
 
 JsonObject = dict[str, Any]
-ExportJobKind = Literal["cdb", "json", "step"]
-JobStatus = Literal["queued", "running", "success", "failed", "canceling", "canceled"]
+FileExportKind = Literal["cdb", "json", "step"]
+FileExportStatus = Literal["queued", "running", "success", "failed", "canceling", "canceled"]
 
 TERMINAL_STATUSES = {"success", "failed", "canceled"}
 DEFAULT_RETAINED_JOBS_PER_CLIENT = 20
@@ -29,17 +29,17 @@ DEFAULT_MAX_CONCURRENT_EXPORT_JOBS = 1
 
 
 @dataclass
-class ExportJob:
+class FileExportJob:
     job_id: str
     client_id: str
-    kind: ExportJobKind
+    kind: FileExportKind
     output_path: Path
     temp_output_path: Path
     input_path: Path
     source_label: str | None
     created_at: datetime
     element_size: float | None = None
-    status: JobStatus = "queued"
+    status: FileExportStatus = "queued"
     started_at: datetime | None = None
     finished_at: datetime | None = None
     node_count: int | None = None
@@ -71,7 +71,7 @@ class ExportJob:
         }
 
 
-class ExportJobManager:
+class FileExportJobManager:
     def __init__(
         self,
         *,
@@ -91,10 +91,10 @@ class ExportJobManager:
             )
         self.max_concurrent_jobs = max(1, configured_concurrency)
         self.retained_jobs_per_client = retained_jobs_per_client
-        self._jobs: OrderedDict[str, ExportJob] = OrderedDict()
+        self._jobs: OrderedDict[str, FileExportJob] = OrderedDict()
         self._lock = asyncio.Lock()
 
-    async def create_export_job(
+    async def create_file_export_job(
         self,
         *,
         client_id: str,
@@ -105,7 +105,7 @@ class ExportJobManager:
         geometry_entity_json: JsonObject | None = None,
         element_size: float | None = None,
     ) -> JsonObject:
-        normalized_kind = _normalize_job_kind(kind)
+        normalized_kind = _normalize_file_export_kind(kind)
         normalized_client_id = _normalize_client_id(client_id)
         final_output_path = _normalize_output_path(output_path, normalized_kind)
         temp_output_path = final_output_path.with_name(
@@ -124,7 +124,7 @@ class ExportJobManager:
             input_payload = _required_json_object(geometry_entity_json, "geometryEntityJson")
             input_path = _write_job_input(input_payload, normalized_kind, pretty=True)
 
-        job = ExportJob(
+        job = FileExportJob(
             job_id=f"{normalized_kind}_{uuid.uuid4().hex}",
             client_id=normalized_client_id,
             kind=normalized_kind,
@@ -143,7 +143,7 @@ class ExportJobManager:
         await self._schedule_queued_jobs()
         return job.public_payload()
 
-    async def create_cdb_job(
+    async def create_cdb_file_export(
         self,
         *,
         client_id: str,
@@ -152,7 +152,7 @@ class ExportJobManager:
         output_path: str,
         source_label: str | None,
     ) -> JsonObject:
-        return await self.create_export_job(
+        return await self.create_file_export_job(
             client_id=client_id,
             kind="cdb",
             geometry_structure=geometry_structure,
@@ -228,7 +228,7 @@ class ExportJobManager:
             _terminate_process(process)
 
     async def _schedule_queued_jobs(self) -> None:
-        jobs_to_start: list[ExportJob] = []
+        jobs_to_start: list[FileExportJob] = []
         async with self._lock:
             running_count = sum(
                 1 for job in self._jobs.values() if job.status in {"running", "canceling"}
@@ -288,7 +288,7 @@ class ExportJobManager:
                     output_path=temp_output_path,
                 )
             else:
-                process = await _start_cad_worker(
+                process = await start_cad_worker(
                     input_path=input_path,
                     output_path=temp_output_path,
                 )
@@ -319,7 +319,12 @@ class ExportJobManager:
                 message = (
                     cdb_worker_error_message(process.returncode, stdout, stderr)
                     if kind == "cdb"
-                    else _cad_worker_error_message(process.returncode, stdout, stderr)
+                    else cad_worker_error_message(
+                        format="step",
+                        returncode=process.returncode,
+                        stdout=stdout,
+                        stderr=stderr,
+                    )
                 )
                 await self._mark_failed(job_id, message)
                 return
@@ -420,14 +425,14 @@ def _normalize_client_id(value: str) -> str:
     return client_id
 
 
-def _normalize_job_kind(value: str) -> ExportJobKind:
+def _normalize_file_export_kind(value: str) -> FileExportKind:
     normalized = str(value).strip().lower()
     if normalized in {"cdb", "json", "step"}:
         return normalized  # type: ignore[return-value]
     raise ValueError("Export job kind must be one of: cdb, json, step.")
 
 
-def _normalize_output_path(value: str, kind: ExportJobKind) -> Path:
+def _normalize_output_path(value: str, kind: FileExportKind) -> Path:
     raw = str(value).strip()
     if not raw:
         raise ValueError("outputPath is required.")
@@ -454,7 +459,7 @@ def _required_json_object(value: JsonObject | None, name: str) -> JsonObject:
     return value
 
 
-def _write_job_input(payload: JsonObject, kind: ExportJobKind, *, pretty: bool = False) -> Path:
+def _write_job_input(payload: JsonObject, kind: FileExportKind, *, pretty: bool = False) -> Path:
     fd, raw_path = tempfile.mkstemp(prefix=f"process-flow-{kind}-input-", suffix=".json")
     path = Path(raw_path)
     try:
@@ -471,30 +476,6 @@ def _write_job_input(payload: JsonObject, kind: ExportJobKind, *, pretty: bool =
 
 def _write_json_export(input_path: Path, output_path: Path) -> None:
     output_path.write_text(input_path.read_text(encoding="utf-8"), encoding="utf-8")
-
-
-async def _start_cad_worker(
-    *,
-    input_path: Path,
-    output_path: Path,
-) -> asyncio.subprocess.Process:
-    return await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "process_flow_cad.worker",
-        "step",
-        str(input_path),
-        str(output_path),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-
-
-def _cad_worker_error_message(returncode: int | None, stdout: bytes, stderr: bytes) -> str:
-    details = (stderr or stdout).decode("utf-8", errors="replace").strip()
-    if details:
-        return f"STEP export failed: {details[-4000:]}"
-    return f"STEP export failed with exit code {returncode}"
 
 
 def _cleanup_paths(*paths: Path) -> str | None:
@@ -537,7 +518,7 @@ def _optional_int(value: Any) -> int | None:
         return None
 
 
-def _kind_label(kind: ExportJobKind) -> str:
+def _kind_label(kind: FileExportKind) -> str:
     return kind.upper()
 
 
@@ -555,7 +536,3 @@ def _duration_seconds(start: datetime | None, end: datetime | None) -> float | N
     if start is None or end is None:
         return None
     return round((end - start).total_seconds(), 3)
-
-
-CdbExportJob = ExportJob
-CdbExportJobManager = ExportJobManager

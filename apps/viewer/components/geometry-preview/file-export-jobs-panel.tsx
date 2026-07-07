@@ -14,26 +14,26 @@ import {
 } from "lucide-react";
 
 import {
-  cancelExportJob,
-  getExportClientId,
-  listExportJobs,
-  type ExportJob,
-  type ExportJobKind,
-  type ExportJobStatus,
-} from "@/components/geometry-preview/cdb-export-client";
+  cancelFileExportJob,
+  getFileExportClientId,
+  listFileExportJobs,
+  type FileExportJob,
+  type FileExportKind,
+  type FileExportStatus,
+} from "@/components/geometry-preview/file-export-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function ExportJobsPanel({
+export function FileExportJobsPanel({
   refreshKey,
   seedJob,
 }: {
   refreshKey: number;
-  seedJob: ExportJob | null;
+  seedJob: FileExportJob | null;
 }) {
   const [clientId, setClientId] = React.useState<string | null>(null);
-  const [jobs, setJobs] = React.useState<ExportJob[]>([]);
+  const [jobs, setJobs] = React.useState<FileExportJob[]>([]);
   const [expanded, setExpanded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [hoveredJob, setHoveredJob] = React.useState<{
@@ -42,7 +42,7 @@ export function ExportJobsPanel({
   } | null>(null);
 
   React.useEffect(() => {
-    setClientId(getExportClientId());
+    setClientId(getFileExportClientId());
   }, []);
 
   React.useEffect(() => {
@@ -54,7 +54,7 @@ export function ExportJobsPanel({
   const loadJobs = React.useCallback(async () => {
     if (!clientId) return;
     try {
-      const nextJobs = await listExportJobs(clientId);
+      const nextJobs = await listFileExportJobs(clientId);
       setJobs(nextJobs);
       setError(null);
     } catch (loadError) {
@@ -78,7 +78,7 @@ export function ExportJobsPanel({
     return () => window.clearInterval(interval);
   }, [clientId, jobs, loadJobs]);
 
-  async function cancelJob(job: ExportJob) {
+  async function cancelJob(job: FileExportJob) {
     if (!clientId || !isCancelableStatus(job.status)) return;
     setJobs((current) =>
       current.map((candidate) =>
@@ -88,7 +88,7 @@ export function ExportJobsPanel({
       ),
     );
     try {
-      const nextJob = await cancelExportJob({ clientId, jobId: job.jobId });
+      const nextJob = await cancelFileExportJob({ clientId, jobId: job.jobId });
       setJobs((current) => mergeJob(current, nextJob));
     } catch (cancelError) {
       setError(
@@ -106,7 +106,7 @@ export function ExportJobsPanel({
       ? null
       : jobs.find((job) => job.jobId === hoveredJob.jobId) ?? null;
 
-  function showJobDetails(job: ExportJob, rect: DOMRect) {
+  function showJobDetails(job: FileExportJob, rect: DOMRect) {
     const popoverMaxHeight = Math.min(window.innerHeight * 0.7, 420);
     const top = Math.min(
       Math.max(rect.top - 8, 16),
@@ -180,7 +180,7 @@ export function ExportJobsPanel({
             </div>
           ) : null}
           {jobs.map((job) => (
-            <ExportJobRow
+            <FileExportJobRow
               key={job.jobId}
               job={job}
               onCancel={() => cancelJob(job)}
@@ -196,7 +196,7 @@ export function ExportJobsPanel({
       </aside>
 
       {hoveredJobDetails ? (
-        <ExportJobDetailPopover
+        <FileExportJobDetailPopover
           job={hoveredJobDetails}
           top={hoveredJob?.top ?? 16}
         />
@@ -205,13 +205,13 @@ export function ExportJobsPanel({
   );
 }
 
-function ExportJobRow({
+function FileExportJobRow({
   job,
   onCancel,
   onHover,
   onHoverEnd,
 }: {
-  job: ExportJob;
+  job: FileExportJob;
   onCancel: () => void;
   onHover: (rect: DOMRect) => void;
   onHoverEnd: () => void;
@@ -318,11 +318,11 @@ function ExportJobRow({
   );
 }
 
-function ExportJobDetailPopover({
+function FileExportJobDetailPopover({
   job,
   top,
 }: {
-  job: ExportJob;
+  job: FileExportJob;
   top: number;
 }) {
   return (
@@ -420,7 +420,7 @@ function JobDetailField({
   );
 }
 
-function JobStatusIcon({ status }: { status: ExportJobStatus }) {
+function JobStatusIcon({ status }: { status: FileExportStatus }) {
   const className = "mt-0.5 h-4 w-4 shrink-0";
   if (status === "success") {
     return <CheckCircle2 className={cn(className, "text-emerald-600")} />;
@@ -434,39 +434,39 @@ function JobStatusIcon({ status }: { status: ExportJobStatus }) {
   return <CircleStop className={cn(className, "text-muted-foreground")} />;
 }
 
-function JobKindIcon({ kind }: { kind: ExportJobKind }) {
+function JobKindIcon({ kind }: { kind: FileExportKind }) {
   const className = "h-3.5 w-3.5 shrink-0 text-muted-foreground";
   if (kind === "json") return <FileJson className={className} />;
   if (kind === "cdb") return <Database className={className} />;
   return <Download className={className} />;
 }
 
-function mergeJob(jobs: ExportJob[], job: ExportJob) {
+function mergeJob(jobs: FileExportJob[], job: FileExportJob) {
   const withoutJob = jobs.filter((candidate) => candidate.jobId !== job.jobId);
   return [job, ...withoutJob].slice(0, 20);
 }
 
-function isActiveStatus(status: ExportJobStatus) {
+function isActiveStatus(status: FileExportStatus) {
   return status === "queued" || status === "running" || status === "canceling";
 }
 
-function isCancelableStatus(status: ExportJobStatus) {
+function isCancelableStatus(status: FileExportStatus) {
   return status === "queued" || status === "running";
 }
 
-function badgeVariant(status: ExportJobStatus) {
+function badgeVariant(status: FileExportStatus) {
   if (status === "success") return "signal";
   if (status === "failed") return "outline";
   if (status === "canceled") return "secondary";
   return "outline";
 }
 
-function statusLabel(status: ExportJobStatus) {
+function statusLabel(status: FileExportStatus) {
   if (status === "canceling") return "Canceling";
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-function kindLabel(kind: ExportJobKind) {
+function kindLabel(kind: FileExportKind) {
   return kind.toUpperCase();
 }
 
@@ -489,13 +489,13 @@ function formatDateTime(value: string | null) {
   return date.toLocaleString();
 }
 
-function formatMeshSummary(job: ExportJob) {
+function formatMeshSummary(job: FileExportJob) {
   return `${formatCount(job.elementCount)} elements, ${formatCount(
     job.nodeCount,
   )} nodes, ${formatCount(job.componentCount)} comps`;
 }
 
-function jobDetailTitle(job: ExportJob) {
+function jobDetailTitle(job: FileExportJob) {
   const parts = [
     job.sourceLabel || `${kindLabel(job.kind)} export`,
     `Kind: ${kindLabel(job.kind)}`,
@@ -517,5 +517,3 @@ function jobDetailTitle(job: ExportJob) {
   }
   return parts.join("\n");
 }
-
-export const CdbExportJobsPanel = ExportJobsPanel;

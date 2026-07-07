@@ -1,10 +1,17 @@
+import type {
+  GeometryEntity,
+  ProcessFlowInstance,
+  ProcessFlowTemplate,
+  ProcessStepTemplate,
+} from "@/lib/process-flow/types";
+
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
 export type BootstrapPayload = {
-  processStepTemplates: unknown[];
-  processFlowTemplates: unknown[];
-  processFlowInstances: unknown[];
-  geometries: unknown[];
+  processStepTemplates: ProcessStepTemplate[];
+  processFlowTemplates: ProcessFlowTemplate[];
+  processFlowInstances: ProcessFlowInstance[];
+  geometries: GeometryEntity[];
 };
 
 export function processFlowApiBaseUrl() {

@@ -5,17 +5,17 @@ import { createPortal } from "react-dom";
 import { Database, Download, FileJson, Loader2, X } from "lucide-react";
 
 import {
-  createExportJob,
-  getExportClientId,
-  type ExportJob,
-  type ExportJobKind,
-} from "@/components/geometry-preview/cdb-export-client";
+  createFileExportJob,
+  getFileExportClientId,
+  type FileExportJob,
+  type FileExportKind,
+} from "@/components/geometry-preview/file-export-client";
 import { Button } from "@/components/ui/button";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
-export function GeometryExportDialog({
+export function FileExportDialog({
   kind,
   geometryStructure,
   geometryEntityJson,
@@ -23,12 +23,12 @@ export function GeometryExportDialog({
   onClose,
   onJobCreated,
 }: {
-  kind: ExportJobKind;
+  kind: FileExportKind;
   geometryStructure: unknown;
   geometryEntityJson: unknown;
   sourceLabel: string;
   onClose: () => void;
-  onJobCreated: (job: ExportJob) => void;
+  onJobCreated: (job: FileExportJob) => void;
 }) {
   const [portalReady, setPortalReady] = React.useState(false);
   const [elementSize, setElementSize] = React.useState("500");
@@ -60,8 +60,8 @@ export function GeometryExportDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const job = await createExportJob({
-        clientId: getExportClientId(),
+      const job = await createFileExportJob({
+        clientId: getFileExportClientId(),
         kind,
         geometryStructure: kind === "json" ? undefined : geometryStructure,
         geometryEntityJson: kind === "json" ? geometryEntityJson : undefined,
@@ -181,15 +181,13 @@ export function GeometryExportDialog({
   );
 }
 
-export const CdbExportDialog = GeometryExportDialog;
-
-function ExportKindIcon({ kind }: { kind: ExportJobKind }) {
+function ExportKindIcon({ kind }: { kind: FileExportKind }) {
   if (kind === "json") return <FileJson />;
   if (kind === "cdb") return <Database />;
   return <Download />;
 }
 
-function exportKindConfig(kind: ExportJobKind) {
+function exportKindConfig(kind: FileExportKind) {
   if (kind === "json") {
     return {
       label: "JSON",
@@ -212,7 +210,7 @@ function exportKindConfig(kind: ExportJobKind) {
 }
 
 function validateExportForm(
-  kind: ExportJobKind,
+  kind: FileExportKind,
   elementSize: number | null,
   outputPath: string,
 ) {

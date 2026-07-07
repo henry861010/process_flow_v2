@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 import process_flow_api.main as api_main
 from process_flow_api.main import create_app
+from process_flow_api.seed import load_seed_fixtures
 
 
 class ProcessFlowApiTests(unittest.TestCase):
@@ -30,10 +31,20 @@ class ProcessFlowApiTests(unittest.TestCase):
         return response.json()
 
     def assert_seed_payload_counts(self, payload):
-        self.assertEqual(len(payload["processStepTemplates"]), 13)
-        self.assertEqual(len(payload["processFlowTemplates"]), 2)
-        self.assertEqual(len(payload["processFlowInstances"]), 3)
-        self.assertEqual(len(payload["geometries"]), 5)
+        fixtures = load_seed_fixtures()
+        self.assertEqual(
+            len(payload["processStepTemplates"]),
+            len(fixtures["processStepTemplates"]),
+        )
+        self.assertEqual(
+            len(payload["processFlowTemplates"]),
+            len(fixtures["processFlowTemplates"]),
+        )
+        self.assertEqual(
+            len(payload["processFlowInstances"]),
+            len(fixtures["processFlowInstances"]),
+        )
+        self.assertEqual(len(payload["geometries"]), len(fixtures["geometries"]))
 
     def test_health_and_startup_bootstrap(self):
         self.assertEqual(self.client.get("/api/health").json(), {"status": "ok"})
@@ -167,7 +178,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                     "stepRefId": "molding",
                     "processStepTemplateId": "step_tpl_molding_1_0_0",
                     "fieldValues": [
-                        {"fieldId": "main_geometry", "value": "geom_example_panel"},
+                        {"fieldId": "main_geometry", "value": "panel_v1_0_0"},
                         {"fieldId": "material", "value": "EMC"},
                         {"fieldId": "thickness", "value": 10},
                     ],
@@ -334,7 +345,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn(".step", response.json()["message"])
 
-    def test_cdb_export_jobs_are_filtered_by_client_id(self):
+    def test_file_export_jobs_are_filtered_by_client_id(self):
         response = self.client.post(
             "/api/geometry-preview/cdb-jobs",
             json={
@@ -354,8 +365,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertGreaterEqual(len(own_jobs.json()["jobs"]), 1)
         self.assertEqual(other_jobs.json()["jobs"], [])
 
-    def test_cdb_export_job_cancel_queued(self):
-        self.app.state.export_jobs.max_concurrent_jobs = 0
+    def test_file_export_job_cancel_queued(self):
+        self.app.state.file_export_jobs.max_concurrent_jobs = 0
         output_path = Path(self.tmp.name) / "queued.cdb"
         response = self.client.post(
             "/api/geometry-preview/cdb-jobs",

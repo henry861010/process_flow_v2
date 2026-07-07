@@ -129,7 +129,7 @@ class GeometryPreviewStepRequest(BaseModel):
     geometryStructure: JsonObject
 
 
-class CdbExportJobCreateRequest(BaseModel):
+class CdbFileExportCreateRequest(BaseModel):
     clientId: str = Field(min_length=1, max_length=160)
     geometryStructure: JsonObject
     elementSize: float
@@ -137,7 +137,7 @@ class CdbExportJobCreateRequest(BaseModel):
     sourceLabel: str | None = None
 
 
-class ExportJobCreateRequest(BaseModel):
+class FileExportCreateRequest(BaseModel):
     clientId: str = Field(min_length=1, max_length=160)
     kind: Literal["cdb", "json", "step"]
     outputPath: str = Field(min_length=1)
@@ -147,7 +147,7 @@ class ExportJobCreateRequest(BaseModel):
     elementSize: float | None = None
 
 
-class ExportJobCancelRequest(BaseModel):
+class FileExportCancelRequest(BaseModel):
     clientId: str = Field(min_length=1, max_length=160)
 
 
@@ -166,7 +166,7 @@ class GeometryPreviewStepResponse(BaseModel):
     stepBase64: str
 
 
-class ExportJob(BaseModel):
+class FileExportJob(BaseModel):
     jobId: str
     clientId: str
     kind: Literal["cdb", "json", "step"]
@@ -185,9 +185,9 @@ class ExportJob(BaseModel):
     warning: str | None = None
 
 
-class ExportJobResponse(BaseModel):
-    job: ExportJob
+class FileExportJobResponse(BaseModel):
+    job: FileExportJob
 
 
-class ExportJobListResponse(BaseModel):
-    jobs: list[ExportJob]
+class FileExportJobListResponse(BaseModel):
+    jobs: list[FileExportJob]

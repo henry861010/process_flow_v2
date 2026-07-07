@@ -17,11 +17,11 @@ import {
   type GeometryEntityDownload,
   type GeometryPreviewRequest,
 } from "@/components/geometry-preview/geometry-preview-client";
-import { GeometryExportDialog } from "@/components/geometry-preview/cdb-export-dialog";
+import { FileExportDialog } from "@/components/geometry-preview/file-export-dialog";
 import type {
-  ExportJob,
-  ExportJobKind,
-} from "@/components/geometry-preview/cdb-export-client";
+  FileExportJob,
+  FileExportKind,
+} from "@/components/geometry-preview/file-export-client";
 import {
   GeometryFeatureOverlay,
   extractPreviewFeatures,
@@ -79,15 +79,15 @@ const DEFAULT_FEATURE_MAX_INSTANCES = 10000;
 export function GeometryPreviewPanel({
   preview,
   onClose,
-  onExportJobCreated,
+  onFileExportJobCreated,
 }: {
   preview: GeometryPreviewContext;
   onClose: () => void;
-  onExportJobCreated?: (job: ExportJob) => void;
+  onFileExportJobCreated?: (job: FileExportJob) => void;
 }) {
   const [state, setState] = React.useState<PanelState>({ status: "loading" });
-  const [exportDialogKind, setExportDialogKind] =
-    React.useState<ExportJobKind | null>(null);
+  const [fileExportDialogKind, setFileExportDialogKind] =
+    React.useState<FileExportKind | null>(null);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -101,7 +101,7 @@ export function GeometryPreviewPanel({
 
   React.useEffect(() => {
     const controller = new AbortController();
-    setExportDialogKind(null);
+    setFileExportDialogKind(null);
     setState({ status: "loading" });
 
     requestGeometryPreview(preview.request, controller.signal)
@@ -132,13 +132,13 @@ export function GeometryPreviewPanel({
 
   const ready = state.status === "ready";
 
-  function openExportDialog(kind: ExportJobKind) {
+  function openFileExportDialog(kind: FileExportKind) {
     if (state.status !== "ready") return;
-    setExportDialogKind(kind);
+    setFileExportDialogKind(kind);
   }
 
-  function handleExportJobCreated(job: ExportJob) {
-    onExportJobCreated?.(job);
+  function handleFileExportJobCreated(job: FileExportJob) {
+    onFileExportJobCreated?.(job);
   }
 
   return (
@@ -198,7 +198,7 @@ export function GeometryPreviewPanel({
           <Button
             variant="outline"
             disabled={!ready}
-            onClick={() => openExportDialog("json")}
+            onClick={() => openFileExportDialog("json")}
           >
             <FileJson />
             Export JSON
@@ -206,7 +206,7 @@ export function GeometryPreviewPanel({
           <Button
             variant="outline"
             disabled={!ready}
-            onClick={() => openExportDialog("step")}
+            onClick={() => openFileExportDialog("step")}
           >
             <Download />
             Export STEP AP242
@@ -214,7 +214,7 @@ export function GeometryPreviewPanel({
           <Button
             variant="outline"
             disabled={!ready}
-            onClick={() => openExportDialog("cdb")}
+            onClick={() => openFileExportDialog("cdb")}
           >
             <Download />
             Export CDB
@@ -222,14 +222,14 @@ export function GeometryPreviewPanel({
         </footer>
       </section>
 
-      {exportDialogKind && state.status === "ready" ? (
-        <GeometryExportDialog
-          kind={exportDialogKind}
+      {fileExportDialogKind && state.status === "ready" ? (
+        <FileExportDialog
+          kind={fileExportDialogKind}
           geometryStructure={state.geometryEntityJson.structure}
           geometryEntityJson={state.geometryEntityJson}
           sourceLabel={`${preview.sourceLabel} -> ${preview.slotLabel}`}
-          onClose={() => setExportDialogKind(null)}
-          onJobCreated={handleExportJobCreated}
+          onClose={() => setFileExportDialogKind(null)}
+          onJobCreated={handleFileExportJobCreated}
         />
       ) : null}
     </div>

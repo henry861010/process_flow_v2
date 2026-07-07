@@ -13,53 +13,17 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type {
+  ProcessFlowInstance,
+  ProcessFlowTemplate,
+  ProcessStepTemplate,
+} from "@/lib/process-flow/types";
 import { loadBootstrap, resetPocData } from "@/lib/process-flow-api";
 
 const ALL_TEMPLATE_TYPES = "__all_template_types__";
 
 const selectClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-
-type FieldValue = {
-  fieldId: string;
-  value: unknown;
-};
-
-type FieldDefinition = {
-  id: string;
-  name: string;
-};
-
-type ProcessStepTemplate = {
-  id: string;
-  version: string;
-  name: string;
-  category: string;
-  fieldDefinitions: FieldDefinition[];
-};
-
-type ProcessFlowTemplate = {
-  id: string;
-  name: string;
-  version: string;
-  stepRefs: Array<{
-    stepRefId: string;
-    processStepTemplateId: string;
-  }>;
-};
-
-type StepValueSet = {
-  stepRefId: string;
-  processStepTemplateId: string;
-  fieldValues: FieldValue[];
-};
-
-type ProcessFlowInstance = {
-  id: string;
-  name: string;
-  processFlowTemplateId: string;
-  stepValueSets: StepValueSet[];
-};
 
 type HomeData = {
   flowTemplates: ProcessFlowTemplate[];

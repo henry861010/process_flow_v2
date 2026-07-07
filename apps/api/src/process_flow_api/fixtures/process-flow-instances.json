@@ -10,11 +10,11 @@
         "fieldValues": [
           {
             "fieldId": "main_geometry",
-            "value": "geom_example_panel"
+            "value": "panel_v1_0_0"
           },
           {
             "fieldId": "die_geometry",
-            "value": "geom_example_hbm"
+            "value": "hbm_v1_3_1"
           },
           {
             "fieldId": "coordinates",
@@ -165,11 +165,11 @@
         "fieldValues": [
           {
             "fieldId": "main_geometry",
-            "value": "geom_example_panel"
+            "value": "panel_v1_0_0"
           },
           {
             "fieldId": "die_geometry",
-            "value": "geom_example_hbm"
+            "value": "hbm_v1_3_1"
           },
           {
             "fieldId": "coordinates",
@@ -302,11 +302,11 @@
         "fieldValues": [
           {
             "fieldId": "main_geometry",
-            "value": "geom_example_panel"
+            "value": "panel_v1_0_0"
           },
           {
             "fieldId": "die_geometry",
-            "value": "geom_example_soc"
+            "value": "soc_v1_0_0"
           },
           {
             "fieldId": "coordinates",

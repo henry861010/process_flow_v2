@@ -39,10 +39,35 @@ import { CoordinateListControl } from "@/components/process-flow-fields/coordina
 import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExportJobsPanel } from "@/components/geometry-preview/cdb-export-jobs-panel";
-import type { ExportJob } from "@/components/geometry-preview/cdb-export-client";
+import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
+import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
 import type { GeometryPreviewContext } from "@/components/geometry-preview/geometry-preview-panel";
 import { formatCategoryPath } from "@/lib/category-library";
+import {
+  coerceArrayValue,
+  coercePrimitiveValue,
+  formatRepeatItemName,
+  getFieldValue,
+  getGeometryInputFields,
+  isArrayValueType,
+  isGeometryField,
+  isIntegerValueType,
+  isNumericValueType,
+  isRepeatableGroupValue,
+  passesNumericValidation,
+} from "@/lib/process-flow/field-values";
+import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
+import type {
+  FieldDefinition,
+  FieldValue,
+  GeometryEntity,
+  ProcessFlowInstance,
+  ProcessFlowTemplate,
+  ProcessStepTemplate,
+  RepeatableGroupValue,
+  StepCompletion,
+} from "@/lib/process-flow/types";
+import { clone, normalizeStepLabel } from "@/lib/process-flow/utils";
 import {
   createProcessFlowTemplateInstance,
   listProcessFlowTemplates,
@@ -63,7 +88,7 @@ const textareaClass =
 type GeometryPreviewPanelProps = {
   preview: GeometryPreviewContext;
   onClose: () => void;
-  onExportJobCreated?: (job: ExportJob) => void;
+  onFileExportJobCreated?: (job: FileExportJob) => void;
 };
 
 const GeometryPreviewPanel = dynamic<GeometryPreviewPanelProps>(
@@ -80,149 +105,6 @@ const GeometryPreviewPanel = dynamic<GeometryPreviewPanelProps>(
     ),
   },
 );
-
-type FieldScope = "inputState" | "outputState" | "processParameter";
-type ValueType =
-  | "string"
-  | "integer"
-  | "float"
-  | "boolean"
-  | "materialRef"
-  | "geometryRef"
-  | "coordinates"
-  | "fieldGroupArray"
-  | "string[]"
-  | "integer[]"
-  | "float[]"
-  | "materialRef[]";
-type ControlType =
-  | "text"
-  | "number"
-  | "checkbox"
-  | "select"
-  | "repeater"
-  | "coordinateList"
-  | null;
-type SelectionMode = "single" | "multiple" | null;
-
-type StaticOption = {
-  value: string | number;
-  name: string;
-  description?: string;
-};
-
-type OptionSource = {
-  type: "static";
-  options: StaticOption[];
-};
-
-type ValidationRule = {
-  regex?: string;
-  minLength?: number;
-  maxLength?: number;
-  min?: number;
-  max?: number;
-  exclusiveMin?: boolean;
-  exclusiveMax?: boolean;
-};
-
-type RepeatDefinition = {
-  itemNameTemplate: string;
-  indexBase: number;
-  minItems?: number;
-  maxItems?: number;
-  itemFieldDefinitions: FieldDefinition[];
-};
-
-type FieldDefinition = {
-  id: string;
-  name: string;
-  description?: string;
-  scope: FieldScope;
-  valueType: ValueType;
-  controlType?: ControlType;
-  selectionMode?: SelectionMode;
-  unit?: string | null;
-  optionSource?: OptionSource;
-  validation?: ValidationRule;
-  repeatDefinition?: RepeatDefinition;
-};
-
-type RepeatableGroupValue = {
-  items: Array<{
-    itemId: string;
-    index: number;
-    fieldValues: FieldValue[];
-  }>;
-};
-
-type FieldValue = {
-  fieldId: string;
-  value: unknown;
-};
-
-type ProcessStepTemplate = {
-  id: string;
-  version: string;
-  name: string;
-  category: string;
-  program: string;
-  description: string;
-  owner: string;
-  fieldDefinitions: FieldDefinition[];
-};
-
-type SavedFlowEdge = {
-  edgeId: string;
-  source:
-    | { sourceType: "geometryRef" }
-    | { sourceType: "stepOutput"; stepRefId: string };
-  target: {
-    stepRefId: string;
-    targetFieldId: string;
-  };
-};
-
-type ProcessFlowTemplate = {
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  owner: string;
-  stepRefs: Array<{
-    stepRefId: string;
-    stepLabel?: string;
-    processStepTemplateId: string;
-  }>;
-  flowEdges: SavedFlowEdge[];
-};
-
-type StepValueSet = {
-  stepRefId: string;
-  processStepTemplateId: string;
-  fieldValues: FieldValue[];
-};
-
-type ProcessFlowInstance = {
-  id: string;
-  name: string;
-  processFlowTemplateId: string;
-  stepValueSets: StepValueSet[];
-};
-
-type GeometryEntity = {
-  id: string;
-  category: string;
-  name: string;
-  version: string;
-  owner: string;
-  description: string;
-  entityType: string;
-  icon?: string;
-  iconScale?: number;
-  structureFormat: "standard";
-  structure?: unknown;
-};
 
 type EditorMetadata = {
   technologyName: string;
@@ -272,11 +154,6 @@ type ProcessStepFlowNode = Node<ProcessStepNodeData, "processStep">;
 type FlowNode = InitialGeometryFlowNode | ProcessStepFlowNode;
 type FlowEdge = Edge<FlowEdgeData, "dataFlow">;
 
-type StepCompletion = {
-  complete: boolean;
-  blockingFieldName: string | null;
-};
-
 type GraphAnalysis = {
   connectedInitialNodeIds: Set<string>;
   reachableStepNodeIds: Set<string>;
@@ -289,11 +166,6 @@ type GraphAnalysis = {
   stepCompletion: Map<string, StepCompletion>;
   validationMessage: string;
   canSave: boolean;
-};
-
-type LayoutResult = {
-  stepPositions: Map<string, { x: number; y: number }>;
-  initialPositions: Map<string, { x: number; y: number }>;
 };
 
 export function ProcessFlowTemplateEditor() {
@@ -324,8 +196,9 @@ function ProcessFlowTemplateEditorInner() {
   );
   const [geometryPreview, setGeometryPreview] =
     React.useState<GeometryPreviewContext | null>(null);
-  const [exportJobsRefreshKey, setExportJobsRefreshKey] = React.useState(0);
-  const [seedExportJob, setSeedExportJob] = React.useState<ExportJob | null>(null);
+  const [fileExportJobsRefreshKey, setFileExportJobsRefreshKey] = React.useState(0);
+  const [seedFileExportJob, setSeedFileExportJob] =
+    React.useState<FileExportJob | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [geometryCategoryPath, setGeometryCategoryPath] = React.useState<string[]>([]);
   const [geometrySearch, setGeometrySearch] = React.useState("");
@@ -368,9 +241,9 @@ function ProcessFlowTemplateEditorInner() {
     [metadata, nodes, edges],
   );
 
-  function handleExportJobCreated(job: ExportJob) {
-    setSeedExportJob(job);
-    setExportJobsRefreshKey((current) => current + 1);
+  function handleFileExportJobCreated(job: FileExportJob) {
+    setSeedFileExportJob(job);
+    setFileExportJobsRefreshKey((current) => current + 1);
   }
 
   const deleteEdge = React.useCallback((edgeId: string) => {
@@ -1301,13 +1174,13 @@ function ProcessFlowTemplateEditorInner() {
         <GeometryPreviewPanel
           preview={geometryPreview}
           onClose={() => setGeometryPreview(null)}
-          onExportJobCreated={handleExportJobCreated}
+          onFileExportJobCreated={handleFileExportJobCreated}
         />
       ) : null}
 
-      <ExportJobsPanel
-        refreshKey={exportJobsRefreshKey}
-        seedJob={seedExportJob}
+      <FileExportJobsPanel
+        refreshKey={fileExportJobsRefreshKey}
+        seedJob={seedFileExportJob}
       />
     </main>
   );
@@ -2272,275 +2145,6 @@ function safeGraphId(value: string) {
   );
 }
 
-function computeTemplateLayout(template: ProcessFlowTemplate): LayoutResult {
-  const stepOrder = new Map(
-    template.stepRefs.map((stepRef, index) => [stepRef.stepRefId, index]),
-  );
-  const stepIds = template.stepRefs.map((stepRef) => stepRef.stepRefId);
-  const stepSet = new Set(stepIds);
-  const rank = new Map(stepIds.map((stepRefId) => [stepRefId, 1]));
-
-  for (let pass = 0; pass < Math.max(1, stepIds.length); pass += 1) {
-    template.flowEdges.forEach((edge) => {
-      if (
-        edge.source.sourceType !== "stepOutput" ||
-        !stepSet.has(edge.source.stepRefId) ||
-        !stepSet.has(edge.target.stepRefId)
-      ) {
-        return;
-      }
-      const sourceRank = rank.get(edge.source.stepRefId) ?? 1;
-      const targetRank = rank.get(edge.target.stepRefId) ?? 1;
-      if (targetRank <= sourceRank) {
-        rank.set(edge.target.stepRefId, sourceRank + 1);
-      }
-    });
-  }
-
-  const mainPath = findLongestStepPath(template);
-  const mainSet = new Set(mainPath);
-  const lane = new Map<string, number>();
-  mainPath.forEach((stepRefId) => lane.set(stepRefId, 0));
-
-  const lanePattern = buildLanePattern(stepIds.length + 4);
-  let lanePatternIndex = 0;
-  stepIds
-    .filter((stepRefId) => !mainSet.has(stepRefId))
-    .sort(
-      (left, right) =>
-        (rank.get(left) ?? 1) - (rank.get(right) ?? 1) ||
-        (stepOrder.get(left) ?? 0) - (stepOrder.get(right) ?? 0) ||
-        left.localeCompare(right),
-    )
-    .forEach((stepRefId) => {
-      const upstreamLane = template.flowEdges
-        .filter(
-          (edge) =>
-            edge.source.sourceType === "stepOutput" &&
-            edge.target.stepRefId === stepRefId &&
-            lane.has(edge.source.stepRefId) &&
-            lane.get(edge.source.stepRefId) !== 0,
-        )
-        .map((edge) =>
-          edge.source.sourceType === "stepOutput"
-            ? lane.get(edge.source.stepRefId)
-            : undefined,
-        )
-        .find((value): value is number => typeof value === "number");
-
-      if (typeof upstreamLane === "number") {
-        lane.set(stepRefId, upstreamLane);
-        return;
-      }
-
-      lane.set(stepRefId, lanePattern[lanePatternIndex] ?? lanePatternIndex + 1);
-      lanePatternIndex += 1;
-    });
-
-  const stepPositions = new Map<string, { x: number; y: number }>();
-  const initialPositions = new Map<string, { x: number; y: number }>();
-  const xGap = 330;
-  const yGap = 190;
-
-  stepIds.forEach((stepRefId) => {
-    stepPositions.set(stepRefId, {
-      x: (rank.get(stepRefId) ?? 1) * xGap,
-      y: 280 + (lane.get(stepRefId) ?? 0) * yGap,
-    });
-  });
-
-  const occupiedLayoutCells = new Set<string>();
-  stepIds.forEach((stepRefId) => {
-    occupiedLayoutCells.add(
-      layoutCellKey(rank.get(stepRefId) ?? 1, lane.get(stepRefId) ?? 0),
-    );
-  });
-
-  const geometryEdgesByTarget = new Map<string, SavedFlowEdge[]>();
-  template.flowEdges.forEach((edge) => {
-    if (edge.source.sourceType !== "geometryRef") {
-      return;
-    }
-    const key = edge.target.stepRefId;
-    geometryEdgesByTarget.set(key, [...(geometryEdgesByTarget.get(key) ?? []), edge]);
-  });
-
-  geometryEdgesByTarget.forEach((group, targetStepRefId) => {
-    const targetRank = rank.get(targetStepRefId) ?? 1;
-    const targetLane = lane.get(targetStepRefId) ?? 0;
-    const initialRank = Math.max(0, targetRank - 1);
-    const laneOffsets = centeredInitialLaneOffsets(
-      group.length,
-      group.length + stepIds.length + 8,
-    );
-
-    group
-      .slice()
-      .sort((left, right) => left.edgeId.localeCompare(right.edgeId))
-      .forEach((edge) => {
-        const initialLane =
-          laneOffsets
-            .map((offset) => targetLane + offset)
-            .find(
-              (candidateLane) =>
-                !occupiedLayoutCells.has(layoutCellKey(initialRank, candidateLane)),
-            ) ?? targetLane;
-        occupiedLayoutCells.add(layoutCellKey(initialRank, initialLane));
-        initialPositions.set(edge.edgeId, {
-          x: initialRank * xGap,
-          y: 280 + initialLane * yGap,
-        });
-      });
-  });
-
-  normalizeTemplateLayoutPositions(stepPositions, initialPositions);
-  return { stepPositions, initialPositions };
-}
-
-function normalizeTemplateLayoutPositions(
-  stepPositions: Map<string, { x: number; y: number }>,
-  initialPositions: Map<string, { x: number; y: number }>,
-) {
-  const positions = [...stepPositions.values(), ...initialPositions.values()];
-  if (positions.length === 0) {
-    return;
-  }
-  const minX = Math.min(...positions.map((position) => position.x));
-  const minY = Math.min(...positions.map((position) => position.y));
-  const dx = minX < 40 ? 40 - minX : 0;
-  const dy = minY < 70 ? 70 - minY : 0;
-  if (dx === 0 && dy === 0) {
-    return;
-  }
-  stepPositions.forEach((position) => {
-    position.x += dx;
-    position.y += dy;
-  });
-  initialPositions.forEach((position) => {
-    position.x += dx;
-    position.y += dy;
-  });
-}
-
-function findLongestStepPath(template: ProcessFlowTemplate) {
-  const stepOrder = new Map(
-    template.stepRefs.map((stepRef, index) => [stepRef.stepRefId, index]),
-  );
-  const stepIds = template.stepRefs.map((stepRef) => stepRef.stepRefId);
-  const stepSet = new Set(stepIds);
-  const adjacency = new Map<string, string[]>();
-  template.flowEdges.forEach((edge) => {
-    if (
-      edge.source.sourceType !== "stepOutput" ||
-      !stepSet.has(edge.source.stepRefId) ||
-      !stepSet.has(edge.target.stepRefId)
-    ) {
-      return;
-    }
-    adjacency.set(edge.source.stepRefId, [
-      ...(adjacency.get(edge.source.stepRefId) ?? []),
-      edge.target.stepRefId,
-    ]);
-  });
-  adjacency.forEach((targets, source) => {
-    adjacency.set(
-      source,
-      targets.sort(
-        (left, right) =>
-          (stepOrder.get(left) ?? 0) - (stepOrder.get(right) ?? 0) ||
-          left.localeCompare(right),
-      ),
-    );
-  });
-
-  const memo = new Map<string, string[]>();
-  function dfs(stepRefId: string, visiting: Set<string>): string[] {
-    const cached = memo.get(stepRefId);
-    if (cached) {
-      return cached;
-    }
-    if (visiting.has(stepRefId)) {
-      return [stepRefId];
-    }
-    visiting.add(stepRefId);
-    let best = [stepRefId];
-    for (const target of adjacency.get(stepRefId) ?? []) {
-      const candidate = [stepRefId, ...dfs(target, new Set(visiting))];
-      if (compareStepPaths(candidate, best, stepOrder) < 0) {
-        best = candidate;
-      }
-    }
-    memo.set(stepRefId, best);
-    return best;
-  }
-
-  let bestPath: string[] = [];
-  stepIds.forEach((stepRefId) => {
-    const candidate = dfs(stepRefId, new Set());
-    if (bestPath.length === 0 || compareStepPaths(candidate, bestPath, stepOrder) < 0) {
-      bestPath = candidate;
-    }
-  });
-  return bestPath;
-}
-
-function compareStepPaths(
-  left: string[],
-  right: string[],
-  stepOrder: Map<string, number>,
-) {
-  if (left.length !== right.length) {
-    return right.length - left.length;
-  }
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    const leftValue = left[index];
-    const rightValue = right[index];
-    if (leftValue === rightValue) {
-      continue;
-    }
-    if (leftValue === undefined) {
-      return 1;
-    }
-    if (rightValue === undefined) {
-      return -1;
-    }
-    const orderDiff =
-      (stepOrder.get(leftValue) ?? Number.MAX_SAFE_INTEGER) -
-      (stepOrder.get(rightValue) ?? Number.MAX_SAFE_INTEGER);
-    if (orderDiff !== 0) {
-      return orderDiff;
-    }
-    return leftValue.localeCompare(rightValue);
-  }
-  return 0;
-}
-
-function buildLanePattern(count: number) {
-  const lanes: number[] = [];
-  for (let index = 1; lanes.length < count; index += 1) {
-    lanes.push(-index, index);
-  }
-  return lanes;
-}
-
-function centeredInitialLaneOffsets(groupSize: number, minimumCount: number) {
-  const offsets: number[] = [];
-  if (groupSize % 2 === 1) {
-    offsets.push(0);
-  }
-  for (let distance = 1; offsets.length < minimumCount; distance += 1) {
-    offsets.push(-distance, distance);
-  }
-  if (groupSize % 2 === 0) {
-    offsets.push(0);
-  }
-  return offsets;
-}
-
-function layoutCellKey(rank: number, lane: number) {
-  return `${rank}:${lane}`;
-}
-
 function buildFlowEdge(
   edgeId: string,
   sourceNode: FlowNode,
@@ -3306,93 +2910,8 @@ function isFieldValueComplete(field: FieldDefinition, value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function passesNumericValidation(value: number, validation?: ValidationRule) {
-  if (!validation) {
-    return true;
-  }
-  if (typeof validation.min === "number") {
-    if (validation.exclusiveMin ? value <= validation.min : value < validation.min) {
-      return false;
-    }
-  }
-  if (typeof validation.max === "number") {
-    if (validation.exclusiveMax ? value >= validation.max : value > validation.max) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function getGeometryInputFields(template: ProcessStepTemplate) {
-  return template.fieldDefinitions.filter(isGeometryField);
-}
-
-function isGeometryField(field: FieldDefinition) {
-  return field.valueType === "geometryRef";
-}
-
-function getFieldValue(fieldValues: FieldValue[], fieldId: string) {
-  return fieldValues.find((fieldValue) => fieldValue.fieldId === fieldId)?.value;
-}
-
 function isExplicitGeometryId(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function isArrayValueType(valueType: ValueType) {
-  return valueType.endsWith("[]");
-}
-
-function isNumericValueType(valueType: ValueType) {
-  return (
-    valueType === "integer" ||
-    valueType === "integer[]" ||
-    valueType === "float" ||
-    valueType === "float[]"
-  );
-}
-
-function isIntegerValueType(valueType: ValueType) {
-  return valueType === "integer" || valueType === "integer[]";
-}
-
-function coercePrimitiveValue(value: string, valueType: ValueType) {
-  if (value === "") {
-    return "";
-  }
-  if (valueType === "integer") {
-    return Number.parseInt(value, 10);
-  }
-  if (valueType === "float") {
-    return Number.parseFloat(value);
-  }
-  return value;
-}
-
-function coerceArrayValue(values: string[], valueType: ValueType) {
-  if (valueType === "integer[]") {
-    return values.map((value) => Number.parseInt(value, 10));
-  }
-  if (valueType === "float[]") {
-    return values.map((value) => Number.parseFloat(value));
-  }
-  return values;
-}
-
-function isRepeatableGroupValue(value: unknown): value is RepeatableGroupValue {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "items" in value &&
-    Array.isArray((value as RepeatableGroupValue).items)
-  );
-}
-
-function formatRepeatItemName(field: FieldDefinition, index: number) {
-  return (
-    field.repeatDefinition?.itemNameTemplate.replace("{{index}}", String(index)) ??
-    `${field.name} ${index}`
-  );
 }
 
 function findProcessNode(
@@ -3428,10 +2947,6 @@ function initialGeometryLabel(node: InitialGeometryFlowNode) {
 
 function stepDisplayLabel(node: ProcessStepFlowNode) {
   return normalizeStepLabel(node.data.stepLabel, node.data.template.name);
-}
-
-function normalizeStepLabel(label: unknown, fallback: string) {
-  return typeof label === "string" && label.trim() ? label.trim() : fallback;
 }
 
 function uniqueStepRefId(template: ProcessStepTemplate, nodes: FlowNode[]) {
@@ -3502,8 +3017,4 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "custom-flow";
-}
-
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
 }
