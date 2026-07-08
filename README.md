@@ -66,8 +66,17 @@ For a production viewer build:
 ```bash
 cd apps/viewer
 NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://<api-host>:8000 npm run build
-NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://<api-host>:8000 npm run start -- -p 3001
+npm run start
 ```
+
+The production viewer is a static export. `npm run build` writes deployable
+HTML, CSS, and JavaScript assets to `apps/viewer/out`, and `npm run start`
+serves that directory locally on `http://localhost:3001`. In deployed
+environments, serve `apps/viewer/out` from any static file host and include the
+frontend origin in `PROCESS_FLOW_API_CORS_ORIGINS`.
+
+`NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` is baked into the static JavaScript at
+build time. Rebuild the viewer when the API host changes.
 
 Important environment variables:
 
@@ -75,7 +84,7 @@ Important environment variables:
 | --- | --- | --- |
 | `PROCESS_FLOW_API_DB_PATH` | `apps/api/.data/process-flow.sqlite3` | SQLite database path. |
 | `PROCESS_FLOW_API_CORS_ORIGINS` | `http://localhost:3001,http://<frontend-host>:3001` | Browser origins allowed by FastAPI CORS. |
-| `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://<api-host>:8000` | Viewer-side API base URL. |
+| `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://<api-host>:8000` | Viewer-side API base URL baked into the static export at build time. |
 | `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` | Timeout for each GLB or STEP CAD worker export. |
 | `CDB_EXPORT_MAX_CONCURRENT_JOBS` | `1` | Maximum number of in-memory CDB export jobs running at once. |
 

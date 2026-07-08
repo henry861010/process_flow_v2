@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "python3 -m http.server 3001 -d out",
     "lint": "next lint"
   },
   "dependencies": {
