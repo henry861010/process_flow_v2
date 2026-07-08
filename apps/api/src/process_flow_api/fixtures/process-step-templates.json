@@ -511,7 +511,7 @@
     "name": "Micro Bump",
     "category": "bump",
     "program": "bump/uBump_formation",
-    "description": "Forms upward micro bump features above cursorZ using the current process footprint after applying koz.",
+    "description": "Forms upward micro bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
     "owner": "integration.platform",
     "fieldDefinitions": [
       {
@@ -565,7 +565,7 @@
       {
         "id": "koz",
         "name": "koz",
-        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "description": "Keep out zone distance recorded on generated micro bump features for downstream keep-out handling.",
         "scope": "processParameter",
         "valueType": "float",
         "controlType": "number",
@@ -593,7 +593,7 @@
     "name": "BGA Bump",
     "category": "bump",
     "program": "bump/bga_bump_formation",
-    "description": "Forms upward BGA bump features above cursorZ using the current process footprint after applying koz.",
+    "description": "Forms upward BGA bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
     "owner": "integration.platform",
     "fieldDefinitions": [
       {
@@ -647,7 +647,7 @@
       {
         "id": "koz",
         "name": "koz",
-        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "description": "Keep out zone distance recorded on generated BGA bump features for downstream keep-out handling.",
         "scope": "processParameter",
         "valueType": "float",
         "controlType": "number",
@@ -675,7 +675,7 @@
     "name": "C4 Bump",
     "category": "bump",
     "program": "bump/c4_bump_formation",
-    "description": "Forms upward C4 bump features above cursorZ using the current process footprint after applying koz.",
+    "description": "Forms upward C4 bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
     "owner": "integration.platform",
     "fieldDefinitions": [
       {
@@ -729,7 +729,7 @@
       {
         "id": "koz",
         "name": "koz",
-        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "description": "Keep out zone distance recorded on generated C4 bump features for downstream keep-out handling.",
         "scope": "processParameter",
         "valueType": "float",
         "controlType": "number",

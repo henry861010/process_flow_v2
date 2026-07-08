@@ -47,12 +47,13 @@ class Body:
 
 
 class Via:
-    def __init__(self, geometry, density, material, direction):
+    def __init__(self, geometry, density, material, direction, koz=0):
         _assert_direction(direction, "Via")
         self._geometry = geometry
         self._density = density
         self._material = material
         self._direction = direction
+        self._koz = _non_negative_number(koz, "Via koz")
 
     def z_min(self):
         return self._geometry.z_min()
@@ -75,11 +76,14 @@ class Via:
     def direction(self):
         return self._direction
 
+    def koz(self):
+        return self._koz
+
     def copy(self):
-        return Via(self._geometry.copy(), self._density, self._material, self._direction)
+        return Via(self._geometry.copy(), self._density, self._material, self._direction, self._koz)
 
     def copy_with_thk(self, thk):
-        return Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction)
+        return Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz)
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -100,14 +104,16 @@ class Via:
             "material": self._material,
             "density": self._density,
             "direction": self._direction,
+            "koz": self._koz,
         }
 
 
 class Circuit:
-    def __init__(self, geometry, density, material):
+    def __init__(self, geometry, density, material, koz=0):
         self._geometry = geometry
         self._density = density
         self._material = material
+        self._koz = _non_negative_number(koz, "Circuit koz")
 
     def z_min(self):
         return self._geometry.z_min()
@@ -127,11 +133,14 @@ class Circuit:
     def material(self):
         return self._material
 
+    def koz(self):
+        return self._koz
+
     def copy(self):
-        return Circuit(self._geometry.copy(), self._density, self._material)
+        return Circuit(self._geometry.copy(), self._density, self._material, self._koz)
 
     def copy_with_thk(self, thk):
-        return Circuit(self._geometry.copy_with_thk(thk), self._density, self._material)
+        return Circuit(self._geometry.copy_with_thk(thk), self._density, self._material, self._koz)
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -150,16 +159,18 @@ class Circuit:
             "geometry": self._geometry.json(),
             "material": self._material,
             "density": self._density,
+            "koz": self._koz,
         }
 
 
 class Bump:
-    def __init__(self, geometry, density, material, direction):
+    def __init__(self, geometry, density, material, direction, koz=0):
         _assert_direction(direction, "Bump")
         self._geometry = geometry
         self._density = density
         self._material = material
         self._direction = direction
+        self._koz = _non_negative_number(koz, "Bump koz")
 
     def z_min(self):
         return self._geometry.z_min()
@@ -182,11 +193,14 @@ class Bump:
     def direction(self):
         return self._direction
 
+    def koz(self):
+        return self._koz
+
     def copy(self):
-        return Bump(self._geometry.copy(), self._density, self._material, self._direction)
+        return Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz)
 
     def copy_with_thk(self, thk):
-        return Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction)
+        return Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz)
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -207,6 +221,7 @@ class Bump:
             "material": self._material,
             "density": self._density,
             "direction": self._direction,
+            "koz": self._koz,
         }
 
 
@@ -217,3 +232,13 @@ def _assert_direction(direction, label):
 
 def _reverse_direction(direction):
     return "-z" if direction == "+z" else "+z"
+
+
+def _non_negative_number(value, label):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} must be a non-negative finite number") from None
+    if number in (float("inf"), float("-inf")) or number != number or number < 0:
+        raise ValueError(f"{label} must be a non-negative finite number")
+    return number

@@ -118,9 +118,9 @@ container，不會自動作用到 package root；若它們和 root feature overl
 
 ## Via、Circuit、Bump 的語意差異
 
-Via、circuit、bump 的共同點是：它們都有自己的幾何作用範圍、材料與 density，
-並且都被限制在所屬 container scope 內。Via 與 bump 也具有 Z-axis direction；
-circuit 不保存 direction。
+Via、circuit、bump 的共同點是：它們都有自己的幾何作用範圍、材料、density
+與 `koz`，並且都被限制在所屬 container scope 內。Via 與 bump 也具有 Z-axis
+direction；circuit 不保存 direction。
 
 它們的差異在於 feature type：
 
@@ -133,6 +133,10 @@ circuit 不保存 direction。
 Geometry engine 應由 feature 所在的 collection 判斷類型，而不是只看 material
 或 geometry primitive。換句話說，同樣是 copper material，放在 vias、circuits
 或 bodies 中代表不同語意。
+
+Via、circuit、bump 的 `geometry` 都代表未套用 `koz` 的 feature envelope。
+Kernel 不會在建立 feature 時先依 `koz` 改寫 geometry；需要 materialize density
+region 的 downstream consumer 應在解讀時依 `koz` 對 XY footprint 做 inward inset。
 
 ## Feature Direction and Flip
 

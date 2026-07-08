@@ -458,7 +458,7 @@ Template metadata：
 
 `Micro Bump`、`BGA Bump` 與 `C4 Bump` 是 `bump` 類別的 process
 steps，用來在 die geometry 目前 process surface 上方形成朝 `"+z"` 方向的
-bump density feature。
+bump density feature，並將 keep out zone distance 保存到 feature payload。
 這三個 step 的幾何行為相同，只透過 template id、name 與 program path 區分不同
 bump type。這些 step 預期用在 die geometry，不作為 wafer-level bump formation
 使用。
@@ -479,7 +479,7 @@ Template metadata：
 | `material` | `materialRef` | `processParameter` | Bump material 名稱或 material DB entity id。 |
 | `thk` | `float` | `processParameter` | 正值 bump 厚度，單位依照 geometry state 的 unit system 解讀。 |
 | `density` | `float` | `processParameter` | Bump density，保存為 0 到 100 的 percentage value。 |
-| `koz` | `float` | `processParameter` | Keep out zone，表示 bump footprint 相對 process footprint 的 XY 內縮距離。 |
+| `koz` | `float` | `processParameter` | Keep out zone distance，會保存到產生的 bump feature，供 downstream consumer 處理。 |
 
 實作行為：
 
@@ -488,18 +488,20 @@ Template metadata：
 2. 驗證 `material` 為非空字串、`thk` 為正值、`density` 為 0 到 100 的 finite
    number、`koz` 為非負 finite number。
 3. 呼叫 `main_geometry.addBumpAboveCursor({ material, density,
-   thickness: thk, direction: "+z", xyInset: koz })`。
-4. Bump geometry 使用 `main_geometry` 目前的 process footprint，並依 `koz`
-   做 XY 內縮。Bump bottom Z 為 `main_geometry.cursorZ()`，top Z 為
+   thickness: thk, direction: "+z", koz })`。
+4. Bump geometry 使用 `main_geometry` 目前的 process footprint，不會在 kernel
+   階段依 `koz` 做 XY 內縮。Bump bottom Z 為 `main_geometry.cursorZ()`，top Z 為
    `main_geometry.cursorZ() + thk`。
-5. 新增的 bump feature 會加入 `main_geometry` root scope 的 `bumps`。
+5. 新增的 bump feature 會加入 `main_geometry` root scope 的 `bumps`，並保存
+   `koz` 欄位。
 6. 此 step 不會推進或修改 `main_geometry.cursorZ()`。
 
 設計要點：
 
 - 此 step 不直接建立或修改 `Container`、`Body`、`Bump` 或 raw geometry object。
-- `koz` 內縮透過 geometry primitive 的 public copy API 執行；Box、Cylinder 與
-  Cone footprint 支援此操作。Polygon footprint 不支援非零 `koz`。
+- `koz` 不會預先改寫 bump `geometry`。後續 CDB generate 或其他 consumer
+  需要 materialize keep out zone 時，才依 bump payload 的 `koz` 對 XY footprint
+  做 inward inset。
 - Bump direction 固定為 `"+z"`，不由 geometry envelope 的 Z 位置推論。
 - Feature scope 仍由 root `bumps` array 決定；bump 不會自動向 child container
   或 parent container 傳播。

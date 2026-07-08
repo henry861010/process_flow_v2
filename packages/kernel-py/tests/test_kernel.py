@@ -5,6 +5,7 @@ from process_flow_kernel import (
     Body,
     BoxGeometry,
     Bump,
+    Circuit,
     Container,
     ExecuteOptions,
     GeometryKernel,
@@ -54,6 +55,20 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(root.bumps()[0].direction(), "+z")
         self.assertEqual(root.json()["root"]["vias"][0]["direction"], "-z")
         self.assertEqual(root.json()["root"]["bumps"][0]["direction"], "+z")
+        self.assertEqual(root.json()["root"]["vias"][0]["koz"], 0)
+        self.assertEqual(root.json()["root"]["bumps"][0]["koz"], 0)
+
+    def test_density_features_serialize_koz(self):
+        root = Container(key="density-koz")
+        root.add_via(Via(BoxGeometry([0, 0, 0], [10, 10, 0], 2), 0.5, "Cu", "+z", 3))
+        root.add_circuit(Circuit(BoxGeometry([0, 0, 2], [10, 10, 2], 1), 0.4, "Cu", 4))
+        root.add_bump(Bump(BoxGeometry([0, 0, 3], [10, 10, 3], 2), 0.8, "SnAg", "+z", 5))
+
+        output = root.json()["root"]
+
+        self.assertEqual(output["vias"][0]["koz"], 3)
+        self.assertEqual(output["circuits"][0]["koz"], 4)
+        self.assertEqual(output["bumps"][0]["koz"], 5)
 
     def test_polygon_loop_odd_even_classification(self):
         regions = classify_polygon_loops(
@@ -104,6 +119,56 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(state.cursor_z(), 5)
         self.assertEqual(output["root"]["bodies"][0]["geometry"]["bottom_left"], [0, 0, 0])
         self.assertEqual(output["root"]["children"][0]["bodies"][0]["geometry"]["bottom_left"], [2, 2, 5])
+
+    def test_process_geometry_state_density_features_record_koz_without_insetting_geometry(self):
+        state = ProcessGeometryState.create()
+        state.initialize_box_layer(
+            material="base",
+            bottom_left=[-50, -50, 0],
+            top_right=[50, 50, 0],
+            thickness=10,
+        )
+
+        state.add_via_above_cursor(material="Cu", density=50, thickness=2, koz=6)
+        state.add_circuit_at_cursor(material="Cu", density=60, thickness=1, koz=7)
+        state.add_bump_above_cursor(material="SnAg", density=80, thickness=3, koz=8)
+        state.add_via(
+            material="Cu",
+            density=40,
+            direction="+z",
+            geometry={"type": "box", "bottomLeft": [0, 0, 20], "topRight": [10, 10, 20], "thickness": 2},
+            koz=4,
+        )
+        state.add_circuit(
+            material="Cu",
+            density=45,
+            geometry={"type": "box", "bottomLeft": [0, 0, 22], "topRight": [10, 10, 22], "thickness": 1},
+            koz=5,
+        )
+        state.add_bump(
+            material="SnAg",
+            density=70,
+            direction="+z",
+            geometry={"type": "box", "bottomLeft": [0, 0, 23], "topRight": [10, 10, 23], "thickness": 2},
+            koz=9,
+        )
+        output = state.to_geometry_structure()["root"]
+
+        self.assertEqual(output["vias"][0]["geometry"]["bottom_left"], [-50, -50, 10])
+        self.assertEqual(output["vias"][0]["geometry"]["top_right"], [50, 50, 10])
+        self.assertEqual(output["vias"][0]["koz"], 6)
+        self.assertEqual(output["circuits"][0]["geometry"]["bottom_left"], [-50, -50, 10])
+        self.assertEqual(output["circuits"][0]["geometry"]["top_right"], [50, 50, 10])
+        self.assertEqual(output["circuits"][0]["koz"], 7)
+        self.assertEqual(output["bumps"][0]["geometry"]["bottom_left"], [-50, -50, 10])
+        self.assertEqual(output["bumps"][0]["geometry"]["top_right"], [50, 50, 10])
+        self.assertEqual(output["bumps"][0]["koz"], 8)
+        self.assertEqual(output["vias"][1]["koz"], 4)
+        self.assertEqual(output["circuits"][1]["koz"], 5)
+        self.assertEqual(output["bumps"][1]["koz"], 9)
+
+        with self.assertRaisesRegex(ValueError, "koz must be non-negative"):
+            state.add_bump_above_cursor(material="SnAg", density=80, thickness=3, koz=-1)
 
 
 class FlowValidationTests(unittest.TestCase):
@@ -440,8 +505,10 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(len(geometry["root"]["circuits"]), 1)
         self.assertEqual(geometry["root"]["circuits"][0]["material"], "Cu")
         self.assertEqual(geometry["root"]["circuits"][0]["density"], 60)
+        self.assertEqual(geometry["root"]["circuits"][0]["koz"], 0)
         self.assertEqual(len(geometry["root"]["vias"]), 2)
         self.assertEqual([via["direction"] for via in geometry["root"]["vias"]], ["-z", "-z"])
+        self.assertEqual([via["koz"] for via in geometry["root"]["vias"]], [0, 0])
 
     def test_kernel_material_instances_share_repeated_rdl_materials_in_one_step(self):
         instance = flow_instance_rdl()
@@ -654,7 +721,9 @@ class KernelExecutionTests(unittest.TestCase):
                 self.assertEqual(geometry["root"]["bumps"][0]["material"], "SnAg")
                 self.assertEqual(geometry["root"]["bumps"][0]["density"], 75)
                 self.assertEqual(geometry["root"]["bumps"][0]["direction"], "+z")
-                self.assertEqual(geometry["root"]["bumps"][0]["geometry"]["bottom_left"], [-45, -45, 10])
+                self.assertEqual(geometry["root"]["bumps"][0]["koz"], 5)
+                self.assertEqual(geometry["root"]["bumps"][0]["geometry"]["bottom_left"], [-50, -50, 10])
+                self.assertEqual(geometry["root"]["bumps"][0]["geometry"]["top_right"], [50, 50, 10])
 
     def test_carrier_bond_debond_and_flip_state_semantics(self):
         state = ProcessGeometryState.create({"key": "main"})
@@ -713,6 +782,7 @@ class KernelExecutionTests(unittest.TestCase):
         state.set_cursor_z(state.root_body_z_max())
         flipped = state.to_geometry_structure()
         self.assertEqual(flipped["root"]["vias"][0]["direction"], "-z")
+        self.assertEqual(flipped["root"]["vias"][0]["koz"], 0)
         self.assertEqual(state.cursor_z(), state.root_body_z_max())
 
     def test_underfill_fills_child_bump_cavities_and_root_gap(self):
@@ -1281,6 +1351,7 @@ def kernel_die_geometry():
                     "material": "SnAg",
                     "density": 0.8,
                     "direction": "-z",
+                    "koz": 0,
                 }
             ],
             "children": [],

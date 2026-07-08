@@ -848,6 +848,7 @@ state.addVia({
   material: "Cu",
   density: 0.3,
   direction: "-z",
+  koz: 5,
   geometry: {
     type: "box",
     bottomLeft: [-50, -50, 290],
@@ -866,6 +867,13 @@ Parameters:
 | `direction` | `"+z"` or `"-z"` | yes | Z-axis direction. |
 | `geometry` | `GeometrySpec` | yes | Feature envelope. |
 | `scope` | `GeometryScopeRef` or `"root"` | no | Target scope. Defaults to root. |
+| `koz` | number | no | Keep out zone distance. Defaults to `0`. |
+
+Behavior:
+
+- Stores `koz` on the via feature payload.
+- Does not apply `koz` to the explicit `geometry`; downstream consumers apply
+  the keep-out inset when they materialize density regions.
 
 ### 11.2 Add Via Below Cursor
 
@@ -886,11 +894,13 @@ Parameters:
 | `thickness` | number | yes | none | Via envelope thickness. |
 | `direction` | `"+z"` or `"-z"` | no | `"-z"` | Via direction. |
 | `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Target scope. |
+| `koz` | number | no | `0` | Keep out zone distance stored on the via feature. |
 
 Behavior:
 
 - Uses the process footprint.
 - Creates a via envelope from `cursorZ() - thickness` to `cursorZ()`.
+- Stores `koz` on the via feature payload without changing the envelope.
 - Does not move `cursorZ`.
 
 This method is useful after depositing dielectric, when the via should occupy
@@ -911,6 +921,7 @@ Behavior:
 - Uses the process footprint.
 - Creates a via envelope from `cursorZ()` to `cursorZ() + thickness`.
 - Defaults direction to `"+z"`.
+- Stores `koz` on the via feature payload without changing the envelope.
 - Does not move `cursorZ`.
 
 ### 11.4 Add Circuit
@@ -936,6 +947,13 @@ Parameters:
 | `density` | number | yes | Effective circuit density. |
 | `geometry` | `GeometrySpec` | yes | Circuit envelope. |
 | `scope` | `GeometryScopeRef` or `"root"` | no | Target scope. Defaults to root. |
+| `koz` | number | no | Keep out zone distance. Defaults to `0`. |
+
+Behavior:
+
+- Stores `koz` on the circuit feature payload.
+- Does not apply `koz` to the explicit `geometry`; downstream consumers apply
+  the keep-out inset when they materialize density regions.
 
 ### 11.5 Add Circuit At Cursor
 
@@ -951,6 +969,7 @@ Behavior:
 
 - Uses the process footprint.
 - Creates a circuit envelope from `cursorZ()` to `cursorZ() + thickness`.
+- Stores `koz` on the circuit feature payload without changing the envelope.
 - Does not move `cursorZ`.
 
 ### 11.6 Add Bump
@@ -979,7 +998,7 @@ state.addBumpAboveCursor({
   density: 0.55,
   thickness: 40,
   direction: "+z",
-  xyInset: 20,
+  koz: 20,
 });
 ```
 
@@ -992,16 +1011,16 @@ Parameters:
 | `thickness` | number | yes | none | Bump envelope thickness. |
 | `direction` | `"+z"` or `"-z"` | no | `"+z"` | Bump direction. |
 | `scope` | `GeometryScopeRef` or `"root"` | no | `"root"` | Target scope that receives the bump feature. |
-| `xyInset` | number | no | `0` | XY inset applied to the process footprint before creating the bump. Positive values shrink the footprint; negative values expand it. |
+| `koz` | number | no | `0` | Keep out zone distance stored on the bump feature. |
 
 Behavior:
 
 - Uses the runtime process footprint as the bump XY envelope.
 - Creates a bump envelope from `cursorZ()` to `cursorZ() + thickness`.
 - Defaults direction to `"+z"`.
-- Applies `xyInset` through geometry primitive copy methods. Box, cylinder, and
-  cone footprints support positive inset and negative outset. Polygon footprints
-  only support `xyInset: 0`; non-zero polygon inset/outset is not supported.
+- Stores `koz` on the bump feature payload without changing the envelope.
+- Downstream consumers apply the keep-out inset when they materialize bump
+  density regions.
 - Does not move `cursorZ`.
 
 This method matches package bump formation steps that grow bump material from the
@@ -1427,6 +1446,7 @@ Required public methods:
 | `material()` | Return material. |
 | `density()` | Return density. |
 | `direction()` | Return `"+z"` or `"-z"`. |
+| `koz()` | Return keep out zone distance. |
 | `move(offset)` | Move feature envelope. |
 | `flipAroundZ(z)` | Flip geometry and reverse direction. |
 | `clipTopTo(z)` | Clip feature envelope. |
@@ -1618,6 +1638,7 @@ export function execute({ state, values }) {
     density: values.bump_density,
     thickness: values.bump_thickness,
     direction: "+z",
+    koz: values.bump_koz,
   });
 
   return state;
