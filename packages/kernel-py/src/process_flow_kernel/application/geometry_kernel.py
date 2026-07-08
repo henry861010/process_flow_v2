@@ -6,7 +6,7 @@ from typing import Any
 from .context import ProcessStepContext
 from .execution_result import GeometryKernelExecutionResult
 from .flow_validation import validate_flow_graph
-from .material_instances import MaterialInstanceTracker, prepare_step_material_instances
+from .material_instances import prepare_step_material_instances
 from .options import ExecuteOptions
 from ..domain.process_geometry_state import ProcessGeometryState
 from ..infrastructure.module_resolver import ProcessStepModuleResolver
@@ -57,7 +57,6 @@ class GeometryKernel:
         step_refs_by_id = {step_ref["stepRefId"]: step_ref for step_ref in step_refs}
         ordered_step_refs = _topological_step_refs(step_refs, process_flow_template.get("flowEdges", []))
         step_outputs = {}
-        material_tracker = MaterialInstanceTracker()
 
         for step_ref in ordered_step_refs:
             step_template = step_templates_by_id[step_ref["processStepTemplateId"]]
@@ -76,7 +75,6 @@ class GeometryKernel:
                 geometry_input_sources=geometry_input_sources,
                 step_template=step_template,
                 values=values,
-                tracker=material_tracker,
             )
             runtime_geometry_inputs = material_preparation.geometry_inputs
             values = material_preparation.values

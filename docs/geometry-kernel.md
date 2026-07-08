@@ -174,12 +174,15 @@ Examples:
 | `abc_dup_layer` | `abc_dup_layer` |
 | `abc_dup_layer_dup3` | `abc_dup_layer` |
 
-During one process-flow execution, the kernel assigns material instance names
-with these rules:
+For each process step, the kernel assigns material instance names against the
+materials already present in that step's current `main_geometry` state:
 
-1. The first use of a base material keeps the base material name.
-2. The second use of the same base material becomes `<base>_dup2`.
-3. The third use becomes `<base>_dup3`, and so on.
+1. If the current main state does not contain a base material, a new use keeps
+   the base material name.
+2. If the current main state already contains the base material, the new use
+   becomes the next available instance name, such as `<base>_dup2`.
+3. If the current main state already contains higher-numbered instances, the
+   next use increments from the highest current suffix.
 4. A process step is the atomic material birth group. All occurrences of the
    same base material born within the same step share the same material instance
    name.
@@ -193,12 +196,16 @@ Geometry input rules:
 
 - External `main_geometry` inputs are normalized at the start of execution:
   terminal dup suffixes are stripped, and each unique base material counts as
-  already used once.
-- Upstream `stepOutput` used as `main_geometry` is flow history and must retain
-  its material instance names.
+  already present in the current main state.
+- Upstream `stepOutput` used as `main_geometry` is current state and must retain
+  its material instance names. Existing instance counts are inferred from this
+  state.
 - Geometry inputs other than `main_geometry` are born into the receiving step.
   Their materials are stripped to base names and then assigned the receiving
-  step's material instance names.
+  step's material instance names based on the current `main_geometry` state.
+- Materials used only in unrelated branches or in a sub-geometry's own upstream
+  history do not force a dup unless that material is also present in the
+  receiving step's current main state.
 
 Process-step modules must not append `_dup<number>` themselves. They receive
 materials through `values` and geometry input states after the kernel has

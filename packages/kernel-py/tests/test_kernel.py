@@ -509,6 +509,99 @@ class KernelExecutionTests(unittest.TestCase):
             ["SnAg", "SnAg"],
         )
 
+    def test_kernel_material_instances_do_not_dup_sub_geometry_against_branch_history(self):
+        class MakeDieModule:
+            def execute(self, context):
+                state = ProcessGeometryState.create()
+                state.initialize_box_layer(
+                    material=context.get_param("material"),
+                    bottom_left=[0, 0, 0],
+                    top_right=[4, 3, 0],
+                    thickness=5,
+                )
+                return state
+
+        class BranchModuleResolver:
+            def __init__(self):
+                self._default_resolver = ProcessStepModuleResolver()
+
+            def resolve(self, step_template):
+                if step_template["id"] == "step_tpl_make_die":
+                    return MakeDieModule()
+                return self._default_resolver.resolve(step_template)
+
+        make_die_step_template = {
+            "id": "step_tpl_make_die",
+            "program": "test/make_die",
+            "fieldDefinitions": [
+                geometry_field("main_geometry"),
+                material_field("material"),
+            ],
+        }
+        flow_template = {
+            "id": "flow_tpl_branch_pnp",
+            "stepRefs": [
+                {"stepRefId": "make_die", "processStepTemplateId": "step_tpl_make_die"},
+                {"stepRefId": "pnp", "processStepTemplateId": "step_tpl_pnp_1_0_0"},
+            ],
+            "flowEdges": [
+                {
+                    "edgeId": "edge_seed_to_make_die",
+                    "source": {"sourceType": "geometryRef"},
+                    "target": {"stepRefId": "make_die", "targetFieldId": "main_geometry"},
+                },
+                {
+                    "edgeId": "edge_panel_to_pnp",
+                    "source": {"sourceType": "geometryRef"},
+                    "target": {"stepRefId": "pnp", "targetFieldId": "main_geometry"},
+                },
+                {
+                    "edgeId": "edge_make_die_to_pnp",
+                    "source": {"sourceType": "stepOutput", "stepRefId": "make_die"},
+                    "target": {"stepRefId": "pnp", "targetFieldId": "die_geometry"},
+                },
+            ],
+        }
+        flow_instance = {
+            "id": "flow_inst_branch_pnp",
+            "processFlowTemplateId": "flow_tpl_branch_pnp",
+            "stepValueSets": [
+                {
+                    "stepRefId": "make_die",
+                    "processStepTemplateId": "step_tpl_make_die",
+                    "fieldValues": [
+                        {"fieldId": "main_geometry", "value": "geom_kernel_input"},
+                        {"fieldId": "material", "value": "HBM"},
+                    ],
+                },
+                {
+                    "stepRefId": "pnp",
+                    "processStepTemplateId": "step_tpl_pnp_1_0_0",
+                    "fieldValues": [
+                        {"fieldId": "main_geometry", "value": "geom_kernel_input"},
+                        {"fieldId": "die_geometry", "value": None},
+                        {"fieldId": "coordinates", "value": [[10, 20]]},
+                    ],
+                },
+            ],
+        }
+        kernel = GeometryKernel(
+            geometry_repository=InMemoryRepository(
+                [geometry_entity("geom_kernel_input", kernel_input_geometry_with_material("carrier"))]
+            ),
+            process_flow_instance_repository=InMemoryRepository([flow_instance]),
+            process_flow_template_repository=InMemoryRepository([flow_template]),
+            process_step_repository=InMemoryRepository([make_die_step_template, real_pnp_step_template()]),
+            module_resolver=BranchModuleResolver(),
+        )
+
+        result = kernel.execute("flow_inst_branch_pnp")
+        pnp_output = result.step_output("pnp")
+
+        self.assertEqual(result.step_output("make_die")["root"]["bodies"][0]["material"], "HBM")
+        self.assertEqual(pnp_output["root"]["bodies"][0]["material"], "carrier")
+        self.assertEqual(pnp_output["root"]["children"][0]["bodies"][0]["material"], "HBM")
+
     def test_kernel_imports_real_saw_and_passes_cropped_footprint_downstream(self):
         kernel = create_kernel(
             process_step_templates=[real_saw_step_template(), real_molding_step_template()],

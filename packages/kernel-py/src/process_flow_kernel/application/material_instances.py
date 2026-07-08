@@ -12,6 +12,7 @@ CONTAINER_ITEM_FIELDS = ("bodies", "vias", "circuits", "bumps")
 MAIN_GEOMETRY_FIELD_ID = "main_geometry"
 
 _DUP_SUFFIX_PATTERN = re.compile(r"(.+)_dup[0-9]+$")
+_DUP_SUFFIX_WITH_INDEX_PATTERN = re.compile(r"(.+)_dup([0-9]+)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,30 +21,12 @@ class MaterialInstancePreparation:
     values: dict[str, Any]
 
 
-class MaterialInstanceTracker:
-    def __init__(self):
-        self._usage_counts: dict[str, int] = {}
-
-    def seed_initial_materials(self, materials: Sequence[str]) -> None:
-        for material in _unique_in_order(materials):
-            self._usage_counts.setdefault(material, 1)
-
-    def allocate_step_materials(self, materials: Sequence[str]) -> dict[str, str]:
-        instance_names: dict[str, str] = {}
-        for material in _unique_in_order(materials):
-            usage_count = self._usage_counts.get(material, 0) + 1
-            self._usage_counts[material] = usage_count
-            instance_names[material] = material if usage_count == 1 else f"{material}_dup{usage_count}"
-        return instance_names
-
-
 def prepare_step_material_instances(
     *,
     geometry_inputs: Mapping[str, Any],
     geometry_input_sources: Mapping[str, str],
     step_template: Mapping[str, Any],
     values: Mapping[str, Any],
-    tracker: MaterialInstanceTracker,
 ) -> MaterialInstancePreparation:
     prepared_geometry_inputs = dict(geometry_inputs)
     field_definitions = step_template.get("fieldDefinitions", [])
@@ -53,9 +36,14 @@ def prepare_step_material_instances(
         main_geometry is not None
         and geometry_input_sources.get(MAIN_GEOMETRY_FIELD_ID) == "geometryRef"
     ):
-        stripped_main_geometry, main_materials = rewrite_geometry_materials(main_geometry)
+        stripped_main_geometry, _ = rewrite_geometry_materials(main_geometry)
         prepared_geometry_inputs[MAIN_GEOMETRY_FIELD_ID] = stripped_main_geometry
-        tracker.seed_initial_materials(main_materials)
+
+    current_material_usage_counts = (
+        collect_geometry_material_usage_counts(prepared_geometry_inputs[MAIN_GEOMETRY_FIELD_ID])
+        if prepared_geometry_inputs.get(MAIN_GEOMETRY_FIELD_ID) is not None
+        else {}
+    )
 
     sub_geometry_materials: list[str] = []
     for field_id, geometry in list(prepared_geometry_inputs.items()):
@@ -66,8 +54,9 @@ def prepare_step_material_instances(
         sub_geometry_materials.extend(materials)
 
     material_ref_materials = collect_material_ref_materials(field_definitions, values)
-    step_material_names = tracker.allocate_step_materials(
-        [*material_ref_materials, *sub_geometry_materials]
+    step_material_names = allocate_step_materials(
+        [*material_ref_materials, *sub_geometry_materials],
+        current_material_usage_counts,
     )
     prepared_values = rewrite_material_ref_values(field_definitions, values, step_material_names)
 
@@ -86,6 +75,24 @@ def prepare_step_material_instances(
 def strip_material_dup_suffix(material: str) -> str:
     match = _DUP_SUFFIX_PATTERN.fullmatch(material)
     return match.group(1) if match else material
+
+
+def material_instance_index(material: str) -> int:
+    match = _DUP_SUFFIX_WITH_INDEX_PATTERN.fullmatch(material)
+    return int(match.group(2)) if match else 1
+
+
+def allocate_step_materials(
+    materials: Sequence[str],
+    current_material_usage_counts: Mapping[str, int],
+) -> dict[str, str]:
+    usage_counts = dict(current_material_usage_counts)
+    instance_names: dict[str, str] = {}
+    for material in _unique_in_order(materials):
+        usage_count = usage_counts.get(material, 0) + 1
+        usage_counts[material] = usage_count
+        instance_names[material] = material if usage_count == 1 else f"{material}_dup{usage_count}"
+    return instance_names
 
 
 def rewrite_geometry_materials(
@@ -112,6 +119,15 @@ def collect_material_ref_materials(
     materials: list[str] = []
     _collect_material_ref_materials(field_definitions, values, materials)
     return _unique_in_order(materials)
+
+
+def collect_geometry_material_usage_counts(geometry_input: Any) -> dict[str, int]:
+    structure = normalize_geometry_structure(
+        process_geometry_state_to_geometry_structure(geometry_input)
+    )
+    usage_counts: dict[str, int] = {}
+    _collect_container_material_usage_counts(structure["root"], usage_counts)
+    return usage_counts
 
 
 def rewrite_material_ref_values(
@@ -166,6 +182,34 @@ def _clear_feature_ids(container: Mapping[str, Any]) -> None:
     for child in children:
         if isinstance(child, dict):
             _clear_feature_ids(child)
+
+
+def _collect_container_material_usage_counts(
+    container: Mapping[str, Any],
+    usage_counts: dict[str, int],
+) -> None:
+    for item_field in CONTAINER_ITEM_FIELDS:
+        items = container.get(item_field, [])
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            material = item.get("material")
+            if not isinstance(material, str):
+                continue
+            base_material = strip_material_dup_suffix(material)
+            usage_counts[base_material] = max(
+                usage_counts.get(base_material, 0),
+                material_instance_index(material),
+            )
+
+    children = container.get("children", [])
+    if not isinstance(children, list):
+        return
+    for child in children:
+        if isinstance(child, dict):
+            _collect_container_material_usage_counts(child, usage_counts)
 
 
 def _collect_material_ref_materials(
