@@ -120,12 +120,17 @@ Graph 使用 [Process Flow Graph](../components/process-flow-graph.md)；fresh s
 
 | Section | Controls/copy | Topology locked |
 | --- | --- | --- |
-| Identity | `Input id`*、`Name`*、`Description`、`Required` | disabled |
-| Constraints | `Entity types`、`Categories`、`Structure formats`；comma split/trim | disabled |
+| Header metadata | `Name` 與系統建立的 monospace input ID；ID 只以 read-only text 顯示，不是 form control | 保持 read-only |
+| Basic | `Name`*、`Description`、`Required` | disabled |
 | Instance Binding | badge `Catalog`/`Missing`、selected geometry card、`Select`、`Preview`、`Clear` | 保持可用 |
+| `Advanced` expansion | 預設收合；展開後顯示 `Entity types`、`Categories`，皆採 comma split/trim | disabled |
 | Header action | delete icon | hidden |
 
-`Preview` 只在 geometry resolved 時 enabled。Binding selector dialog width
+Input ID MUST 在建立 flow input 時由系統產生且保持穩定；使用者不能輸入或修改，變更
+`Name` 也不得重算 ID、搬移 binding key 或改變既有 edge。`Structure formats` 不顯示於
+inspector；既有值 MUST 在編輯與保存後原樣保留，並維持原有 constraint/filtering 語意。
+
+Instance Binding 是 inspector 的主要區塊，不放入 `Advanced`。`Preview` 只在 geometry resolved 時 enabled。Binding selector dialog width
 `min(820px,100vw-32px)`，matching geometries依 constraints過濾、desktop兩欄；click card後
 立即選定並關閉 picker。
 
@@ -212,3 +217,6 @@ Fresh capture：reset後開 route，不選 copy、不新增 node，等待 bootst
 | `UI-FTE-006` | attempt cycle/fan-out/occupied target | connection rejected且persisted topology不變。 |
 | `UI-FTE-007` | 390px touch-only | Step可click-add；Geometry無fallback的已知 gap可重現。 |
 | `UI-FTE-008` | 1024px | test明確偵測右pane是否被裁切，對應 `UI-GAP-RESP-001`。 |
+| `UI-FTE-009` | 建立多個 flow inputs，開啟 inspector後修改其中一個 `Name` | 每個 input ID由系統建立且唯一，只以read-only text顯示；改名後ID、binding key與edges不變。 |
+| `UI-FTE-010` | 開啟 Geometry Input inspector | Instance Binding直接顯示；`Advanced`預設收合，展開後只顯示`Entity types`與`Categories`，不顯示`Structure formats`。 |
+| `UI-FTE-011` | 載入含既有`structureFormats`的template，修改其他可見欄位後保存 | hidden `structureFormats`值原樣保留，且matching geometry仍套用其constraint語意。 |

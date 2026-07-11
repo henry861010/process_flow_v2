@@ -19,6 +19,7 @@ import {
   Box,
   Boxes,
   Check,
+  ChevronDown,
   CircleDot,
   Eye,
   FileJson,
@@ -113,6 +114,13 @@ type FlowInputNode = Node<FlowInputNodeData, "flowInput">;
 type StepNode = Node<StepNodeData, "processStep">;
 type FlowNode = FlowInputNode | StepNode;
 type FlowEdge = Edge<ProcessFlowGraphEdgeData, "dataFlow">;
+
+type EditableFlowInputPatch = Partial<
+  Pick<
+    FlowInputDefinition,
+    "name" | "description" | "required" | "geometryConstraints"
+  >
+>;
 
 type TemplateAnalysis = {
   error: string | null;
@@ -565,10 +573,8 @@ function ProcessFlowTemplateEditorInner() {
     event.dataTransfer.dropEffect = "copy";
   }
 
-  function updateFlowInput(node: FlowInputNode, patch: Partial<FlowInputDefinition>) {
+  function updateFlowInput(node: FlowInputNode, patch: EditableFlowInputPatch) {
     if (topologyLocked) return;
-    const previousId = node.data.definition.flowInputId;
-    const nextId = patch.flowInputId ?? previousId;
     setNodes((current) =>
       current.map((item) =>
         item.id === node.id && isFlowInputNode(item)
@@ -582,15 +588,6 @@ function ProcessFlowTemplateEditorInner() {
           : item,
       ),
     );
-    if (nextId !== previousId) {
-      setConfiguration((current) => {
-        const binding = current.inputBindings[previousId];
-        const nextBindings = { ...current.inputBindings };
-        delete nextBindings[previousId];
-        if (binding) nextBindings[nextId] = binding;
-        return { ...current, inputBindings: nextBindings };
-      });
-    }
   }
 
   function updateStepLabel(node: StepNode, stepLabel: string) {
@@ -1192,7 +1189,7 @@ function NodeEditorDialog({
   geometries: GeometryEntity[];
   edges: FlowEdge[];
   onClose: () => void;
-  onFlowInputChange: (patch: Partial<FlowInputDefinition>) => void;
+  onFlowInputChange: (patch: EditableFlowInputPatch) => void;
   onStepLabelChange: (label: string) => void;
   onStepValuesChange: (values: Record<string, unknown>) => void;
   onPickGeometry: () => void;
@@ -1225,7 +1222,9 @@ function NodeEditorDialog({
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold">{title}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span className="truncate">{subtitle}</span>
+              <span className={cn("truncate", isFlowInputNode(node) && "font-mono")}>
+                {subtitle}
+              </span>
               <Badge variant="outline">
                 {isFlowInputNode(node) ? "geometry input" : "process step"}
               </Badge>
@@ -1290,7 +1289,7 @@ function FlowInputInspector({
   configuration: FlowConfiguration;
   geometries: GeometryEntity[];
   outgoingCount: number;
-  onChange: (patch: Partial<FlowInputDefinition>) => void;
+  onChange: (patch: EditableFlowInputPatch) => void;
   onPick: () => void;
   onClear: () => void;
   onPreview: () => void;
@@ -1299,6 +1298,9 @@ function FlowInputInspector({
   const definition = node.data.definition;
   const geometry = geometryForFlowInput(configuration, definition.flowInputId, geometries);
   const constraints = definition.geometryConstraints;
+  const hasAdvancedSettings = Boolean(
+    constraints?.entityTypes?.length || constraints?.categories?.length,
+  );
 
   return (
     <section className="p-4">
@@ -1315,14 +1317,6 @@ function FlowInputInspector({
       </div>
 
       <div className="grid gap-3">
-        <FormField label="Input id" required>
-          <input
-            className={inputClass}
-            value={definition.flowInputId}
-            disabled={topologyLocked}
-            onChange={(event) => onChange({ flowInputId: event.target.value })}
-          />
-        </FormField>
         <FormField label="Name" required>
           <input
             className={inputClass}
@@ -1348,57 +1342,6 @@ function FlowInputInspector({
           />
           Required
         </label>
-      </div>
-
-      <div className="mt-5 border-t pt-4">
-        <div className="mb-3 text-sm font-semibold">Geometry Constraints</div>
-        <div className="grid gap-3">
-          <FormField label="Entity types">
-            <input
-              className={inputClass}
-              value={(constraints?.entityTypes ?? []).join(", ")}
-              disabled={topologyLocked}
-              onChange={(event) =>
-                onChange({
-                  geometryConstraints: cleanConstraints({
-                    ...constraints,
-                    entityTypes: parseList(event.target.value),
-                  }),
-                })
-              }
-            />
-          </FormField>
-          <FormField label="Categories">
-            <input
-              className={inputClass}
-              value={(constraints?.categories ?? []).join(", ")}
-              disabled={topologyLocked}
-              onChange={(event) =>
-                onChange({
-                  geometryConstraints: cleanConstraints({
-                    ...constraints,
-                    categories: parseList(event.target.value),
-                  }),
-                })
-              }
-            />
-          </FormField>
-          <FormField label="Structure formats">
-            <input
-              className={inputClass}
-              value={(constraints?.structureFormats ?? []).join(", ")}
-              disabled={topologyLocked}
-              onChange={(event) =>
-                onChange({
-                  geometryConstraints: cleanConstraints({
-                    ...constraints,
-                    structureFormats: parseList(event.target.value),
-                  }),
-                })
-              }
-            />
-          </FormField>
-        </div>
       </div>
 
       <div className="mt-5 border-t pt-4">
@@ -1429,6 +1372,58 @@ function FlowInputInspector({
           </Button>
         </div>
       </div>
+
+      <details className="group mt-5 rounded-md border bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/20">
+          <span className="text-sm font-semibold">Advanced</span>
+          <span className="flex items-center gap-2">
+            {hasAdvancedSettings ? (
+              <span className="rounded-md border px-2 py-0.5 text-xs font-medium text-foreground">
+                Configured
+              </span>
+            ) : null}
+            <ChevronDown
+              aria-hidden="true"
+              className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180"
+            />
+          </span>
+        </summary>
+        <div className="grid gap-3 border-t p-4">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Limit which geometry entities can be selected for this input.
+          </p>
+          <FormField label="Entity types">
+            <input
+              className={inputClass}
+              value={(constraints?.entityTypes ?? []).join(", ")}
+              disabled={topologyLocked}
+              onChange={(event) =>
+                onChange({
+                  geometryConstraints: cleanConstraints({
+                    ...constraints,
+                    entityTypes: parseList(event.target.value),
+                  }),
+                })
+              }
+            />
+          </FormField>
+          <FormField label="Categories">
+            <input
+              className={inputClass}
+              value={(constraints?.categories ?? []).join(", ")}
+              disabled={topologyLocked}
+              onChange={(event) =>
+                onChange({
+                  geometryConstraints: cleanConstraints({
+                    ...constraints,
+                    categories: parseList(event.target.value),
+                  }),
+                })
+              }
+            />
+          </FormField>
+        </div>
+      </details>
     </section>
   );
 }
@@ -1994,6 +1989,7 @@ function cleanConstraints(
   const result = {
     entityTypes: constraints.entityTypes?.length ? constraints.entityTypes : undefined,
     categories: constraints.categories?.length ? constraints.categories : undefined,
+    // Hidden in the current UI, but preserved when the visible constraints change.
     structureFormats: constraints.structureFormats?.length
       ? constraints.structureFormats
       : undefined,
