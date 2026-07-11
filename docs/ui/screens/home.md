@@ -25,6 +25,16 @@ Home 是 immutable `ProcessFlowTemplate` 與已 commit `ProcessFlowInstance` 的
 Draft `ProcessFlowWorkspace` 不顯示；使用者以已知 `workspaceId` URL 回到 draft。沒有任何
 instance reference 的 template 仍 MUST 顯示一列 `No instance / Template saved`。
 
+## Reconstruction entry
+
+1. reset API data。
+2. 開啟 `/`，等待 bootstrap 完成；不要以初次 `0 / 0` transient state 作 visual baseline。
+3. 確認 3 個 flow instances、4 個 flow templates 與 5 個 rows。
+4. 先驗證 instance rows 與 template-only rows，再測試 filter 與 reset。
+
+Current observation：bootstrap 完成前會短暫顯示 disabled filter、`0 / 0` 與 `No process flows`；
+這是現況限制，不是 ready screenshot 的 accepted state。
+
 ## 資料契約
 
 初次 mount 呼叫 `GET /api/bootstrap`，使用下列 references resolve rows：

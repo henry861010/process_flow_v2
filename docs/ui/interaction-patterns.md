@@ -69,6 +69,27 @@ Node Editor、Geometry Catalog、Geometry Preview、Export form 都是 modal dia
 現行自製 dialogs 已有 Escape/backdrop/close button，但未完整符合 1–3、6–7，列為
 `UI-GAP-A11Y-001`。Reference screenshot 依現況；semantic acceptance 依本 target。
 
+### Modal stack target
+
+Overlay 可以巢狀，但任一時間只有最上層 modal 接收 close command：
+
+```text
+screen
+  -> Node Editor
+      -> Geometry Catalog
+  -> Geometry Preview
+      -> Export form
+```
+
+- 開啟 Geometry Catalog 時，Node Editor 保持 mounted 但不得被 backdrop click 關閉。
+- 開啟 Export form 時，Geometry Preview 保持 mounted；Export form 的 backdrop、Close、Cancel、
+  `Escape` 只關閉 Export form。
+- submitting 的 Export form 不接受 `Escape`、Cancel、Close 或 backdrop close。
+- 關閉最上層 modal 後，focus 回到開啟它的 trigger；不得一次關閉整個 overlay stack。
+
+目前 Export form 的 Escape 會穿透到 Geometry Preview／Node Editor，列為
+`UI-GAP-MODAL-STACK-001`；不得在 review 或 reference capture 中視為 accepted behavior。
+
 ## 表單與 validation
 
 | Rule | Behavior |
@@ -129,7 +150,7 @@ template selected -> unsaved workspace -> saved clean draft
 | Geometry Catalog | Close、Escape、outside | `foreground/40` | `50` |
 | Geometry Preview | Close、Escape、outside | `foreground/45` | `50` |
 | Export requests | collapse button | none | `80` |
-| Export form | Cancel、Close、outside when idle | `foreground/35` | `100` |
+| Export form | Cancel、Close、Escape、outside when idle | `foreground/35` | `100` |
 
 開啟 Export form 時不得讓 Preview backdrop click 同時關閉 Preview；form 以 portal + higher
 z-index 隔離。
@@ -158,3 +179,17 @@ API error 顯示 server message；只有無法取得 message 時才使用 compon
 - Preview body 在 `<1024px` 單欄；viewport先、controls後，footer 保留可見。
 - Hover-only secondary controls MUST 另有 focus-visible path；現行 Template card clone/delete 與
   graph hover delete 需要以 acceptance test 持續檢查。
+
+## End-to-end interaction journeys
+
+跨 screen 的重建順序、entry state、fixture 與完成定義集中於
+[UI Reconstruction Guide](reconstruction-guide.md)。以下四條 journey 是 review 時的最小
+cross-screen contract：
+
+1. Template topology：click-add Step → drag Geometry → connect → single-click editor → Save Template → Preview。
+2. Instance workspace：select CoWoS-L → bind geometry → edit parameters → Save Draft → Reload/Commit。
+3. Preview/export：open ready target → Loading/Ready → Export form → jobs drawer → terminal state。
+4. CAD workbench：demo/import → section/camera → error or imported state → Reset preserving camera view。
+
+每條 journey 都 MUST 能回連至少一個 screen acceptance case；若中途遇到 current gap，記錄
+gap ID，不得以替代操作改寫 journey。

@@ -30,6 +30,18 @@ Route：`/flow-template-editor`
 configuration產生的 immutable instance。Template 保存後 topology locked，但 working
 configuration MUST 繼續可編輯與 Preview。
 
+## Reconstruction entry
+
+1. reset API data 後直接開 `/flow-template-editor`，不選 template、不新增 node。
+2. 等待 bootstrap 完成，確認 header fields、Geometry library、Process step templates 與 `Empty flow`。
+3. 用 Step palette click-add 一個 step；再用 Geometry palette drag 建立 flow input。
+4. 建立 valid topology 後開 node inspector，確認單擊即可進入 editor。
+5. 以 incomplete configuration 執行 Save Template，確認 topology locked 但 binding/parameters 仍可編。
+
+Compact review 必須額外在 `1024×768` 檢查 right pane 是否裁切，並標記
+`UI-GAP-RESP-001`；`390×844` 的 Geometry touch/keyboard add 必須標記
+`UI-GAP-DRAG-001`，不可用 Step click-add 取代該 failure path。
+
 ## App shell 與尺寸
 
 | Area | `<1024px` | `>=1024px` |

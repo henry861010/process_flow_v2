@@ -25,6 +25,15 @@ Route：`/admin/processstepeditor`
 Geometry ports與 process parameters是兩套獨立 contract；本頁不得建立 geometry parameter
 type。
 
+## Reconstruction entry
+
+1. reset API data 後直接開 `/admin/processstepeditor`，不選 library row。
+2. 確認 top bar、library search、fresh identity fields、Geometry Ports、`No parameters` 與 JSON payload。
+3. click 一個 library row，確認是 deep clone、source identity 出現、draft id 清空。
+4. 依序檢查 auxiliary port、parameter builder、JSON payload 與 immutable save behavior。
+5. Review 時若看到 `schema v2` 或 release-like version label，保留現況證據並引用
+   `DM-020` / `UI-GAP-VERSION-LABEL-001`；不得把它當成 accepted target。
+
 ## 版面配置
 
 | Area | Exact specification |

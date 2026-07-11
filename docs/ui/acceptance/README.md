@@ -61,6 +61,11 @@ assertion為主。
 實際相對路徑一律是 `../assets/reference/<filename>`（由本文件所在目錄計算）。Pending
 asset 不得造成 semantic test 被跳過。
 
+`assets/reference/` 只存已接受 target state。Browser 檢閱中擷取的 current implementation
+screenshot、gap reproduction 或尚未決定的畫面，必須存於
+[../evidence/README.md](../evidence/README.md) 所定義的 evidence 層，不得直接升格為
+normative reference。
+
 Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉後重拍；不得把
 仍含 release-like label 的 current screenshot 當成 normative baseline。
 
@@ -87,11 +92,26 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |
 | `UI-EXPORT-001` | ready preview | submit valid JSON path | job加入 drawer，狀態從 queued/running到 terminal。 |
 | `UI-EXPORT-002` | running job | cancel | 先顯示 canceling，再顯示 canceled或 server terminal result。 |
+| `UI-EXPORT-008` | ready preview，Export form open | press Escape while idle | 只關閉 Export form，Geometry Preview 保持開啟；submitting 時 Escape 不關閉。 |
 | `UI-CAD-001` | axis view X、imported model | Reset | demo回復且 camera仍為 X view並重新 fit。 |
 | `UI-COORD-001` | duplicate/invalid coordinate rows | edit row | inline diagnostics顯示且 configuration不算 complete。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。
+
+## Cross-screen journey review
+
+Review 不只驗證單一 component，還 MUST 依下列順序走完跨 screen journey：
+
+| Journey | Entry | Required transition | Completion evidence |
+| --- | --- | --- | --- |
+| Template topology | fresh `/flow-template-editor` | Step add → Geometry add → valid connect → Save Template | topology locked、configuration仍可編 |
+| Instance workspace | `/flow-instance-editor` + CoWoS-L | bind → edit → Save Draft → Reload/Commit | revision、dirty、committed state正確 |
+| Preview/export | ready input/step target | Loading → Ready → Export form → job terminal | Preview不被下層 overlay close path 誤關 |
+| CAD workbench | `/cad-viewer` demo | import/section/camera → Reset | model/error清理且 camera view保留 |
+
+Journey 中的 current gap 必須保留原操作路徑並標記 gap ID；不可用另一條操作路徑把 failure
+隱藏。
 
 ## Accessibility 驗收門檻
 
@@ -108,5 +128,6 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 - [ ] Visible copy 與 icon mapping 完全一致。
 - [ ] Loading/empty/error/disabled/locked states 都有 semantic case。
 - [ ] Keyboard focus sequence與 Escape behavior已驗證。
+- [ ] Nested modal 的最上層 close path 已驗證，Export form Escape 不會穿透到 Preview。
 - [ ] Desktop、compact、mobile 的 scroll owner一致。
 - [ ] 新增或變更的 acceptance ID 已回連對應規格。

@@ -117,6 +117,10 @@ Popover top依row rect計算，至少16px且不超viewport。它是pointer-event
 - Job updates SHOULD 透過polite live region宣告是target gap；目前普通DOM更新。
 - Mobile不顯示detail popover，關鍵message/stats仍必須在row本體可見。
 
+Export form 是 jobs drawer 之外的更高層 modal；提交或關閉 form 不得關閉 Preview，也不得中斷
+已建立的 job。最上層 Escape 行為見 [Geometry Preview](geometry-preview.md) 與
+[Interaction Patterns](../interaction-patterns.md)；現行穿透行為引用 `UI-GAP-MODAL-STACK-001`。
+
 ## 驗收案例
 
 | ID | Given / When | Then |

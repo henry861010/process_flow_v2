@@ -27,6 +27,17 @@ engineering workbench；不得加 landing page、hero、marketing copy。Preview
 是共用 [CAD Scene](../components/cad-scene.md)，但其 shell規格在
 [Geometry Preview](../components/geometry-preview.md)。
 
+## Reconstruction entry
+
+1. 開啟 `/cad-viewer`，不 import file，等待 demo package 與 GLB 完成載入。
+2. 確認 Section enabled、XZ、center、Grid/Axes on、camera ISO 與右側 Model stats。
+3. 在 `X/Y/Z`、`XZ/YZ`、position、flip、Grid/Axes 間切換，檢查 controls 與 viewport 同步。
+4. 以 file input 與 drag/drop 各測一次；failed import 時 current model 必須保持可檢視。
+5. 在 X 或 Y axis view 執行 Reset，確認回到 demo、清除 error，且 camera view 保留。
+
+Desktop accepted reference 是 `1440×900`；mobile review 必須確認 viewport 在 controls 前且 document
+沒有 horizontal overflow。
+
 ## 版面配置
 
 | Area | Exact specification |

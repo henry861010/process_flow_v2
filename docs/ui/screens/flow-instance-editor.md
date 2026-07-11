@@ -37,6 +37,18 @@ embedded geometry。
 
 Workspace不保存 topology；graph永遠由 referenced template + current configuration重建。
 
+## Reconstruction entry
+
+1. reset API data 後開 `/flow-instance-editor`，先確認 `Select a flow template` empty state。
+2. 選擇 `CoWoS-L Demo / V2.0.0`，等待 graph、default step configurations 與
+   `CoWoS-L Demo study` 完成 hydration。
+3. 單擊 `Incoming panel` node，開 Geometry inspector；選擇 `Panel1` 後確認 status 變成 `Bound`。
+4. 從 inspector 開 Geometry Preview，驗證 `Loading` → `Ready`，再檢查 footer export actions。
+5. 需要檢查 workspace lifecycle 時，再執行 Save Draft → edit → Reload 或 Commit；visual baseline 不應依賴已保存 workspace。
+
+Current modal observation：Node Editor、Geometry Catalog、Geometry Preview 都能以 close/backdrop/Escape
+關閉，但尚未完整提供 dialog semantics 與 focus lifecycle，引用 `UI-GAP-A11Y-001`。
+
 ## 版面配置
 
 Main fixed `height:100vh`、`min-height:720px`、overflow hidden。Header white、bottom border、
