@@ -165,7 +165,7 @@ export function GeometryPreviewPanel({
               </Badge>
               <Badge variant="secondary">
                 {preview.sourceKind === "flowInput"
-                  ? "Flow input"
+                  ? "Geometry Input"
                   : "Step output"}
               </Badge>
             </div>

@@ -43,7 +43,7 @@ Committed workspace reload 後所有 configuration controls read-only。
 - Header：workspace / template / instance identity fields、New、Reload、Save Draft、
   Commit Instance。
 - Main area：full-width read-only process flow graph。
-- Node dialog：點擊 flow input 或 process step 後編輯 binding 或 parameter values。
+- Node dialog：點擊 Geometry Input 或 process step 後編輯 binding 或 parameter values。
 - Modal：catalog geometry picker。
 - Overlay：geometry preview 與 export jobs。
 
@@ -51,12 +51,15 @@ Desktop 與 mobile 都讓 graph 保留 pan / zoom controls；mobile 將 header f
 
 ## Geometry Inputs
 
-每個 `flowInputs[]` 顯示一個 graph input node。點擊 node 後 dialog 提供：
+每個 `flowInputs[]` 在 UI 顯示為 Geometry Input node。點擊 node 後 dialog 提供：
 
 - catalog geometry selection；
 - clear binding；
 - preview selected input；
-- flow input description 與 required status。
+- Geometry Input description 與 required status。
+
+Required Geometry Input 未綁定時顯示橘色 `Unbound`，並讓 downstream path 維持橘色。
+Optional unbound input 顯示灰色；只有 binding 可 resolve 且符合 constraints 時轉為綠色。
 
 Geometry picker 依 `geometryConstraints` 過濾：
 
@@ -139,7 +142,7 @@ Commit 成功後：
 
 ## Preview
 
-Flow input preview target：
+Geometry Input preview target：
 
 ```json
 { "type": "flowInput", "flowInputId": "incoming_panel" }

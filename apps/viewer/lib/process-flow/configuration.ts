@@ -43,6 +43,192 @@ export function geometryForFlowInput(
   return embedded ? { ...embedded, id: binding.localId } : null;
 }
 
+export type ConfigurationReadinessStatus =
+  | "neutral"
+  | "ready"
+  | "incomplete"
+  | "error";
+
+export type ConfigurationReadinessCode =
+  | "ready"
+  | "optional-unbound"
+  | "unbound-geometry"
+  | "unresolved-geometry"
+  | "geometry-constraint"
+  | "missing-input-edge"
+  | "missing-step-template"
+  | "incomplete-parameter"
+  | "cycle";
+
+export type ConfigurationReadiness = {
+  status: ConfigurationReadinessStatus;
+  code: ConfigurationReadinessCode;
+  reason: string;
+  flowInputId?: string;
+  stepRefId?: string;
+};
+
+export function getFlowInputReadiness(
+  template: ProcessFlowTemplate,
+  stepTemplates: ProcessStepTemplate[],
+  configuration: FlowConfiguration,
+  geometries: GeometryEntity[],
+  flowInputId: string,
+): ConfigurationReadiness {
+  const input = template.flowInputs.find(
+    (candidate) => candidate.flowInputId === flowInputId,
+  );
+  if (!input) {
+    return {
+      status: "error",
+      code: "unresolved-geometry",
+      reason: `Geometry Input ${flowInputId} is missing from the template.`,
+      flowInputId,
+    };
+  }
+
+  const binding = configuration.inputBindings[flowInputId];
+  if (!binding) {
+    const required = isFlowInputBindingRequired(
+      template,
+      stepTemplates,
+      flowInputId,
+    );
+    return required
+      ? {
+          status: "incomplete",
+          code: "unbound-geometry",
+          reason: `${input.name} needs a geometry binding.`,
+          flowInputId,
+        }
+      : {
+          status: "neutral",
+          code: "optional-unbound",
+          reason: `${input.name} is optional and unbound.`,
+          flowInputId,
+        };
+  }
+
+  const geometry = geometryForFlowInput(configuration, flowInputId, geometries);
+  if (!geometry) {
+    return {
+      status: "error",
+      code: "unresolved-geometry",
+      reason: `${input.name} references a geometry that cannot be resolved.`,
+      flowInputId,
+    };
+  }
+  if (!geometryMatchesFlowInput(geometry, input)) {
+    return {
+      status: "error",
+      code: "geometry-constraint",
+      reason: `${geometry.name} does not satisfy ${input.name} constraints.`,
+      flowInputId,
+    };
+  }
+  return {
+    status: "ready",
+    code: "ready",
+    reason: `${input.name} is bound to ${geometry.name}.`,
+    flowInputId,
+  };
+}
+
+export function getStepExecutionReadiness(
+  stepRefId: string,
+  template: ProcessFlowTemplate,
+  stepTemplates: ProcessStepTemplate[],
+  configuration: FlowConfiguration,
+  geometries: GeometryEntity[],
+): ConfigurationReadiness {
+  const requiredSteps = upstreamStepIds(template, stepRefId);
+  if (hasStepCycle(template, requiredSteps)) {
+    return {
+      status: "error",
+      code: "cycle",
+      reason: "Process flow contains a cycle.",
+      stepRefId,
+    };
+  }
+
+  const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
+  for (const ref of template.stepRefs) {
+    if (!requiredSteps.has(ref.stepRefId)) continue;
+    const stepTemplate = stepTemplateById.get(ref.processStepTemplateId);
+    if (!stepTemplate) {
+      return {
+        status: "error",
+        code: "missing-step-template",
+        reason: `Process step template ${ref.processStepTemplateId} is missing.`,
+        stepRefId: ref.stepRefId,
+      };
+    }
+    const missingPort = stepTemplate.inputPorts.find(
+      (port) =>
+        port.required &&
+        !template.flowEdges.some(
+          (edge) =>
+            edge.target.stepRefId === ref.stepRefId &&
+            edge.target.inputPortId === port.portId,
+        ),
+    );
+    if (missingPort) {
+      return {
+        status: "error",
+        code: "missing-input-edge",
+        reason: `${stepDisplayName(ref.stepLabel, stepTemplate.name)} needs ${missingPort.name}.`,
+        stepRefId: ref.stepRefId,
+      };
+    }
+  }
+
+  for (const input of template.flowInputs) {
+    const sourceEdges = template.flowEdges.filter(
+      (edge) =>
+        edge.source.kind === "flowInput" &&
+        edge.source.flowInputId === input.flowInputId &&
+        requiredSteps.has(edge.target.stepRefId),
+    );
+    if (sourceEdges.length === 0) continue;
+    const readiness = getFlowInputReadiness(
+      template,
+      stepTemplates,
+      configuration,
+      geometries,
+      input.flowInputId,
+    );
+    if (readiness.status !== "ready" && readiness.status !== "neutral") {
+      return { ...readiness, stepRefId: sourceEdges[0].target.stepRefId };
+    }
+  }
+
+  for (const ref of template.stepRefs) {
+    if (!requiredSteps.has(ref.stepRefId)) continue;
+    const stepTemplate = stepTemplateById.get(ref.processStepTemplateId);
+    if (!stepTemplate) continue;
+    const values =
+      configuration.stepConfigurations[ref.stepRefId]?.parameterValues ?? {};
+    const missing = stepTemplate.parameterDefinitions.find(
+      (parameter) => !isParameterValueComplete(parameter, values[parameter.id]),
+    );
+    if (missing) {
+      return {
+        status: "incomplete",
+        code: "incomplete-parameter",
+        reason: `${stepDisplayName(ref.stepLabel, stepTemplate.name)}: ${missing.name} is incomplete.`,
+        stepRefId: ref.stepRefId,
+      };
+    }
+  }
+
+  return {
+    status: "ready",
+    code: "ready",
+    reason: "Ready to preview.",
+    stepRefId,
+  };
+}
+
 export function isParameterValueComplete(
   definition: ParameterDefinition,
   value: unknown,
@@ -215,7 +401,7 @@ function numericValueIsValid(value: number, definition: ParameterDefinition) {
   return true;
 }
 
-function geometryMatchesFlowInput(
+export function geometryMatchesFlowInput(
   geometry: ReturnType<typeof geometryForFlowInput>,
   input: ProcessFlowTemplate["flowInputs"][number],
 ) {
@@ -241,6 +427,62 @@ function geometryMatchesFlowInput(
     constraints.structureFormats?.length &&
     !constraints.structureFormats.includes(geometry.structureFormat)
   );
+}
+
+function upstreamStepIds(template: ProcessFlowTemplate, targetStepRefId: string) {
+  const incoming = new Map<string, string[]>();
+  template.flowEdges.forEach((edge) => {
+    if (edge.source.kind !== "stepOutput") return;
+    incoming.set(edge.target.stepRefId, [
+      ...(incoming.get(edge.target.stepRefId) ?? []),
+      edge.source.stepRefId,
+    ]);
+  });
+  const result = new Set<string>();
+  const pending = [targetStepRefId];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if (result.has(current)) continue;
+    result.add(current);
+    pending.push(...(incoming.get(current) ?? []));
+  }
+  return result;
+}
+
+function hasStepCycle(
+  template: ProcessFlowTemplate,
+  relevantStepIds: Set<string>,
+) {
+  const adjacency = new Map<string, string[]>();
+  template.flowEdges.forEach((edge) => {
+    if (
+      edge.source.kind !== "stepOutput" ||
+      !relevantStepIds.has(edge.source.stepRefId) ||
+      !relevantStepIds.has(edge.target.stepRefId)
+    ) {
+      return;
+    }
+    adjacency.set(edge.source.stepRefId, [
+      ...(adjacency.get(edge.source.stepRefId) ?? []),
+      edge.target.stepRefId,
+    ]);
+  });
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (current: string): boolean => {
+    if (visiting.has(current)) return true;
+    if (visited.has(current)) return false;
+    visiting.add(current);
+    if ((adjacency.get(current) ?? []).some(visit)) return true;
+    visiting.delete(current);
+    visited.add(current);
+    return false;
+  };
+  return Array.from(relevantStepIds).some(visit);
+}
+
+function stepDisplayName(stepLabel: string | undefined, templateName: string) {
+  return stepLabel?.trim() || templateName;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

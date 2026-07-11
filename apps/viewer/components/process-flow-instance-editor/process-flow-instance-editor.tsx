@@ -35,11 +35,18 @@ import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
 import {
   createEmptyFlowConfiguration,
+  getFlowInputReadiness,
+  getStepExecutionReadiness,
   geometryForFlowInput,
+  geometryMatchesFlowInput,
   isConfigurationComplete,
-  isFlowInputBindingRequired,
-  isParameterValueComplete,
 } from "@/lib/process-flow/configuration";
+import {
+  geometryInputDisplayName,
+  geometryInputStatusLabel,
+  geometryInputSublabel,
+  stepReadinessStatusLabel,
+} from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import type {
   FlowConfiguration,
@@ -700,7 +707,19 @@ function graphForInstance(
   const stepNodes = new Map<string, StepNode>();
 
   template.flowInputs.forEach((definition) => {
+    const displayDefinition = {
+      ...definition,
+      name: geometryInputDisplayName(definition.name),
+    };
     const geometry = geometryForFlowInput(configuration, definition.flowInputId, geometries);
+    const readiness = getFlowInputReadiness(
+      template,
+      stepTemplates,
+      configuration,
+      geometries,
+      definition.flowInputId,
+    );
+    const binding = configuration.inputBindings[definition.flowInputId];
     const nodeId = flowInputNodeId(definition.flowInputId);
     flowInputNodes.set(definition.flowInputId, {
       id: nodeId,
@@ -710,21 +729,15 @@ function graphForInstance(
       selected: nodeId === selectedNodeId,
       data: {
         nodeKind: "flowInput",
-        definition,
+        definition: displayDefinition,
         graphMode: "view",
-        displayLabel: definition.name,
-        displaySublabel: geometry?.name ?? definition.flowInputId,
+        displayLabel: displayDefinition.name,
+        displaySublabel: geometry?.name ?? geometryInputSublabel(readiness),
         icon: geometry?.icon,
         iconScale: geometry?.iconScale,
         pickId: definition.flowInputId,
-        status: geometry ? "complete" : "incomplete",
-        statusLabel: geometry
-          ? geometry.id
-            ? "Catalog"
-            : "Embedded"
-          : isFlowInputBindingRequired(template, stepTemplates, definition.flowInputId)
-            ? "Required"
-            : "Optional",
+        status: readiness.status,
+        statusLabel: geometryInputStatusLabel(readiness, binding?.kind),
         onPick: committed ? undefined : onPickInput,
       },
     });
@@ -733,9 +746,12 @@ function graphForInstance(
   template.stepRefs.forEach((stepRef) => {
     const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
     if (!stepTemplate) return;
-    const values = configuration.stepConfigurations[stepRef.stepRefId]?.parameterValues ?? {};
-    const complete = stepTemplate.parameterDefinitions.every((parameter) =>
-      isParameterValueComplete(parameter, values[parameter.id]),
+    const readiness = getStepExecutionReadiness(
+      stepRef.stepRefId,
+      template,
+      stepTemplates,
+      configuration,
+      geometries,
     );
     const nodeId = stepNodeId(stepRef.stepRefId);
     const node: StepNode = {
@@ -759,8 +775,8 @@ function graphForInstance(
           name: port.name,
         })),
         outputPortId: "result_geometry",
-        status: complete ? "complete" : "incomplete",
-        statusLabel: complete ? "Ready" : "Parameters",
+        status: readiness.status,
+        statusLabel: stepReadinessStatusLabel(readiness, stepRef.stepRefId),
         onEdit: onSelectStep,
       },
     };
@@ -779,15 +795,24 @@ function graphForInstance(
     const targetPort = targetNode.data.stepTemplate.inputPorts.find(
       (port) => port.portId === savedEdge.target.inputPortId,
     );
-    const previewReady = sourceStep
-      ? isStepPreviewReady(
+    const sourceReadiness = sourceStep
+      ? getStepExecutionReadiness(
           sourceStep.data.stepRef.stepRefId,
           template,
           stepTemplates,
           configuration,
           geometries,
         )
-      : false;
+      : isFlowInputNode(sourceNode)
+        ? getFlowInputReadiness(
+            template,
+            stepTemplates,
+            configuration,
+            geometries,
+            sourceNode.data.definition.flowInputId,
+          )
+        : null;
+    const previewReady = sourceStep && sourceReadiness?.status === "ready";
     return [
       {
         id: savedEdge.edgeId,
@@ -807,6 +832,7 @@ function graphForInstance(
             ? sourceNode.data.definition.name
             : stepLabel(sourceNode.data.stepRef, sourceNode.data.stepTemplate),
           graphMode: "view",
+          status: sourceReadiness?.status ?? "error",
           geometryViewVisible: Boolean(sourceStep),
           geometryViewDisabled: !previewReady,
           geometryViewTitle: previewReady
@@ -824,13 +850,13 @@ function graphForInstance(
         edge.source.kind === "stepOutput" &&
         edge.source.stepRefId === node.data.stepRef.stepRefId,
     );
-    const previewReady = isStepPreviewReady(
+    const previewReady = getStepExecutionReadiness(
       node.data.stepRef.stepRefId,
       template,
       stepTemplates,
       configuration,
       geometries,
-    );
+    ).status === "ready";
     node.data = {
       ...node.data,
       terminalGeometryViewVisible: terminal,
@@ -875,7 +901,7 @@ function InstanceNodeEditorDialog({
   }, [onClose]);
 
   const title = isFlowInputNode(node)
-    ? node.data.definition.name
+    ? geometryInputDisplayName(node.data.definition.name)
     : stepLabel(node.data.stepRef, node.data.stepTemplate);
   const subtitle = isFlowInputNode(node)
     ? node.data.definition.flowInputId
@@ -891,7 +917,7 @@ function InstanceNodeEditorDialog({
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span className="truncate">{subtitle}</span>
               <Badge variant="outline">
-                {isFlowInputNode(node) ? "flow input" : "process step"}
+                {isFlowInputNode(node) ? "geometry input" : "process step"}
               </Badge>
               {disabled ? <Badge variant="signal">committed</Badge> : null}
             </div>
@@ -948,7 +974,7 @@ function FlowInputInspector({
     <section className="p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold">Flow Input</div>
+          <div className="text-sm font-semibold">Geometry Input</div>
           <div className="mt-1 font-mono text-[10px] text-muted-foreground">
             {definition.flowInputId}
           </div>
@@ -1035,7 +1061,7 @@ function GeometryPickerDialog({
   const [query, setQuery] = React.useState("");
   const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
   const matchingGeometries = geometries.filter((geometry) =>
-    geometryMatchesConstraints(geometry, flowInput),
+    geometryMatchesFlowInput(geometry, flowInput),
   );
 
   React.useEffect(() => {
@@ -1124,85 +1150,6 @@ function FormField({
       </div>
       {children}
     </label>
-  );
-}
-
-function isStepPreviewReady(
-  stepRefId: string,
-  template: ProcessFlowTemplate,
-  stepTemplates: ProcessStepTemplate[],
-  configuration: FlowConfiguration,
-  geometries: GeometryEntity[],
-) {
-  const requiredSteps = upstreamStepIds(template, stepRefId);
-  for (const input of template.flowInputs) {
-    const used = template.flowEdges.some(
-      (edge) =>
-        edge.source.kind === "flowInput" &&
-        edge.source.flowInputId === input.flowInputId &&
-        requiredSteps.has(edge.target.stepRefId),
-    );
-    if (
-      used &&
-      isFlowInputBindingRequired(template, stepTemplates, input.flowInputId) &&
-      !geometryForFlowInput(configuration, input.flowInputId, geometries)
-    ) {
-      return false;
-    }
-  }
-  const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
-  return template.stepRefs.every((ref) => {
-    if (!requiredSteps.has(ref.stepRefId)) return true;
-    const stepTemplate = stepTemplateById.get(ref.processStepTemplateId);
-    if (!stepTemplate) return false;
-    const values = configuration.stepConfigurations[ref.stepRefId]?.parameterValues ?? {};
-    return stepTemplate.parameterDefinitions.every((parameter) =>
-      isParameterValueComplete(parameter, values[parameter.id]),
-    );
-  });
-}
-
-function upstreamStepIds(template: ProcessFlowTemplate, targetStepRefId: string) {
-  const incoming = new Map<string, string[]>();
-  template.flowEdges.forEach((edge) => {
-    if (edge.source.kind !== "stepOutput") return;
-    incoming.set(edge.target.stepRefId, [
-      ...(incoming.get(edge.target.stepRefId) ?? []),
-      edge.source.stepRefId,
-    ]);
-  });
-  const result = new Set<string>();
-  const pending = [targetStepRefId];
-  while (pending.length > 0) {
-    const current = pending.pop()!;
-    if (result.has(current)) continue;
-    result.add(current);
-    pending.push(...(incoming.get(current) ?? []));
-  }
-  return result;
-}
-
-function geometryMatchesConstraints(geometry: GeometryEntity, input: FlowInputDefinition) {
-  const constraints = input.geometryConstraints;
-  if (!constraints) return true;
-  if (
-    constraints.entityTypes?.length &&
-    !constraints.entityTypes.includes(geometry.entityType)
-  ) {
-    return false;
-  }
-  if (
-    constraints.categories?.length &&
-    !constraints.categories.some(
-      (category) =>
-        geometry.category === category || geometry.category.startsWith(`${category}.`),
-    )
-  ) {
-    return false;
-  }
-  return !(
-    constraints.structureFormats?.length &&
-    !constraints.structureFormats.includes(geometry.structureFormat)
   );
 }
 

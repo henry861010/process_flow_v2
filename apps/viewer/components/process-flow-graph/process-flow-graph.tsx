@@ -27,7 +27,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export type ProcessFlowGraphMode = "edit" | "view";
-export type ProcessFlowGraphNodeStatus = "outside" | "complete" | "incomplete";
+export type ProcessFlowGraphStatus =
+  | "neutral"
+  | "ready"
+  | "incomplete"
+  | "error";
+export type ProcessFlowGraphNodeStatus = ProcessFlowGraphStatus;
 
 export type ProcessFlowGraphPort = {
   id: string;
@@ -70,6 +75,7 @@ export type ProcessFlowGraphEdgeData = Record<string, unknown> & {
   slotLabel: string;
   sourceLabel: string;
   graphMode?: ProcessFlowGraphMode;
+  status?: ProcessFlowGraphStatus;
   geometryViewVisible?: boolean;
   geometryViewDisabled?: boolean;
   geometryViewTitle?: string;
@@ -205,11 +211,7 @@ export function ProcessFlowGraph<
             zoomable
             nodeColor={(node) =>
               miniMapNodeColor?.(node as TNode) ??
-              (getGraphNodeData(node).nodeKind === "flowInput"
-                ? mode === "view"
-                  ? "#f59e0b"
-                  : "#0f766e"
-                : "#0891b2")
+              graphStatusColor(getGraphNodeData(node).status ?? "neutral")
             }
           />
         ) : null}
@@ -226,14 +228,14 @@ function FlowInputNode({
 }: NodeProps<Node<ProcessFlowGraphNodeData>>) {
   const graphMode = data.graphMode ?? "edit";
   const status = data.status ?? "incomplete";
-  const complete = status === "complete";
+  const ready = status === "ready";
   const label = data.displayLabel ?? "Select geometry";
   const sublabel = data.displaySublabel;
   const pickId = data.pickId ?? id;
   const iconUrl = getGeometryIconUrl(data.icon);
   const iconLoadStatus = useGeometryIconLoadStatus(iconUrl);
   const iconScale = normalizeGeometryIconScale(data.iconScale);
-  const statusClasses = getFlowInputStatusClasses(status, graphMode);
+  const statusClasses = getFlowInputStatusClasses(status);
 
   if (iconUrl && iconLoadStatus === "ready") {
     return (
@@ -286,17 +288,17 @@ function FlowInputNode({
           ) : null}
           {graphMode === "view" ? (
             <Badge
-              variant={complete ? "signal" : "outline"}
-              className={cn("mt-2", !complete && "border-amber-300 text-amber-700")}
+              variant={ready ? "signal" : "outline"}
+              className={cn("mt-2", getStatusBadgeClasses(status))}
             >
-              {data.statusLabel ?? (complete ? "Selected" : "Required")}
+              {data.statusLabel ?? (ready ? "Bound" : "Unbound")}
             </Badge>
           ) : null}
         </div>
         {graphMode === "edit" && data.onDelete ? (
           <button
             className="nodrag absolute -right-1 -top-1 hidden h-7 w-7 items-center justify-center rounded-full border bg-white text-muted-foreground shadow-sm transition hover:text-destructive group-hover:flex"
-            title="Delete flow input"
+            title="Delete geometry input"
             onClick={(event) => {
               event.stopPropagation();
               data.onDelete?.(id);
@@ -348,16 +350,16 @@ function FlowInputNode({
       ) : null}
       {graphMode === "view" ? (
         <Badge
-          variant={complete ? "signal" : "outline"}
-          className={cn("mt-2", !complete && "border-amber-300 text-amber-700")}
+          variant={ready ? "signal" : "outline"}
+          className={cn("mt-2", getStatusBadgeClasses(status))}
         >
-          {data.statusLabel ?? (complete ? "Selected" : "Required")}
+          {data.statusLabel ?? (ready ? "Bound" : "Unbound")}
         </Badge>
       ) : null}
       {graphMode === "edit" && data.onDelete ? (
         <button
           className="nodrag absolute -right-1 -top-1 hidden h-7 w-7 items-center justify-center rounded-full border bg-white text-muted-foreground shadow-sm transition hover:text-destructive group-hover:flex"
-          title="Delete flow input"
+          title="Delete geometry input"
           onClick={(event) => {
             event.stopPropagation();
             data.onDelete?.(id);
@@ -373,8 +375,8 @@ function FlowInputNode({
 function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>) {
   const graphMode = data.graphMode ?? "edit";
   const status = data.status ?? "incomplete";
-  const complete = status === "complete";
-  const outside = status === "outside";
+  const ready = status === "ready";
+  const error = status === "error";
   const inputPorts = data.geometryInputPorts ?? [];
   const template = data.template ?? { name: data.displayLabel ?? "Process step", version: "" };
   const displayLabel =
@@ -410,11 +412,13 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
         graphMode === "edit"
           ? "group w-[248px]"
           : "w-[252px] cursor-pointer hover:shadow-md",
-        outside
+        error
           ? "border-destructive"
-          : complete
+          : ready
             ? "border-emerald-500"
-            : "border-amber-500",
+            : status === "neutral"
+              ? "border-muted-foreground/40"
+              : "border-amber-500",
       )}
       title={graphMode === "view" ? "Edit step values" : undefined}
       onDoubleClick={(event) => {
@@ -540,14 +544,17 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
       <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
         <span className="truncate text-muted-foreground">{template.version}</span>
         <Badge
-          variant={!outside && complete ? "signal" : "outline"}
-          className={cn(
-            outside && "border-destructive/30 text-destructive",
-            !outside && !complete && "border-amber-300 text-amber-700",
-          )}
+          variant={ready ? "signal" : "outline"}
+          className={cn(getStatusBadgeClasses(status))}
         >
           {data.statusLabel ??
-            (outside ? "outside flow" : complete ? "Complete" : "Incomplete fields")}
+            (error
+              ? "Invalid"
+              : ready
+                ? "Ready"
+                : status === "neutral"
+                  ? "Optional"
+                  : "Incomplete")}
         </Badge>
       </div>
     </div>
@@ -558,6 +565,7 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
   const [edgePath, labelX, labelY] = getBezierPath(props);
   const data = props.data;
   const graphMode = data?.graphMode ?? "edit";
+  const status = data?.status ?? "neutral";
   const canViewGeometry =
     Boolean(data?.onGeometryView) &&
     (data?.geometryViewVisible === true || data?.sourceKind === "stepOutput");
@@ -572,7 +580,7 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
         interactionWidth={graphMode === "edit" ? 18 : 16}
         className={cn(
           "!stroke-[2.5px]",
-          props.selected ? "!stroke-primary" : "!stroke-cyan-700",
+          props.selected ? "!stroke-primary" : getEdgeStatusClasses(status),
         )}
       />
       <EdgeLabelRenderer>
@@ -601,6 +609,7 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
             className={cn(
               "truncate rounded-md border bg-white/95 px-2 py-1 text-muted-foreground shadow-sm",
               graphMode === "edit" ? "max-w-[120px]" : "max-w-[132px]",
+              getEdgeLabelStatusClasses(status),
             )}
           >
             {data?.slotLabel}
@@ -629,26 +638,57 @@ function getGraphNodeData(node: Node): Partial<ProcessFlowGraphNodeData> {
 
 function getFlowInputStatusClasses(
   status: ProcessFlowGraphNodeStatus,
-  graphMode: ProcessFlowGraphMode,
 ) {
-  if (status === "complete") {
+  if (status === "ready") {
     return {
       border: "border-emerald-500",
       icon: "bg-emerald-500",
     };
   }
-
-  if (graphMode === "edit") {
+  if (status === "error") {
     return {
       border: "border-destructive",
       icon: "bg-destructive",
     };
   }
-
+  if (status === "neutral") {
+    return {
+      border: "border-muted-foreground/40",
+      icon: "bg-muted-foreground",
+    };
+  }
   return {
     border: "border-amber-500",
     icon: "bg-amber-500",
   };
+}
+
+function getStatusBadgeClasses(status: ProcessFlowGraphStatus) {
+  if (status === "error") return "border-destructive/30 text-destructive";
+  if (status === "incomplete") return "border-amber-300 text-amber-700";
+  if (status === "neutral") return "border-muted-foreground/30 text-muted-foreground";
+  return undefined;
+}
+
+function getEdgeStatusClasses(status: ProcessFlowGraphStatus) {
+  if (status === "ready") return "!stroke-emerald-500";
+  if (status === "incomplete") return "!stroke-amber-500";
+  if (status === "error") return "!stroke-destructive";
+  return "!stroke-muted-foreground/45";
+}
+
+function getEdgeLabelStatusClasses(status: ProcessFlowGraphStatus) {
+  if (status === "ready") return "border-emerald-200";
+  if (status === "incomplete") return "border-amber-300 text-amber-800";
+  if (status === "error") return "border-destructive/30 text-destructive";
+  return "border-muted-foreground/20";
+}
+
+function graphStatusColor(status: ProcessFlowGraphStatus) {
+  if (status === "ready") return "#10b981";
+  if (status === "incomplete") return "#f59e0b";
+  if (status === "error") return "#dc2626";
+  return "#94a3b8";
 }
 
 function getGeometryIconUrl(icon: unknown) {

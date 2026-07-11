@@ -11,7 +11,7 @@ configuration 供 preview 或建立第一個 `ProcessFlowInstance`。
 
 Editor 同時維護兩份 state：
 
-1. Template draft：metadata、flow input definitions、step refs、edges。
+1. Template draft：metadata、Geometry Input (`flowInput`) definitions、step refs、edges。
 2. Working `FlowConfiguration`：input bindings、step parameter values、embedded map。
 
 Save Template 只送出第一份。Geometry selection 與 parameter values 不會被寫入 flow
@@ -24,18 +24,19 @@ template。
 - Left library：依 category drill-down 的 catalog geometries。
 - Center：editable React Flow graph。
 - Right library：依 category drill-down 的 process step templates。
-- Node dialog：點擊 flow input 或 process step 後編輯 definition、binding 或 parameters。
+- Node dialog：點擊 Geometry Input 或 process step 後編輯 definition、binding 或 parameters。
 
 Mobile 依序排列 header、geometry library、graph、process step library，整頁可捲動。
 
 ## Topology Editing
 
-### Add flow input
+### Add Geometry Input
 
-- Drag catalog geometry 到 canvas，建立 flow input 並只在 working configuration
+- New Template 預設是空白 canvas，不會自動建立 Geometry Input。
+- Drag catalog geometry 到 canvas，建立 `flowInput` definition，並只在 working configuration
   加入 catalog binding。
 
-點擊 flow input node 開啟 dialog，可編輯：
+點擊 Geometry Input node 開啟 dialog，可編輯：
 
 - `flowInputId`
 - name / description
@@ -66,7 +67,7 @@ parameters complete 時啟用；disabled control 的 tooltip 顯示第一個 blo
 
 有效 connection：
 
-- source 是 flow input 或 process step output；
+- source 是 Geometry Input (`flowInput`) 或 process step output；
 - target 是 process step input port；
 - target port 尚未有 incoming edge；
 - step output 尚未有 consumer；
@@ -79,9 +80,9 @@ Delete node 同時刪除相關 edges 與 working configuration entry。
 Save Template 需要：
 
 - template id / name / version / owner；
-- 至少一個 flow input 與 process step；
+- 至少一個 Geometry Input 與 process step；
 - unique identifiers；
-- 所有 declared flow inputs 被連接；
+- 所有 declared Geometry Inputs 被連接；
 - 所有 required step input ports 被連接；
 - graph acyclic；
 - 每個 step output 最多一個 consumer。
@@ -128,9 +129,10 @@ study 使用 Flow Instance Workspace。
 Header selector 載入既有 immutable topology 作為 copy：
 
 - 新 draft 的 template id 清空；
-- metadata、flow inputs、steps、edges 複製；
+- metadata、Geometry Inputs、steps、edges 複製；
 - graph 以 computed layout 建立；
 - working configuration 使用 defaults；
+- required Geometry Input 尚未 binding 時以橘色 `Unbound` 顯示；
 - 原 template 不會被 update。
 
 Selector 顯示 name、version 與 id，以區分同名 revisions。

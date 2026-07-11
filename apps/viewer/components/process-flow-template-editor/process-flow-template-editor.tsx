@@ -49,11 +49,19 @@ import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
 import {
   createEmptyFlowConfiguration,
+  getFlowInputReadiness,
+  getStepExecutionReadiness,
   geometryForFlowInput,
+  geometryMatchesFlowInput,
   isConfigurationComplete,
-  isFlowInputBindingRequired,
-  isParameterValueComplete,
+  type ConfigurationReadiness,
 } from "@/lib/process-flow/configuration";
+import {
+  geometryInputDisplayName,
+  geometryInputStatusLabel,
+  geometryInputSublabel,
+  stepReadinessStatusLabel,
+} from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import type {
   CatalogGeometryBinding,
@@ -212,12 +220,14 @@ function ProcessFlowTemplateEditorInner() {
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
   const editingStepPreviewAvailability =
     editingNode && isStepNode(editingNode)
-      ? canPreviewStep(
-          editingNode.data.stepRef.stepRefId,
-          draftTemplate,
-          stepTemplates,
-          configuration,
-          geometries,
+      ? previewAvailabilityFromReadiness(
+          getStepExecutionReadiness(
+            editingNode.data.stepRef.stepRefId,
+            draftTemplate,
+            stepTemplates,
+            configuration,
+            geometries,
+          ),
         )
       : null;
   const pickerNode = nodes.find((node): node is FlowInputNode => node.id === pickerNodeId && isFlowInputNode(node)) ?? null;
@@ -230,18 +240,29 @@ function ProcessFlowTemplateEditorInner() {
             geometries,
           );
           const connected = edges.some((edge) => edge.source === node.id);
+          const readiness = getFlowInputReadiness(
+            draftTemplate,
+            stepTemplates,
+            configuration,
+            geometries,
+            node.data.definition.flowInputId,
+          );
+          const binding =
+            configuration.inputBindings[node.data.definition.flowInputId];
           return {
             ...node,
             selected: node.id === selectedNodeId,
             data: {
               ...node.data,
               graphMode: topologyLocked ? "view" : "edit",
-              displayLabel: node.data.definition.name,
-              displaySublabel: geometry?.name ?? node.data.definition.flowInputId,
+              displayLabel: geometryInputDisplayName(node.data.definition.name),
+              displaySublabel: geometry?.name ?? geometryInputSublabel(readiness),
               icon: geometry?.icon,
               iconScale: geometry?.iconScale,
-              status: connected ? "complete" : "outside",
-              statusLabel: connected ? "Connected" : "Unused",
+              status: connected ? readiness.status : "error",
+              statusLabel: connected
+                ? geometryInputStatusLabel(readiness, binding?.kind)
+                : "Unused",
               pickId: node.id,
               onPick: setPickerNodeId,
               onDelete: topologyLocked ? undefined : deleteNode,
@@ -249,24 +270,14 @@ function ProcessFlowTemplateEditorInner() {
           };
         }
 
-        const missingRequiredInput = node.data.stepTemplate.inputPorts.some(
-          (port) =>
-            port.required &&
-            !edges.some(
-              (edge) => edge.target === node.id && edge.targetHandle === port.portId,
-            ),
-        );
-        const values = configuration.stepConfigurations[node.data.stepRef.stepRefId]?.parameterValues ?? {};
-        const parametersComplete = node.data.stepTemplate.parameterDefinitions.every((parameter) =>
-          isParameterValueComplete(parameter, values[parameter.id]),
-        );
-        const previewAvailability = canPreviewStep(
+        const readiness = getStepExecutionReadiness(
           node.data.stepRef.stepRefId,
           draftTemplate,
           stepTemplates,
           configuration,
           geometries,
         );
+        const previewAvailability = previewAvailabilityFromReadiness(readiness);
         const terminal = !edges.some(
           (edge) => edge.source === node.id && getEdgeSourceKind(edge, nodes) === "stepOutput",
         );
@@ -286,16 +297,11 @@ function ProcessFlowTemplateEditorInner() {
               name: port.name,
             })),
             outputPortId: "result_geometry",
-            status: missingRequiredInput
-              ? "outside"
-              : parametersComplete
-                ? "complete"
-                : "incomplete",
-            statusLabel: missingRequiredInput
-              ? "Missing input"
-              : parametersComplete
-                ? "Ready"
-                : "Parameters",
+            status: readiness.status,
+            statusLabel: stepReadinessStatusLabel(
+              readiness,
+              node.data.stepRef.stepRefId,
+            ),
             onEdit: (nodeId) => {
               setSelectedNodeId(nodeId);
               setEditingNodeId(nodeId);
@@ -319,14 +325,25 @@ function ProcessFlowTemplateEditorInner() {
           (port) => port.portId === edge.targetHandle,
         );
         const sourceStep = sourceNode && isStepNode(sourceNode) ? sourceNode : null;
-        const previewAvailability = sourceStep
-          ? canPreviewStep(
+        const sourceReadiness = sourceStep
+          ? getStepExecutionReadiness(
               sourceStep.data.stepRef.stepRefId,
               draftTemplate,
               stepTemplates,
               configuration,
               geometries,
             )
+          : sourceNode && isFlowInputNode(sourceNode)
+            ? getFlowInputReadiness(
+                draftTemplate,
+                stepTemplates,
+                configuration,
+                geometries,
+                sourceNode.data.definition.flowInputId,
+              )
+            : null;
+        const previewAvailability = sourceStep && sourceReadiness
+          ? previewAvailabilityFromReadiness(sourceReadiness)
           : null;
         return {
           ...edge,
@@ -337,6 +354,7 @@ function ProcessFlowTemplateEditorInner() {
             slotLabel: targetPort?.name ?? edge.targetHandle ?? "Input",
             sourceLabel: sourceNode ? nodeSourceLabel(sourceNode) : "Missing source",
             graphMode: topologyLocked ? "view" : "edit",
+            status: sourceReadiness?.status ?? "error",
             geometryViewVisible: sourceKind === "stepOutput",
             geometryViewDisabled: previewAvailability ? !previewAvailability.ok : true,
             geometryViewTitle: previewAvailability?.ok
@@ -405,7 +423,7 @@ function ProcessFlowTemplateEditorInner() {
         nodeKind: "flowInput",
         definition: {
           flowInputId,
-          name: "Flow input",
+          name: "Geometry input",
           description: "",
           dataType: "geometry",
           required: true,
@@ -1193,7 +1211,7 @@ function NodeEditorDialog({
   }, [onClose]);
 
   const title = isFlowInputNode(node)
-    ? node.data.definition.name
+    ? geometryInputDisplayName(node.data.definition.name)
     : stepLabel(node);
   const subtitle = isFlowInputNode(node)
     ? node.data.definition.flowInputId
@@ -1209,7 +1227,7 @@ function NodeEditorDialog({
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span className="truncate">{subtitle}</span>
               <Badge variant="outline">
-                {isFlowInputNode(node) ? "flow input" : "process step"}
+                {isFlowInputNode(node) ? "geometry input" : "process step"}
               </Badge>
             </div>
           </div>
@@ -1286,11 +1304,11 @@ function FlowInputInspector({
     <section className="p-4">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold">Flow Input</div>
+          <div className="text-sm font-semibold">Geometry Input</div>
           <div className="mt-1 text-xs text-muted-foreground">{outgoingCount} connections</div>
         </div>
         {!topologyLocked ? (
-          <Button variant="ghost" size="icon" title="Delete flow input" onClick={onDelete}>
+          <Button variant="ghost" size="icon" title="Delete geometry input" onClick={onDelete}>
             <Trash2 />
           </Button>
         ) : null}
@@ -1538,7 +1556,7 @@ function GeometryPickerDialog({
   const [query, setQuery] = React.useState("");
   const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
   const matchingGeometries = geometries.filter((geometry) =>
-    geometryMatchesConstraints(geometry, flowInput),
+    geometryMatchesFlowInput(geometry, flowInput),
   );
 
   React.useEffect(() => {
@@ -1679,11 +1697,13 @@ function graphFromTemplate(
   const stepNodeById = new Map<string, StepNode>();
 
   template.flowInputs.forEach((definition) => {
+    const clonedDefinition = clone(definition);
+    clonedDefinition.name = geometryInputDisplayName(clonedDefinition.name);
     flowInputNodeById.set(definition.flowInputId, {
       id: internalId("flow-input"),
       type: "flowInput",
       position: layout.flowInputPositions.get(definition.flowInputId) ?? { x: 40, y: 120 },
-      data: { nodeKind: "flowInput", definition: clone(definition) },
+      data: { nodeKind: "flowInput", definition: clonedDefinition },
     });
   });
   template.stepRefs.forEach((stepRef) => {
@@ -1744,18 +1764,18 @@ function analyzeTemplate(
     return { error: "Template id contains unsupported characters.", missingPortKeys, hasCycle: false };
   }
   if (template.flowInputs.length === 0) {
-    return { error: "Add at least one flow input.", missingPortKeys, hasCycle: false };
+    return { error: "Add at least one geometry input.", missingPortKeys, hasCycle: false };
   }
   if (template.stepRefs.length === 0) {
     return { error: "Add at least one process step.", missingPortKeys, hasCycle: false };
   }
   const inputIdError = uniqueIdentifierError(
     template.flowInputs.map((input) => input.flowInputId),
-    "Flow input",
+    "Geometry input",
   );
   if (inputIdError) return { error: inputIdError, missingPortKeys, hasCycle: false };
   if (template.flowInputs.some((input) => !input.name.trim())) {
-    return { error: "Every flow input needs a name.", missingPortKeys, hasCycle: false };
+    return { error: "Every geometry input needs a name.", missingPortKeys, hasCycle: false };
   }
   const stepIdError = uniqueIdentifierError(
     template.stepRefs.map((step) => step.stepRefId),
@@ -1809,7 +1829,7 @@ function analyzeTemplate(
   );
   if (unusedFlowInput) {
     return {
-      error: `Flow input ${unusedFlowInput.flowInputId} is not connected.`,
+      error: `Geometry input ${unusedFlowInput.flowInputId} is not connected.`,
       missingPortKeys,
       hasCycle: false,
     };
@@ -1863,61 +1883,12 @@ function validConnection(
   return true;
 }
 
-function canPreviewStep(
-  stepRefId: string,
-  template: ProcessFlowTemplate,
-  stepTemplates: ProcessStepTemplate[],
-  configuration: FlowConfiguration,
-  geometries: GeometryEntity[],
+function previewAvailabilityFromReadiness(
+  readiness: ConfigurationReadiness,
 ): PreviewAvailability {
-  const requiredSteps = upstreamStepIds(template, stepRefId);
-  const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
-  for (const input of template.flowInputs) {
-    const used = template.flowEdges.some(
-      (edge) =>
-        edge.source.kind === "flowInput" &&
-        edge.source.flowInputId === input.flowInputId &&
-        requiredSteps.has(edge.target.stepRefId),
-    );
-    if (
-      used &&
-      isFlowInputBindingRequired(template, stepTemplates, input.flowInputId) &&
-      !geometryForFlowInput(configuration, input.flowInputId, geometries)
-    ) {
-      return { ok: false, reason: `${input.name} needs a geometry binding.` };
-    }
-  }
-  for (const ref of template.stepRefs) {
-    if (!requiredSteps.has(ref.stepRefId)) continue;
-    const stepTemplate = stepTemplateById.get(ref.processStepTemplateId);
-    if (!stepTemplate) return { ok: false, reason: "Process step template is missing." };
-    const values = configuration.stepConfigurations[ref.stepRefId]?.parameterValues ?? {};
-    const missing = stepTemplate.parameterDefinitions.find(
-      (parameter) => !isParameterValueComplete(parameter, values[parameter.id]),
-    );
-    if (missing) return { ok: false, reason: `${stepLabelFromRef(ref, stepTemplate)}: ${missing.name} is incomplete.` };
-  }
-  return { ok: true };
-}
-
-function upstreamStepIds(template: ProcessFlowTemplate, targetStepRefId: string) {
-  const incoming = new Map<string, string[]>();
-  template.flowEdges.forEach((edge) => {
-    if (edge.source.kind !== "stepOutput") return;
-    incoming.set(edge.target.stepRefId, [
-      ...(incoming.get(edge.target.stepRefId) ?? []),
-      edge.source.stepRefId,
-    ]);
-  });
-  const result = new Set<string>();
-  const pending = [targetStepRefId];
-  while (pending.length > 0) {
-    const current = pending.pop()!;
-    if (result.has(current)) continue;
-    result.add(current);
-    pending.push(...(incoming.get(current) ?? []));
-  }
-  return result;
+  return readiness.status === "ready"
+    ? { ok: true }
+    : { ok: false, reason: readiness.reason };
 }
 
 function templateHasCycle(template: ProcessFlowTemplate) {
@@ -1958,33 +1929,6 @@ function pathExists(sourceId: string, targetId: string, edges: FlowEdge[]) {
     pending.push(...(adjacency.get(current) ?? []));
   }
   return false;
-}
-
-function geometryMatchesConstraints(geometry: GeometryEntity, input: FlowInputDefinition) {
-  const constraints = input.geometryConstraints;
-  if (!constraints) return true;
-  if (
-    constraints.entityTypes?.length &&
-    !constraints.entityTypes.includes(geometry.entityType)
-  ) {
-    return false;
-  }
-  if (
-    constraints.categories?.length &&
-    !constraints.categories.some(
-      (category) =>
-        geometry.category === category || geometry.category.startsWith(`${category}.`),
-    )
-  ) {
-    return false;
-  }
-  if (
-    constraints.structureFormats?.length &&
-    !constraints.structureFormats.includes(geometry.structureFormat)
-  ) {
-    return false;
-  }
-  return true;
 }
 
 function emptyEdgeData(): ProcessFlowGraphEdgeData {

@@ -37,7 +37,7 @@ Inline draft 的 topology identifiers 必須有效，但尚未保存的 template
 
 ## Targets
 
-Flow input：
+Geometry Input：
 
 ```json
 { "type": "flowInput", "flowInputId": "incoming_panel" }
@@ -55,7 +55,7 @@ Step output：
 
 ## Runtime
 
-### Flow input target
+### Geometry Input target
 
 1. Resolve catalog or embedded binding。
 2. Validate geometry constraints。
@@ -96,7 +96,7 @@ actions。Preview payload 不會寫入 geometry catalog。
 
 UI 在 request 前檢查 target closure：
 
-- required flow input binding 已 resolve；
+- required Geometry Input binding 已 resolve；
 - supplied binding 符合 constraints；
 - required step parameters type / validation complete；
 - repeat item counts 與 nested values complete。

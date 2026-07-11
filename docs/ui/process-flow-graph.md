@@ -20,7 +20,7 @@ Workspace 永遠使用 view mode。
 
 ## Node Types
 
-### flowInput
+### flowInput (UI: Geometry Input)
 
 代表 `ProcessFlowTemplate.flowInputs[]`，只有 source handle：`out`。
 
@@ -33,12 +33,13 @@ Node data 可包含：
   displaySublabel?: string;
   icon?: string;
   iconScale?: number;
-  status: "outside" | "complete" | "incomplete";
+  status: "neutral" | "ready" | "incomplete" | "error";
 }
 ```
 
-Template edit mode 顯示 definition identity 與 connection status。Instance view mode 顯示
-resolved catalog / embedded geometry 與 binding status。
+Template edit mode 顯示 definition identity 與 working binding status。Instance view mode 顯示
+resolved catalog / embedded geometry 與 binding status。Required input 未綁定時是橘色
+`Unbound`，optional unbound 是灰色，binding 無法 resolve 或不符合 constraints 時是紅色。
 
 ### processStep
 
@@ -56,9 +57,13 @@ resolved catalog / embedded geometry 與 binding status。
 
 Node status：
 
-- `outside`：required input port 尚未 mapping。
-- `incomplete`：topology 已連接但 parameters 尚未 complete。
-- `complete`：此 step 的 parameters complete。
+- `error`：topology、reference 或 geometry constraint 無效。
+- `incomplete`：required geometry binding、upstream step 或 parameters 尚未 complete。
+- `ready`：完整 upstream closure 可執行與 preview。
+- `neutral`：optional 且未參與 execution readiness。
+
+Step status 使用完整 upstream closure，不只檢查自己的 parameters。缺少的 Geometry Input
+或 upstream parameter 會讓所有受影響的 downstream steps 維持橘色。
 
 ## Edge Type
 
@@ -71,8 +76,12 @@ Node status：
   targetInputPortId: string;
   slotLabel: string;
   sourceLabel: string;
+  status: "neutral" | "ready" | "incomplete" | "error";
 }
 ```
+
+Edge 顏色和 source execution readiness 一致：灰色 neutral、橘色 incomplete、綠色
+ready、紅色 error。
 
 React Flow internal node ids / handle ids 只用於畫面。Persist 時 editor 依 source / target
 node data 建立 V2 `FlowEdge` discriminated union。
@@ -93,7 +102,7 @@ API / compiler 會重做 authoritative validation。
 
 - Step-output edge label 可顯示 preview icon。
 - Terminal step output 右側可顯示 final preview icon。
-- Flow input preview 從 selected node dialog 啟動。
+- Geometry Input preview 從 selected node dialog 啟動。
 - Preview disabled reason 來自 upstream configuration completeness。
 
 Preview step 只要求 target upstream closure complete，不要求不相關 branch complete。
@@ -105,7 +114,7 @@ Persisted template 不保存 UI coordinates。`computeTemplateLayout()`：
 1. 以 step-output edges 計算 rank。
 2. 找 longest path 作為 main lane。
 3. 其他 branches 分配上下 lanes。
-4. Flow inputs 放在第一個 target 左側。
+4. Geometry Inputs 放在第一個 target 左側。
 5. Normalize min X / Y，避免 node 超出 viewport。
 
 Template Editor 新增 / drag nodes 時保留 local position；重新開啟 immutable template 時
