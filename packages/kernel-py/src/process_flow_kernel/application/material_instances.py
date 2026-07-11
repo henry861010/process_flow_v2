@@ -9,7 +9,7 @@ from ..serialization.geometry_hydration import process_geometry_state_to_geometr
 from ..serialization.schema import deep_copy, normalize_geometry_structure
 
 CONTAINER_ITEM_FIELDS = ("bodies", "vias", "circuits", "bumps")
-MAIN_GEOMETRY_FIELD_ID = "main_geometry"
+MAIN_GEOMETRY_PORT_ID = "main_geometry"
 
 _DUP_SUFFIX_PATTERN = re.compile(r"(.+)_dup[0-9]+$")
 _DUP_SUFFIX_WITH_INDEX_PATTERN = re.compile(r"(.+)_dup([0-9]+)$")
@@ -29,42 +29,42 @@ def prepare_step_material_instances(
     values: Mapping[str, Any],
 ) -> MaterialInstancePreparation:
     prepared_geometry_inputs = dict(geometry_inputs)
-    field_definitions = step_template.get("fieldDefinitions", [])
+    parameter_definitions = step_template.get("parameterDefinitions", [])
 
-    main_geometry = prepared_geometry_inputs.get(MAIN_GEOMETRY_FIELD_ID)
+    main_geometry = prepared_geometry_inputs.get(MAIN_GEOMETRY_PORT_ID)
     if (
         main_geometry is not None
-        and geometry_input_sources.get(MAIN_GEOMETRY_FIELD_ID) == "geometryRef"
+        and geometry_input_sources.get(MAIN_GEOMETRY_PORT_ID) == "external"
     ):
         stripped_main_geometry, _ = rewrite_geometry_materials(main_geometry)
-        prepared_geometry_inputs[MAIN_GEOMETRY_FIELD_ID] = stripped_main_geometry
+        prepared_geometry_inputs[MAIN_GEOMETRY_PORT_ID] = stripped_main_geometry
 
     current_material_usage_counts = (
-        collect_geometry_material_usage_counts(prepared_geometry_inputs[MAIN_GEOMETRY_FIELD_ID])
-        if prepared_geometry_inputs.get(MAIN_GEOMETRY_FIELD_ID) is not None
+        collect_geometry_material_usage_counts(prepared_geometry_inputs[MAIN_GEOMETRY_PORT_ID])
+        if prepared_geometry_inputs.get(MAIN_GEOMETRY_PORT_ID) is not None
         else {}
     )
 
     sub_geometry_materials: list[str] = []
-    for field_id, geometry in list(prepared_geometry_inputs.items()):
-        if field_id == MAIN_GEOMETRY_FIELD_ID:
+    for port_id, geometry in list(prepared_geometry_inputs.items()):
+        if port_id == MAIN_GEOMETRY_PORT_ID:
             continue
         stripped_geometry, materials = rewrite_geometry_materials(geometry)
-        prepared_geometry_inputs[field_id] = stripped_geometry
+        prepared_geometry_inputs[port_id] = stripped_geometry
         sub_geometry_materials.extend(materials)
 
-    material_ref_materials = collect_material_ref_materials(field_definitions, values)
+    material_ref_materials = collect_material_ref_materials(parameter_definitions, values)
     step_material_names = allocate_step_materials(
         [*material_ref_materials, *sub_geometry_materials],
         current_material_usage_counts,
     )
-    prepared_values = rewrite_material_ref_values(field_definitions, values, step_material_names)
+    prepared_values = rewrite_material_ref_values(parameter_definitions, values, step_material_names)
 
-    for field_id, geometry in list(prepared_geometry_inputs.items()):
-        if field_id == MAIN_GEOMETRY_FIELD_ID:
+    for port_id, geometry in list(prepared_geometry_inputs.items()):
+        if port_id == MAIN_GEOMETRY_PORT_ID:
             continue
         rewritten_geometry, _ = rewrite_geometry_materials(geometry, step_material_names)
-        prepared_geometry_inputs[field_id] = rewritten_geometry
+        prepared_geometry_inputs[port_id] = rewritten_geometry
 
     return MaterialInstancePreparation(
         geometry_inputs=prepared_geometry_inputs,
@@ -113,11 +113,11 @@ def rewrite_geometry_materials(
 
 
 def collect_material_ref_materials(
-    field_definitions: Sequence[Mapping[str, Any]],
+    parameter_definitions: Sequence[Mapping[str, Any]],
     values: Mapping[str, Any],
 ) -> list[str]:
     materials: list[str] = []
-    _collect_material_ref_materials(field_definitions, values, materials)
+    _collect_material_ref_materials(parameter_definitions, values, materials)
     return _unique_in_order(materials)
 
 
@@ -131,12 +131,12 @@ def collect_geometry_material_usage_counts(geometry_input: Any) -> dict[str, int
 
 
 def rewrite_material_ref_values(
-    field_definitions: Sequence[Mapping[str, Any]],
+    parameter_definitions: Sequence[Mapping[str, Any]],
     values: Mapping[str, Any],
     material_names_by_base: Mapping[str, str],
 ) -> dict[str, Any]:
     rewritten = deep_copy(dict(values))
-    _rewrite_material_ref_fields(field_definitions, rewritten, material_names_by_base)
+    _rewrite_material_ref_fields(parameter_definitions, rewritten, material_names_by_base)
     return rewritten
 
 
@@ -213,27 +213,27 @@ def _collect_container_material_usage_counts(
 
 
 def _collect_material_ref_materials(
-    field_definitions: Sequence[Mapping[str, Any]],
+    parameter_definitions: Sequence[Mapping[str, Any]],
     values: Mapping[str, Any],
     materials: list[str],
 ) -> None:
-    for field in field_definitions:
-        field_id = field.get("id")
-        if not isinstance(field_id, str):
+    for parameter in parameter_definitions:
+        parameter_id = parameter.get("id")
+        if not isinstance(parameter_id, str):
             continue
-        value_type = field.get("valueType")
+        value_type = parameter.get("valueType")
         if _is_material_ref_value_type(value_type):
-            _collect_material_value(values.get(field_id), materials)
+            _collect_material_value(values.get(parameter_id), materials)
             continue
         if value_type != "fieldGroupArray":
             continue
-        child_fields = field.get("repeatDefinition", {}).get("itemFieldDefinitions", [])
-        items = values.get(field_id)
+        child_parameters = parameter.get("repeatDefinition", {}).get("itemParameterDefinitions", [])
+        items = values.get(parameter_id)
         if not isinstance(items, list):
             continue
         for item in items:
             if isinstance(item, Mapping):
-                _collect_material_ref_materials(child_fields, item, materials)
+                _collect_material_ref_materials(child_parameters, item, materials)
 
 
 def _collect_material_value(value: Any, materials: list[str]) -> None:
@@ -246,28 +246,28 @@ def _collect_material_value(value: Any, materials: list[str]) -> None:
 
 
 def _rewrite_material_ref_fields(
-    field_definitions: Sequence[Mapping[str, Any]],
+    parameter_definitions: Sequence[Mapping[str, Any]],
     values: dict[str, Any],
     material_names_by_base: Mapping[str, str],
 ) -> None:
-    for field in field_definitions:
-        field_id = field.get("id")
-        if not isinstance(field_id, str):
+    for parameter in parameter_definitions:
+        parameter_id = parameter.get("id")
+        if not isinstance(parameter_id, str):
             continue
-        value_type = field.get("valueType")
+        value_type = parameter.get("valueType")
         if _is_material_ref_value_type(value_type):
-            if field_id in values:
-                values[field_id] = _rewrite_material_value(values[field_id], material_names_by_base)
+            if parameter_id in values:
+                values[parameter_id] = _rewrite_material_value(values[parameter_id], material_names_by_base)
             continue
         if value_type != "fieldGroupArray":
             continue
-        child_fields = field.get("repeatDefinition", {}).get("itemFieldDefinitions", [])
-        items = values.get(field_id)
+        child_parameters = parameter.get("repeatDefinition", {}).get("itemParameterDefinitions", [])
+        items = values.get(parameter_id)
         if not isinstance(items, list):
             continue
         for item in items:
             if isinstance(item, dict):
-                _rewrite_material_ref_fields(child_fields, item, material_names_by_base)
+                _rewrite_material_ref_fields(child_parameters, item, material_names_by_base)
 
 
 def _rewrite_material_value(value: Any, material_names_by_base: Mapping[str, str]) -> Any:

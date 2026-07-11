@@ -58,7 +58,7 @@ export type GeometryPreviewContext = {
   previewId: string;
   sourceLabel: string;
   slotLabel: string;
-  sourceKind: "geometryRef" | "stepOutput";
+  sourceKind: "flowInput" | "stepOutput";
   request: GeometryPreviewRequest;
 };
 
@@ -164,8 +164,8 @@ export function GeometryPreviewPanel({
                     : "Error"}
               </Badge>
               <Badge variant="secondary">
-                {preview.sourceKind === "geometryRef"
-                  ? "Initial geometry"
+                {preview.sourceKind === "flowInput"
+                  ? "Flow input"
                   : "Step output"}
               </Badge>
             </div>

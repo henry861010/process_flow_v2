@@ -24,14 +24,18 @@ from .models import (
     GeometryPreviewStepResponse,
     ProcessFlowInstance,
     ProcessFlowTemplate,
+    ProcessFlowWorkspaceCreate,
+    ProcessFlowWorkspaceUpdate,
     ProcessStepTemplate,
     TemplateInstanceCreateRequest,
+    WorkspaceCommitRequest,
 )
-from .repository import DuplicateItemError, NotFoundError, SQLiteStore
+from .repository import DuplicateItemError, NotFoundError, ResourceConflictError, SQLiteStore
 from .seed import load_seed_fixtures
 from .services import (
     bootstrap_payload,
     create_flow_instance,
+    create_flow_template,
     create_template_instance,
     execute_instance,
     preview_geometry,
@@ -39,10 +43,11 @@ from .services import (
     require_item,
     validate_process_step_template,
 )
+from .workspace_service import commit_workspace, create_workspace, update_workspace
 
 
 def create_app(*, db_path: str | Path | None = None) -> FastAPI:
-    app = FastAPI(title="Process Flow API", version="0.1.0", lifespan=app_lifespan)
+    app = FastAPI(title="Process Flow API", version="0.2.0", lifespan=app_lifespan)
     app.state.store = SQLiteStore(db_path or default_db_path())
     app.state.file_export_jobs = FileExportJobManager()
 
@@ -61,6 +66,10 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     @app.exception_handler(NotFoundError)
     async def not_found_handler(_: Request, error: NotFoundError):
         return JSONResponse({"message": f"Not found: {error.args[0]}"}, status_code=status.HTTP_404_NOT_FOUND)
+
+    @app.exception_handler(ResourceConflictError)
+    async def resource_conflict_handler(_: Request, error: ResourceConflictError):
+        return JSONResponse({"message": str(error)}, status_code=status.HTTP_409_CONFLICT)
 
     @app.exception_handler(ValueError)
     async def value_error_handler(_: Request, error: ValueError):
@@ -136,6 +145,10 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     async def get_process_flow_template(request: Request, template_id: str):
         return require_item(get_store(request).get_process_flow_template(template_id), template_id)
 
+    @app.post("/api/process-flow-templates", status_code=status.HTTP_201_CREATED)
+    async def create_process_flow_template(request: Request, body: ProcessFlowTemplate):
+        return create_flow_template(get_store(request), body)
+
     @app.post("/api/process-flow-template-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_template_instance(request: Request, body: TemplateInstanceCreateRequest):
         return create_template_instance(get_store(request), body)
@@ -155,6 +168,34 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     @app.post("/api/process-flow-instances/{instance_id}/execute", response_model=ExecuteInstanceResponse)
     async def execute_process_flow_instance(request: Request, instance_id: str):
         return execute_instance(get_store(request), instance_id)
+
+    @app.get("/api/process-flow-workspaces")
+    async def list_process_flow_workspaces(request: Request):
+        return get_store(request).list_process_flow_workspaces()
+
+    @app.get("/api/process-flow-workspaces/{workspace_id}")
+    async def get_process_flow_workspace(request: Request, workspace_id: str):
+        return require_item(get_store(request).get_process_flow_workspace(workspace_id), workspace_id)
+
+    @app.post("/api/process-flow-workspaces", status_code=status.HTTP_201_CREATED)
+    async def create_process_flow_workspace(request: Request, body: ProcessFlowWorkspaceCreate):
+        return create_workspace(get_store(request), body)
+
+    @app.put("/api/process-flow-workspaces/{workspace_id}")
+    async def update_process_flow_workspace(
+        request: Request,
+        workspace_id: str,
+        body: ProcessFlowWorkspaceUpdate,
+    ):
+        return update_workspace(get_store(request), workspace_id, body)
+
+    @app.post("/api/process-flow-workspaces/{workspace_id}/commit")
+    async def commit_process_flow_workspace(
+        request: Request,
+        workspace_id: str,
+        body: WorkspaceCommitRequest,
+    ):
+        return commit_workspace(get_store(request), workspace_id, body)
 
     @app.post("/api/geometry-preview", response_model=GeometryPreviewResponse)
     async def geometry_preview(request: Request, body: GeometryPreviewRequest):

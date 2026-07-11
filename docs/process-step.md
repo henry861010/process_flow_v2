@@ -12,13 +12,13 @@ Template metadata：
 | Name | `molding` |
 | Category | `layer` |
 | Program | `layer/molding` |
-| Template id | `step_tpl_molding_1_0_0` |
+| Template id | `step_tpl_molding_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 | `material` | `materialRef` | `processParameter` | Molding material 名稱或 material DB entity id。 |
 | `thickness` | `float` | `processParameter` | 正值 molding 厚度，單位依照 geometry state 的 unit system 解讀。 |
 
@@ -54,13 +54,13 @@ Template metadata：
 | Name | `ECL` |
 | Category | `layer` |
 | Program | `layer/ecl` |
-| Template id | `step_tpl_ecl_1_0_0` |
+| Template id | `step_tpl_ecl_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 | `material` | `materialRef` | `processParameter` | ECL material 名稱或 material DB entity id。 |
 | `thk` | `float` | `processParameter` | 正值 ECL 厚度，單位依照 geometry state 的 unit system 解讀。 |
 | `koz` | `float` | `processParameter` | Keep out zone，表示 ECL layer footprint 相對 process footprint 的 XY 內縮距離，必須大於或等於 0。 |
@@ -105,13 +105,13 @@ Template metadata：
 | Name | `RDL layer` |
 | Category | `layer` |
 | Program | `layer/rdl` |
-| Template id | `step_tpl_rdl_1_0_0` |
+| Template id | `step_tpl_rdl_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 | `layers` | `fieldGroupArray` | `processParameter` | RDL layer stack。每個 item 描述一層 dielectric body 與對應 conductivity feature。 |
 
 `layers` repeater child fields：
@@ -168,13 +168,13 @@ Template metadata：
 | Name | `Grinding` |
 | Category | `grinding` |
 | Program | `grinding/grinding` |
-| Template id | `step_tpl_grinding_1_0_0` |
+| Template id | `step_tpl_grinding_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 | `thk` | `float` | `processParameter` | 正值 grinding 厚度，單位依照 geometry state 的 unit system 解讀。 |
 
 實作行為：
@@ -212,13 +212,13 @@ Template metadata：
 | Name | `saw` |
 | Category | `saw` |
 | Program | `saw/saw` |
-| Template id | `step_tpl_saw_1_0_0` |
+| Template id | `step_tpl_saw_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 | `bottomLeftX` | `float` | `processParameter` | 切割後要保留的左下角 X 座標。 |
 | `bottomLeftY` | `float` | `processParameter` | 切割後要保留的左下角 Y 座標。 |
 | `topRightX` | `float` | `processParameter` | 切割後要保留的右上角 X 座標，必須大於 `bottomLeftX`。 |
@@ -268,14 +268,14 @@ Template metadata：
 | Name | `Carrier Bond` |
 | Category | `carrier` |
 | Program | `carrier/bond` |
-| Template id | `step_tpl_carrier_bond_1_0_0` |
+| Template id | `step_tpl_carrier_bond_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 接收 carrier bond 結果的主 geometry state。 |
-| `carrier_geometry` | `geometryRef` | `inputState` | 要被複製並疊到主 geometry 最上方的 carrier geometry state。 |
+| `main_geometry` | geometry input port | `primary` | 接收 carrier bond 結果的主 geometry state。 |
+| `carrier_geometry` | geometry input port | `auxiliary` | 要被複製並疊到主 geometry 最上方的 carrier geometry state。 |
 
 實作行為：
 
@@ -319,13 +319,13 @@ Template metadata：
 | Name | `Debond` |
 | Category | `carrier` |
 | Program | `carrier/debond` |
-| Template id | `step_tpl_debond_1_0_0` |
+| Template id | `step_tpl_debond_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 
 實作行為：
 
@@ -362,13 +362,13 @@ Template metadata：
 | Name | `Flip` |
 | Category | `carrier` |
 | Program | `flip/flip` |
-| Template id | `step_tpl_flip_1_0_0` |
+| Template id | `step_tpl_flip_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 
 實作行為：
 
@@ -407,13 +407,13 @@ Template metadata：
 | Name | `Under Fill` |
 | Category | `UF` |
 | Program | `uf/under_fill` |
-| Template id | `step_tpl_under_fill_1_0_0` |
+| Template id | `step_tpl_under_fill_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 | `material` | `materialRef` | `processParameter` | Underfill material 名稱或 material DB entity id。 |
 | `thk` | `float` | `processParameter` | Root die-to-die gap fill 的高度，從 `cursorZ()` 到 `cursorZ() + thk`。 |
 | `gap` | `float` | `processParameter` | 允許填充的最大 die-to-die XY gap 距離。 |
@@ -467,15 +467,15 @@ Template metadata：
 
 | Name | Category | Program | Template id |
 | --- | --- | --- | --- |
-| `Micro Bump` | `bump` | `bump/uBump_formation` | `step_tpl_ubump_formation_1_0_0` |
-| `BGA Bump` | `bump` | `bump/bga_bump_formation` | `step_tpl_bga_bump_formation_1_0_0` |
-| `C4 Bump` | `bump` | `bump/c4_bump_formation` | `step_tpl_c4_bump_formation_1_0_0` |
+| `Micro Bump` | `bump` | `bump/uBump_formation` | `step_tpl_ubump_formation_2_0_0` |
+| `BGA Bump` | `bump` | `bump/bga_bump_formation` | `step_tpl_bga_bump_formation_2_0_0` |
+| `C4 Bump` | `bump` | `bump/c4_bump_formation` | `step_tpl_c4_bump_formation_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 輸入的 die `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
+| `main_geometry` | geometry input port | `primary` | 輸入的 die `ProcessGeometryState`；geometry kernel 會在 step 執行前 resolve 此 geometry input。 |
 | `material` | `materialRef` | `processParameter` | Bump material 名稱或 material DB entity id。 |
 | `thk` | `float` | `processParameter` | 正值 bump 厚度，單位依照 geometry state 的 unit system 解讀。 |
 | `density` | `float` | `processParameter` | Bump density，保存為 0 到 100 的 percentage value。 |
@@ -519,14 +519,14 @@ Template metadata：
 | Name | `PnP` |
 | Category | `PnP` |
 | Program | `pnp/pnp` |
-| Template id | `step_tpl_pnp_1_0_0` |
+| Template id | `step_tpl_pnp_2_0_0` |
 
-參數：
+Step contract：
 
-| Field id | Value type | Scope | Description |
+| Id | Kind or value type | Role | Description |
 | --- | --- | --- | --- |
-| `main_geometry` | `geometryRef` | `inputState` | 接收 die placement 結果的主 geometry state。 |
-| `die_geometry` | `geometryRef` | `inputState` | 要被複製並放置到 `main_geometry` 上的 die geometry state。 |
+| `main_geometry` | geometry input port | `primary` | 接收 die placement 結果的主 geometry state。 |
+| `die_geometry` | geometry input port | `auxiliary` | 要被複製並放置到 `main_geometry` 上的 die geometry state。 |
 | `coordinates` | `coordinates` | `processParameter` | Die placement 座標清單。Instance value 是 `number[][]`，每個 item 是 `[x, y]`，代表 die copy 的左下角目標 XY 座標。 |
 
 實作行為：

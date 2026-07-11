@@ -1,31 +1,19 @@
-# Home UI Design
+# Home / Process Flows
 
-## Route
-
-`/`
+Route：`/`
 
 ## Purpose
 
-Home page is the operational entry point for the process-flow tools. It shows saved process flow instances and lets users navigate to:
-
-- Flow Template Editor: `/flow-template-editor`
-- Flow Instance Editor: `/flow-instance-editor`
-- Process Step Template Editor: `/admin/processstepeditor`
-- POC reset command: `cmd: reset-poc-data`
-
-The first screen is a compact dashboard, not a landing page.
+Home 顯示所有 immutable `ProcessFlowTemplate`，以及已 commit 的 immutable
+`ProcessFlowInstance`。尚未建立 instance 的 template 仍會以 `Template only` row
+顯示。Draft workspaces 不出現在本版 home；使用者以已知 `workspaceId` URL 繼續
+draft。
 
 ## Data Source
-
-Home reads from the FastAPI backend through `apps/viewer/lib/process-flow-api.ts`.
-
-On page load, Home calls:
 
 ```http
 GET /api/bootstrap
 ```
-
-The response is the bootstrap payload:
 
 ```json
 {
@@ -36,135 +24,62 @@ The response is the bootstrap payload:
 }
 ```
 
-Home uses the payload as follows:
-
-| Field | Shape | Home usage |
-| --- | --- | --- |
-| `processStepTemplates` | `ProcessStepTemplate[]` | Resolve expected field count and missing-step status. |
-| `processFlowTemplates` | `ProcessFlowTemplate[]` | Resolve template type, template version, and stepRef binding. |
-| `processFlowInstances` | `ProcessFlowInstance[]` | Main table source. Each instance becomes one table row. |
-| `geometries` | `GeometryEntity[]` | Loaded for editor bootstrap consistency; not shown in the Home table. |
-
-## Seed And Reset
-
-The backend owns seed data. Fixtures live under:
+UI 以 maps resolve：
 
 ```text
-apps/api/src/process_flow_api/fixtures
+instance.processFlowTemplateId -> flow template
+flowTemplate.stepRefs[].processStepTemplateId -> step template
 ```
 
-The SQLite database lives at:
+## Header
+
+- Immutable flow instance count。
+- Immutable flow template count，包含尚未建立 instance 的 templates。
+- Navigation：Flow Template、Flow Instance、Process Step editors。
+
+## Table
+
+| Column | Source |
+| --- | --- |
+| Template type | `ProcessFlowTemplate.name` and version |
+| Flow instance | `ProcessFlowInstance.name` and id；沒有 instance 時顯示 `No instance` |
+| Values | Populated input bindings and top-level parameter values / expected count；template-only row 顯示 `-` |
+| Status | Template and step-template references resolve or are missing |
+
+Template filter is built from resolved template names. Missing references remain visible and use
+an explicit status instead of being dropped silently。沒有任何 instance reference 的 template
+會補成 `Template only` row，因此 Save Template 後可立即在 Home 看見。
+
+## Create Instance
+
+`Flow Instance` navigation opens `/flow-instance-editor`。使用者先選既有 flow template，
+再建立 workspace；Home 不提供 clone existing instance action。
+
+## Reset Control
+
+Bottom-left POC command：
+
+```http
+POST /api/reset
+```
+
+Reset clears all five resource tables, reloads V2 fixtures, and returns a fresh bootstrap payload。
+`schema_metadata` remains at database schema version 2。
+
+## Persistence
+
+Default local database：
 
 ```text
 apps/api/.data/process-flow.sqlite3
 ```
 
-The database file is local runtime state and is ignored by git.
+The database file is ignored by git。On startup：
 
-Seed behavior:
+- empty V2 resource tables are seeded；
+- an unversioned or non-V2 local DB is cleared and reseeded；
+- an existing V2 DB is left unchanged。
 
-- API startup writes fixtures only when all resource tables are empty.
-- `POST /api/reset` clears the four resource tables and reloads fixtures.
-- Reset returns the fresh bootstrap payload and Home refreshes its table from that response.
-
-## Seed Data
-
-### Process Step Templates
-
-Seeded step templates are backed by Python modules under `packages/process-step-py/src/process_flow_steps`.
-
-| id | name | category | program |
-| --- | --- | --- | --- |
-| `step_tpl_molding_1_0_0` | molding | `layer` | `layer/molding` |
-| `step_tpl_rdl_1_0_0` | RDL layer | `layer` | `layer/rdl` |
-| `step_tpl_grinding_1_0_0` | Grinding | `grinding` | `grinding/grinding` |
-| `step_tpl_flip_1_0_0` | Flip | `carrier` | `flip/flip` |
-| `step_tpl_ubump_formation_1_0_0` | Micro Bump | `bump` | `bump/uBump_formation` |
-| `step_tpl_bga_bump_formation_1_0_0` | BGA Bump | `bump` | `bump/bga_bump_formation` |
-| `step_tpl_c4_bump_formation_1_0_0` | C4 Bump | `bump` | `bump/c4_bump_formation` |
-| `step_tpl_pnp_1_0_0` | PnP | `PnP` | `pnp/pnp` |
-
-### Process Flow Templates
-
-| id | Template type | version | Step refs |
-| --- | --- | --- | --- |
-| `flow_tpl_cowosl_demo_1_0_0` | CoWoS-L Demo | `V1.0.0` | `pnp_hbm`, `mold_cap`, `rdl_build`, `c4_bump` |
-| `flow_tpl_fanout_demo_1_0_0` | Fan-Out Demo | `V1.0.0` | `pnp_soc`, `micro_bump`, `flip_package`, `bga_array` |
-
-### Process Flow Instances
-
-| id | Instance name | Template type | Value set count |
-| --- | --- | --- | --- |
-| `flow_inst_cowosl_demo_hbm4_alpha` | HBM4 Alpha Build | CoWoS-L Demo | 4 |
-| `flow_inst_cowosl_demo_hbm4_beta` | HBM4 Beta Reliability | CoWoS-L Demo | 4 |
-| `flow_inst_fanout_demo_soc_ev1` | SoC EV1 | Fan-Out Demo | 4 |
-
-Geometry inputs that come directly from a geometry library record store a `GeometryEntity.id`. Geometry inputs provided by an upstream step output store `null`.
-
-### Geometry Records
-
-| id | name | category | entityType |
-| --- | --- | --- | --- |
-| `geom_example_wafer` | Wafer | `initial.wafer` | `wafer` |
-| `geom_example_panel` | Panel | `initial.panel` | `panel` |
-| `geom_example_hbm` | HBM die | `initial.die.hbm` | `die` |
-| `geom_example_soc` | SoC die | `initial.die.soc` | `die` |
-| `geom_example_carrier` | carrier | `initial.test.carrier` | `carrier` |
-
-## Page Layout
-
-Home layout is an operational dashboard:
-
-- Header contains the page title, summary badges, and editor navigation actions.
-- Primary content is a bordered flow instance table.
-- Filter bar sits directly above the table.
-- POC reset appears as a small monospace system command pinned to the bottom-left corner.
-
-## Tool Navigation
-
-The header tool actions navigate to editor routes:
-
-- `Flow Template` links to `/flow-template-editor` with `prefetch={false}`.
-- `Flow Instance` links to `/flow-instance-editor`.
-- `Process Step` links to `/admin/processstepeditor`.
-
-The home page does not contain development-only route warmup logic. Cold-start route compilation in `next dev` is a development-server concern.
-
-## Filter Bar
-
-The filter bar has one select control:
-
-| Control | Options | Behavior |
-| --- | --- | --- |
-| Template type | `All template types` plus unique `ProcessFlowTemplate.name` values from visible rows | Filters rows by resolved template type. |
-
-If an instance references a missing flow template, the row remains visible with template type `Unknown template`.
-
-## Process Flow Instance Table
-
-Row granularity:
-
-- One row per `ProcessFlowInstance`.
-- Row key is `ProcessFlowInstance.id`.
-- The table includes seeded instances and instances created by editor pages.
-
-Columns:
-
-| Column | Source |
-| --- | --- |
-| Template type | `ProcessFlowTemplate.name`, or `Unknown template` if unresolved. |
-| Flow instance | `ProcessFlowInstance.name` and `ProcessFlowInstance.id`. |
-| Values | Meaningful values over expected field count resolved from each referenced `ProcessStepTemplate.fieldDefinitions.length`. |
-| Status | `Resolved`, `Missing template`, or `Missing step`. |
-
-Meaningful value count rules:
-
-- Non-empty strings count as meaningful.
-- Finite numbers and booleans count as meaningful.
-- `null` counts as meaningful when it represents an upstream step output.
-- Arrays and repeat groups count as meaningful when they contain at least one item.
-- Empty strings and `undefined` do not count.
-
-## Empty State
-
-If there are no flow instance rows after bootstrap, the table body shows an empty state with a `Create instance` action linking to `/flow-instance-editor`.
+Current fixtures contain V2 step templates、two reusable flow templates、three immutable flow
+instances、and the geometry catalog。Fixture details should be read from
+`apps/api/src/process_flow_api/fixtures` rather than duplicated in UI code or documentation。

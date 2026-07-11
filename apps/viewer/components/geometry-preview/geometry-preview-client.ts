@@ -1,16 +1,19 @@
 import { apiFetch } from "@/lib/process-flow-api";
+import type {
+  FlowConfiguration,
+  ProcessFlowTemplate,
+} from "@/lib/process-flow/types";
 
 export type GeometryPreviewTarget =
-  | { type: "edge"; previewEdgeId: string }
-  | { type: "stepOutput"; stepRefId: string };
+  | { type: "flowInput"; flowInputId: string }
+  | { type: "stepOutput"; stepRefId: string; outputPortId?: string };
 
 export type GeometryPreviewRequest = {
   target: GeometryPreviewTarget;
   sourceLabel?: string | null;
-  flowTemplate: unknown;
-  draftInstance: unknown;
-  geometries: unknown[];
-  processStepTemplates: unknown[];
+  flowTemplate?: ProcessFlowTemplate;
+  processFlowTemplateId?: string;
+  configuration: FlowConfiguration;
 };
 
 export type GeometryEntityDownload = {

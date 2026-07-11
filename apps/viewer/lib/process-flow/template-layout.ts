@@ -17,7 +17,7 @@ export function computeTemplateLayout(
   for (let pass = 0; pass < Math.max(1, stepIds.length); pass += 1) {
     template.flowEdges.forEach((edge) => {
       if (
-        edge.source.sourceType !== "stepOutput" ||
+        edge.source.kind !== "stepOutput" ||
         !stepSet.has(edge.source.stepRefId) ||
         !stepSet.has(edge.target.stepRefId)
       ) {
@@ -50,13 +50,13 @@ export function computeTemplateLayout(
       const upstreamLane = template.flowEdges
         .filter(
           (edge) =>
-            edge.source.sourceType === "stepOutput" &&
+            edge.source.kind === "stepOutput" &&
             edge.target.stepRefId === stepRefId &&
             lane.has(edge.source.stepRefId) &&
             lane.get(edge.source.stepRefId) !== 0,
         )
         .map((edge) =>
-          edge.source.sourceType === "stepOutput"
+          edge.source.kind === "stepOutput"
             ? lane.get(edge.source.stepRefId)
             : undefined,
         )
@@ -72,7 +72,7 @@ export function computeTemplateLayout(
     });
 
   const stepPositions = new Map<string, { x: number; y: number }>();
-  const initialPositions = new Map<string, { x: number; y: number }>();
+  const flowInputPositions = new Map<string, { x: number; y: number }>();
   const xGap = 330;
   const yGap = 190;
 
@@ -90,52 +90,38 @@ export function computeTemplateLayout(
     );
   });
 
-  const geometryEdgesByTarget = new Map<string, SavedFlowEdge[]>();
-  template.flowEdges.forEach((edge) => {
-    if (edge.source.sourceType !== "geometryRef") {
-      return;
-    }
-    const key = edge.target.stepRefId;
-    geometryEdgesByTarget.set(key, [...(geometryEdgesByTarget.get(key) ?? []), edge]);
-  });
-
-  geometryEdgesByTarget.forEach((group, targetStepRefId) => {
-    const targetRank = rank.get(targetStepRefId) ?? 1;
-    const targetLane = lane.get(targetStepRefId) ?? 0;
-    const initialRank = Math.max(0, targetRank - 1);
-    const laneOffsets = centeredInitialLaneOffsets(
-      group.length,
-      group.length + stepIds.length + 8,
+  template.flowInputs.forEach((flowInput) => {
+    const targets = template.flowEdges.filter(
+      (edge) =>
+        edge.source.kind === "flowInput" &&
+        edge.source.flowInputId === flowInput.flowInputId,
     );
-
-    group
-      .slice()
-      .sort((left, right) => left.edgeId.localeCompare(right.edgeId))
-      .forEach((edge) => {
-        const initialLane =
-          laneOffsets
-            .map((offset) => targetLane + offset)
-            .find(
-              (candidateLane) =>
-                !occupiedLayoutCells.has(layoutCellKey(initialRank, candidateLane)),
-            ) ?? targetLane;
-        occupiedLayoutCells.add(layoutCellKey(initialRank, initialLane));
-        initialPositions.set(edge.edgeId, {
-          x: initialRank * xGap,
-          y: 280 + initialLane * yGap,
-        });
-      });
+    const firstTarget = targets[0]?.target.stepRefId;
+    const targetRank = firstTarget ? (rank.get(firstTarget) ?? 1) : 1;
+    const targetLane = firstTarget ? (lane.get(firstTarget) ?? 0) : 0;
+    const initialRank = Math.max(0, targetRank - 1);
+    const initialLane = centeredInitialLaneOffsets(1, stepIds.length + 8)
+      .map((offset) => targetLane + offset)
+      .find(
+        (candidateLane) =>
+          !occupiedLayoutCells.has(layoutCellKey(initialRank, candidateLane)),
+      ) ?? targetLane;
+    occupiedLayoutCells.add(layoutCellKey(initialRank, initialLane));
+    flowInputPositions.set(flowInput.flowInputId, {
+      x: initialRank * xGap,
+      y: 280 + initialLane * yGap,
+    });
   });
 
-  normalizePositions(stepPositions, initialPositions);
-  return { stepPositions, initialPositions };
+  normalizePositions(stepPositions, flowInputPositions);
+  return { stepPositions, flowInputPositions };
 }
 
 function normalizePositions(
   stepPositions: Map<string, { x: number; y: number }>,
-  initialPositions: Map<string, { x: number; y: number }>,
+  flowInputPositions: Map<string, { x: number; y: number }>,
 ) {
-  const positions = [...stepPositions.values(), ...initialPositions.values()];
+  const positions = [...stepPositions.values(), ...flowInputPositions.values()];
   if (positions.length === 0) {
     return;
   }
@@ -150,7 +136,7 @@ function normalizePositions(
     position.x += dx;
     position.y += dy;
   });
-  initialPositions.forEach((position) => {
+  flowInputPositions.forEach((position) => {
     position.x += dx;
     position.y += dy;
   });
@@ -165,7 +151,7 @@ function findLongestStepPath(template: ProcessFlowTemplate) {
   const adjacency = new Map<string, string[]>();
   template.flowEdges.forEach((edge) => {
     if (
-      edge.source.sourceType !== "stepOutput" ||
+      edge.source.kind !== "stepOutput" ||
       !stepSet.has(edge.source.stepRefId) ||
       !stepSet.has(edge.target.stepRefId)
     ) {

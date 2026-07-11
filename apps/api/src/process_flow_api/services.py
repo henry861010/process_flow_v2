@@ -3,16 +3,25 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from process_flow_kernel import GeometryKernel, InMemoryRepository, validate_flow_graph
+from process_flow_kernel import (
+    ExecuteOptions,
+    FlowCompiler,
+    GeometryKernel,
+    validate_flow_graph,
+    validate_process_step_template as validate_step_contract,
+)
 
 from .geometry_preview_exporter import export_geometry
+from .geometry_resolver import StoreGeometryCatalog
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,
     ProcessFlowInstance,
+    ProcessFlowTemplate,
     TemplateInstanceCreateRequest,
 )
-from .repository import KernelRepository, NotFoundError, SQLiteStore
+from .repository import NotFoundError, SQLiteStore
+
 
 JsonObject = dict[str, Any]
 
@@ -33,24 +42,14 @@ def require_item(item: JsonObject | None, id_: str) -> JsonObject:
 
 
 def validate_process_step_template(template: JsonObject) -> None:
-    fields = template.get("fieldDefinitions", [])
-    fields_to_check = list(fields)
-    while fields_to_check:
-        field = fields_to_check.pop()
-        if field.get("valueType") == "geometry":
-            raise ValueError(
-                f"Field {field.get('id')} uses legacy valueType geometry; use geometryRef"
-            )
-        repeat_definition = field.get("repeatDefinition")
-        if isinstance(repeat_definition, dict):
-            fields_to_check.extend(repeat_definition.get("itemFieldDefinitions", []))
+    validate_step_contract(template)
 
-    if not any(
-        field.get("id") == "main_geometry"
-        and field.get("valueType") == "geometryRef"
-        for field in fields
-    ):
-        raise ValueError("Process step template must include a main_geometry geometryRef field")
+
+def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplate) -> JsonObject:
+    payload = body.payload()
+    step_templates = load_step_templates_for_template(store, payload)
+    validate_flow_graph(payload, step_templates)
+    return store.insert_process_flow_template(payload)
 
 
 def load_step_templates_for_template(
@@ -77,7 +76,8 @@ def create_template_instance(
     if instance.get("processFlowTemplateId") != template.get("id"):
         raise ValueError("ProcessFlowInstance.processFlowTemplateId must match ProcessFlowTemplate.id")
     step_templates = load_step_templates_for_template(store, template)
-    validate_flow_graph(template, instance, step_templates)
+    validate_flow_graph(template, step_templates)
+    _compiler(store).compile(template, instance, step_templates)
     created_template, created_instance = store.insert_template_and_instance(template, instance)
     return {
         "processFlowTemplate": created_template,
@@ -95,13 +95,19 @@ def create_flow_instance(
         payload["processFlowTemplateId"],
     )
     step_templates = load_step_templates_for_template(store, template)
-    validate_flow_graph(template, payload, step_templates)
+    _compiler(store).compile(template, payload, step_templates)
     return store.insert_process_flow_instance(payload)
 
 
 def execute_instance(store: SQLiteStore, instance_id: str) -> JsonObject:
-    require_item(store.get_process_flow_instance(instance_id), instance_id)
-    result = kernel_for_store(store).execute(instance_id)
+    instance = require_item(store.get_process_flow_instance(instance_id), instance_id)
+    template = require_item(
+        store.get_process_flow_template(instance["processFlowTemplateId"]),
+        instance["processFlowTemplateId"],
+    )
+    step_templates = load_step_templates_for_template(store, template)
+    plan = _compiler(store).compile(template, instance, step_templates)
+    result = GeometryKernel().execute(plan)
     return {
         "geometryStructure": result.geometry(),
         "stepOutputs": result.step_outputs(),
@@ -113,26 +119,49 @@ async def preview_geometry(
     store: SQLiteStore,
     body: GeometryPreviewRequest,
 ) -> JsonObject:
-    kernel = kernel_for_preview_request(store, body)
-    flow_template = body.flowTemplate.payload()
-    draft_instance = body.draftInstance.payload()
-    target = body.target.payload()
-
-    validate_preview_request(store, body)
-    preview = kernel.execute_preview(
-        {
-            "processFlowTemplate": flow_template,
-            "processFlowInstance": draft_instance,
-            "target": target,
-        }
+    template = (
+        body.flowTemplate.payload()
+        if body.flowTemplate is not None
+        else require_item(
+            store.get_process_flow_template(body.processFlowTemplateId),
+            body.processFlowTemplateId,
+        )
     )
-    geometry_structure = preview["geometryStructure"]
+    step_templates = load_step_templates_for_template(store, template)
+    configuration = body.configuration.payload()
+    target = body.target.payload()
+    compiler = _compiler(store)
+
+    if target["type"] == "flowInput":
+        geometry_structure = compiler.resolve_flow_input(
+            template,
+            configuration,
+            step_templates,
+            target["flowInputId"],
+        )
+        source_kind = "flowInput"
+        output_step_ref_id = None
+    else:
+        output_step_ref_id = target["stepRefId"]
+        plan = compiler.compile(
+            template,
+            configuration,
+            step_templates,
+            output_step_ref_id=output_step_ref_id,
+        )
+        result = GeometryKernel().execute(
+            plan,
+            ExecuteOptions(output_step_ref_id=output_step_ref_id),
+        )
+        geometry_structure = result.geometry()
+        source_kind = "stepOutput"
+
     glb_bytes = await export_geometry(geometry_structure, format="glb")
     geometry_entity_json = build_geometry_entity_download(
         geometry_structure=geometry_structure,
         target=target,
-        source_kind=preview["sourceKind"],
-        output_step_ref_id=preview["outputStepRefId"],
+        source_kind=source_kind,
+        output_step_ref_id=output_step_ref_id,
         source_label=body.sourceLabel,
     )
     return {
@@ -146,86 +175,6 @@ async def preview_step_geometry(body: GeometryPreviewStepRequest) -> JsonObject:
     return {"stepBase64": base64.b64encode(step_bytes).decode("ascii")}
 
 
-def kernel_for_store(store: SQLiteStore) -> GeometryKernel:
-    return GeometryKernel(
-        geometry_repository=KernelRepository(store, "geometry"),
-        process_step_repository=KernelRepository(store, "process_step"),
-        process_flow_template_repository=KernelRepository(store, "process_flow_template"),
-        process_flow_instance_repository=KernelRepository(store, "process_flow_instance"),
-    )
-
-
-def kernel_for_preview_request(
-    store: SQLiteStore,
-    body: GeometryPreviewRequest,
-) -> GeometryKernel:
-    if body.geometries is not None:
-        geometry_repository = InMemoryRepository(
-            [geometry.payload() for geometry in body.geometries]
-        )
-    else:
-        geometry_repository = KernelRepository(store, "geometry")
-    if body.processStepTemplates is not None:
-        process_step_repository = InMemoryRepository(
-            [template.payload() for template in body.processStepTemplates]
-        )
-    else:
-        process_step_repository = KernelRepository(store, "process_step")
-    return GeometryKernel(
-        geometry_repository=geometry_repository,
-        process_step_repository=process_step_repository,
-        process_flow_template_repository=InMemoryRepository([body.flowTemplate.payload()]),
-        process_flow_instance_repository=InMemoryRepository([body.draftInstance.payload()]),
-    )
-
-
-def validate_preview_request(store: SQLiteStore, body: GeometryPreviewRequest) -> None:
-    target = body.target.payload()
-    flow_template = body.flowTemplate.payload()
-    draft_instance = body.draftInstance.payload()
-    if target["type"] != "edge":
-        return
-
-    edge = next(
-        (
-            candidate
-            for candidate in flow_template.get("flowEdges", [])
-            if candidate.get("edgeId") == target["previewEdgeId"]
-        ),
-        None,
-    )
-    if edge is None:
-        raise ValueError(f"Preview edge not found: {target['previewEdgeId']}")
-    if edge.get("source", {}).get("sourceType") != "geometryRef":
-        return
-
-    value = find_field_value(
-        draft_instance.get("stepValueSets", []),
-        edge.get("target", {}).get("stepRefId"),
-        edge.get("target", {}).get("targetFieldId"),
-    )
-    if not isinstance(value, str) or value.strip() == "":
-        raise ValueError("Select initial geometry before previewing this edge.")
-    if body.geometries is None and store.get_geometry(value) is None:
-        raise ValueError(f"Selected geometry not found: {value}")
-    if body.geometries is not None and not any(geometry.id == value for geometry in body.geometries):
-        raise ValueError(f"Selected geometry not found: {value}")
-
-
-def find_field_value(
-    step_value_sets: list[JsonObject],
-    step_ref_id: str | None,
-    field_id: str | None,
-) -> Any:
-    for value_set in step_value_sets:
-        if value_set.get("stepRefId") != step_ref_id:
-            continue
-        for field_value in value_set.get("fieldValues", []):
-            if field_value.get("fieldId") == field_id:
-                return field_value.get("value")
-    return None
-
-
 def build_geometry_entity_download(
     *,
     geometry_structure: JsonObject,
@@ -235,20 +184,23 @@ def build_geometry_entity_download(
     source_label: str | None,
 ) -> JsonObject:
     preview_id = (
-        target.get("previewEdgeId")
-        if target.get("type") == "edge"
+        target.get("flowInputId")
+        if target.get("type") == "flowInput"
         else f"step-output-{target.get('stepRefId')}"
     )
     label = source_label or output_step_ref_id or preview_id
-    name = f"Preview - {label}" if str(label).lower().endswith("output") else f"Preview - {label} output"
     return {
         "id": None,
         "category": "preview.generated",
         "entityType": "preview",
-        "name": name,
+        "name": f"Preview - {label}",
         "version": None,
         "owner": None,
         "description": f"Generated geometry preview for {preview_id}; source kind {source_kind}.",
         "structureFormat": "standard",
         "structure": geometry_structure,
     }
+
+
+def _compiler(store: SQLiteStore) -> FlowCompiler:
+    return FlowCompiler(StoreGeometryCatalog(store))

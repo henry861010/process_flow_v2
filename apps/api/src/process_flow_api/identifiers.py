@@ -11,6 +11,10 @@ def generated_geometry_id(payload: JsonObject) -> str:
     return f"geom_{base}_{uuid.uuid4().hex[:12]}"
 
 
+def generated_workspace_id() -> str:
+    return f"workspace_{uuid.uuid4().hex}"
+
+
 def slug(value: object) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
     return normalized or "geometry"

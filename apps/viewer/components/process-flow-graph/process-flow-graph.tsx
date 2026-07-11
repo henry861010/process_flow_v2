@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 export type ProcessFlowGraphMode = "edit" | "view";
 export type ProcessFlowGraphNodeStatus = "outside" | "complete" | "incomplete";
 
-export type ProcessFlowGraphField = {
+export type ProcessFlowGraphPort = {
   id: string;
   name: string;
 };
@@ -40,7 +40,7 @@ export type ProcessFlowGraphStepTemplate = {
 };
 
 export type ProcessFlowGraphNodeData = Record<string, unknown> & {
-  nodeKind: "initialGeometry" | "processStep";
+  nodeKind: "flowInput" | "processStep";
   graphMode?: ProcessFlowGraphMode;
   displayLabel?: string;
   displaySublabel?: string;
@@ -52,7 +52,8 @@ export type ProcessFlowGraphNodeData = Record<string, unknown> & {
   statusLabel?: string;
   stepRefId?: string;
   template?: ProcessFlowGraphStepTemplate;
-  geometryInputFields?: ProcessFlowGraphField[];
+  geometryInputPorts?: ProcessFlowGraphPort[];
+  outputPortId?: string;
   terminalGeometryViewVisible?: boolean;
   terminalGeometryViewDisabled?: boolean;
   terminalGeometryViewTitle?: string;
@@ -63,9 +64,9 @@ export type ProcessFlowGraphNodeData = Record<string, unknown> & {
 };
 
 export type ProcessFlowGraphEdgeData = Record<string, unknown> & {
-  sourceType: "geometryRef" | "stepOutput";
+  sourceKind: "flowInput" | "stepOutput";
   targetStepRefId: string;
-  targetFieldId: string;
+  targetInputPortId: string;
   slotLabel: string;
   sourceLabel: string;
   graphMode?: ProcessFlowGraphMode;
@@ -113,7 +114,7 @@ type ProcessFlowGraphProps<
 };
 
 const nodeTypes = {
-  initialGeometry: InitialGeometryNode,
+  flowInput: FlowInputNode,
   processStep: ProcessStepNode,
 } as NodeTypes;
 
@@ -204,7 +205,7 @@ export function ProcessFlowGraph<
             zoomable
             nodeColor={(node) =>
               miniMapNodeColor?.(node as TNode) ??
-              (getGraphNodeData(node).nodeKind === "initialGeometry"
+              (getGraphNodeData(node).nodeKind === "flowInput"
                 ? mode === "view"
                   ? "#f59e0b"
                   : "#0f766e"
@@ -218,7 +219,7 @@ export function ProcessFlowGraph<
   );
 }
 
-function InitialGeometryNode({
+function FlowInputNode({
   id,
   data,
   selected,
@@ -232,7 +233,7 @@ function InitialGeometryNode({
   const iconUrl = getGeometryIconUrl(data.icon);
   const iconLoadStatus = useGeometryIconLoadStatus(iconUrl);
   const iconScale = normalizeGeometryIconScale(data.iconScale);
-  const statusClasses = getInitialGeometryStatusClasses(status, graphMode);
+  const statusClasses = getFlowInputStatusClasses(status, graphMode);
 
   if (iconUrl && iconLoadStatus === "ready") {
     return (
@@ -295,7 +296,7 @@ function InitialGeometryNode({
         {graphMode === "edit" && data.onDelete ? (
           <button
             className="nodrag absolute -right-1 -top-1 hidden h-7 w-7 items-center justify-center rounded-full border bg-white text-muted-foreground shadow-sm transition hover:text-destructive group-hover:flex"
-            title="Delete geometry node"
+            title="Delete flow input"
             onClick={(event) => {
               event.stopPropagation();
               data.onDelete?.(id);
@@ -356,7 +357,7 @@ function InitialGeometryNode({
       {graphMode === "edit" && data.onDelete ? (
         <button
           className="nodrag absolute -right-1 -top-1 hidden h-7 w-7 items-center justify-center rounded-full border bg-white text-muted-foreground shadow-sm transition hover:text-destructive group-hover:flex"
-          title="Delete geometry node"
+          title="Delete flow input"
           onClick={(event) => {
             event.stopPropagation();
             data.onDelete?.(id);
@@ -374,7 +375,7 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
   const status = data.status ?? "incomplete";
   const complete = status === "complete";
   const outside = status === "outside";
-  const inputFields = data.geometryInputFields ?? [];
+  const inputPorts = data.geometryInputPorts ?? [];
   const template = data.template ?? { name: data.displayLabel ?? "Process step", version: "" };
   const displayLabel =
     typeof data.displayLabel === "string" && data.displayLabel.trim()
@@ -386,7 +387,7 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
       : undefined;
   const nodeTitle = displayLabel ?? template.name;
   const editId = data.editId ?? data.stepRefId ?? id;
-  const activeTargetFieldId = useConnection((connection) =>
+  const activeTargetPortId = useConnection((connection) =>
     connection.toHandle?.nodeId === id && connection.toHandle.type === "target"
       ? connection.toHandle.id
       : null,
@@ -397,9 +398,10 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
       : null,
   );
   const terminalViewDisabled = Boolean(data.terminalGeometryViewDisabled);
+  const outputPortId = data.outputPortId ?? "result_geometry";
   const terminalViewVisible =
     Boolean(data.terminalGeometryViewVisible && data.onTerminalGeometryView) &&
-    activeSourceHandleId !== "out";
+    activeSourceHandleId !== outputPortId;
 
   return (
     <div
@@ -424,14 +426,14 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
       }}
     >
       <div className="absolute left-0 top-3 flex -translate-x-1/2 flex-col gap-2">
-        {inputFields.map((field) => {
-          const labelVisible = activeTargetFieldId === field.id;
+        {inputPorts.map((port) => {
+          const labelVisible = activeTargetPortId === port.id;
 
           return (
-            <div key={field.id} className="group/input relative flex items-center">
+            <div key={port.id} className="group/input relative flex items-center">
               <Handle
                 type="target"
-                id={field.id}
+                id={port.id}
                 position={Position.Left}
                 isConnectable={graphMode === "edit"}
                 className="!relative !left-auto !top-auto !h-4 !w-4 !translate-x-0 !translate-y-0 !border-2 !border-white !bg-cyan-600"
@@ -442,7 +444,7 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
                   labelVisible && "block",
                 )}
               >
-                {field.name}
+                {port.name}
               </div>
             </div>
           );
@@ -451,7 +453,7 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
 
       <Handle
         type="source"
-        id="out"
+        id={outputPortId}
         position={Position.Right}
         isConnectable={graphMode === "edit"}
         className="!h-4 !w-4 !border-2 !border-white !bg-primary"
@@ -558,7 +560,7 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
   const graphMode = data?.graphMode ?? "edit";
   const canViewGeometry =
     Boolean(data?.onGeometryView) &&
-    (data?.geometryViewVisible === true || data?.sourceType === "stepOutput");
+    (data?.geometryViewVisible === true || data?.sourceKind === "stepOutput");
   const geometryViewDisabled = Boolean(data?.geometryViewDisabled);
 
   return (
@@ -625,7 +627,7 @@ function getGraphNodeData(node: Node): Partial<ProcessFlowGraphNodeData> {
   return (node.data ?? {}) as Partial<ProcessFlowGraphNodeData>;
 }
 
-function getInitialGeometryStatusClasses(
+function getFlowInputStatusClasses(
   status: ProcessFlowGraphNodeStatus,
   graphMode: ProcessFlowGraphMode,
 ) {

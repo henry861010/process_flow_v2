@@ -1,147 +1,163 @@
 # Process Flow API
 
-`apps/api` is the FastAPI backend for process-flow templates, instances, geometry library records, saved execution, and preview export.
+FastAPI backend for V2 process templates, flow topology, workspaces, immutable
+instances, geometry catalog records, execution, preview, and export.
 
-The service owns the SQLite database and seed fixtures. The viewer reads and writes through HTTP API calls.
+The API owns SQLite persistence. `FlowCompiler` resolves repository resources
+into an `ExecutionPlan`; `GeometryKernel` never reads the database.
 
 ## Runtime
 
-Start from the repository root:
+From the repository root:
 
 ```bash
 venv/bin/uvicorn process_flow_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Important environment variables:
+OpenAPI: `http://127.0.0.1:8000/docs`
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PROCESS_FLOW_API_DB_PATH` | `apps/api/.data/process-flow.sqlite3` | SQLite file path. |
-| `PROCESS_FLOW_API_CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001` | Comma-separated browser origins allowed by CORS. |
-| `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` | Timeout for each GLB or STEP Python CAD worker export. |
-| `EXPORT_MAX_CONCURRENT_JOBS` | `1` | Maximum number of in-memory export jobs running at once. Falls back to `CDB_EXPORT_MAX_CONCURRENT_JOBS` when unset. |
-| `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://localhost:8000` | Viewer-side API base URL. |
-
-The OpenAPI UI is available at `/docs` when the service is running.
+| Environment variable | Default |
+| --- | --- |
+| `PROCESS_FLOW_API_DB_PATH` | `apps/api/.data/process-flow.sqlite3` |
+| `PROCESS_FLOW_API_CORS_ORIGINS` | localhost / 127.0.0.1 ports 3000 and 3001 |
+| `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | `30` |
+| `EXPORT_MAX_CONCURRENT_JOBS` | `1` |
+| `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | `http://localhost:8000` |
 
 ## Storage
 
-The SQLite database contains four resource tables:
-
 | Table | Resource |
 | --- | --- |
-| `process_step_templates` | Immutable `ProcessStepTemplate` snapshots. |
-| `process_flow_templates` | Immutable `ProcessFlowTemplate` topology snapshots. |
-| `process_flow_instances` | `ProcessFlowInstance` values bound to a flow template. |
-| `geometries` | Immutable `GeometryEntity` records. |
+| `process_step_templates` | Immutable `ProcessStepTemplate` snapshots |
+| `process_flow_templates` | Immutable `ProcessFlowTemplate` topology snapshots |
+| `process_flow_instances` | Complete immutable product configurations |
+| `process_flow_workspaces` | Mutable, revisioned instance drafts |
+| `geometries` | Immutable `GeometryEntity` records |
+| `schema_metadata` | Database schema marker |
 
-Each table stores the canonical JSON payload in `payload` and also keeps metadata columns for search/filter/indexing. There are no update endpoints in the service contract; changed templates and geometries are represented by new ids.
+Canonical camelCase JSON is stored in each resource table's `payload` column.
+Metadata columns support indexes and list queries.
 
-## Resource Shapes
+`databaseSchemaVersion` is `2`. This unreleased product intentionally has no V1
+migration: an unversioned or non-V2 local database is cleared and reseeded from
+V2 fixtures at startup.
 
-The API accepts and returns camelCase JSON.
+## V2 Shapes
 
 ### ProcessStepTemplate
 
 ```json
 {
-  "id": "step_tpl_molding_1_0_0",
-  "version": "V1.0.0",
+  "schemaVersion": 2,
+  "id": "step_tpl_molding_2_0_0",
+  "version": "V2.0.0",
   "name": "molding",
   "category": "layer",
   "program": "layer/molding",
   "description": "",
-  "owner": "process-flow",
-  "fieldDefinitions": [
+  "owner": "integration.platform",
+  "inputPorts": [
     {
-      "id": "main_geometry",
-      "name": "main_geometry",
-      "scope": "inputState",
-      "valueType": "geometryRef",
-      "controlType": null,
-      "selectionMode": null,
-      "unit": null
+      "portId": "main_geometry",
+      "name": "Main geometry",
+      "dataType": "geometry",
+      "role": "primary",
+      "required": true
     }
-  ]
+  ],
+  "outputPorts": [
+    {
+      "portId": "result_geometry",
+      "name": "Result geometry",
+      "dataType": "geometry"
+    }
+  ],
+  "parameterDefinitions": []
 }
 ```
 
-`program` is an extensionless Python process-step module path resolved under `process_flow_steps`, for example `layer/molding`.
+`program` is an extensionless module path under `process_flow_steps`.
 
 ### ProcessFlowTemplate
 
 ```json
 {
-  "id": "flow_tpl_cowosl_demo_1_0_0",
-  "name": "CoWoS-L Demo",
-  "version": "V1.0.0",
+  "schemaVersion": 2,
+  "id": "flow_tpl_cowosl_2_0_0",
+  "name": "CoWoS-L",
+  "version": "V2.0.0",
   "description": "",
-  "owner": "process-flow",
+  "owner": "integration.platform",
+  "flowInputs": [
+    {
+      "flowInputId": "incoming_panel",
+      "name": "Incoming panel",
+      "dataType": "geometry",
+      "required": true
+    }
+  ],
   "stepRefs": [
     {
-      "stepRefId": "pnp_hbm",
-      "stepLabel": "PnP",
-      "processStepTemplateId": "step_tpl_pnp_1_0_0"
+      "stepRefId": "molding",
+      "stepLabel": "molding",
+      "processStepTemplateId": "step_tpl_molding_2_0_0"
     }
   ],
   "flowEdges": [
     {
-      "edgeId": "edge_initial_panel_to_pnp",
-      "source": { "sourceType": "geometryRef" },
-      "target": {
-        "stepRefId": "pnp_hbm",
-        "targetFieldId": "main_geometry"
-      }
+      "edgeId": "edge_panel_molding",
+      "source": { "kind": "flowInput", "flowInputId": "incoming_panel" },
+      "target": { "stepRefId": "molding", "inputPortId": "main_geometry" }
     }
   ]
 }
 ```
 
-`flowEdges[]` is the topology source of truth. `stepRefs[]` order is not runtime order.
-`stepRefId` is the flow-local stable reference used by edges and instances;
-`stepLabel` is the user-facing name shown for that step in this flow template.
+Topology order is derived from step-output edges, not `stepRefs[]` array order.
+
+### ProcessFlowWorkspace
+
+```json
+{
+  "schemaVersion": 2,
+  "id": "workspace_123",
+  "name": "Customer study",
+  "processFlowTemplateId": "flow_tpl_cowosl_2_0_0",
+  "revision": 1,
+  "status": "draft",
+  "inputBindings": {
+    "incoming_panel": { "kind": "catalog", "geometryId": "panel_v1_0_0" }
+  },
+  "stepConfigurations": {
+    "molding": { "parameterValues": {} }
+  },
+  "embeddedGeometries": {},
+  "createdAt": "2026-07-10T00:00:00Z",
+  "updatedAt": "2026-07-10T00:00:00Z"
+}
+```
+
+Drafts may be incomplete. Updates require the current revision and return 409
+when stale. Committed workspaces are read-only.
 
 ### ProcessFlowInstance
 
 ```json
 {
-  "id": "flow_inst_cowosl_demo_hbm4_alpha",
-  "name": "HBM4 Alpha Build",
-  "processFlowTemplateId": "flow_tpl_cowosl_demo_1_0_0",
-  "stepValueSets": [
-    {
-      "stepRefId": "pnp_hbm",
-      "processStepTemplateId": "step_tpl_pnp_1_0_0",
-      "fieldValues": [
-        {
-          "fieldId": "main_geometry",
-          "value": "geom_example_panel"
-        }
-      ]
-    }
-  ]
+  "schemaVersion": 2,
+  "id": "flow_inst_customer_a",
+  "name": "Customer A",
+  "processFlowTemplateId": "flow_tpl_cowosl_2_0_0",
+  "inputBindings": {
+    "incoming_panel": { "kind": "catalog", "geometryId": "panel_v1_0_0" }
+  },
+  "stepConfigurations": {
+    "molding": { "parameterValues": {} }
+  }
 }
 ```
 
-Geometry fields supplied by a `geometryRef` edge store a `GeometryEntity.id`. Geometry fields supplied by an upstream `stepOutput` edge store `null`.
-
-### GeometryEntity
-
-```json
-{
-  "id": "geom_example_panel",
-  "category": "initial.panel",
-  "entityType": "panel",
-  "name": "Panel",
-  "version": "V1.0.0",
-  "owner": "process-flow",
-  "description": "Centered square panel geometry.",
-  "structureFormat": "standard",
-  "structure": {}
-}
-```
-
-Selection UI should treat `structure` as opaque. Kernel, viewer, and exporter code are responsible for reading the geometry document.
+Instances are complete, immutable, and catalog-only.
 
 ## Endpoints
 
@@ -149,132 +165,93 @@ Selection UI should treat `structure` as opaque. Kernel, viewer, and exporter co
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/health` | Returns `{ "status": "ok" }`. |
-| `GET` | `/api/bootstrap` | Returns all step templates, flow templates, flow instances, and geometries. |
-| `POST` | `/api/reset` | Clears resource tables, reloads fixture data, and returns the bootstrap payload. |
-
-The API initializes the SQLite database with fixture data on startup when all
-resource tables are empty. Frontend bootstrap reads data through
-`GET /api/bootstrap` and does not trigger database writes.
-
-Bootstrap response:
-
-```json
-{
-  "processStepTemplates": [],
-  "processFlowTemplates": [],
-  "processFlowInstances": [],
-  "geometries": []
-}
-```
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/bootstrap` | Templates, immutable instances, and geometry catalog |
+| `POST` | `/api/reset` | Reset all resources to V2 fixtures |
 
 ### Process Step Templates
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/process-step-templates?search=&category=` | Lists step templates. |
-| `GET` | `/api/process-step-templates/{id}` | Reads one step template. |
-| `POST` | `/api/process-step-templates` | Creates a new immutable step template. |
-| `DELETE` | `/api/process-step-templates/{id}` | Deletes the template without cascading to existing flows. |
-
-`POST` body is a `ProcessStepTemplate`. Response is the created `ProcessStepTemplate`.
+| Method | Path |
+| --- | --- |
+| `GET` | `/api/process-step-templates?search=&category=` |
+| `GET` | `/api/process-step-templates/{id}` |
+| `POST` | `/api/process-step-templates` |
+| `DELETE` | `/api/process-step-templates/{id}` |
 
 ### Geometries
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/geometries?search=&category=&entityType=` | Lists geometry records. |
-| `GET` | `/api/geometries/{id}` | Reads one geometry record. |
-| `POST` | `/api/geometries` | Creates a new immutable geometry record. |
+| Method | Path |
+| --- | --- |
+| `GET` | `/api/geometries?search=&category=&entityType=` |
+| `GET` | `/api/geometries/{id}` |
+| `POST` | `/api/geometries` |
 
-`POST` body is a `GeometryEntity`. When `id` is `null` or empty, the server assigns a new id. Response is the created `GeometryEntity`.
+When geometry `id` is null or empty, the API generates one.
 
-### Process Flow Templates And Instances
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/process-flow-templates` | Lists flow templates. |
-| `GET` | `/api/process-flow-templates/{id}` | Reads one flow template. |
-| `POST` | `/api/process-flow-template-instances` | Transactionally creates a new flow template and its initial instance. |
-| `GET` | `/api/process-flow-instances` | Lists flow instances. |
-| `GET` | `/api/process-flow-instances/{id}` | Reads one flow instance. |
-| `POST` | `/api/process-flow-instances` | Creates a new instance from an existing template. |
-
-`POST /api/process-flow-template-instances` body:
-
-```json
-{
-  "processFlowTemplate": {},
-  "processFlowInstance": {}
-}
-```
-
-Response:
-
-```json
-{
-  "processFlowTemplate": {},
-  "processFlowInstance": {}
-}
-```
-
-`POST /api/process-flow-instances` body is a `ProcessFlowInstance`. Response is the created `ProcessFlowInstance`.
-
-### Execution And Preview
+### Flow Templates and Instances
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `POST` | `/api/process-flow-instances/{id}/execute` | Runs a saved instance through the Python kernel. |
-| `POST` | `/api/geometry-preview` | Runs a draft preview and exports GLB. |
-| `POST` | `/api/geometry-preview/step` | Exports a preview snapshot as STEP AP242. |
-| `POST` | `/api/geometry-preview/export-jobs` | Starts a server-side JSON, STEP, or CDB export job from a preview snapshot. |
-| `POST` | `/api/geometry-preview/cdb-jobs` | Starts a server-side text CDB export job from a preview snapshot. |
-| `GET` | `/api/export-jobs?clientId=` | Lists recent export jobs for one client id. |
-| `GET` | `/api/export-jobs/{jobId}?clientId=` | Reads one export job for one client id. |
-| `POST` | `/api/export-jobs/{jobId}/cancel` | Requests cancellation for one export job. |
+| `GET` | `/api/process-flow-templates` | List templates |
+| `GET` | `/api/process-flow-templates/{id}` | Read template |
+| `POST` | `/api/process-flow-templates` | Create immutable template |
+| `POST` | `/api/process-flow-template-instances` | Atomically create template and first instance |
+| `GET` | `/api/process-flow-instances` | List immutable instances |
+| `GET` | `/api/process-flow-instances/{id}` | Read immutable instance |
+| `POST` | `/api/process-flow-instances` | Create instance from existing template |
+| `POST` | `/api/process-flow-instances/{id}/execute` | Compile and execute saved instance |
 
-Execute response:
+### Workspaces
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/process-flow-workspaces` | Backend list support; no list UI yet |
+| `POST` | `/api/process-flow-workspaces` | Create incomplete draft |
+| `GET` | `/api/process-flow-workspaces/{id}` | Reload draft by URL |
+| `PUT` | `/api/process-flow-workspaces/{id}` | Revision-checked update |
+| `POST` | `/api/process-flow-workspaces/{id}/commit` | Atomic, idempotent commit |
+
+Commit request:
 
 ```json
 {
-  "geometryStructure": {},
-  "stepOutputs": {},
-  "terminalStepRefIds": []
+  "instanceId": "flow_inst_customer_a",
+  "instanceName": "Customer A",
+  "revision": 3
 }
 ```
 
-Preview request:
+Commit materializes referenced embedded geometries, rewrites bindings to
+catalog, inserts an immutable instance, and marks the workspace committed in one
+transaction.
 
-```json
-{
-  "target": {
-    "type": "edge",
-    "previewEdgeId": "edge_initial_panel_to_pnp"
-  },
-  "sourceLabel": "Panel -> PnP",
-  "flowTemplate": {},
-  "draftInstance": {},
-  "geometries": [],
-  "processStepTemplates": []
-}
+## Preview
+
+```http
+POST /api/geometry-preview
 ```
-
-For terminal step output preview:
 
 ```json
 {
   "target": {
     "type": "stepOutput",
-    "stepRefId": "pnp_hbm"
+    "stepRefId": "molding",
+    "outputPortId": "result_geometry"
   },
-  "flowTemplate": {},
-  "draftInstance": {}
+  "sourceLabel": "molding",
+  "processFlowTemplateId": "flow_tpl_cowosl_2_0_0",
+  "configuration": {
+    "inputBindings": {},
+    "stepConfigurations": {},
+    "embeddedGeometries": {}
+  }
 }
 ```
 
-`geometries` and `processStepTemplates` are optional snapshots. When omitted, the API resolves them from SQLite.
+Use exactly one of `processFlowTemplateId` or inline `flowTemplate`. A flow-input
+target uses `{ "type": "flowInput", "flowInputId": "..." }`.
 
-Preview response:
+Response:
 
 ```json
 {
@@ -282,7 +259,7 @@ Preview response:
     "id": null,
     "category": "preview.generated",
     "entityType": "preview",
-    "name": "Preview - Panel -> PnP output",
+    "name": "Preview - molding",
     "structureFormat": "standard",
     "structure": {}
   },
@@ -290,82 +267,29 @@ Preview response:
 }
 ```
 
-STEP request:
+### Preview and Export Endpoints
 
-```json
-{
-  "geometryStructure": {}
-}
-```
+| Method | Path |
+| --- | --- |
+| `POST` | `/api/geometry-preview/step` |
+| `POST` | `/api/geometry-preview/export-jobs` |
+| `POST` | `/api/geometry-preview/cdb-jobs` |
+| `GET` | `/api/export-jobs?clientId=` |
+| `GET` | `/api/export-jobs/{jobId}?clientId=` |
+| `POST` | `/api/export-jobs/{jobId}/cancel` |
 
-STEP response:
+Export job `kind` is `json`, `step`, or `cdb`. Output paths must be absolute and
+their parent directory must exist. JSON writes a geometry entity document, STEP
+writes AP242, and CDB requires `elementSize`. Job state is process-local and list
+responses are scoped by `clientId`.
 
-```json
-{
-  "stepBase64": "..."
-}
-```
+## Validation Boundary
 
-Export job request:
+- Pydantic models reject unknown fields (`extra="forbid"`).
+- Graph validation resolves every referenced step template and port.
+- Draft workspace validation accepts missing required values but validates any
+  supplied shape.
+- Instance creation, execution, preview, and commit require a complete compile.
+- Repository exceptions map to 404, 409, or 400 responses.
 
-```json
-{
-  "clientId": "browser-generated-client-token",
-  "kind": "step",
-  "geometryStructure": {},
-  "geometryEntityJson": {},
-  "elementSize": 500,
-  "outputPath": "/absolute/path/model.step",
-  "sourceLabel": "Panel -> main_geometry"
-}
-```
-
-`kind` must be `json`, `step`, or `cdb`. JSON jobs write `geometryEntityJson`
-as pretty JSON and require a `.json` suffix. STEP jobs write STEP AP242 from
-`geometryStructure` and require a `.step` suffix. CDB jobs write text CDB from
-`geometryStructure`, require `elementSize`, and require a `.cdb` suffix. Uppercase
-suffixes such as `.JSON`, `.STEP`, and `.CDB` are accepted and normalized to
-lowercase. The `outputPath` must be absolute and the parent folder must already
-exist. Export job state is stored in memory for the current API process only,
-and list responses are filtered by `clientId`.
-
-`POST /api/geometry-preview/cdb-jobs` is retained as a compatibility alias for
-creating `kind: "cdb"` jobs.
-
-Export job response:
-
-```json
-{
-  "job": {
-    "jobId": "step_...",
-    "clientId": "browser-generated-client-token",
-    "kind": "step",
-    "status": "queued",
-    "outputPath": "/absolute/path/model.step"
-  }
-}
-```
-
-## Frontend Contract Guidance
-
-The API returns complete resource payloads in v1, but UI code should not depend on arbitrary deep JSON paths for general selection workflows.
-
-Use metadata fields for lists and selectors:
-
-- `id`
-- `name`
-- `category`
-- `version`
-- `owner`
-- `entityType`
-
-Use dedicated endpoints for actions:
-
-- Detail screens can call `GET /api/.../{id}`.
-- Saving a custom template flow uses `POST /api/process-flow-template-instances`.
-- Saving a from-template instance uses `POST /api/process-flow-instances`.
-- Runtime geometry uses `POST /api/process-flow-instances/{id}/execute`.
-- Draft preview uses `POST /api/geometry-preview`.
-- Preview JSON, STEP, and CDB exports use `POST /api/geometry-preview/export-jobs`.
-
-`GeometryEntity.structure`, step-specific field payloads, and CAD feature bodies are kernel/viewer/exporter concerns. General UI should pass those documents through rather than interpreting their internal shape.
+The full data contract is documented in `docs/data-model.md`.

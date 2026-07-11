@@ -3,66 +3,60 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  MarkerType,
-  ReactFlowProvider,
-  useReactFlow,
-  type Edge,
-  type Node,
-} from "@xyflow/react";
+import { MarkerType, ReactFlowProvider, type Edge, type Node } from "@xyflow/react";
 import {
   ArrowLeft,
+  Box,
+  Check,
+  CircleDot,
+  Eye,
   GitBranch,
   Layers3,
-  Plus,
-  RotateCcw,
+  RefreshCw,
   Save,
-  Trash2,
   X,
 } from "lucide-react";
 
 import { CategoryLibraryBrowser } from "@/components/category-library/category-library-browser";
+import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
+import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
 import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
 } from "@/components/geometry-preview/geometry-preview-panel";
-import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
-import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
-import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-graph";
-import { CoordinateListControl } from "@/components/process-flow-fields/coordinate-list-control";
-import { coordinateListValueIsComplete } from "@/components/process-flow-fields/coordinate-list-value";
+import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
+import {
+  ProcessFlowGraph,
+  type ProcessFlowGraphEdgeData,
+  type ProcessFlowGraphNodeData,
+} from "@/components/process-flow-graph/process-flow-graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
 import {
-  coerceArrayValue,
-  coercePrimitiveValue,
-  formatRepeatItemName,
-  getFieldValue,
-  getGeometryInputFields,
-  isArrayValueType,
-  isGeometryField,
-  isIntegerValueType,
-  isNumericValueType,
-  isRepeatableGroupValue,
-  passesNumericValidation,
-} from "@/lib/process-flow/field-values";
+  createEmptyFlowConfiguration,
+  geometryForFlowInput,
+  isConfigurationComplete,
+  isFlowInputBindingRequired,
+  isParameterValueComplete,
+} from "@/lib/process-flow/configuration";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import type {
-  FieldDefinition,
-  FieldValue,
+  FlowConfiguration,
+  FlowInputDefinition,
   GeometryEntity,
-  ProcessFlowInstance,
   ProcessFlowTemplate,
+  ProcessFlowWorkspace,
   ProcessStepTemplate,
-  RepeatableGroupValue,
-  StepCompletion,
-  ValidationRule,
+  StepRef,
 } from "@/lib/process-flow/types";
-import { clone, normalizeStepLabel } from "@/lib/process-flow/utils";
+import { normalizeStepLabel } from "@/lib/process-flow/utils";
 import {
-  createProcessFlowInstance,
+  commitProcessFlowWorkspace,
+  createProcessFlowWorkspace,
+  getProcessFlowWorkspace,
   loadBootstrap,
+  updateProcessFlowWorkspace,
 } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
@@ -71,67 +65,21 @@ const inputClass =
 const selectClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
-type DraftValidationStatus = "complete" | "incomplete" | "invalid";
-
-type InitialGeometryNodeData = Record<string, unknown> & {
-  nodeKind: "initialGeometry";
-  sourceEdgeId: string;
-  targetStepRefId: string;
-  targetStepLabel: string;
-  targetFieldId: string;
-  targetFieldName: string;
-  selectedGeometryEntityId: string | null;
-  selectedGeometryDisplayName: string | null;
-  validationStatus?: DraftValidationStatus;
-  onPick?: (edgeId: string) => void;
+type FlowInputNodeData = ProcessFlowGraphNodeData & {
+  nodeKind: "flowInput";
+  definition: FlowInputDefinition;
 };
 
-type ProcessStepNodeData = Record<string, unknown> & {
+type StepNodeData = ProcessFlowGraphNodeData & {
   nodeKind: "processStep";
-  stepRefId: string;
-  stepLabel: string;
-  processStepTemplateId: string;
-  template: ProcessStepTemplate;
-  fieldValues: FieldValue[];
-  geometryInputFields: FieldDefinition[];
-  validationStatus?: DraftValidationStatus;
-  blockingFieldName?: string | null;
-  onEdit?: (stepRefId: string) => void;
+  stepRef: StepRef;
+  stepTemplate: ProcessStepTemplate;
 };
 
-type FlowEdgeData = Record<string, unknown> & {
-  sourceType: "geometryRef" | "stepOutput";
-  sourceStepRefId?: string;
-  sourceEdgeId?: string;
-  targetStepRefId: string;
-  targetFieldId: string;
-  slotLabel: string;
-  sourceLabel: string;
-  readonlyTopology: true;
-  geometryViewVisible?: boolean;
-  geometryViewDisabled?: boolean;
-  geometryViewTitle?: string;
-  onGeometryView?: () => void;
-};
-
-type InitialGeometryFlowNode = Node<
-  InitialGeometryNodeData,
-  "initialGeometry"
->;
-type ProcessStepFlowNode = Node<ProcessStepNodeData, "processStep">;
-type FlowNode = InitialGeometryFlowNode | ProcessStepFlowNode;
-type FlowEdge = Edge<FlowEdgeData, "dataFlow">;
-
-type InstanceAnalysis = {
-  validationMessage: string;
-  canSave: boolean;
-  templateSchemaError: string | null;
-  flowStepCount: number;
-  initialGeometryCount: number;
-  initialGeometryCompleteCount: number;
-  completeStepCount: number;
-  stepCompletion: Map<string, StepCompletion>;
-};
+type FlowInputNode = Node<FlowInputNodeData, "flowInput">;
+type StepNode = Node<StepNodeData, "processStep">;
+type FlowNode = FlowInputNode | StepNode;
+type FlowEdge = Edge<ProcessFlowGraphEdgeData, "dataFlow">;
 
 export function ProcessFlowInstanceEditor() {
   return (
@@ -143,44 +91,108 @@ export function ProcessFlowInstanceEditor() {
 
 function ProcessFlowInstanceEditorInner() {
   const router = useRouter();
-  const reactFlow = useReactFlow<FlowNode, FlowEdge>();
   const [hydrated, setHydrated] = React.useState(false);
   const [templates, setTemplates] = React.useState<ProcessFlowTemplate[]>([]);
-  const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>(
+  const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>([]);
+  const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
+  const [instanceIds, setInstanceIds] = React.useState<Set<string>>(new Set());
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState("");
+  const [workspace, setWorkspace] = React.useState<ProcessFlowWorkspace | null>(null);
+  const [workspaceName, setWorkspaceName] = React.useState("");
+  const [instanceIdentity, setInstanceIdentity] = React.useState({ id: "", name: "" });
+  const [configuration, setConfiguration] = React.useState<FlowConfiguration>(emptyConfiguration());
+  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+  const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
+  const [pickerFlowInputId, setPickerFlowInputId] = React.useState<string | null>(null);
+  const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
+  const [dirty, setDirty] = React.useState(false);
+  const [busyAction, setBusyAction] = React.useState<"save" | "commit" | "reload" | null>(null);
+  const [message, setMessage] = React.useState<
+    { kind: "success" | "error"; text: string } | null
+  >(null);
+  const [fileExportJobsRefreshKey, setFileExportJobsRefreshKey] = React.useState(0);
+  const [seedFileExportJob, setSeedFileExportJob] = React.useState<FileExportJob | null>(null);
+
+  const selectedTemplate =
+    templates.find((template) => template.id === selectedTemplateId) ?? null;
+  const committed = workspace?.status === "committed";
+
+  const applyLoadedWorkspace = React.useCallback(
+    (
+      loadedWorkspace: ProcessFlowWorkspace,
+      availableTemplates: ProcessFlowTemplate[],
+      availableStepTemplates: ProcessStepTemplate[],
+      committedInstanceName?: string,
+    ) => {
+      const template = availableTemplates.find(
+        (item) => item.id === loadedWorkspace.processFlowTemplateId,
+      );
+      if (!template) {
+        throw new Error(
+          `Process flow template not found: ${loadedWorkspace.processFlowTemplateId}`,
+        );
+      }
+      const defaults = createEmptyFlowConfiguration(template, availableStepTemplates);
+      setSelectedTemplateId(template.id);
+      setWorkspace(loadedWorkspace);
+      setWorkspaceName(loadedWorkspace.name);
+      setConfiguration({
+        inputBindings: { ...loadedWorkspace.inputBindings },
+        stepConfigurations: {
+          ...defaults.stepConfigurations,
+          ...loadedWorkspace.stepConfigurations,
+        },
+        embeddedGeometries: { ...loadedWorkspace.embeddedGeometries },
+      });
+      setInstanceIdentity({
+        id: loadedWorkspace.committedInstanceId ?? "",
+        name: loadedWorkspace.status === "committed" ? committedInstanceName ?? "" : "",
+      });
+      setSelectedNodeId(null);
+      setEditingNodeId(null);
+      setDirty(false);
+      setMessage({
+        kind: "success",
+        text:
+          loadedWorkspace.status === "committed"
+            ? `Workspace committed as ${loadedWorkspace.committedInstanceId}.`
+            : `Workspace ${loadedWorkspace.id} loaded at revision ${loadedWorkspace.revision}.`,
+      });
+    },
     [],
   );
-  const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(
-    null,
-  );
-  const [productInstanceName, setProductInstanceName] = React.useState("");
-  const [nodes, setNodes] = React.useState<FlowNode[]>([]);
-  const [edges, setEdges] = React.useState<FlowEdge[]>([]);
-  const [editingStepRefId, setEditingStepRefId] = React.useState<string | null>(
-    null,
-  );
-  const [pickingGeometryEdgeId, setPickingGeometryEdgeId] =
-    React.useState<string | null>(null);
-  const [geometryPreview, setGeometryPreview] =
-    React.useState<GeometryPreviewContext | null>(null);
-  const [fileExportJobsRefreshKey, setFileExportJobsRefreshKey] = React.useState(0);
-  const [seedFileExportJob, setSeedFileExportJob] =
-    React.useState<FileExportJob | null>(null);
-  const [apiError, setApiError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let active = true;
-    loadBootstrap()
-      .then((payload) => {
+    const workspaceId = new URLSearchParams(window.location.search).get("workspaceId");
+    Promise.all([
+      loadBootstrap(),
+      workspaceId ? getProcessFlowWorkspace(workspaceId) : Promise.resolve(null),
+    ])
+      .then(([bootstrap, loadedWorkspace]) => {
         if (!active) return;
-        setTemplates(payload.processFlowTemplates as ProcessFlowTemplate[]);
-        setStepTemplates(payload.processStepTemplates as ProcessStepTemplate[]);
-        setGeometries(payload.geometries as GeometryEntity[]);
-        setApiError(null);
+        setTemplates(bootstrap.processFlowTemplates);
+        setStepTemplates(bootstrap.processStepTemplates);
+        setGeometries(bootstrap.geometries);
+        setInstanceIds(new Set(bootstrap.processFlowInstances.map((instance) => instance.id)));
+        if (loadedWorkspace) {
+          const committedInstanceName = bootstrap.processFlowInstances.find(
+            (instance) => instance.id === loadedWorkspace.committedInstanceId,
+          )?.name;
+          applyLoadedWorkspace(
+            loadedWorkspace,
+            bootstrap.processFlowTemplates,
+            bootstrap.processStepTemplates,
+            committedInstanceName,
+          );
+        }
       })
       .catch((error) => {
         if (!active) return;
-        setApiError(error instanceof Error ? error.message : "Unable to load API data.");
+        setMessage({
+          kind: "error",
+          text: error instanceof Error ? error.message : "Unable to load API data.",
+        });
       })
       .finally(() => {
         if (active) setHydrated(true);
@@ -188,390 +200,270 @@ function ProcessFlowInstanceEditorInner() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyLoadedWorkspace]);
 
-  const selectedTemplate =
-    templates.find((template) => template.id === selectedTemplateId) ?? null;
+  React.useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty]);
+
+  const graph = selectedTemplate
+    ? graphForInstance(
+        selectedTemplate,
+        stepTemplates,
+        configuration,
+        geometries,
+        selectedNodeId,
+        committed,
+        (nodeId) => {
+          setSelectedNodeId(nodeId);
+          setEditingNodeId(nodeId);
+        },
+        setPickerFlowInputId,
+        openStepPreview,
+      )
+    : { nodes: [] as FlowNode[], edges: [] as FlowEdge[] };
+
+  const editingNode = graph.nodes.find((node) => node.id === editingNodeId) ?? null;
+  const pickerInput = selectedTemplate?.flowInputs.find(
+    (input) => input.flowInputId === pickerFlowInputId,
+  ) ?? null;
+  const configurationComplete = Boolean(
+    selectedTemplate &&
+      isConfigurationComplete(selectedTemplate, stepTemplates, configuration, geometries),
+  );
+  const duplicateInstanceId = instanceIds.has(instanceIdentity.id.trim());
+  const canSaveDraft = Boolean(
+    hydrated &&
+      selectedTemplate &&
+      workspaceName.trim() &&
+      !committed &&
+      busyAction === null &&
+      (dirty || !workspace),
+  );
+  const canCommit = Boolean(
+    workspace &&
+      !committed &&
+      !dirty &&
+      configurationComplete &&
+      !duplicateInstanceId &&
+      instanceIdentity.id.trim() &&
+      instanceIdentity.name.trim() &&
+      busyAction === null,
+  );
+
+  function selectTemplate(templateId: string) {
+    if (workspace || dirty) {
+      const confirmed = window.confirm("Discard the current workspace draft?");
+      if (!confirmed) return;
+    }
+    const template = templates.find((item) => item.id === templateId);
+    setSelectedTemplateId(templateId);
+    setWorkspace(null);
+    setWorkspaceName(template ? `${template.name} study` : "");
+    setInstanceIdentity({ id: "", name: "" });
+    setConfiguration(
+      template ? createEmptyFlowConfiguration(template, stepTemplates) : emptyConfiguration(),
+    );
+    setSelectedNodeId(null);
+    setEditingNodeId(null);
+    setDirty(Boolean(template));
+    setMessage(null);
+    router.replace("/flow-instance-editor");
+  }
+
+  function startNew() {
+    if (dirty && !window.confirm("Discard the current workspace draft?")) return;
+    setSelectedTemplateId("");
+    setWorkspace(null);
+    setWorkspaceName("");
+    setInstanceIdentity({ id: "", name: "" });
+    setConfiguration(emptyConfiguration());
+    setSelectedNodeId(null);
+    setEditingNodeId(null);
+    setPickerFlowInputId(null);
+    setDirty(false);
+    setMessage(null);
+    router.replace("/flow-instance-editor");
+  }
+
+  function updateWorkspaceName(name: string) {
+    if (committed) return;
+    setWorkspaceName(name);
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function updateInputBinding(flowInputId: string, geometryId: string | null) {
+    if (committed) return;
+    setConfiguration((current) => {
+      const inputBindings = { ...current.inputBindings };
+      if (geometryId) inputBindings[flowInputId] = { kind: "catalog", geometryId };
+      else delete inputBindings[flowInputId];
+      return { ...current, inputBindings };
+    });
+    setPickerFlowInputId(null);
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function updateStepValues(stepRefId: string, parameterValues: Record<string, unknown>) {
+    if (committed) return;
+    setConfiguration((current) => ({
+      ...current,
+      stepConfigurations: {
+        ...current.stepConfigurations,
+        [stepRefId]: { parameterValues },
+      },
+    }));
+    setDirty(true);
+    setMessage(null);
+  }
+
+  async function saveDraft() {
+    if (!canSaveDraft || !selectedTemplate) return;
+    setBusyAction("save");
+    setMessage(null);
+    try {
+      const saved = workspace
+        ? await updateProcessFlowWorkspace(workspace.id, {
+            name: workspaceName.trim(),
+            revision: workspace.revision,
+            ...configuration,
+          })
+        : await createProcessFlowWorkspace({
+            name: workspaceName.trim(),
+            processFlowTemplateId: selectedTemplate.id,
+            ...configuration,
+          });
+      setWorkspace(saved);
+      setWorkspaceName(saved.name);
+      setDirty(false);
+      router.replace(`/flow-instance-editor?workspaceId=${encodeURIComponent(saved.id)}`);
+      setMessage({
+        kind: "success",
+        text: `Draft saved at revision ${saved.revision}.`,
+      });
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "Unable to save workspace.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function reloadWorkspace() {
+    if (!workspace) return;
+    setBusyAction("reload");
+    setMessage(null);
+    try {
+      const loaded = await getProcessFlowWorkspace(workspace.id);
+      applyLoadedWorkspace(loaded, templates, stepTemplates);
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "Unable to reload workspace.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function commitWorkspace() {
+    if (!canCommit || !workspace) return;
+    setBusyAction("commit");
+    setMessage(null);
+    try {
+      const result = await commitProcessFlowWorkspace(workspace.id, {
+        instanceId: instanceIdentity.id.trim(),
+        instanceName: instanceIdentity.name.trim(),
+        revision: workspace.revision,
+      });
+      setWorkspace(result.workspace);
+      setConfiguration({
+        inputBindings: { ...result.workspace.inputBindings },
+        stepConfigurations: { ...result.workspace.stepConfigurations },
+        embeddedGeometries: { ...result.workspace.embeddedGeometries },
+      });
+      setInstanceIds((current) => new Set(current).add(result.processFlowInstance.id));
+      setDirty(false);
+      setMessage({
+        kind: "success",
+        text: `Committed immutable instance ${result.processFlowInstance.id}.`,
+      });
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "Unable to commit workspace.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function openInputPreview(flowInput: FlowInputDefinition) {
+    if (!selectedTemplate) return;
+    const geometry = geometryForFlowInput(configuration, flowInput.flowInputId, geometries);
+    if (!geometry) return;
+    setPreview({
+      previewId: `flow-input:${flowInput.flowInputId}`,
+      sourceLabel: flowInput.name,
+      slotLabel: "Input",
+      sourceKind: "flowInput",
+      request: {
+        target: { type: "flowInput", flowInputId: flowInput.flowInputId },
+        sourceLabel: flowInput.name,
+        processFlowTemplateId: selectedTemplate.id,
+        configuration,
+      },
+    });
+  }
+
+  function openStepPreview(step: StepNode) {
+    if (!selectedTemplate) return;
+    setPreview({
+      previewId: `step-output:${step.data.stepRef.stepRefId}`,
+      sourceLabel: stepLabel(step.data.stepRef, step.data.stepTemplate),
+      slotLabel: "Result",
+      sourceKind: "stepOutput",
+      request: {
+        target: {
+          type: "stepOutput",
+          stepRefId: step.data.stepRef.stepRefId,
+          outputPortId: "result_geometry",
+        },
+        sourceLabel: stepLabel(step.data.stepRef, step.data.stepTemplate),
+        processFlowTemplateId: selectedTemplate.id,
+        configuration,
+      },
+    });
+  }
 
   function handleFileExportJobCreated(job: FileExportJob) {
     setSeedFileExportJob(job);
     setFileExportJobsRefreshKey((current) => current + 1);
   }
 
-  const analysis = React.useMemo(
-    () =>
-      analyzeDraft(
-        selectedTemplate,
-        productInstanceName,
-        nodes,
-        stepTemplates,
-        geometries,
-      ),
-    [geometries, nodes, productInstanceName, selectedTemplate, stepTemplates],
-  );
-
-  const hasDraftContent = React.useMemo(
-    () => draftHasContent(selectedTemplate, productInstanceName, nodes),
-    [nodes, productInstanceName, selectedTemplate],
-  );
-
-  const displayNodes = React.useMemo<FlowNode[]>(
-    () =>
-      nodes.map((node) => {
-        if (isInitialGeometryNode(node)) {
-          const selectedGeometry = geometries.find(
-            (geometry) => geometry.id === node.data.selectedGeometryEntityId,
-          );
-          const complete =
-            Boolean(node.data.selectedGeometryEntityId) &&
-            Boolean(selectedGeometry);
-          const nextNode: InitialGeometryFlowNode = {
-            ...node,
-            draggable: false,
-            data: {
-              ...node.data,
-              graphMode: "view",
-              displayLabel:
-                selectedGeometry?.name ??
-                node.data.selectedGeometryDisplayName ??
-                "Select geometry",
-              displaySublabel: node.data.targetFieldName,
-              icon: selectedGeometry?.icon,
-              iconScale: selectedGeometry?.iconScale,
-              pickId: node.data.sourceEdgeId,
-              status: complete ? "complete" : "incomplete",
-              validationStatus: complete ? "complete" : "incomplete",
-              onPick: setPickingGeometryEdgeId,
-            },
-          };
-          return nextNode;
-        }
-
-        const completion = analysis.stepCompletion.get(node.data.stepRefId) ?? {
-          complete: false,
-          blockingFieldName: null,
-        };
-        const terminalPreviewVisible = isTerminalFinalPreviewVisible(node, edges);
-        const terminalPreviewAvailability = getTerminalFinalPreviewAvailability(
-          node,
-          analysis,
-          selectedTemplate,
-        );
-        const terminalSourceLabel = stepDisplayLabel(node);
-        const nextNode: ProcessStepFlowNode = {
-          ...node,
-          draggable: false,
-          data: {
-            ...node.data,
-            graphMode: "view",
-            displayLabel: stepDisplayLabel(node),
-            displaySublabel: node.data.template.name,
-            editId: node.data.stepRefId,
-            status: completion.complete ? "complete" : "incomplete",
-            validationStatus: completion.complete ? "complete" : "incomplete",
-            blockingFieldName: completion.blockingFieldName,
-            onEdit: setEditingStepRefId,
-            terminalGeometryViewVisible: terminalPreviewVisible,
-            terminalGeometryViewDisabled: !terminalPreviewAvailability.enabled,
-            terminalGeometryViewTitle: terminalPreviewAvailability.enabled
-              ? "Preview final geometry state"
-              : terminalPreviewAvailability.reason,
-            onTerminalGeometryView: () =>
-              selectedTemplate
-                ? setGeometryPreview({
-                    previewId: `final:${node.data.stepRefId}`,
-                    sourceLabel: terminalSourceLabel,
-                    slotLabel: "F",
-                    sourceKind: "stepOutput",
-                    request: {
-                      target: {
-                        type: "stepOutput",
-                        stepRefId: node.data.stepRefId,
-                      },
-                      sourceLabel: terminalSourceLabel,
-                      flowTemplate: selectedTemplate,
-                      draftInstance: buildDraftInstanceForPreview(
-                        selectedTemplate,
-                        nodes,
-                        productInstanceName,
-                      ),
-                      geometries,
-                      processStepTemplates: stepTemplates,
-                    },
-                  })
-                : undefined,
-          },
-        };
-        return nextNode;
-      }),
-    [
-      analysis,
-      edges,
-      geometries,
-      nodes,
-      productInstanceName,
-      selectedTemplate,
-      stepTemplates,
-    ],
-  );
-
-  const displayEdges = React.useMemo<FlowEdge[]>(
-    () =>
-      edges.map((edge) => {
-        const targetNode = findProcessNodeById(nodes, edge.target);
-        const sourceNode = nodes.find((node) => node.id === edge.source);
-        const targetField = targetNode?.data.geometryInputFields.find(
-          (field) => field.id === edge.data?.targetFieldId,
-        );
-        const sourceLabel = sourceNode ? sourceLabelForNode(sourceNode) : "Unknown";
-        const availability = getPreviewAvailability(
-          edge,
-          nodes,
-          geometries,
-          analysis,
-          selectedTemplate,
-        );
-        const sourceKind = edge.data?.sourceType ?? "geometryRef";
-        const nextEdge: FlowEdge = {
-          ...edge,
-          reconnectable: false,
-          focusable: false,
-          data: {
-            sourceType: sourceKind,
-            sourceStepRefId: edge.data?.sourceStepRefId,
-            sourceEdgeId: edge.data?.sourceEdgeId,
-            targetStepRefId: edge.data?.targetStepRefId ?? "",
-            targetFieldId: edge.data?.targetFieldId ?? "",
-            slotLabel: targetField?.name || edge.data?.targetFieldId || "slot",
-            sourceLabel,
-            graphMode: "view",
-            readonlyTopology: true,
-            geometryViewVisible: true,
-            geometryViewDisabled: !availability.enabled,
-            geometryViewTitle: availability.enabled
-              ? "Preview geometry state"
-              : availability.reason,
-            onGeometryView: () =>
-              selectedTemplate
-                ? setGeometryPreview({
-                    previewId: edge.id,
-                    sourceLabel,
-                    slotLabel: targetField?.name || edge.data?.targetFieldId || "slot",
-                    sourceKind,
-                    request: {
-                      target: { type: "edge", previewEdgeId: edge.id },
-                      sourceLabel,
-                      flowTemplate: selectedTemplate,
-                      draftInstance: buildDraftInstanceForPreview(
-                        selectedTemplate,
-                        nodes,
-                        productInstanceName,
-                      ),
-                      geometries,
-                      processStepTemplates: stepTemplates,
-                    },
-                  })
-                : undefined,
-          },
-        };
-        return nextEdge;
-      }),
-    [
-      analysis,
-      edges,
-      geometries,
-      nodes,
-      productInstanceName,
-      selectedTemplate,
-      stepTemplates,
-    ],
-  );
-
-  const editingStepNode = React.useMemo(
-    () => findProcessNodeByStepRef(nodes, editingStepRefId),
-    [editingStepRefId, nodes],
-  );
-
-  const pickingGeometryNode = React.useMemo(
-    () =>
-      nodes.find(
-        (node): node is InitialGeometryFlowNode =>
-          isInitialGeometryNode(node) &&
-          node.data.sourceEdgeId === pickingGeometryEdgeId,
-      ) ?? null,
-    [nodes, pickingGeometryEdgeId],
-  );
-
-  React.useEffect(() => {
-    if (!selectedTemplateId || nodes.length === 0) {
-      return;
-    }
-    const frame = window.requestAnimationFrame(() => {
-      reactFlow.fitView({ padding: 0.26, duration: 220 });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [nodes.length, reactFlow, selectedTemplateId]);
-
-  function clearDraft() {
-    setSelectedTemplateId(null);
-    setProductInstanceName("");
-    setNodes([]);
-    setEdges([]);
-    setEditingStepRefId(null);
-    setPickingGeometryEdgeId(null);
-    setGeometryPreview(null);
-  }
-
-  function cancelDraft() {
-    clearDraft();
-    router.push("/");
-  }
-
-  function requestTemplateChange(nextTemplateId: string) {
-    if (nextTemplateId === (selectedTemplateId ?? "")) {
-      return;
-    }
-
-    if (
-      hasDraftContent &&
-      !window.confirm(
-        "Switching process flow template will discard the current draft values.",
-      )
-    ) {
-      return;
-    }
-
-    if (!nextTemplateId) {
-      clearDraft();
-      return;
-    }
-
-    const template = templates.find((item) => item.id === nextTemplateId);
-    if (!template) {
-      return;
-    }
-
-    const draft = buildDraftFromTemplate(template, stepTemplates);
-    setSelectedTemplateId(template.id);
-    setProductInstanceName("");
-    setNodes(draft.nodes);
-    setEdges(draft.edges);
-    setEditingStepRefId(null);
-    setPickingGeometryEdgeId(null);
-    setGeometryPreview(null);
-  }
-
-  function updateStepFieldValue(stepRefId: string, fieldId: string, value: unknown) {
-    setNodes((currentNodes) =>
-      currentNodes.map((node) => {
-        if (!isProcessStepNode(node) || node.data.stepRefId !== stepRefId) {
-          return node;
-        }
-        const nextNode: ProcessStepFlowNode = {
-          ...node,
-          data: {
-            ...node.data,
-            fieldValues: updateFieldValue(node.data.fieldValues, fieldId, value),
-          },
-        };
-        return nextNode;
-      }),
-    );
-  }
-
-  function updateRepeaterFieldValue(
-    stepRefId: string,
-    field: FieldDefinition,
-    updater: (current: RepeatableGroupValue) => RepeatableGroupValue,
-  ) {
-    const node = findProcessNodeByStepRef(nodes, stepRefId);
-    const currentValue = getFieldValue(node?.data.fieldValues ?? [], field.id);
-    const baseValue: RepeatableGroupValue = isRepeatableGroupValue(currentValue)
-      ? currentValue
-      : (createDefaultFieldValue(field).value as RepeatableGroupValue);
-    updateStepFieldValue(stepRefId, field.id, updater(clone(baseValue)));
-  }
-
-  function selectGeometryForEdge(edgeId: string, geometryId: string) {
-    const geometry = geometries.find((item) => item.id === geometryId);
-    const edge = edges.find((candidate) => candidate.id === edgeId);
-    if (!geometry || !edge?.data) {
-      return;
-    }
-
-    setNodes((currentNodes) =>
-      currentNodes.map((node) => {
-        if (
-          isInitialGeometryNode(node) &&
-          node.data.sourceEdgeId === edgeId
-        ) {
-          const nextNode: InitialGeometryFlowNode = {
-            ...node,
-            data: {
-              ...node.data,
-              selectedGeometryEntityId: geometry.id,
-              selectedGeometryDisplayName: geometry.name,
-            },
-          };
-          return nextNode;
-        }
-
-        if (
-          isProcessStepNode(node) &&
-          node.data.stepRefId === edge.data?.targetStepRefId
-        ) {
-          const nextNode: ProcessStepFlowNode = {
-            ...node,
-            data: {
-              ...node.data,
-              fieldValues: updateFieldValue(
-                node.data.fieldValues,
-                edge.data.targetFieldId,
-                geometry.id,
-              ),
-            },
-          };
-          return nextNode;
-        }
-
-        return node;
-      }),
-    );
-    setPickingGeometryEdgeId(null);
-  }
-
-  async function saveInstance() {
-    if (!analysis.canSave || !selectedTemplate) {
-      return;
-    }
-
-    const processFlowInstance: ProcessFlowInstance = {
-      id: window.crypto.randomUUID(),
-      name: productInstanceName.trim(),
-      processFlowTemplateId: selectedTemplate.id,
-      stepValueSets: selectedTemplate.stepRefs.map((stepRef) => {
-        const node = findProcessNodeByStepRef(nodes, stepRef.stepRefId);
-        return {
-          stepRefId: stepRef.stepRefId,
-          processStepTemplateId: stepRef.processStepTemplateId,
-          fieldValues: node
-            ? normalizeFieldValuesForSave(node, selectedTemplate, nodes)
-            : [],
-        };
-      }),
-    };
-
-    await createProcessFlowInstance(processFlowInstance);
-    router.push("/");
-  }
-
-  if (!hydrated) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        Loading flow instance editor...
-      </main>
-    );
-  }
+  const statusText = !selectedTemplate
+    ? "Select a process flow template."
+    : committed
+      ? `Workspace committed as ${workspace?.committedInstanceId}.`
+      : dirty
+        ? "Workspace has unsaved changes."
+        : duplicateInstanceId
+          ? "Instance id already exists."
+        : !configurationComplete
+          ? "Draft saved; configuration is incomplete."
+          : !instanceIdentity.id.trim() || !instanceIdentity.name.trim()
+            ? "Configuration is complete; enter immutable instance identity."
+            : "Workspace is ready to commit.";
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-background text-foreground">
@@ -587,10 +479,8 @@ function ProcessFlowInstanceEditorInner() {
             <p className="mt-1 text-sm text-muted-foreground">
               Create a product instance from an immutable flow template.
             </p>
-            {apiError ? (
-              <p className="mt-1 text-sm text-destructive">{apiError}</p>
-            ) : null}
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
               <Link href="/">
@@ -598,38 +488,54 @@ function ProcessFlowInstanceEditorInner() {
                 Home
               </Link>
             </Button>
-            <Button variant="outline" onClick={cancelDraft}>
-              <RotateCcw />
-              Cancel
+            <Button variant="outline" disabled={busyAction !== null} onClick={startNew}>
+              <GitBranch />
+              New
             </Button>
-            <Button disabled={!analysis.canSave} onClick={() => void saveInstance()}>
+            {workspace && !committed ? (
+              <Button
+                variant="outline"
+                disabled={busyAction !== null}
+                title="Reload saved revision"
+                onClick={() => void reloadWorkspace()}
+              >
+                <RefreshCw />
+                Reload
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              disabled={!canSaveDraft}
+              onClick={() => void saveDraft()}
+            >
               <Save />
-              Save
+              Save Draft
+            </Button>
+            <Button disabled={!canCommit} onClick={() => void commitWorkspace()}>
+              <Check />
+              Commit Instance
             </Button>
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 items-end gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(260px,1fr)]">
-          <FormField label="Product / instance name" required>
+        <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(200px,1fr)_minmax(260px,1.2fr)_minmax(200px,1fr)_minmax(200px,1fr)_minmax(220px,1fr)]">
+          <FormField label="Workspace name" required>
             <input
               className={inputClass}
-              value={productInstanceName}
-              onChange={(event) => setProductInstanceName(event.target.value)}
-              placeholder="Example: TV42 HBM4 qualification build"
+              value={workspaceName}
+              disabled={!selectedTemplate || committed}
+              onChange={(event) => updateWorkspaceName(event.target.value)}
             />
           </FormField>
-
-          <FormField label="Process flow template">
+          <FormField label="Process flow template" required>
             <select
               className={selectClass}
-              value={selectedTemplateId ?? ""}
-              disabled={templates.length === 0}
-              onChange={(event) => requestTemplateChange(event.target.value)}
+              value={selectedTemplateId}
+              disabled={Boolean(workspace) || committed || busyAction !== null}
+              onChange={(event) => selectTemplate(event.target.value)}
             >
               <option value="">
-                {templates.length === 0
-                  ? "No process flow templates"
-                  : "Select template"}
+                {templates.length === 0 ? "No process flow templates" : "Select template"}
               </option>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
@@ -638,77 +544,77 @@ function ProcessFlowInstanceEditorInner() {
               ))}
             </select>
           </FormField>
-
-          <div className="min-w-0 rounded-md border bg-muted/30 px-3 py-2">
-            {selectedTemplate ? (
-              <>
-                <div className="truncate text-sm font-medium">
-                  {selectedTemplate.name}
-                </div>
-                <div className="mt-1 truncate text-xs text-muted-foreground">
-                  version {selectedTemplate.version}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-sm font-medium">No template selected</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Choose a template to build a draft instance.
-                </div>
-              </>
-            )}
+          <FormField label="Instance name">
+            <input
+              className={inputClass}
+              value={instanceIdentity.name}
+              disabled={!workspace || committed}
+              onChange={(event) =>
+                setInstanceIdentity((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+            />
+          </FormField>
+          <FormField label="Instance id">
+            <input
+              className={inputClass}
+              value={instanceIdentity.id}
+              disabled={!workspace || committed}
+              onChange={(event) =>
+                setInstanceIdentity((current) => ({
+                  ...current,
+                  id: event.target.value,
+                }))
+              }
+            />
+          </FormField>
+          <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm">
+            <Badge variant={committed ? "signal" : "outline"}>
+              {committed ? "committed" : "draft"}
+            </Badge>
+            <span className="truncate font-mono text-xs">
+              {workspace ? `${workspace.id} / r${workspace.revision}` : "Unsaved workspace"}
+            </span>
           </div>
         </div>
       </header>
 
-      <section className="shrink-0 border-b bg-background px-5 py-2">
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Badge variant={selectedTemplate ? "signal" : "outline"}>
-            {selectedTemplate ? "template selected" : "template not selected"}
-          </Badge>
-          <Badge variant="outline">flow steps {analysis.flowStepCount}</Badge>
-          <Badge variant="outline">
-            initial geometries {analysis.initialGeometryCompleteCount}/
-            {analysis.initialGeometryCount}
-          </Badge>
-          <Badge variant="outline">
-            steps complete {analysis.completeStepCount}/{analysis.flowStepCount}
-          </Badge>
-          <span
-            className={cn(
-              "min-w-0 basis-full truncate sm:basis-auto sm:flex-1",
-              analysis.canSave ? "text-emerald-700" : "text-muted-foreground",
-            )}
-          >
-            {analysis.validationMessage}
-          </span>
-        </div>
-      </section>
+      <div
+        className={cn(
+          "flex min-h-9 items-center gap-2 border-b px-4 py-2 text-sm",
+          message?.kind === "error"
+            ? "border-destructive/30 bg-destructive/5 text-destructive"
+            : message?.kind === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "bg-muted/25 text-muted-foreground",
+        )}
+      >
+        {message?.kind === "success" ? <Check className="h-4 w-4" /> : <CircleDot className="h-4 w-4" />}
+        <span className="truncate">{message?.text ?? statusText}</span>
+      </div>
 
-      <ProcessFlowGraph<FlowNode, FlowEdge>
+      <ProcessFlowGraph
         mode="view"
-        nodes={displayNodes}
-        edges={displayEdges}
+        nodes={graph.nodes}
+        edges={graph.edges}
+        className="min-h-0 flex-1"
+        fitView
         edgesReconnectable={false}
         elementsSelectable
         panOnScroll
         minZoom={0.28}
         maxZoom={1.45}
+        showMiniMap={graph.nodes.length > 0}
         defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-        showMiniMap={displayNodes.length > 0}
-        miniMapNodeColor={(node) =>
-          node.data.nodeKind === "initialGeometry" ? "#f59e0b" : "#0891b2"
-        }
         onNodeClick={(_, node) => {
-          if (node.data.nodeKind === "initialGeometry") {
-            setPickingGeometryEdgeId(node.data.sourceEdgeId);
-          }
-          if (node.data.nodeKind === "processStep") {
-            setEditingStepRefId(node.data.stepRefId);
-          }
+          setSelectedNodeId(node.id);
+          setEditingNodeId(node.id);
         }}
+        onPaneClick={() => setSelectedNodeId(null)}
         emptyState={
-          displayNodes.length === 0 ? (
+          !selectedTemplate ? (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="max-w-md rounded-md border border-dashed bg-white/90 px-5 py-4 text-center shadow-sm">
                 <Layers3 className="mx-auto h-6 w-6 text-primary" />
@@ -722,41 +628,49 @@ function ProcessFlowInstanceEditorInner() {
         }
       />
 
-      {editingStepNode ? (
-        <StepInstanceDialog
-          node={editingStepNode}
-          nodes={nodes}
-          edges={edges}
-          analysis={analysis}
-          onClose={() => setEditingStepRefId(null)}
-          onFieldChange={(fieldId, value) =>
-            updateStepFieldValue(editingStepNode.data.stepRefId, fieldId, value)
-          }
-          onRepeaterChange={(field, updater) =>
-            updateRepeaterFieldValue(
-              editingStepNode.data.stepRefId,
-              field,
-              updater,
-            )
-          }
-        />
-      ) : null}
-
-      {pickingGeometryNode ? (
-        <GeometryPickerDialog
-          node={pickingGeometryNode}
+      {editingNode ? (
+        <InstanceNodeEditorDialog
+          node={editingNode}
+          configuration={configuration}
           geometries={geometries}
-          onClose={() => setPickingGeometryEdgeId(null)}
-          onSelect={(geometryId) =>
-            selectGeometryForEdge(pickingGeometryNode.data.sourceEdgeId, geometryId)
+          disabled={committed}
+          onClose={() => setEditingNodeId(null)}
+          onPick={() =>
+            isFlowInputNode(editingNode) &&
+            setPickerFlowInputId(editingNode.data.definition.flowInputId)
+          }
+          onClear={() =>
+            isFlowInputNode(editingNode) &&
+            updateInputBinding(editingNode.data.definition.flowInputId, null)
+          }
+          onPreview={() =>
+            isFlowInputNode(editingNode) && openInputPreview(editingNode.data.definition)
+          }
+          onStepChange={(values) =>
+            isStepNode(editingNode) &&
+            updateStepValues(editingNode.data.stepRef.stepRefId, values)
           }
         />
       ) : null}
 
-      {geometryPreview ? (
+      {pickerInput ? (
+        <GeometryPickerDialog
+          flowInput={pickerInput}
+          selectedGeometry={geometryForFlowInput(
+            configuration,
+            pickerInput.flowInputId,
+            geometries,
+          )}
+          geometries={geometries}
+          onClose={() => setPickerFlowInputId(null)}
+          onSelect={(geometryId) => updateInputBinding(pickerInput.flowInputId, geometryId)}
+        />
+      ) : null}
+
+      {preview ? (
         <GeometryPreviewPanel
-          preview={geometryPreview}
-          onClose={() => setGeometryPreview(null)}
+          preview={preview}
+          onClose={() => setPreview(null)}
           onFileExportJobCreated={handleFileExportJobCreated}
         />
       ) : null}
@@ -769,226 +683,420 @@ function ProcessFlowInstanceEditorInner() {
   );
 }
 
-function StepInstanceDialog({
-  node,
-  nodes,
-  edges,
-  analysis,
-  onClose,
-  onFieldChange,
-  onRepeaterChange,
-}: {
-  node: ProcessStepFlowNode;
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  analysis: InstanceAnalysis;
-  onClose: () => void;
-  onFieldChange: (fieldId: string, value: unknown) => void;
-  onRepeaterChange: (
-    field: FieldDefinition,
-    updater: (current: RepeatableGroupValue) => RepeatableGroupValue,
-  ) => void;
-}) {
-  const completion = analysis.stepCompletion.get(node.data.stepRefId) ?? {
-    complete: false,
-    blockingFieldName: null,
-  };
-  const incomingEdges = edges.filter((edge) => edge.target === node.id);
-  const label = stepDisplayLabel(node);
+function graphForInstance(
+  template: ProcessFlowTemplate,
+  stepTemplates: ProcessStepTemplate[],
+  configuration: FlowConfiguration,
+  geometries: GeometryEntity[],
+  selectedNodeId: string | null,
+  committed: boolean,
+  onSelectStep: (nodeId: string) => void,
+  onPickInput: (flowInputId: string) => void,
+  onPreviewStep: (node: StepNode) => void,
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  const layout = computeTemplateLayout(template);
+  const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
+  const flowInputNodes = new Map<string, FlowInputNode>();
+  const stepNodes = new Map<string, StepNode>();
 
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
+  template.flowInputs.forEach((definition) => {
+    const geometry = geometryForFlowInput(configuration, definition.flowInputId, geometries);
+    const nodeId = flowInputNodeId(definition.flowInputId);
+    flowInputNodes.set(definition.flowInputId, {
+      id: nodeId,
+      type: "flowInput",
+      position: layout.flowInputPositions.get(definition.flowInputId) ?? { x: 40, y: 100 },
+      draggable: false,
+      selected: nodeId === selectedNodeId,
+      data: {
+        nodeKind: "flowInput",
+        definition,
+        graphMode: "view",
+        displayLabel: definition.name,
+        displaySublabel: geometry?.name ?? definition.flowInputId,
+        icon: geometry?.icon,
+        iconScale: geometry?.iconScale,
+        pickId: definition.flowInputId,
+        status: geometry ? "complete" : "incomplete",
+        statusLabel: geometry
+          ? geometry.id
+            ? "Catalog"
+            : "Embedded"
+          : isFlowInputBindingRequired(template, stepTemplates, definition.flowInputId)
+            ? "Required"
+            : "Optional",
+        onPick: committed ? undefined : onPickInput,
+      },
+    });
+  });
+
+  template.stepRefs.forEach((stepRef) => {
+    const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
+    if (!stepTemplate) return;
+    const values = configuration.stepConfigurations[stepRef.stepRefId]?.parameterValues ?? {};
+    const complete = stepTemplate.parameterDefinitions.every((parameter) =>
+      isParameterValueComplete(parameter, values[parameter.id]),
+    );
+    const nodeId = stepNodeId(stepRef.stepRefId);
+    const node: StepNode = {
+      id: nodeId,
+      type: "processStep",
+      position: layout.stepPositions.get(stepRef.stepRefId) ?? { x: 360, y: 100 },
+      draggable: false,
+      selected: nodeId === selectedNodeId,
+      data: {
+        nodeKind: "processStep",
+        stepRef,
+        stepTemplate,
+        graphMode: "view",
+        displayLabel: stepLabel(stepRef, stepTemplate),
+        displaySublabel: stepTemplate.name,
+        editId: nodeId,
+        stepRefId: stepRef.stepRefId,
+        template: stepTemplate,
+        geometryInputPorts: stepTemplate.inputPorts.map((port) => ({
+          id: port.portId,
+          name: port.name,
+        })),
+        outputPortId: "result_geometry",
+        status: complete ? "complete" : "incomplete",
+        statusLabel: complete ? "Ready" : "Parameters",
+        onEdit: onSelectStep,
+      },
     };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    stepNodes.set(stepRef.stepRefId, node);
+  });
+
+  const nodes: FlowNode[] = [...flowInputNodes.values(), ...stepNodes.values()];
+  const edges: FlowEdge[] = template.flowEdges.flatMap((savedEdge) => {
+    const sourceNode =
+      savedEdge.source.kind === "flowInput"
+        ? flowInputNodes.get(savedEdge.source.flowInputId)
+        : stepNodes.get(savedEdge.source.stepRefId);
+    const targetNode = stepNodes.get(savedEdge.target.stepRefId);
+    if (!sourceNode || !targetNode) return [];
+    const sourceStep = isStepNode(sourceNode) ? sourceNode : null;
+    const targetPort = targetNode.data.stepTemplate.inputPorts.find(
+      (port) => port.portId === savedEdge.target.inputPortId,
+    );
+    const previewReady = sourceStep
+      ? isStepPreviewReady(
+          sourceStep.data.stepRef.stepRefId,
+          template,
+          stepTemplates,
+          configuration,
+          geometries,
+        )
+      : false;
+    return [
+      {
+        id: savedEdge.edgeId,
+        type: "dataFlow",
+        source: sourceNode.id,
+        target: targetNode.id,
+        sourceHandle:
+          savedEdge.source.kind === "flowInput" ? "out" : savedEdge.source.outputPortId,
+        targetHandle: savedEdge.target.inputPortId,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        data: {
+          sourceKind: savedEdge.source.kind,
+          targetStepRefId: savedEdge.target.stepRefId,
+          targetInputPortId: savedEdge.target.inputPortId,
+          slotLabel: targetPort?.name ?? savedEdge.target.inputPortId,
+          sourceLabel: isFlowInputNode(sourceNode)
+            ? sourceNode.data.definition.name
+            : stepLabel(sourceNode.data.stepRef, sourceNode.data.stepTemplate),
+          graphMode: "view",
+          geometryViewVisible: Boolean(sourceStep),
+          geometryViewDisabled: !previewReady,
+          geometryViewTitle: previewReady
+            ? "Preview geometry at this edge"
+            : "Complete upstream configuration to preview",
+          onGeometryView: sourceStep ? () => onPreviewStep(sourceStep) : undefined,
+        },
+      },
+    ];
+  });
+
+  stepNodes.forEach((node) => {
+    const terminal = !template.flowEdges.some(
+      (edge) =>
+        edge.source.kind === "stepOutput" &&
+        edge.source.stepRefId === node.data.stepRef.stepRefId,
+    );
+    const previewReady = isStepPreviewReady(
+      node.data.stepRef.stepRefId,
+      template,
+      stepTemplates,
+      configuration,
+      geometries,
+    );
+    node.data = {
+      ...node.data,
+      terminalGeometryViewVisible: terminal,
+      terminalGeometryViewDisabled: !previewReady,
+      terminalGeometryViewTitle: previewReady
+        ? "Preview final geometry"
+        : "Complete upstream configuration to preview",
+      onTerminalGeometryView: () => onPreviewStep(node),
+    };
+  });
+
+  return { nodes, edges };
+}
+
+function InstanceNodeEditorDialog({
+  node,
+  configuration,
+  geometries,
+  disabled,
+  onClose,
+  onPick,
+  onClear,
+  onPreview,
+  onStepChange,
+}: {
+  node: FlowNode;
+  configuration: FlowConfiguration;
+  geometries: GeometryEntity[];
+  disabled: boolean;
+  onClose: () => void;
+  onPick: () => void;
+  onClear: () => void;
+  onPreview: () => void;
+  onStepChange: (values: Record<string, unknown>) => void;
+}) {
+  React.useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
   }, [onClose]);
+
+  const title = isFlowInputNode(node)
+    ? node.data.definition.name
+    : stepLabel(node.data.stepRef, node.data.stepTemplate);
+  const subtitle = isFlowInputNode(node)
+    ? node.data.definition.flowInputId
+    : node.data.stepTemplate.name;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 cursor-default bg-foreground/40"
-        onClick={onClose}
-      />
-      <section
-        className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(960px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="shrink-0 border-b bg-white px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="truncate text-lg font-semibold">
-                {label}
-              </h2>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span className="max-w-[280px] truncate">
-                  {node.data.template.name}
-                </span>
-                <Badge variant="signal">from template</Badge>
-                <Badge variant={completion.complete ? "signal" : "outline"}>
-                  {completion.complete ? "Complete" : "Incomplete"}
-                </Badge>
-              </div>
+      <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
+      <section className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(920px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
+        <header className="flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold">{title}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span className="truncate">{subtitle}</span>
+              <Badge variant="outline">
+                {isFlowInputNode(node) ? "flow input" : "process step"}
+              </Badge>
+              {disabled ? <Badge variant="signal">committed</Badge> : null}
             </div>
-            <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
-              <X />
-            </Button>
           </div>
+          <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
+            <X />
+          </Button>
         </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          <section className="mb-5 rounded-md border bg-white">
-            <div className="border-b px-4 py-3 text-sm font-semibold">
-              Input mapping
-            </div>
-            <div className="divide-y">
-              {node.data.geometryInputFields.map((field) => {
-                const edge = incomingEdges.find(
-                  (candidate) => candidate.targetHandle === field.id,
-                );
-                const fieldValue = getFieldValue(node.data.fieldValues, field.id);
-                const sourceNode = edge
-                  ? nodes.find((candidate) => candidate.id === edge.source)
-                  : null;
-                const edgeData = edge ? getFlowEdgeData(edge) : null;
-                const isStepOutput = edgeData?.sourceType === "stepOutput";
-                const mappedLabel = sourceNode
-                  ? sourceLabelForNode(sourceNode)
-                  : "Missing source";
-
-                return (
-                  <div
-                    key={field.id}
-                    className="grid grid-cols-[180px_1fr] items-center gap-3 px-4 py-3 text-sm max-md:grid-cols-1"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{field.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {field.id}
-                      </div>
-                    </div>
-                    <div
-                      className={cn(
-                        "min-w-0 rounded-md border px-3 py-2",
-                        edge ? "bg-muted/30" : "bg-destructive/5",
-                      )}
-                    >
-                      <div className="truncate">
-                        {edge ? `${field.name} <- ${mappedLabel}` : "No incoming edge"}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {isStepOutput
-                          ? "Graph-provided input, saved FieldValue.value is null."
-                          : `Saved FieldValue.value is ${formatReadonlyValue(fieldValue)}.`}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="rounded-md border bg-white">
-            <div className="border-b px-4 py-3 text-sm font-semibold">
-              Step values
-            </div>
-            <div className="divide-y">
-              {node.data.template.fieldDefinitions.map((field) => {
-                if (isGeometryField(field)) {
-                  return null;
-                }
-                const fieldValue = getFieldValue(node.data.fieldValues, field.id);
-                return (
-                  <FieldValueEditor
-                    key={field.id}
-                    field={field}
-                    value={fieldValue}
-                    onChange={(value) => onFieldChange(field.id, value)}
-                    onRepeaterChange={(updater) =>
-                      onRepeaterChange(field, updater)
-                    }
-                  />
-                );
-              })}
-            </div>
-          </section>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {isFlowInputNode(node) ? (
+            <FlowInputInspector
+              node={node}
+              configuration={configuration}
+              geometries={geometries}
+              disabled={disabled}
+              onPick={onPick}
+              onClear={onClear}
+              onPreview={onPreview}
+            />
+          ) : (
+            <StepInspector
+              node={node}
+              configuration={configuration}
+              disabled={disabled}
+              onChange={onStepChange}
+            />
+          )}
         </div>
       </section>
     </div>
   );
 }
 
-function GeometryPickerDialog({
+function FlowInputInspector({
   node,
+  configuration,
+  geometries,
+  disabled,
+  onPick,
+  onClear,
+  onPreview,
+}: {
+  node: FlowInputNode;
+  configuration: FlowConfiguration;
+  geometries: GeometryEntity[];
+  disabled: boolean;
+  onPick: () => void;
+  onClear: () => void;
+  onPreview: () => void;
+}) {
+  const definition = node.data.definition;
+  const geometry = geometryForFlowInput(configuration, definition.flowInputId, geometries);
+  return (
+    <section className="p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold">Flow Input</div>
+          <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+            {definition.flowInputId}
+          </div>
+        </div>
+        <Badge variant={geometry ? "signal" : "outline"}>
+          {geometry ? "Bound" : node.data.statusLabel ?? "Optional"}
+        </Badge>
+      </div>
+      <div className="rounded-md border bg-muted/20 p-3">
+        <div className="truncate text-sm font-medium">{geometry?.name ?? "No geometry"}</div>
+        <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
+          {geometry?.id ?? definition.name}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" disabled={disabled} onClick={onPick}>
+          <Box />
+          Select
+        </Button>
+        <Button variant="outline" size="sm" disabled={!geometry} onClick={onPreview}>
+          <Eye />
+          Preview
+        </Button>
+        <Button variant="ghost" size="sm" disabled={disabled || !geometry} onClick={onClear}>
+          <X />
+          Clear
+        </Button>
+      </div>
+      {definition.description ? (
+        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+          {definition.description}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function StepInspector({
+  node,
+  configuration,
+  disabled,
+  onChange,
+}: {
+  node: StepNode;
+  configuration: FlowConfiguration;
+  disabled: boolean;
+  onChange: (values: Record<string, unknown>) => void;
+}) {
+  const values =
+    configuration.stepConfigurations[node.data.stepRef.stepRefId]?.parameterValues ?? {};
+  return (
+    <section className="p-4">
+      <div className="mb-4">
+        <div className="text-sm font-semibold">
+          {stepLabel(node.data.stepRef, node.data.stepTemplate)}
+        </div>
+        <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+          {node.data.stepRef.stepRefId} / {node.data.stepTemplate.id}
+        </div>
+      </div>
+      <ParameterValueEditor
+        definitions={node.data.stepTemplate.parameterDefinitions}
+        values={values}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    </section>
+  );
+}
+
+function GeometryPickerDialog({
+  flowInput,
+  selectedGeometry,
   geometries,
   onClose,
   onSelect,
 }: {
-  node: InitialGeometryFlowNode;
+  flowInput: FlowInputDefinition;
+  selectedGeometry: ReturnType<typeof geometryForFlowInput>;
   geometries: GeometryEntity[];
   onClose: () => void;
   onSelect: (geometryId: string) => void;
 }) {
   const [query, setQuery] = React.useState("");
   const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
+  const matchingGeometries = geometries.filter((geometry) =>
+    geometryMatchesConstraints(geometry, flowInput),
+  );
 
   React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 cursor-default bg-foreground/40"
-        onClick={onClose}
-      />
-      <section
-        className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="shrink-0 border-b bg-white px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold">Geometry picker</h2>
-              <div className="mt-1 truncate text-sm text-muted-foreground">
-                {node.data.targetStepLabel} / {node.data.targetFieldName}
-              </div>
-            </div>
-            <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
-              <X />
-            </Button>
+      <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
+      <section className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(820px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
+        <header className="flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Geometry Catalog</h2>
+            <div className="mt-1 text-sm text-muted-foreground">{flowInput.name}</div>
           </div>
+          <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
+            <X />
+          </Button>
         </header>
-
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <CategoryLibraryBrowser
-            items={geometries}
+            items={matchingGeometries}
             path={categoryPath}
             search={query}
             searchPlaceholder="Search geometry"
-            emptyLabel="No geometry entities from API."
-            noSearchResultsLabel="No geometry matched the search."
-            noCategoryItemsLabel="No geometry in this category."
-            getSearchText={geometrySearchText}
+            emptyLabel="No matching geometry"
+            noSearchResultsLabel="No geometry matched the search"
+            noCategoryItemsLabel="No geometry in this category"
+            getSearchText={(geometry) =>
+              [geometry.name, geometry.id, geometry.category, geometry.entityType].join(" ")
+            }
             itemKey={(geometry) => geometry.id}
             itemListClassName="grid gap-2 md:grid-cols-2"
             renderItem={(geometry, { showCategoryPath }) => (
-              <GeometryPickerItem
-                geometry={geometry}
-                selected={node.data.selectedGeometryEntityId === geometry.id}
-                showCategoryPath={showCategoryPath}
-                onSelect={() => onSelect(geometry.id)}
-              />
+              <button
+                type="button"
+                className={cn(
+                  "rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary hover:bg-muted/20",
+                  selectedGeometry?.id === geometry.id &&
+                    "border-primary ring-2 ring-primary/20",
+                )}
+                onClick={() => onSelect(geometry.id)}
+              >
+                <div className="font-medium">{geometry.name}</div>
+                {showCategoryPath ? (
+                  <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                    {formatCategoryPath(geometry.category)}
+                  </div>
+                ) : null}
+                <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+                  {geometry.id}
+                </div>
+                <div className="mt-2 flex gap-1">
+                  <Badge variant="outline">{geometry.entityType}</Badge>
+                  <Badge variant="outline">{geometry.version}</Badge>
+                </div>
+              </button>
             )}
             onPathChange={setCategoryPath}
             onSearchChange={setQuery}
@@ -996,327 +1104,6 @@ function GeometryPickerDialog({
         </div>
       </section>
     </div>
-  );
-}
-
-function GeometryPickerItem({
-  geometry,
-  selected,
-  showCategoryPath = false,
-  onSelect,
-}: {
-  geometry: GeometryEntity;
-  selected: boolean;
-  showCategoryPath?: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary hover:bg-muted/20",
-        selected && "border-primary ring-2 ring-primary/20",
-      )}
-      onClick={onSelect}
-    >
-      <div className="font-medium leading-snug">{geometry.name}</div>
-      {showCategoryPath ? (
-        <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-          {formatCategoryPath(geometry.category)}
-        </div>
-      ) : null}
-      <div className="mt-1 text-xs text-muted-foreground">
-        {geometry.version} / {geometry.id}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1">
-        <Badge variant="outline">{geometry.entityType}</Badge>
-      </div>
-      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-        {geometry.description}
-      </p>
-    </button>
-  );
-}
-
-function FieldValueEditor({
-  field,
-  value,
-  onChange,
-  onRepeaterChange,
-}: {
-  field: FieldDefinition;
-  value: unknown;
-  onChange: (value: unknown) => void;
-  onRepeaterChange: (
-    updater: (current: RepeatableGroupValue) => RepeatableGroupValue,
-  ) => void;
-}) {
-  if (field.valueType === "fieldGroupArray" && field.repeatDefinition) {
-    const repeatValue = isRepeatableGroupValue(value)
-      ? value
-      : (createDefaultFieldValue(field).value as RepeatableGroupValue);
-    const minItems = field.repeatDefinition.minItems ?? 0;
-    const maxItems = field.repeatDefinition.maxItems ?? 99;
-
-    return (
-      <div className="px-4 py-4">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <FieldLabel field={field} />
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={repeatValue.items.length <= minItems}
-              onClick={() =>
-                onRepeaterChange((current) => ({
-                  ...current,
-                  items: current.items.slice(0, -1),
-                }))
-              }
-            >
-              <Trash2 />
-              Remove
-            </Button>
-            <Button
-              size="sm"
-              disabled={repeatValue.items.length >= maxItems}
-              onClick={() =>
-                onRepeaterChange((current) => addRepeatItem(current, field))
-              }
-            >
-              <Plus />
-              Add
-            </Button>
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          {repeatValue.items.map((item, itemIndex) => (
-            <div key={item.itemId} className="rounded-md border bg-muted/20 p-3">
-              <div className="mb-3 text-sm font-medium">
-                {formatRepeatItemName(field, item.index)}
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {field.repeatDefinition?.itemFieldDefinitions.map((child) => (
-                  <ChildFieldEditor
-                    key={child.id}
-                    field={child}
-                    value={getFieldValue(item.fieldValues, child.id)}
-                    onChange={(nextValue) =>
-                      onRepeaterChange((current) =>
-                        updateRepeatChildValue(
-                          current,
-                          itemIndex,
-                          child.id,
-                          nextValue,
-                        ),
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1">
-      <FieldLabel field={field} />
-      <PrimitiveControl field={field} value={value} onChange={onChange} />
-    </div>
-  );
-}
-
-function ChildFieldEditor({
-  field,
-  value,
-  onChange,
-}: {
-  field: FieldDefinition;
-  value: unknown;
-  onChange: (value: unknown) => void;
-}) {
-  return (
-    <div className="min-w-0">
-      <FieldLabel field={field} compact />
-      <div className="mt-2">
-        <PrimitiveControl field={field} value={value} onChange={onChange} />
-      </div>
-    </div>
-  );
-}
-
-function FieldLabel({
-  field,
-  compact,
-}: {
-  field: FieldDefinition;
-  compact?: boolean;
-}) {
-  return (
-    <div className="min-w-0">
-      <div className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
-        {field.name}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1 text-xs text-muted-foreground">
-        <span>{field.id}</span>
-        {field.unit ? <span>/ {field.unit}</span> : null}
-      </div>
-      {field.description && !compact ? (
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          {field.description}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function PrimitiveControl({
-  field,
-  value,
-  onChange,
-}: {
-  field: FieldDefinition;
-  value: unknown;
-  onChange: (value: unknown) => void;
-}) {
-  if (field.valueType === "coordinates" || field.controlType === "coordinateList") {
-    return (
-      <CoordinateListControl value={value} unit={field.unit} onChange={onChange} />
-    );
-  }
-
-  if (field.controlType === "select" && field.optionSource?.options) {
-    if (isArrayValueType(field.valueType)) {
-      const selectedValues = Array.isArray(value) ? value.map(String) : [];
-      return (
-        <div className="flex flex-wrap gap-2">
-          {field.optionSource.options.map((option) => {
-            const optionValue = String(option.value);
-            const checked = selectedValues.includes(optionValue);
-            return (
-              <label
-                key={optionValue}
-                className="flex min-w-[140px] items-start gap-2 rounded-md border bg-white px-3 py-2"
-              >
-                <input
-                  className="mt-1"
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(event) => {
-                    const next = event.target.checked
-                      ? [...selectedValues, optionValue]
-                      : selectedValues.filter((item) => item !== optionValue);
-                    onChange(coerceArrayValue(next, field.valueType));
-                  }}
-                />
-                <span>{option.name}</span>
-              </label>
-            );
-          })}
-        </div>
-      );
-    }
-
-    return (
-      <select
-        className={selectClass}
-        value={value === null || value === undefined ? "" : String(value)}
-        onChange={(event) =>
-          onChange(coercePrimitiveValue(event.target.value, field.valueType))
-        }
-      >
-        <option value="">Select value</option>
-        {field.optionSource.options.map((option) => (
-          <option key={String(option.value)} value={String(option.value)}>
-            {option.name}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  if (field.controlType === "checkbox" && field.valueType === "boolean") {
-    return (
-      <label className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-2">
-        <input
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span>{Boolean(value) ? "True" : "False"}</span>
-      </label>
-    );
-  }
-
-  if (field.controlType === "checkbox" && field.optionSource?.options) {
-    const selectedValues = Array.isArray(value) ? value.map(String) : [];
-    return (
-      <div className="flex flex-wrap gap-2">
-        {field.optionSource.options.map((option) => {
-          const optionValue = String(option.value);
-          const checked = selectedValues.includes(optionValue);
-          return (
-            <label
-              key={optionValue}
-              className="flex min-w-[140px] items-start gap-2 rounded-md border bg-white px-3 py-2"
-            >
-              <input
-                className="mt-1"
-                type="checkbox"
-                checked={checked}
-                onChange={(event) => {
-                  const next = event.target.checked
-                    ? [...selectedValues, optionValue]
-                    : selectedValues.filter((item) => item !== optionValue);
-                  onChange(
-                    field.selectionMode === "multiple"
-                      ? coerceArrayValue(next, field.valueType)
-                      : coercePrimitiveValue(optionValue, field.valueType),
-                  );
-                }}
-              />
-              <span>{option.name}</span>
-            </label>
-          );
-        })}
-      </div>
-    );
-  }
-
-  if (isNumericValueType(field.valueType)) {
-    return (
-      <div className="flex items-center gap-2">
-        <input
-          className={inputClass}
-          type="number"
-          step={isIntegerValueType(field.valueType) ? 1 : "any"}
-          value={typeof value === "number" ? value : ""}
-          onChange={(event) =>
-            onChange(
-              event.target.value === ""
-                ? ""
-                : coercePrimitiveValue(event.target.value, field.valueType),
-            )
-          }
-        />
-        {field.unit ? (
-          <span className="shrink-0 text-sm text-muted-foreground">
-            {field.unit}
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <input
-      className={inputClass}
-      value={typeof value === "string" ? value : ""}
-      onChange={(event) => onChange(event.target.value)}
-    />
   );
 }
 
@@ -1330,8 +1117,8 @@ function FormField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <div className="mb-2 text-sm font-medium leading-none">
+    <label className="block min-w-0">
+      <div className="mb-2 text-xs font-medium">
         {label}
         {required ? <span className="ml-1 text-destructive">*</span> : null}
       </div>
@@ -1340,859 +1127,105 @@ function FormField({
   );
 }
 
-function buildDraftFromTemplate(
+function isStepPreviewReady(
+  stepRefId: string,
   template: ProcessFlowTemplate,
   stepTemplates: ProcessStepTemplate[],
-): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const stepTemplateById = new Map(
-    stepTemplates.map((stepTemplate) => [stepTemplate.id, stepTemplate]),
-  );
-  const layout = computeTemplateLayout(template);
-  const processNodes: ProcessStepFlowNode[] = template.stepRefs.flatMap((stepRef) => {
-    const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
-    if (!stepTemplate) {
-      return [];
-    }
-    return [
-      {
-        id: stepNodeId(stepRef.stepRefId),
-        type: "processStep",
-        position: layout.stepPositions.get(stepRef.stepRefId) ?? { x: 320, y: 240 },
-        draggable: false,
-        data: {
-          nodeKind: "processStep",
-          stepRefId: stepRef.stepRefId,
-          stepLabel: normalizeStepLabel(stepRef.stepLabel, stepTemplate.name),
-          processStepTemplateId: stepRef.processStepTemplateId,
-          template: stepTemplate,
-          fieldValues: createInitialFieldValuesForStep(
-            stepTemplate,
-            template,
-            stepRef.stepRefId,
-          ),
-          geometryInputFields: getGeometryInputFields(stepTemplate),
-        },
-      },
-    ];
-  });
-
-  const processNodeIds = new Set(processNodes.map((node) => node.id));
-  const initialNodes: InitialGeometryFlowNode[] = template.flowEdges.flatMap((edge) => {
-    if (edge.source.sourceType !== "geometryRef") {
-      return [];
-    }
-    if (!processNodeIds.has(stepNodeId(edge.target.stepRefId))) {
-      return [];
-    }
-    const targetTemplate = findStepTemplateForStepRef(
-      template,
-      stepTemplates,
-      edge.target.stepRefId,
-    );
-    const targetField = targetTemplate?.fieldDefinitions.find(
-      (field) => field.id === edge.target.targetFieldId,
-    );
-    const targetStepRef = template.stepRefs.find(
-      (stepRef) => stepRef.stepRefId === edge.target.stepRefId,
-    );
-    const targetStepLabel = normalizeStepLabel(
-      targetStepRef?.stepLabel,
-      targetTemplate?.name ?? edge.target.stepRefId,
-    );
-    return [
-      {
-        id: initialNodeId(edge.edgeId),
-        type: "initialGeometry",
-        position: layout.initialPositions.get(edge.edgeId) ?? { x: 40, y: 240 },
-        draggable: false,
-        data: {
-          nodeKind: "initialGeometry",
-          sourceEdgeId: edge.edgeId,
-          targetStepRefId: edge.target.stepRefId,
-          targetStepLabel,
-          targetFieldId: edge.target.targetFieldId,
-          targetFieldName: targetField?.name ?? edge.target.targetFieldId,
-          selectedGeometryEntityId: null,
-          selectedGeometryDisplayName: null,
-        },
-      },
-    ];
-  });
-
-  const allNodeIds = new Set([
-    ...processNodes.map((node) => node.id),
-    ...initialNodes.map((node) => node.id),
-  ]);
-  const flowEdges: FlowEdge[] = template.flowEdges.flatMap((edge) => {
-    const targetNodeId = stepNodeId(edge.target.stepRefId);
-    const sourceNodeId =
-      edge.source.sourceType === "geometryRef"
-        ? initialNodeId(edge.edgeId)
-        : stepNodeId(edge.source.stepRefId);
-    if (!allNodeIds.has(sourceNodeId) || !allNodeIds.has(targetNodeId)) {
-      return [];
-    }
-    const targetTemplate = findStepTemplateForStepRef(
-      template,
-      stepTemplates,
-      edge.target.stepRefId,
-    );
-    const targetField = targetTemplate?.fieldDefinitions.find(
-      (field) => field.id === edge.target.targetFieldId,
-    );
-    return [
-      {
-        id: edge.edgeId,
-        type: "dataFlow",
-        source: sourceNodeId,
-        target: targetNodeId,
-        sourceHandle: "out",
-        targetHandle: edge.target.targetFieldId,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        reconnectable: false,
-        data: {
-          sourceType: edge.source.sourceType,
-          sourceStepRefId:
-            edge.source.sourceType === "stepOutput" ? edge.source.stepRefId : undefined,
-          sourceEdgeId:
-            edge.source.sourceType === "geometryRef" ? edge.edgeId : undefined,
-          targetStepRefId: edge.target.stepRefId,
-          targetFieldId: edge.target.targetFieldId,
-          slotLabel: targetField?.name ?? edge.target.targetFieldId,
-          sourceLabel: "",
-          readonlyTopology: true,
-        },
-      },
-    ];
-  });
-
-  return { nodes: [...initialNodes, ...processNodes], edges: flowEdges };
-}
-
-function analyzeDraft(
-  selectedTemplate: ProcessFlowTemplate | null,
-  productInstanceName: string,
-  nodes: FlowNode[],
-  stepTemplates: ProcessStepTemplate[],
-  geometries: GeometryEntity[],
-): InstanceAnalysis {
-  const stepCompletion = selectedTemplate
-    ? computeStepCompletion(selectedTemplate, nodes, geometries)
-    : new Map<string, StepCompletion>();
-  const initialGeometryNodes = nodes.filter(isInitialGeometryNode);
-  const initialGeometryCompleteCount = initialGeometryNodes.filter((node) =>
-    isSelectedGeometryValid(node, geometries),
-  ).length;
-  const templateSchemaError = selectedTemplate
-    ? findTemplateSchemaError(selectedTemplate, stepTemplates)
-    : null;
-  const flowStepCount = selectedTemplate?.stepRefs.length ?? 0;
-  const completeStepCount = selectedTemplate
-    ? selectedTemplate.stepRefs.filter(
-        (stepRef) => stepCompletion.get(stepRef.stepRefId)?.complete,
-      ).length
-    : 0;
-
-  let validationMessage = "Ready to save";
-  if (!selectedTemplate) {
-    validationMessage = "Select a process flow template to start.";
-  } else if (!productInstanceName.trim()) {
-    validationMessage = "Product / instance name is required.";
-  } else if (templateSchemaError) {
-    validationMessage = templateSchemaError;
-  } else {
-    const incompleteInitial = initialGeometryNodes.find(
-      (node) => !isSelectedGeometryValid(node, geometries),
-    );
-    const firstIncompleteStep = selectedTemplate.stepRefs.find(
-      (stepRef) => !stepCompletion.get(stepRef.stepRefId)?.complete,
-    );
-    if (incompleteInitial) {
-      validationMessage = `${incompleteInitial.data.targetStepLabel}: select geometry for ${incompleteInitial.data.targetFieldName}.`;
-    } else if (firstIncompleteStep) {
-      const node = findProcessNodeByStepRef(nodes, firstIncompleteStep.stepRefId);
-      const completion = stepCompletion.get(firstIncompleteStep.stepRefId);
-      validationMessage = `${node ? stepDisplayLabel(node) : firstIncompleteStep.stepRefId}: ${completion?.blockingFieldName ?? "Field"} is required.`;
-    }
-  }
-
-  return {
-    validationMessage,
-    canSave: validationMessage === "Ready to save",
-    templateSchemaError,
-    flowStepCount,
-    initialGeometryCount: initialGeometryNodes.length,
-    initialGeometryCompleteCount,
-    completeStepCount,
-    stepCompletion,
-  };
-}
-
-function findTemplateSchemaError(
-  template: ProcessFlowTemplate,
-  stepTemplates: ProcessStepTemplate[],
-) {
-  if (template.stepRefs.length === 0) {
-    return "Selected template has no flow steps.";
-  }
-
-  const stepRefsById = new Map<string, string>();
-  const stepTemplateById = new Map(
-    stepTemplates.map((stepTemplate) => [stepTemplate.id, stepTemplate]),
-  );
-  for (const stepRef of template.stepRefs) {
-    if (stepRefsById.has(stepRef.stepRefId)) {
-      return `Template has duplicate step ref: ${stepRef.stepRefId}.`;
-    }
-    stepRefsById.set(stepRef.stepRefId, stepRef.processStepTemplateId);
-    if (!stepTemplateById.has(stepRef.processStepTemplateId)) {
-      return `Step template ${stepRef.processStepTemplateId} could not be resolved.`;
-    }
-  }
-
-  const targetSlotCounts = new Map<string, number>();
-  const stepOutputCounts = new Map<string, number>();
-  for (const edge of template.flowEdges) {
-    const targetTemplateId = stepRefsById.get(edge.target.stepRefId);
-    if (!targetTemplateId) {
-      return `Edge ${edge.edgeId} targets a missing step ref.`;
-    }
-    const targetTemplate = stepTemplateById.get(targetTemplateId);
-    const targetField = targetTemplate?.fieldDefinitions.find(
-      (field) => field.id === edge.target.targetFieldId,
-    );
-    if (!targetField) {
-      return `Edge ${edge.edgeId} targets a missing field.`;
-    }
-    if (!isGeometryField(targetField)) {
-      return `Edge ${edge.edgeId} target field is not a geometry input.`;
-    }
-
-    const targetSlotKey = `${edge.target.stepRefId}:${edge.target.targetFieldId}`;
-    targetSlotCounts.set(targetSlotKey, (targetSlotCounts.get(targetSlotKey) ?? 0) + 1);
-
-    if (edge.source.sourceType === "stepOutput") {
-      if (!stepRefsById.has(edge.source.stepRefId)) {
-        return `Edge ${edge.edgeId} has a missing source step.`;
-      }
-      stepOutputCounts.set(
-        edge.source.stepRefId,
-        (stepOutputCounts.get(edge.source.stepRefId) ?? 0) + 1,
-      );
-    }
-  }
-
-  if (Array.from(targetSlotCounts.values()).some((count) => count > 1)) {
-    return "A target geometry slot has more than one incoming edge.";
-  }
-
-  if (Array.from(stepOutputCounts.values()).some((count) => count > 1)) {
-    return "A process step output has more than one outgoing edge.";
-  }
-
-  if (templateHasCycle(template)) {
-    return "Template graph contains a cycle.";
-  }
-
-  for (const stepRef of template.stepRefs) {
-    const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
-    if (!stepTemplate) {
-      continue;
-    }
-    for (const field of getGeometryInputFields(stepTemplate)) {
-      const incoming = template.flowEdges.filter(
-        (edge) =>
-          edge.target.stepRefId === stepRef.stepRefId &&
-          edge.target.targetFieldId === field.id,
-      );
-      if (incoming.length === 0) {
-        return `${stepTemplate.name}: ${field.name} has no incoming flow edge.`;
-      }
-    }
-  }
-
-  return null;
-}
-
-function computeStepCompletion(
-  template: ProcessFlowTemplate,
-  nodes: FlowNode[],
+  configuration: FlowConfiguration,
   geometries: GeometryEntity[],
 ) {
-  const stepNodes = nodes.filter(isProcessStepNode);
-  const byStepRef = new Map(stepNodes.map((node) => [node.data.stepRefId, node]));
-  const geometryIds = new Set(geometries.map((geometry) => geometry.id));
-  const memo = new Map<string, StepCompletion>();
-
-  function isComplete(stepRefId: string, visiting: Set<string>): StepCompletion {
-    const cached = memo.get(stepRefId);
-    if (cached) {
-      return cached;
-    }
-    const node = byStepRef.get(stepRefId);
-    if (!node) {
-      return { complete: false, blockingFieldName: "Missing step" };
-    }
-    if (visiting.has(stepRefId)) {
-      return { complete: false, blockingFieldName: "Cycle" };
-    }
-    visiting.add(stepRefId);
-
-    function finish(result: StepCompletion) {
-      visiting.delete(stepRefId);
-      memo.set(stepRefId, result);
-      return result;
-    }
-
-    for (const field of node.data.template.fieldDefinitions) {
-      const value = getFieldValue(node.data.fieldValues, field.id);
-      if (isGeometryField(field)) {
-        const incoming = template.flowEdges.filter(
-          (edge) =>
-            edge.target.stepRefId === stepRefId &&
-            edge.target.targetFieldId === field.id,
-        );
-        if (incoming.length !== 1) {
-          return finish({ complete: false, blockingFieldName: field.name });
-        }
-        const edge = incoming[0];
-        if (edge.source.sourceType === "geometryRef") {
-          const initialNode = nodes.find(
-            (candidate): candidate is InitialGeometryFlowNode =>
-              isInitialGeometryNode(candidate) &&
-              candidate.data.sourceEdgeId === edge.edgeId,
-          );
-          if (
-            !initialNode?.data.selectedGeometryEntityId ||
-            !geometryIds.has(initialNode.data.selectedGeometryEntityId)
-          ) {
-            return finish({ complete: false, blockingFieldName: field.name });
-          }
-          continue;
-        }
-        const upstream = isComplete(edge.source.stepRefId, new Set(visiting));
-        if (!upstream.complete) {
-          return finish({ complete: false, blockingFieldName: field.name });
-        }
-        if (value !== null) {
-          return finish({ complete: false, blockingFieldName: field.name });
-        }
-        continue;
-      }
-
-      if (!isFieldValueComplete(field, value)) {
-        return finish({ complete: false, blockingFieldName: field.name });
-      }
-    }
-
-    return finish({ complete: true, blockingFieldName: null });
-  }
-
-  template.stepRefs.forEach((stepRef) => {
-    memo.set(stepRef.stepRefId, isComplete(stepRef.stepRefId, new Set()));
-  });
-
-  return memo;
-}
-
-function templateHasCycle(template: ProcessFlowTemplate) {
-  const stepIds = new Set(template.stepRefs.map((stepRef) => stepRef.stepRefId));
-  const adjacency = new Map<string, string[]>();
-  template.flowEdges.forEach((edge) => {
+  const requiredSteps = upstreamStepIds(template, stepRefId);
+  for (const input of template.flowInputs) {
+    const used = template.flowEdges.some(
+      (edge) =>
+        edge.source.kind === "flowInput" &&
+        edge.source.flowInputId === input.flowInputId &&
+        requiredSteps.has(edge.target.stepRefId),
+    );
     if (
-      edge.source.sourceType === "stepOutput" &&
-      stepIds.has(edge.source.stepRefId) &&
-      stepIds.has(edge.target.stepRefId)
+      used &&
+      isFlowInputBindingRequired(template, stepTemplates, input.flowInputId) &&
+      !geometryForFlowInput(configuration, input.flowInputId, geometries)
     ) {
-      adjacency.set(edge.source.stepRefId, [
-        ...(adjacency.get(edge.source.stepRefId) ?? []),
-        edge.target.stepRefId,
-      ]);
-    }
-  });
-
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-
-  function visit(stepRefId: string): boolean {
-    if (visiting.has(stepRefId)) {
-      return true;
-    }
-    if (visited.has(stepRefId)) {
       return false;
     }
-    visiting.add(stepRefId);
-    for (const next of adjacency.get(stepRefId) ?? []) {
-      if (visit(next)) {
-        return true;
-      }
-    }
-    visiting.delete(stepRefId);
-    visited.add(stepRefId);
-    return false;
   }
-
-  return Array.from(stepIds).some((stepRefId) => visit(stepRefId));
+  const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
+  return template.stepRefs.every((ref) => {
+    if (!requiredSteps.has(ref.stepRefId)) return true;
+    const stepTemplate = stepTemplateById.get(ref.processStepTemplateId);
+    if (!stepTemplate) return false;
+    const values = configuration.stepConfigurations[ref.stepRefId]?.parameterValues ?? {};
+    return stepTemplate.parameterDefinitions.every((parameter) =>
+      isParameterValueComplete(parameter, values[parameter.id]),
+    );
+  });
 }
 
-function draftHasContent(
-  selectedTemplate: ProcessFlowTemplate | null,
-  productInstanceName: string,
-  nodes: FlowNode[],
-) {
-  if (!selectedTemplate) {
-    return productInstanceName.trim().length > 0;
+function upstreamStepIds(template: ProcessFlowTemplate, targetStepRefId: string) {
+  const incoming = new Map<string, string[]>();
+  template.flowEdges.forEach((edge) => {
+    if (edge.source.kind !== "stepOutput") return;
+    incoming.set(edge.target.stepRefId, [
+      ...(incoming.get(edge.target.stepRefId) ?? []),
+      edge.source.stepRefId,
+    ]);
+  });
+  const result = new Set<string>();
+  const pending = [targetStepRefId];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if (result.has(current)) continue;
+    result.add(current);
+    pending.push(...(incoming.get(current) ?? []));
   }
-  if (productInstanceName.trim().length > 0) {
-    return true;
+  return result;
+}
+
+function geometryMatchesConstraints(geometry: GeometryEntity, input: FlowInputDefinition) {
+  const constraints = input.geometryConstraints;
+  if (!constraints) return true;
+  if (
+    constraints.entityTypes?.length &&
+    !constraints.entityTypes.includes(geometry.entityType)
+  ) {
+    return false;
   }
   if (
-    nodes.some(
-      (node) =>
-        isInitialGeometryNode(node) && node.data.selectedGeometryEntityId !== null,
+    constraints.categories?.length &&
+    !constraints.categories.some(
+      (category) =>
+        geometry.category === category || geometry.category.startsWith(`${category}.`),
     )
   ) {
-    return true;
-  }
-  return nodes.some((node) => {
-    if (!isProcessStepNode(node)) {
-      return false;
-    }
-    const initialValues = createInitialFieldValuesForStep(
-      node.data.template,
-      selectedTemplate,
-      node.data.stepRefId,
-    );
-    return JSON.stringify(node.data.fieldValues) !== JSON.stringify(initialValues);
-  });
-}
-
-function buildDraftInstanceForPreview(
-  template: ProcessFlowTemplate,
-  nodes: FlowNode[],
-  productInstanceName: string,
-): ProcessFlowInstance {
-  return {
-    id: "preview_draft_instance",
-    name: productInstanceName.trim() || "Preview draft",
-    processFlowTemplateId: template.id,
-    stepValueSets: template.stepRefs.map((stepRef) => {
-      const node = findProcessNodeByStepRef(nodes, stepRef.stepRefId);
-      return {
-        stepRefId: stepRef.stepRefId,
-        processStepTemplateId: stepRef.processStepTemplateId,
-        fieldValues: node ? normalizeFieldValuesForSave(node, template, nodes) : [],
-      };
-    }),
-  };
-}
-
-function getPreviewAvailability(
-  edge: FlowEdge,
-  nodes: FlowNode[],
-  geometries: GeometryEntity[],
-  analysis: InstanceAnalysis,
-  selectedTemplate: ProcessFlowTemplate | null,
-) {
-  if (!selectedTemplate) {
-    return { enabled: false, reason: "Select a flow template first" };
-  }
-  if (analysis.templateSchemaError) {
-    return { enabled: false, reason: analysis.templateSchemaError };
-  }
-
-  const data = getFlowEdgeData(edge);
-  if (data.sourceType === "geometryRef") {
-    const initialNode = nodes.find(
-      (node): node is InitialGeometryFlowNode =>
-        isInitialGeometryNode(node) && node.data.sourceEdgeId === edge.id,
-    );
-    if (!initialNode?.data.selectedGeometryEntityId) {
-      return { enabled: false, reason: "Select initial geometry first" };
-    }
-    if (!isSelectedGeometryValid(initialNode, geometries)) {
-      return { enabled: false, reason: "Selected geometry no longer exists" };
-    }
-    return { enabled: true, reason: "Preview geometry state" };
-  }
-
-  const sourceStepRefId = data.sourceStepRefId;
-  if (!sourceStepRefId) {
-    return { enabled: false, reason: "Preview source step is missing" };
-  }
-  const completion = analysis.stepCompletion.get(sourceStepRefId);
-  if (!completion?.complete) {
-    return { enabled: false, reason: "Complete upstream fields first" };
-  }
-  return { enabled: true, reason: "Preview geometry state" };
-}
-
-function isTerminalFinalPreviewVisible(
-  node: ProcessStepFlowNode,
-  edges: FlowEdge[],
-) {
-  if (edges.some((edge) => edge.source === node.id)) {
     return false;
   }
-  return isReachableFromInitialGeometry(node.id, edges);
-}
-
-function isReachableFromInitialGeometry(nodeId: string, edges: FlowEdge[]) {
-  const queue = edges
-    .filter((edge) => getFlowEdgeData(edge).sourceType === "geometryRef")
-    .map((edge) => edge.target);
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current || visited.has(current)) {
-      continue;
-    }
-    if (current === nodeId) {
-      return true;
-    }
-    visited.add(current);
-    edges
-      .filter((edge) => edge.source === current)
-      .forEach((edge) => queue.push(edge.target));
-  }
-
-  return false;
-}
-
-function getTerminalFinalPreviewAvailability(
-  node: ProcessStepFlowNode,
-  analysis: InstanceAnalysis,
-  selectedTemplate: ProcessFlowTemplate | null,
-) {
-  if (!selectedTemplate) {
-    return { enabled: false, reason: "Select a flow template first" };
-  }
-  if (analysis.templateSchemaError) {
-    return { enabled: false, reason: analysis.templateSchemaError };
-  }
-  const completion = analysis.stepCompletion.get(node.data.stepRefId);
-  if (!completion?.complete) {
-    return { enabled: false, reason: "Complete upstream fields first" };
-  }
-  return { enabled: true, reason: "Preview final geometry state" };
-}
-
-function normalizeFieldValuesForSave(
-  node: ProcessStepFlowNode,
-  template: ProcessFlowTemplate,
-  nodes: FlowNode[],
-) {
-  const values = node.data.template.fieldDefinitions.map((field) => {
-    const existing = node.data.fieldValues.find(
-      (fieldValue) => fieldValue.fieldId === field.id,
-    );
-    return existing ? clone(existing) : createDefaultFieldValue(field);
-  });
-
-  template.flowEdges
-    .filter((edge) => edge.target.stepRefId === node.data.stepRefId)
-    .forEach((edge) => {
-      if (edge.source.sourceType === "geometryRef") {
-        const initialNode = nodes.find(
-          (candidate): candidate is InitialGeometryFlowNode =>
-            isInitialGeometryNode(candidate) &&
-            candidate.data.sourceEdgeId === edge.edgeId,
-        );
-        setFieldValueInArray(
-          values,
-          edge.target.targetFieldId,
-          initialNode?.data.selectedGeometryEntityId ?? "",
-        );
-      } else {
-        setFieldValueInArray(values, edge.target.targetFieldId, null);
-      }
-    });
-
-  return values;
-}
-
-function createInitialFieldValuesForStep(
-  stepTemplate: ProcessStepTemplate,
-  flowTemplate: ProcessFlowTemplate,
-  stepRefId: string,
-) {
-  return stepTemplate.fieldDefinitions.map((field) => {
-    if (!isGeometryField(field)) {
-      return createDefaultFieldValue(field);
-    }
-    const incoming = flowTemplate.flowEdges.find(
-      (edge) =>
-        edge.target.stepRefId === stepRefId &&
-        edge.target.targetFieldId === field.id,
-    );
-    return {
-      fieldId: field.id,
-      value: incoming?.source.sourceType === "stepOutput" ? null : "",
-    };
-  });
-}
-
-function createDefaultFieldValue(field: FieldDefinition): FieldValue {
-  if (isGeometryField(field)) {
-    return { fieldId: field.id, value: "" };
-  }
-  if (field.valueType === "coordinates") {
-    return { fieldId: field.id, value: [] };
-  }
-  if (field.valueType === "boolean") {
-    return { fieldId: field.id, value: false };
-  }
-  if (isArrayValueType(field.valueType)) {
-    return { fieldId: field.id, value: [] };
-  }
-  if (field.valueType === "fieldGroupArray") {
-    const minItems = field.repeatDefinition?.minItems ?? 0;
-    let repeatValue: RepeatableGroupValue = { items: [] };
-    for (let index = 0; index < minItems; index += 1) {
-      repeatValue = addRepeatItem(repeatValue, field);
-    }
-    return { fieldId: field.id, value: repeatValue };
-  }
-  return { fieldId: field.id, value: "" };
-}
-
-function addRepeatItem(
-  current: RepeatableGroupValue,
-  field: FieldDefinition,
-): RepeatableGroupValue {
-  const indexBase = field.repeatDefinition?.indexBase ?? 1;
-  const nextIndex = indexBase + current.items.length;
-  return {
-    ...current,
-    items: [
-      ...current.items,
-      {
-        itemId: `${field.id}_item_${nextIndex}`,
-        index: nextIndex,
-        fieldValues:
-          field.repeatDefinition?.itemFieldDefinitions.map(createDefaultFieldValue) ??
-          [],
-      },
-    ],
-  };
-}
-
-function updateRepeatChildValue(
-  current: RepeatableGroupValue,
-  itemIndex: number,
-  childFieldId: string,
-  value: unknown,
-): RepeatableGroupValue {
-  return {
-    ...current,
-    items: current.items.map((item, index) => {
-      if (index !== itemIndex) {
-        return item;
-      }
-      return {
-        ...item,
-        fieldValues: updateFieldValue(item.fieldValues, childFieldId, value),
-      };
-    }),
-  };
-}
-
-function updateFieldValue(fieldValues: FieldValue[], fieldId: string, value: unknown) {
-  return fieldValues.some((fieldValue) => fieldValue.fieldId === fieldId)
-    ? fieldValues.map((fieldValue) =>
-        fieldValue.fieldId === fieldId ? { ...fieldValue, value } : fieldValue,
-      )
-    : [...fieldValues, { fieldId, value }];
-}
-
-function setFieldValueInArray(
-  fieldValues: FieldValue[],
-  fieldId: string,
-  value: unknown,
-) {
-  const target = fieldValues.find((fieldValue) => fieldValue.fieldId === fieldId);
-  if (target) {
-    target.value = value;
-  } else {
-    fieldValues.push({ fieldId, value });
-  }
-}
-
-function isFieldValueComplete(field: FieldDefinition, value: unknown): boolean {
-  if (field.valueType === "boolean") {
-    return typeof value === "boolean";
-  }
-  if (field.valueType === "coordinates") {
-    return coordinateListValueIsComplete(value);
-  }
-  if (field.valueType === "fieldGroupArray") {
-    if (!isRepeatableGroupValue(value)) {
-      return false;
-    }
-    const minItems = field.repeatDefinition?.minItems ?? 0;
-    const maxItems = field.repeatDefinition?.maxItems ?? Number.POSITIVE_INFINITY;
-    if (value.items.length < minItems || value.items.length > maxItems) {
-      return false;
-    }
-    const childFields = field.repeatDefinition?.itemFieldDefinitions ?? [];
-    return value.items.every((item) =>
-      childFields.every((child) =>
-        isFieldValueComplete(child, getFieldValue(item.fieldValues, child.id)),
-      ),
-    );
-  }
-  if (isArrayValueType(field.valueType)) {
-    if (!Array.isArray(value) || value.length === 0) {
-      return false;
-    }
-    return value.every((item) => primitiveValueIsValid(field, item));
-  }
-  if (isNumericValueType(field.valueType)) {
-    return primitiveValueIsValid(field, value);
-  }
-  return primitiveValueIsValid(field, value);
-}
-
-function primitiveValueIsValid(field: FieldDefinition, value: unknown) {
-  if (isNumericValueType(field.valueType)) {
-    if (typeof value !== "number" || Number.isNaN(value)) {
-      return false;
-    }
-    if (isIntegerValueType(field.valueType) && !Number.isInteger(value)) {
-      return false;
-    }
-    if (!passesNumericValidation(value, field.validation)) {
-      return false;
-    }
-  } else if (typeof value !== "string" || value.trim().length === 0) {
-    return false;
-  } else if (!passesStringValidation(value, field.validation)) {
-    return false;
-  }
-
-  if (field.optionSource?.options) {
-    const optionValues = new Set(
-      field.optionSource.options.map((option) => String(option.value)),
-    );
-    return optionValues.has(String(value));
-  }
-
-  return true;
-}
-
-function passesStringValidation(value: string, validation?: ValidationRule) {
-  if (!validation) {
-    return true;
-  }
-  if (
-    typeof validation.minLength === "number" &&
-    value.length < validation.minLength
-  ) {
-    return false;
-  }
-  if (
-    typeof validation.maxLength === "number" &&
-    value.length > validation.maxLength
-  ) {
-    return false;
-  }
-  if (validation.regex) {
-    return new RegExp(validation.regex).test(value);
-  }
-  return true;
-}
-
-function isSelectedGeometryValid(
-  node: InitialGeometryFlowNode,
-  geometries: GeometryEntity[],
-) {
-  return (
-    Boolean(node.data.selectedGeometryEntityId) &&
-    geometries.some((geometry) => geometry.id === node.data.selectedGeometryEntityId)
+  return !(
+    constraints.structureFormats?.length &&
+    !constraints.structureFormats.includes(geometry.structureFormat)
   );
 }
 
-function formatReadonlyValue(value: unknown) {
-  if (value === null) {
-    return "null";
-  }
-  if (value === "" || value === undefined) {
-    return "not selected";
-  }
-  return String(value);
+function stepLabel(stepRef: StepRef, template: ProcessStepTemplate) {
+  return normalizeStepLabel(stepRef.stepLabel, template.name);
 }
 
-function findProcessNodeById(
-  nodes: FlowNode[],
-  nodeId: string | null | undefined,
-): ProcessStepFlowNode | null {
-  const node = nodes.find((candidate) => candidate.id === nodeId);
-  return node && isProcessStepNode(node) ? node : null;
+function isFlowInputNode(node: FlowNode): node is FlowInputNode {
+  return node.type === "flowInput" && node.data.nodeKind === "flowInput";
 }
 
-function findProcessNodeByStepRef(
-  nodes: FlowNode[],
-  stepRefId: string | null | undefined,
-): ProcessStepFlowNode | null {
-  const node = nodes.find(
-    (candidate) =>
-      isProcessStepNode(candidate) && candidate.data.stepRefId === stepRefId,
-  );
-  return node && isProcessStepNode(node) ? node : null;
+function isStepNode(node: FlowNode): node is StepNode {
+  return node.type === "processStep" && node.data.nodeKind === "processStep";
 }
 
-function findStepTemplateForStepRef(
-  flowTemplate: ProcessFlowTemplate,
-  stepTemplates: ProcessStepTemplate[],
-  stepRefId: string,
-) {
-  const stepRef = flowTemplate.stepRefs.find(
-    (candidate) => candidate.stepRefId === stepRefId,
-  );
-  return stepTemplates.find(
-    (stepTemplate) => stepTemplate.id === stepRef?.processStepTemplateId,
-  );
-}
-
-function getFlowEdgeData(edge: FlowEdge): FlowEdgeData {
-  return edge.data as FlowEdgeData;
-}
-
-function isInitialGeometryNode(node: FlowNode): node is InitialGeometryFlowNode {
-  return node.data.nodeKind === "initialGeometry";
-}
-
-function isProcessStepNode(node: FlowNode): node is ProcessStepFlowNode {
-  return node.data.nodeKind === "processStep";
-}
-
-function sourceLabelForNode(node: FlowNode) {
-  if (isInitialGeometryNode(node)) {
-    return node.data.selectedGeometryDisplayName ?? "Initial geometry";
-  }
-  return `${stepDisplayLabel(node)} output`;
-}
-
-function stepDisplayLabel(node: ProcessStepFlowNode) {
-  return normalizeStepLabel(node.data.stepLabel, node.data.template.name);
+function flowInputNodeId(flowInputId: string) {
+  return `flow-input:${flowInputId}`;
 }
 
 function stepNodeId(stepRefId: string) {
   return `step:${stepRefId}`;
 }
 
-function initialNodeId(edgeId: string) {
-  return `initial:${edgeId}`;
-}
-
-function geometrySearchText(geometry: GeometryEntity) {
-  return [
-    geometry.name,
-    geometry.id,
-    geometry.version,
-    geometry.category,
-    geometry.entityType,
-    geometry.description,
-  ].join(" ");
+function emptyConfiguration(): FlowConfiguration {
+  return { inputBindings: {}, stepConfigurations: {}, embeddedGeometries: {} };
 }

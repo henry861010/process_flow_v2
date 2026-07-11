@@ -188,7 +188,7 @@ materials already present in that step's current `main_geometry` state:
    name.
 5. `materialRef` process parameters participate in material instance naming.
    This includes nested `materialRef` fields inside `fieldGroupArray` values.
-6. `rawFieldValues` remain the user-entered values. Process-step modules should
+6. `rawParameterValues` remain the user-entered values. Process-step modules should
    use normalized `values`, where material parameters already contain the
    assigned material instance names.
 
@@ -1771,37 +1771,42 @@ Application code should not:
 ### 19.1 Execute a Flow
 
 ```js
-const result = await kernel.execute("flow_inst_aaatv_001");
+const plan = compiler.compile(flowTemplate, configuration, stepTemplates);
+const result = kernel.execute(plan);
 const geometry = result.geometry();
 ```
 
 Application responsibilities:
 
-- choose the process flow instance
-- provide repositories
+- load the immutable template and configuration
+- provide a catalog resolver to `FlowCompiler`
 - display validation errors
 - render or export the returned geometry
 
+Compiler responsibilities:
+
+- validate topology, bindings, and parameters
+- resolve catalog and embedded geometry structures
+- select preview upstream closure when requested
+- build an ordered `ExecutionPlan`
+
 Kernel responsibilities:
 
-- resolve geometry refs
 - hydrate states
 - assign material instance names
 - execute process modules
 - normalize outputs
 - return immutable result payloads
 
+The kernel receives no repository and performs no database lookup.
+
 ### 19.2 Preview a Step
 
 ```js
-const preview = await kernel.executePreview({
-  processFlowTemplate,
-  processFlowInstance,
-  previewTarget: {
-    type: "stepOutput",
-    stepRefId: "molding",
-  },
+const plan = compiler.compile(flowTemplate, configuration, stepTemplates, {
+  outputStepRefId: "molding",
 });
+const preview = kernel.execute(plan, { outputStepRefId: "molding" });
 ```
 
 Application responsibilities:
@@ -1815,7 +1820,8 @@ The UI should not manually build process geometry for preview.
 ### 19.3 Build Process Parameters
 
 Application code gathers and validates user input based on
-`ProcessStepTemplate.fieldDefinitions`. It passes primitive values to the kernel.
+`ProcessStepTemplate.parameterDefinitions`. The compiler normalizes these values
+before placing them in the execution plan.
 
 Application code does not need to know how a process step creates bodies or
 features.

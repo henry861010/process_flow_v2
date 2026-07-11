@@ -1,12 +1,9 @@
-export type FieldScope = "inputState" | "outputState" | "processParameter";
-
 export type ValueType =
   | "string"
   | "integer"
   | "float"
   | "boolean"
   | "materialRef"
-  | "geometryRef"
   | "coordinates"
   | "fieldGroupArray"
   | "string[]"
@@ -51,17 +48,17 @@ export type RepeatDefinition = {
   indexBase: number;
   minItems?: number;
   maxItems?: number;
-  itemFieldDefinitions: FieldDefinition[];
+  itemParameterDefinitions: ParameterDefinition[];
 };
 
-export type FieldDefinition = {
+export type ParameterDefinition = {
   id: string;
   name: string;
   description?: string;
-  scope: FieldScope;
   valueType: ValueType;
   controlType?: ControlType;
   selectionMode?: SelectionMode;
+  required?: boolean;
   unit?: string | null;
   optionSource?: OptionSource;
   validation?: ValidationRule;
@@ -72,16 +69,28 @@ export type RepeatableGroupValue = {
   items: Array<{
     itemId: string;
     index: number;
-    fieldValues: FieldValue[];
+    values: Record<string, unknown>;
   }>;
 };
 
-export type FieldValue = {
-  fieldId: string;
-  value: unknown;
+export type GeometryInputPort = {
+  portId: string;
+  name: string;
+  description?: string;
+  dataType: "geometry";
+  role: "primary" | "auxiliary";
+  required: boolean;
+};
+
+export type GeometryOutputPort = {
+  portId: string;
+  name: string;
+  description?: string;
+  dataType: "geometry";
 };
 
 export type ProcessStepTemplate = {
+  schemaVersion: 2;
   id: string;
   version: string;
   name: string;
@@ -89,45 +98,111 @@ export type ProcessStepTemplate = {
   program: string;
   description: string;
   owner: string;
-  fieldDefinitions: FieldDefinition[];
+  inputPorts: GeometryInputPort[];
+  outputPorts: GeometryOutputPort[];
+  parameterDefinitions: ParameterDefinition[];
 };
+
+export type GeometryConstraints = {
+  entityTypes?: string[];
+  categories?: string[];
+  structureFormats?: string[];
+};
+
+export type FlowInputDefinition = {
+  flowInputId: string;
+  name: string;
+  description?: string;
+  dataType: "geometry";
+  required: boolean;
+  geometryConstraints?: GeometryConstraints;
+};
+
+export type FlowEdgeSource =
+  | { kind: "flowInput"; flowInputId: string }
+  | { kind: "stepOutput"; stepRefId: string; outputPortId: string };
 
 export type SavedFlowEdge = {
   edgeId: string;
-  source:
-    | { sourceType: "geometryRef" }
-    | { sourceType: "stepOutput"; stepRefId: string };
+  source: FlowEdgeSource;
   target: {
     stepRefId: string;
-    targetFieldId: string;
+    inputPortId: string;
   };
 };
 
+export type StepRef = {
+  stepRefId: string;
+  stepLabel?: string;
+  processStepTemplateId: string;
+};
+
 export type ProcessFlowTemplate = {
+  schemaVersion: 2;
   id: string;
   name: string;
   version: string;
   description?: string;
   owner?: string;
-  stepRefs: Array<{
-    stepRefId: string;
-    stepLabel?: string;
-    processStepTemplateId: string;
-  }>;
+  flowInputs: FlowInputDefinition[];
+  stepRefs: StepRef[];
   flowEdges: SavedFlowEdge[];
 };
 
-export type StepValueSet = {
-  stepRefId: string;
-  processStepTemplateId: string;
-  fieldValues: FieldValue[];
+export type CatalogGeometryBinding = {
+  kind: "catalog";
+  geometryId: string;
 };
 
-export type ProcessFlowInstance = {
+export type EmbeddedGeometryBinding = {
+  kind: "embedded";
+  localId: string;
+};
+
+export type GeometryBinding = CatalogGeometryBinding | EmbeddedGeometryBinding;
+
+export type StepConfiguration = {
+  parameterValues: Record<string, unknown>;
+};
+
+export type EmbeddedGeometry = {
+  name: string;
+  entityType: string;
+  category?: string | null;
+  version?: string | null;
+  owner?: string | null;
+  description?: string | null;
+  icon?: string;
+  iconScale?: number;
+  structureFormat: string;
+  structure: unknown;
+};
+
+export type FlowConfiguration = {
+  inputBindings: Record<string, GeometryBinding>;
+  stepConfigurations: Record<string, StepConfiguration>;
+  embeddedGeometries: Record<string, EmbeddedGeometry>;
+};
+
+export type ProcessFlowWorkspace = FlowConfiguration & {
+  schemaVersion: 2;
   id: string;
   name: string;
   processFlowTemplateId: string;
-  stepValueSets: StepValueSet[];
+  revision: number;
+  status: "draft" | "committed";
+  committedInstanceId?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProcessFlowInstance = {
+  schemaVersion: 2;
+  id: string;
+  name: string;
+  processFlowTemplateId: string;
+  inputBindings: Record<string, CatalogGeometryBinding>;
+  stepConfigurations: Record<string, StepConfiguration>;
 };
 
 export type GeometryEntity = {
@@ -146,7 +221,7 @@ export type GeometryEntity = {
 
 export type StepCompletion = {
   complete: boolean;
-  blockingFieldName: string | null;
+  blockingParameterName: string | null;
 };
 
 export type LayoutPosition = {
@@ -156,5 +231,5 @@ export type LayoutPosition = {
 
 export type TemplateLayout = {
   stepPositions: Map<string, LayoutPosition>;
-  initialPositions: Map<string, LayoutPosition>;
+  flowInputPositions: Map<string, LayoutPosition>;
 };

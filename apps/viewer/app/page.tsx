@@ -33,14 +33,19 @@ type HomeData = {
 
 type FlowInstanceRow = {
   key: string;
+  rowKind: "instance" | "template";
   templateType: string;
   templateId: string;
   templateVersion: string | null;
-  flowInstanceName: string;
-  flowInstanceId: string;
+  flowInstanceName: string | null;
+  flowInstanceId: string | null;
   populatedFieldCount: number;
   expectedFieldCount: number;
-  referenceStatus: "resolved" | "missing-template" | "missing-step-template";
+  referenceStatus:
+    | "resolved"
+    | "template-only"
+    | "missing-template"
+    | "missing-step-template";
 };
 
 const emptyHomeData: HomeData = {
@@ -107,9 +112,7 @@ export default function Home() {
     [selectedTemplateType, flowRows],
   );
 
-  const templateCount = new Set(
-    homeData.flowInstances.map((instance) => instance.processFlowTemplateId),
-  ).size;
+  const templateCount = homeData.flowTemplates.length;
 
   async function handlePocReset() {
     const payload = await resetPocData();
@@ -129,14 +132,14 @@ export default function Home() {
             <div className="flex min-w-0 items-center gap-2">
               <Table2 className="h-5 w-5 shrink-0 text-primary" />
               <h1 className="truncate text-xl font-semibold tracking-normal">
-                Flow Instances
+                Process Flows
               </h1>
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="outline">
                 {homeData.flowInstances.length} flow instances
               </Badge>
-              <Badge variant="outline">{templateCount} template types</Badge>
+              <Badge variant="outline">{templateCount} flow templates</Badge>
             </div>
           </div>
 
@@ -233,24 +236,41 @@ export default function Home() {
                       </td>
                       <td className="px-4 py-3 align-top">
                         <div className="min-w-0">
-                          <div
-                            className="truncate font-medium"
-                            title={row.flowInstanceName}
-                          >
-                            {row.flowInstanceName}
-                          </div>
-                          <div
-                            className="mt-1 truncate font-mono text-xs text-muted-foreground"
-                            title={row.flowInstanceId}
-                          >
-                            {row.flowInstanceId}
-                          </div>
+                          {row.rowKind === "instance" ? (
+                            <>
+                              <div
+                                className="truncate font-medium"
+                                title={row.flowInstanceName ?? undefined}
+                              >
+                                {row.flowInstanceName}
+                              </div>
+                              <div
+                                className="mt-1 truncate font-mono text-xs text-muted-foreground"
+                                title={row.flowInstanceId ?? undefined}
+                              >
+                                {row.flowInstanceId}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="font-medium text-muted-foreground">
+                                No instance
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                Template saved
+                              </div>
+                            </>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <span className="font-mono text-xs">
-                          {row.populatedFieldCount}/{row.expectedFieldCount}
-                        </span>
+                        {row.rowKind === "instance" ? (
+                          <span className="font-mono text-xs">
+                            {row.populatedFieldCount}/{row.expectedFieldCount}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <Badge
@@ -268,7 +288,7 @@ export default function Home() {
                     <td colSpan={4} className="h-52 px-4 py-8 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
                         <div className="text-sm font-medium">
-                          No flow instances
+                          No process flows
                         </div>
                         <Button asChild size="sm">
                           <Link href="/flow-instance-editor">
@@ -308,7 +328,7 @@ function buildFlowInstanceRows(data: HomeData): FlowInstanceRow[] {
     data.stepTemplates.map((template) => [template.id, template]),
   );
 
-  return data.flowInstances.map((instance) => {
+  const instanceRows = data.flowInstances.map((instance) => {
     const flowTemplate = flowTemplateById.get(instance.processFlowTemplateId);
     const templateType = flowTemplate?.name ?? "Unknown template";
     const templateId = flowTemplate?.id ?? instance.processFlowTemplateId;
@@ -316,20 +336,22 @@ function buildFlowInstanceRows(data: HomeData): FlowInstanceRow[] {
     let expectedFieldCount = 0;
     let hasMissingStepTemplate = false;
 
-    for (const stepValueSet of instance.stepValueSets) {
-      const stepRef = flowTemplate?.stepRefs.find(
-        (candidate) => candidate.stepRefId === stepValueSet.stepRefId,
-      );
-      const processStepTemplateId =
-        stepValueSet.processStepTemplateId || stepRef?.processStepTemplateId || "";
-      const stepTemplate = stepTemplateById.get(processStepTemplateId);
-      if (flowTemplate && !stepTemplate) {
+    expectedFieldCount += flowTemplate?.flowInputs.length ?? 0;
+    populatedFieldCount += Object.values(instance.inputBindings).filter(
+      (binding) => binding.kind === "catalog" && binding.geometryId.trim().length > 0,
+    ).length;
+
+    for (const stepRef of flowTemplate?.stepRefs ?? []) {
+      const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
+      if (!stepTemplate) {
         hasMissingStepTemplate = true;
+        continue;
       }
-      expectedFieldCount +=
-        stepTemplate?.fieldDefinitions.length ?? stepValueSet.fieldValues.length;
-      populatedFieldCount += stepValueSet.fieldValues.filter((fieldValue) =>
-        isMeaningfulValue(fieldValue.value),
+      const values =
+        instance.stepConfigurations[stepRef.stepRefId]?.parameterValues ?? {};
+      expectedFieldCount += stepTemplate.parameterDefinitions.length;
+      populatedFieldCount += stepTemplate.parameterDefinitions.filter((parameter) =>
+        isMeaningfulValue(values[parameter.id]),
       ).length;
     }
 
@@ -341,6 +363,7 @@ function buildFlowInstanceRows(data: HomeData): FlowInstanceRow[] {
 
     return {
       key: instance.id,
+      rowKind: "instance" as const,
       templateType,
       templateId,
       templateVersion: flowTemplate?.version ?? null,
@@ -351,6 +374,40 @@ function buildFlowInstanceRows(data: HomeData): FlowInstanceRow[] {
       referenceStatus,
     };
   });
+
+  const referencedTemplateIds = new Set(
+    data.flowInstances.map((instance) => instance.processFlowTemplateId),
+  );
+  const templateOnlyRows = data.flowTemplates
+    .filter((template) => !referencedTemplateIds.has(template.id))
+    .map((template) => {
+      let expectedFieldCount = template.flowInputs.length;
+      let hasMissingStepTemplate = false;
+      for (const stepRef of template.stepRefs) {
+        const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
+        if (!stepTemplate) {
+          hasMissingStepTemplate = true;
+          continue;
+        }
+        expectedFieldCount += stepTemplate.parameterDefinitions.length;
+      }
+      return {
+        key: `template:${template.id}`,
+        rowKind: "template" as const,
+        templateType: template.name,
+        templateId: template.id,
+        templateVersion: template.version,
+        flowInstanceName: null,
+        flowInstanceId: null,
+        populatedFieldCount: 0,
+        expectedFieldCount,
+        referenceStatus: hasMissingStepTemplate
+          ? ("missing-step-template" as const)
+          : ("template-only" as const),
+      };
+    });
+
+  return [...instanceRows, ...templateOnlyRows];
 }
 
 function isMeaningfulValue(value: unknown): boolean {
@@ -383,6 +440,9 @@ function isMeaningfulValue(value: unknown): boolean {
 }
 
 function statusLabel(status: FlowInstanceRow["referenceStatus"]) {
+  if (status === "template-only") {
+    return "Template only";
+  }
   if (status === "missing-template") {
     return "Missing template";
   }

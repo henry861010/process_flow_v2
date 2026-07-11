@@ -1,340 +1,159 @@
-# Process Flow Instance Editor UI Design
+# Flow Instance Workspace UI
 
-## Route
-
-`/flow-instance-editor`
+Route：`/flow-instance-editor`
 
 ## Purpose
 
-The Flow Instance Editor creates a new `ProcessFlowInstance` from an existing immutable `ProcessFlowTemplate`.
+從既有 immutable `ProcessFlowTemplate` 建立 mutable
+`ProcessFlowWorkspace`，完成 geometry bindings 與 process parameters 後 commit 成新
+immutable `ProcessFlowInstance`。
 
-This page is for instance-level editing only:
+此頁不支援：
 
-- Select an existing flow template.
-- Select initial geometry records.
-- Fill process step field values.
-- Preview geometry states.
-- Track server-side export requests.
-- Save one new process flow instance.
+- 修改 topology；
+- 從既有 instance clone；
+- overwrite instance；
+- draft list；
+- embedded geometry creation tools。
 
-The page does not edit topology and does not create or update flow templates.
+## Entry States
 
-## Shared Graph Boundary
+### New workspace
 
-This page uses shared Graph UI in `readonlyTopology` mode. The graph structure is locked, but instance data remains editable:
+1. 使用者從 header 選擇 flow template。
+2. UI 以 template 的 `flowInputs`、`stepRefs`、`flowEdges` 建立 read-only graph。
+3. UI 以 step template definitions 建立 default `FlowConfiguration`。
+4. Workspace 尚未 POST 前沒有 workspace id。
 
-- Initial geometry selection.
-- Step field values.
-- Product / instance name.
-- Geometry preview.
-- Export requests drawer.
+### Reload workspace
 
-Shared node, edge, slot, preview button, pan/zoom, and topology mode behavior is defined in `docs/ui/process-flow-graph.md`.
+URL：
 
-## Technology
-
-- React
-- TypeScript
-- Next.js
-- shadcn/ui
-- Tailwind CSS
-- lucide-react icons
-- `@xyflow/react`
-
-## Data Source
-
-The page reads catalog data from FastAPI through `apps/viewer/lib/process-flow-api.ts`.
-
-Initial load uses:
-
-```http
-GET /api/bootstrap
+```text
+/flow-instance-editor?workspaceId=workspace_123
 ```
 
-The returned bootstrap payload supplies:
+UI 同時讀取 bootstrap 與 workspace，依 `processFlowTemplateId` resolve template，並
+merge 缺少的 default step configurations。Workspace 不保存 topology。
 
-| Field | Usage |
-| --- | --- |
-| `processFlowTemplates` | Template selector source. |
-| `processStepTemplates` | Resolves each selected template `stepRefs[].processStepTemplateId`. |
-| `geometries` | Initial geometry picker source. |
-| `processFlowInstances` | Not required for draft editing; available for consistency with Home bootstrap. |
+Committed workspace reload 後所有 configuration controls read-only。
 
-The selector UI uses resource metadata such as `id`, `name`, `version`, and `category`. It does not parse geometry internals.
+## Layout
 
-## Save API
+- Header：workspace / template / instance identity fields、New、Reload、Save Draft、
+  Commit Instance。
+- Main area：full-width read-only process flow graph。
+- Node dialog：點擊 flow input 或 process step 後編輯 binding 或 parameter values。
+- Modal：catalog geometry picker。
+- Overlay：geometry preview 與 export jobs。
 
-Save calls:
+Desktop 與 mobile 都讓 graph 保留 pan / zoom controls；mobile 將 header fields 依序換行。
 
-```http
-POST /api/process-flow-instances
-Content-Type: application/json
-```
+## Geometry Inputs
 
-Request body is the new `ProcessFlowInstance`.
+每個 `flowInputs[]` 顯示一個 graph input node。點擊 node 後 dialog 提供：
 
-Response is the created `ProcessFlowInstance`.
+- catalog geometry selection；
+- clear binding；
+- preview selected input；
+- flow input description 與 required status。
 
-After a successful save, the page navigates to Home.
+Geometry picker 依 `geometryConstraints` 過濾：
 
-## Save Output
+- `entityTypes`
+- category exact / descendant match
+- `structureFormats`
+
+目前 UI 只建立 `{ kind: "catalog", geometryId }` binding。Backend 可讀取已存在的
+embedded binding，並能在 commit 時 materialize。
+
+## Step Parameters
+
+點擊 process step 後，dialog 依
+`ProcessStepTemplate.parameterDefinitions[]` render controls：
+
+- string / material ref；
+- integer / float；
+- boolean；
+- static single / multiple options；
+- arrays；
+- coordinate list；
+- recursive repeatable groups。
+
+Repeater values 保存為：
 
 ```json
 {
-  "id": "generated-instance-id",
-  "name": "Product / instance name",
-  "processFlowTemplateId": "flow_tpl_cowosl_demo_1_0_0",
-  "stepValueSets": [
+  "items": [
     {
-      "stepRefId": "pnp_hbm",
-      "processStepTemplateId": "step_tpl_pnp_1_0_0",
-      "fieldValues": [
-        {
-          "fieldId": "main_geometry",
-          "value": "geom_example_panel"
-        }
-      ]
+      "itemId": "stable-id",
+      "index": 1,
+      "values": {}
     }
   ]
 }
 ```
 
-Save rules:
+## Save Draft
 
-- `id` is generated client-side at save time.
-- `processFlowTemplateId` must equal the selected `ProcessFlowTemplate.id`.
-- `name` comes from the required `Product / instance name` field.
-- `stepValueSets[]` are built only from selected template `stepRefs[]`.
-- Each `StepValueSet.stepRefId` must match a selected template step ref.
-- Each `StepValueSet.processStepTemplateId` must match the selected template step ref.
-- `stepLabel` is read from the selected `ProcessFlowTemplate.stepRefs[]`; it is
-  displayed in the instance editor but not copied into `StepValueSet`.
-- `fieldValues[]` follow the resolved process step template `fieldDefinitions[]`.
-- All field definitions are required.
-- A geometry field supplied by a `geometryRef` edge stores the selected `GeometryEntity.id`.
-- A geometry field supplied by a `stepOutput` edge stores `null`.
+第一次 Save Draft：
 
-The server validates the instance against the selected template and process step templates before inserting it.
+```http
+POST /api/process-flow-workspaces
+```
 
-## Initial State
+成功後 URL 以 `router.replace` 加入 `workspaceId`。後續 Save Draft：
 
-When the page opens:
+```http
+PUT /api/process-flow-workspaces/{workspaceId}
+```
 
-- The graph area shows an empty state.
-- Template selector is visible.
-- `Product / instance name` is empty.
-- Save is disabled.
-- Home navigation is available.
+Request 帶目前 revision；成功後 revision 加一。UI 只有 dirty state 才啟用 Save
+Draft。Draft 可以缺少 required bindings / parameters，但已存在的 value shape 必須合法。
 
-The empty state only prompts the user to select a flow template.
+頁面在 dirty state 註冊 `beforeunload` protection。Reload button 從 API 重新讀取最後
+saved revision；stale update 顯示 `409` error，再由使用者 reload。
 
-## Header
+## Commit Instance
 
-Header contains:
+Commit button 只有在以下條件成立時啟用：
 
-- Page title.
-- Top-right Home button.
-- Top-right Cancel and Save actions.
-- `Product / instance name` required input.
-- Process flow template selector.
-- Selected template name and version after selection.
+- workspace 已保存；
+- 沒有 unsaved changes；
+- bindings 與 parameter values complete；
+- values 通過 type、numeric、string、coordinate 與 repeater validation；
+- instance id / name 已填；
+- instance id 未存在。
 
-`Product / instance name` is reset when the user confirms switching templates.
+```http
+POST /api/process-flow-workspaces/{workspaceId}/commit
+```
 
-## Template Selection
+Commit 成功後：
 
-The template selector lists `processFlowTemplates` from bootstrap.
-
-If no templates exist:
-
-- Selector shows no options.
-- Graph stays empty.
-- Status strip says no template is selected.
-- Save stays disabled.
-
-After selecting a template:
-
-- The graph renders the selected template topology.
-- Step templates are resolved from `processStepTemplates`.
-- Draft field values are initialized from field defaults or empty values.
-- Initial geometry circles start unselected.
-- `Product / instance name` starts empty.
-
-If a process step template cannot be resolved:
-
-- The affected step cannot be rendered as an editable process step node.
-- Validation reports the missing step template.
-- Save stays disabled.
-
-Switching templates with draft edits requires confirmation. Confirming clears:
-
-- Product / instance name.
-- Geometry selections.
-- Step field values.
-- Open dialogs and selected graph node.
-
-## Layout
-
-The graph uses left-to-right dataflow layout:
-
-- Circular nodes are initial geometry selections.
-- Rectangular nodes are process steps.
-- Edges represent geometry state flow.
-- Users may pan and zoom.
-- Users may not drag nodes, create edges, delete edges, reconnect edges, or otherwise modify topology.
-
-The layout prioritizes readable process depth and merge paths over decorative presentation.
-
-## Initial Geometry Picker
-
-Clicking an initial geometry node opens a geometry picker backed by `geometries` from bootstrap. The picker uses the same shared category browser pattern as the Flow Template Editor palettes.
-
-Category model:
-
-- `GeometryEntity.category` is the only hierarchy source.
-- `.` separates category path segments.
-- Empty category values are displayed under `uncategorized`.
-- Root displays the first category segment for every geometry.
-- Category folders are sorted alphabetically.
-- Geometry cards keep repository order within their direct category level.
-
-Navigation model:
-
-- The picker displays a clickable breadcrumb in the form `Root / segment / segment`.
-- The breadcrumb is an unframed inline path indicator, not a card or category folder.
-- Clicking `Root` returns to the root category level.
-- Clicking a breadcrumb segment returns to that category level.
-- If the current level has no direct geometry and exactly one child folder, the browser advances through that single-child chain automatically.
-- The breadcrumb always shows the resolved full path after automatic advancement.
-
-Level content:
-
-- Child category folders appear before geometry cards.
-- A folder represents the next category segment and is navigation only.
-- A folder is not selectable as a geometry because it can contain multiple geometry records.
-- Geometry cards appear only at their exact category path. For example, `die.hbm` records appear under `Root / die / hbm`, not under `Root / die`.
-
-Geometry cards display:
-
-- `name`
-- `version`
-- `id`
-- `entityType`
-- `description`
-
-Selecting a geometry writes that id into the target step field value for the corresponding `geometryRef` edge.
-
-Search:
-
-- The search input matches `name`, `id`, `version`, `category`, `entityType`, and `description`.
-- Search results are a flat list across all category paths.
-- Search results do not render category folders or category grouping.
-- Each search result card displays its full category path beneath the geometry name.
-- The currently selected geometry remains highlighted when it appears in the active view.
-
-The picker does not inspect `GeometryEntity.structure`.
-
-If the selected geometry id disappears from the loaded repository snapshot, validation marks the draft invalid.
-
-## Step Dialog
-
-Clicking a process step node opens its instance field editor.
-
-The dialog renders fields from the resolved `ProcessStepTemplate.fieldDefinitions[]`.
-
-Field value behavior:
-
-- Non-geometry fields are edited directly in the dialog.
-- Geometry fields supplied by `geometryRef` edges are shown as graph-provided and use the selected geometry id.
-- Geometry fields supplied by `stepOutput` edges are shown as graph-provided and store `null`.
-- Geometry fields with no incoming edge can use a direct geometry select when the UI exposes that control.
-
-The dialog edits draft state only. Save is the only action that writes to the backend.
-
-## Validation
-
-Save is enabled only when:
-
-- A template is selected.
-- Product / instance name is non-empty.
-- All selected template step refs resolve to process step templates.
-- Required field values are complete.
-- Initial geometry ids required by `geometryRef` edges are selected and exist.
-- Step output geometry fields use `null`.
-- The flow graph validates as acyclic, one incoming edge per target slot, and no step output fan-out.
-
-Validation messages identify the first actionable issue.
+- workspace status 顯示 `committed`；
+- revision 加一；
+- graph configuration controls 鎖定；
+- Save Draft / Commit disabled；
+- immutable instance id / name 保留並可在 refresh 後 resolve。
 
 ## Preview
 
-Preview buttons call FastAPI preview endpoints through the shared preview client.
+Flow input preview target：
 
-For an edge preview:
+```json
+{ "type": "flowInput", "flowInputId": "incoming_panel" }
+```
+
+Step output preview target：
 
 ```json
 {
-  "target": {
-    "type": "edge",
-    "previewEdgeId": "edge_id"
-  },
-  "flowTemplate": {},
-  "draftInstance": {},
-  "geometries": [],
-  "processStepTemplates": []
+  "type": "stepOutput",
+  "stepRefId": "molding",
+  "outputPortId": "result_geometry"
 }
 ```
 
-For terminal step output preview:
-
-```json
-{
-  "target": {
-    "type": "stepOutput",
-    "stepRefId": "step_ref_id"
-  },
-  "flowTemplate": {},
-  "draftInstance": {}
-}
-```
-
-Preview is read-only. It never saves the draft instance.
-
-## Export Requests Drawer
-
-The page mounts the shared export requests drawer at the editor root.
-
-The drawer is independent from the preview overlay:
-
-- It is visible on the editor page before a preview is opened.
-- It remains visible after a preview is closed.
-- It uses the browser's stable `clientId` to list only that browser's jobs.
-- It receives newly created export jobs from the preview overlay through `onExportJobCreated`.
-- It polls job state through `GET /api/export-jobs?clientId=...`.
-
-Collapsed state:
-
-- Fixed to the right edge at vertical center.
-- Icon-only tab with left chevron and export icon.
-- Active dot appears when any visible job is `queued`, `running`, or `canceling`.
-
-Expanded state:
-
-- Opens from right to left.
-- Width is `min(420px, calc(100vw - 16px))`.
-- Header shows `Export requests`, active or recent count, and `Running` or `Idle`.
-- Body shows an error banner, empty state, and the latest 20 export jobs for the browser.
-- Footer states that the drawer is showing the latest 20 requests for this browser.
-
-Job row behavior:
-
-- `queued` and `running` jobs expose a cancel icon button.
-- Terminal jobs remain in the recent list until they age out of the latest 20.
-- CDB success rows show element count, node count, component count, and duration. JSON and STEP success rows show format and duration.
-- Failure rows show a clamped error message in the row.
-- Hovering a row on desktop opens a detail popover to the drawer's left with the full output path, kind, duration, timestamps, job id, full message, and warning. CDB details also show element size and mesh summary.
-
-The export dialog is opened from the Geometry Preview footer. A successful job creation closes the dialog and opens this drawer.
-
-## Cancel
-
-Cancel discards the current draft and returns to Home. It does not call a delete API because no resource is created until Save succeeds.
+Step preview button 只有在該 target 的 upstream closure complete 時啟用；其他 branch
+不會阻擋 preview。

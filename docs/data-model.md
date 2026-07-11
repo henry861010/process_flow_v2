@@ -1,1190 +1,379 @@
-# 資料模型
+# Process Flow V2 Data Model
 
-## Geometry
+本文件是 process flow persistence、API、compiler、kernel 與 viewer 的 V2
+資料模型規範。V2 是 breaking design；系統不讀取或轉換 V1 payload。
 
-Geometry data 會以 immutable entity 的形式存放在 geometry database 中。
-Process flow instance 不會把完整 geometry content 直接內嵌在每個 step field
-value 中。所有 geometry 欄位都使用 `valueType: "geometryRef"` 表示，persisted
-instance 中的 `FieldValue.value` 保存 geometry database 中 immutable
-`GeometryEntity.id`，或保存 `null` 表示此欄位由上游 process step output resolve。
+## 1. 設計原則
 
-`null` 只允許用在有 incoming edge 且該 edge `source.sourceType` 為 `stepOutput`
-的 `geometryRef` 欄位。Initial geometry、沒有 incoming edge 的 geometry 欄位，或
-incoming edge 來源不是 step output 的 geometry 欄位，都必須保存明確的 geometry DB id。
-Runtime 在執行 process step 前，會將 resolved geometry DB id 對應到
-`GeometryEntity.structure` / `GeometryStructure`，再交給 step 使用。Process step
-本身處理的是完整 geometry structure，而 persisted instance 保存的是 geometry DB id
-或可由 graph resolve 的 `null`。
+1. Geometry dataflow 與 process parameters 分離。
+2. Template 定義結構，workspace 保存研究中的 mutable configuration，instance
+   保存已確認且 immutable 的完整 configuration。
+3. Geometry 只經由 typed ports 傳遞，不是 parameter value type。
+4. Persisted object 使用 stable id；空字串、特殊 sentinel id 或 id prefix 不承擔
+   source type 語意。
+5. Compiler 負責 DB resolution 與 validation；kernel 只執行完整 execution plan。
+6. Template、instance 與 catalog geometry 都是 immutable snapshots。
 
-### Geometry Entity
+所有 V2 persisted payload 都包含：
 
-`GeometryEntity` 是 geometry database 中實際保存的 geometry object 基本結構。它包含
-database identity、category、geometry structure payload，以及描述與治理欄位。
+```json
+{ "schemaVersion": 2 }
+```
 
-| 欄位 | 型別 | 說明 |
-|---|---:|---|
-| `id` | string | Geometry entity 在 geometry database 中的 immutable id。如果 geometry content 被修改，必須建立新的 geometry entity，並給予新的 `id`。 |
-| `category` | string | 階層式 category，用來描述這個 geometry 是什麼，例如 `carrier.wafer.glass`。Category 是給 UI 搜尋、瀏覽與建立 template 時使用的主要分類。 |
-| `entityType` | string | 粗粒度 geometry 類型，用於 UI badge、搜尋、篩選與 fallback preview 判斷，例如 `wafer`、`panel`、`die`、`carrier`、`interposer`。`entityType` 不取代 `category`；`category` 保留階層式分類，`entityType` 提供穩定的一階類型 facet。 |
-| `name` | string  | 人閱讀以及UI顯示 name |
-| `version` | string  | 人閱讀以及UI顯示 version |
-| `owner` | string  | 負責此 geometry entity 的 owner 或 owning team。 |
-| `description` | string  | 用於描述此物件來源用途等資訊，並且提供在UI顯示 |
-| `structureFormat` | string  | 用來解讀 `structure` 的 format。目前只定義 `standard`。 |
-| `structure` | object  | 依據 `structureFormat` 描述的 geometry structure payload。此 object 的詳細 shape 會在 Geometry Structure 章節另外定義。 |
+## 2. Ownership
 
-`GeometryEntity` 不另設獨立的短摘要欄位。UI 需要顯示短摘要、搜尋文字或 card
-說明時，應使用 `description`。
+| Model | Owns | Does not own |
+| --- | --- | --- |
+| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program | Parameter values、geometry records、flow topology |
+| `ProcessFlowTemplate` | Flow inputs、step references、edges | Product values、geometry bindings |
+| `ProcessFlowWorkspace` | Mutable bindings、parameter values、embedded geometry | Topology |
+| `ProcessFlowInstance` | Complete immutable product configuration | Embedded geometry、topology、instance lineage |
+| `GeometryEntity` | Immutable catalog metadata 與 complete geometry structure | Flow-specific role |
+| `ExecutionPlan` | Fully resolved geometry structures、ordered steps、input routing | Repository handles、DB ids that still require lookup |
 
+V2 沒有獨立的 `ProcessFlowTemplateRevision` model。每個 template id 代表一個
+immutable snapshot；新版本使用新的 id 與 `version`。Workspace 的 `revision` 只用於
+optimistic concurrency，不是 template revision。
 
-範例：
+## 3. ProcessStepTemplate
 
 ```json
 {
-  "id": "geom_wafer_aaatv_rev_a",
-  "category": "carrier.wafer.glass",
-  "entityType": "wafer",
-  "name": "SKH HBM4",
-  "version": "v1.0.0",
-  "owner": "integration-team",
-  "description": "Incoming glass wafer geometry for aaaTV process flow.",
-  "structureFormat": "standard",
-  "structure": {
-    "schemaVersion": "1.0.0",
-    "unitSystem": "um",
-    "root": {
-      "id": "container:incoming-wafer",
-      "key": "incoming-wafer",
-      "bodies": [],
-      "vias": [],
-      "circuits": [],
-      "bumps": [],
-      "children": []
+  "schemaVersion": 2,
+  "id": "step_tpl_pnp_2_0_0",
+  "version": "V2.0.0",
+  "name": "PnP",
+  "category": "assembly.pnp",
+  "program": "pnp/pnp",
+  "description": "Places component geometry.",
+  "owner": "integration.platform",
+  "inputPorts": [
+    {
+      "portId": "main_geometry",
+      "name": "Main geometry",
+      "dataType": "geometry",
+      "role": "primary",
+      "required": true
+    },
+    {
+      "portId": "die_geometry",
+      "name": "Die geometry",
+      "dataType": "geometry",
+      "role": "auxiliary",
+      "required": true
     }
+  ],
+  "outputPorts": [
+    {
+      "portId": "result_geometry",
+      "name": "Result geometry",
+      "dataType": "geometry"
+    }
+  ],
+  "parameterDefinitions": [
+    {
+      "id": "coordinates",
+      "name": "Coordinates",
+      "valueType": "coordinates",
+      "controlType": "coordinateList",
+      "required": true,
+      "unit": "um"
+    }
+  ]
+}
+```
+
+### 3.1 Port invariants
+
+- 必須有且只能有一個 primary input：`main_geometry`。
+- `main_geometry.required` 必須為 `true`。
+- 必須有且只能有一個 output：`result_geometry`。
+- 其他 input port 使用 `role: "auxiliary"`。
+- 本版所有 ports 的 `dataType` 都是 `geometry`。
+- `inputPorts[].portId` 與 `outputPorts[].portId` 各自在 collection 內唯一。
+
+Process module 從 `ProcessStepContext.geometry_inputs` 取得 ports。便利屬性
+`input_geometry` 指向 `main_geometry`。
+
+### 3.2 ParameterDefinition
+
+支援的 `valueType`：
+
+```text
+string, integer, float, boolean, materialRef, coordinates,
+string[], integer[], float[], materialRef[], fieldGroupArray
+```
+
+支援的 `controlType`：
+
+```text
+text, number, checkbox, select, repeater, coordinateList
+```
+
+`ParameterDefinition` 可包含：
+
+- `required`
+- `unit`
+- `selectionMode`
+- static `optionSource`
+- string / numeric `validation`
+- `repeatDefinition`
+
+Geometry 不在這個 value type union 中。
+
+### 3.3 Repeatable values
+
+```json
+{
+  "layers": {
+    "items": [
+      {
+        "itemId": "layer-1",
+        "index": 1,
+        "values": {
+          "Dielectric": "PI",
+          "Conductivity": "Cu",
+          "thk": 2
+        }
+      }
+    ]
   }
 }
 ```
 
-### Geometry Structure Format: standard
+- Definition path 是 `repeatDefinition.itemParameterDefinitions[]`。
+- Value path 是 `items[].values`。
+- `itemId` 在同一 group 內唯一且保存於 workspace / instance。
+- `index` 是 display index，不作為 identity。
+- Nested repeat definitions 使用相同結構遞迴處理。
 
-`structureFormat = "standard"` 時，`structure` 描述一棵以 root container
-為入口的 geometry structure tree。這個 structure 只描述 geometry 的資料結構、
-座標、材料、feature density 與 container composition 語意；不描述資料如何被
-程式產生，也不包含 geometry database 的搜尋、權限、lifecycle 或 indexing 欄位。
-
-`standard` structure 的 top-level 欄位如下：
-
-| 欄位 | 型別 | 說明 |
-|---|---:|---|
-| `schemaVersion` | string | Geometry structure schema version，例如 `1.0.0`。 |
-| `unitSystem` | string | 此 structure 使用的長度單位，例如 `um`。 |
-| `root` | Container | Root container。整個 geometry structure 從這個 container 開始遞迴解讀。 |
-
-#### Container
-
-`Container` 是一個語意分組節點。Container 本身不代表材料，也不直接佔有實體
-體積；真正有體積的 solid geometry 放在 `bodies` 裡。Child container 透過
-`children` 形成 tree structure。
-
-目前 `standard` structure 內的座標都視為 global coordinates。Container 不定義
-local transform，也沒有 `translate`、`rotate` 或 `scale` 欄位。序列化後也不保存
-parent reference，避免 container tree 出現 cycle。
-
-| 欄位 | 型別 | 說明 |
-|---|---:|---|
-| `id` | string | Container 在 geometry structure 內的 node id。它不是 geometry database primary key。 |
-| `key` | string | Container 的人可讀名稱、語意名稱或 debug key。 |
-| `bodies` | Body[] | 直接屬於此 container 的 solid bodies。 |
-| `vias` | Via[] | 直接屬於此 container 的 via density features。 |
-| `circuits` | Circuit[] | 直接屬於此 container 的 circuit density features。 |
-| `bumps` | Bump[] | 直接屬於此 container 的 bump density features。 |
-| `children` | Container[] | Child containers。每個 child 都使用同一種 container structure。 |
-
-#### Body
-
-`Body` 代表真正佔有實體體積的材料區域。
-
-| 欄位 | 型別 | 說明 |
-|---|---:|---|
-| `id` | string | Body 在 geometry structure 內的 node id。 |
-| `geometry` | Geometry | Solid body 的 geometry primitive payload。 (Geometry 是 standard geometry structure 的內部資料結構) |
-| `material` | string | 此 body 使用的材料名稱或材料 ID。 |
-
-#### FeatureDirection
-
-`FeatureDirection` 用來描述 density-based feature 在 Z axis 上的方向語意。此方向
-使用 structure 的 global coordinate system 解讀，只支援下列值：
-
-| 值 | 說明 |
-| --- | --- |
-| `"+z"` | Feature 從 lower-Z side 指向 higher-Z side。 |
-| `"-z"` | Feature 從 higher-Z side 指向 lower-Z side。 |
-
-`direction` 欄位只定義在 Via 與 Bump。`standard` structure 中每個 via 與 bump
-都必須提供 `direction`；缺少 `direction` 的 via 或 bump payload 不符合
-`standard` structure。Circuit 不保存 `direction`。
-
-`direction` 是 feature 的成長方向、連接方向或 process-normal direction。它不改變
-`geometry` 的空間作用範圍，也不改變 geometry primitive 的座標或 `thk` 解讀方式。
-所有 geometry primitive 仍依照 Geometry 結構章節定義，以自己的座標與正 `thk`
-描述 feature envelope。
-
-當 process operation 只做平移、複製、裁切或厚度調整時，`direction` 保持不變。
-當 process operation 反轉 Z axis，例如將 structure 或 container subtree 以某個
-XY plane 做 flip 時，所有被 flip 範圍內的 via 與 bump direction 都必須同步反轉：
-`"+z"` 變成 `"-z"`，`"-z"` 變成 `"+z"`。
-
-#### Feature Keep Out Zone
-
-`koz` 欄位定義在 Via、Circuit 與 Bump，用來保存 keep out zone distance。
-`standard` structure 中每個 via、circuit 與 bump payload 都必須提供 `koz`；
-缺少 `koz` 的 via、circuit 或 bump payload 不符合 `standard` structure。Kernel
-建立 Via、Circuit 或 Bump 時若 caller 未指定 `koz`，預設值為 `0`。
-
-#### Via
-
-`Via` 代表 via 結構
+## 4. ProcessFlowTemplate
 
 ```json
 {
-  "id": "via:root-container-package-root-via-0:...",
-  "geometry": {},
-  "material": "copper",
-  "density": 0.3,
-  "direction": "-z",
-  "koz": 0
-}
-```
-
-| 欄位 | 型別 | 說明 |
-| --- | --- | --- |
-| `id` | `string` | Via feature 在 geometry structure 內的 deterministic id。 |
-| `geometry` | `Geometry` | 此 via feature 的幾何作用範圍。 |
-| `material` | `string` | Via feature 使用的材料名稱或材料 ID。 |
-| `density` | `number` | 此幾何範圍內的有效 via density。 |
-| `direction` | `FeatureDirection` | 此 via feature 的 Z-axis 方向。`"+z"` 表示由 lower-Z side 指向 higher-Z side；`"-z"` 表示由 higher-Z side 指向 lower-Z side。 |
-| `koz` | `number` | Keep out zone distance，必須是非負 finite number，單位依照 structure `unitSystem` 解讀。 |
-
-Via 只作用在持有該 via 的 container scope 內，不會因為幾何座標重疊而自動
-向上套用到 parent container，也不會向下套用到 child container。Via 必須保存
-`direction` 與 `koz`，後續 process step 不得只由 geometry envelope 的 Z 位置推論
-via 方向。
-
-Via 的 `geometry` 是未套用 `koz` 的 feature envelope。`koz` 不會在 kernel 建立
-via 時預先改寫 `geometry`，而是由 downstream consumer，例如 CDB generate，在
-materialize feature 或 density region 時依 `koz` 對 XY footprint 做 inward inset。
-
-#### Circuit
-
-`Circuit` 代表 Circuit 結構
-
-```json
-{
-  "id": "circuit:root-container-package-root-circuit-0:...",
-  "geometry": {},
-  "material": "copper",
-  "density": 0.5,
-  "koz": 0
-}
-```
-
-| 欄位 | 型別 | 說明 |
-| --- | --- | --- |
-| `id` | `string` | Circuit feature 在 geometry structure 內的 deterministic id。 |
-| `geometry` | `Geometry` | 此 Circuit feature 的幾何作用範圍。 |
-| `material` | `string` | Circuit feature 使用的材料名稱或材料 ID。 |
-| `density` | `number` | 此幾何範圍內的有效 Circuit density。 |
-| `koz` | `number` | Keep out zone distance，必須是非負 finite number，單位依照 structure `unitSystem` 解讀。 |
-
-Circuit 只作用在持有該 circuit 的 container scope 內，不會因為幾何座標重疊而自動向上套用到 parent container，也不會向下套用到 child container。
-
-Circuit 不保存 `direction`。Circuit 的 feature type 表示平面 routing 或 circuit
-density；若某個 process 需要描述有方向性的垂直連接，應使用 Via。
-
-Circuit 的 `geometry` 是未套用 `koz` 的 feature envelope。`koz` 不會在 kernel
-建立 circuit 時預先改寫 `geometry`，而是由 downstream consumer，例如 CDB
-generate，在 materialize feature 或 density region 時依 `koz` 對 XY footprint
-做 inward inset。
-
-#### Bump
-
-`Bump` 代表 bump 結構
-
-```json
-{
-  "id": "bump:root-container-package-root-bump-0:...",
-  "geometry": {},
-  "material": "solder",
-  "density": 0.8,
-  "direction": "+z",
-  "koz": 0
-}
-```
-
-| 欄位 | 型別 | 說明 |
-| --- | --- | --- |
-| `id` | `string` | Bump feature 在 geometry structure 內的 deterministic id。 |
-| `geometry` | `Geometry` | 此 Bump feature 的幾何作用範圍。 |
-| `material` | `string` | Bump feature 使用的材料名稱或材料 ID。 |
-| `density` | `number` | 此幾何範圍內的有效 Bump density。 |
-| `direction` | `FeatureDirection` | 此 bump feature 的 Z-axis 方向。`"+z"` 表示由 lower-Z side 指向 higher-Z side；`"-z"` 表示由 higher-Z side 指向 lower-Z side。 |
-| `koz` | `number` | Keep out zone distance，必須是非負 finite number，單位依照 structure `unitSystem` 解讀。 |
-
-Bump 只作用在持有該 bump 的 container scope 內，不會因為幾何座標重疊而自動
-向上套用到 parent container，也不會向下套用到 child container。Bump 必須保存
-`direction` 與 `koz`，後續 process step 不得只由 geometry envelope 的 Z 位置推論
-bump 位於哪一側或往哪個方向連接。
-
-Bump 的 `geometry` 是未套用 `koz` 的 feature envelope。`koz` 不會在 kernel 建立
-bump 時預先改寫 `geometry`，而是由 downstream consumer，例如 CDB generate，在
-materialize feature 或 density region 時依 `koz` 對 XY footprint 做 inward inset。
-
-#### Geometry 結構
-
-- 目前提供geometry種類有BoxGeometry、PolygonGeometry、CylinderGeometry、ConeGeometry
-
-- 所有座標點都使用 `[x, y, z]`。目前 primitive 都沿 Z axis 以 `thk` 表示厚度。
-
-- Runtime geometry primitive 提供 XY footprint inset/outset 複製能力，供 body
-  layer 類製程 API 在不直接修改 primitive 內部欄位的情況下產生內縮或外張
-  envelope。Box、Cylinder 與 Cone 支援正值 inset 與負值 outset；Polygon 只支援
-  零值 copy，不支援非零 XY inset/outset。
-- Via、Circuit 與 Bump 的 keep out zone 不透過 primitive copy 預先改寫
-  `geometry`；它們必須保存自己的 `koz` 欄位，並由 downstream consumer 在需要
-  materialize feature 時處理。
-
-##### 5.1 BoxGeometry
-
-JSON 範例：
-
-```json
-{
-  "type": "BoxGeometry",
-  "bottom_left": [0, 0, 0],
-  "top_right": [10, 10, 0],
-  "thk": 1
-}
-```
-
-欄位說明：
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `bottom_left` | `number[3]` | Box footprint 的左下角點。 |
-| `top_right` | `number[3]` | Box footprint 的右上角點。 |
-| `thk` | `number` | 沿 Z axis 的厚度。 |
-
-`bottom_left[2]` 與 `top_right[2]` 代表 box 的底面 Z 位置，兩者應在同一個
-XY plane。Box top Z 可以用 `bottom_z + thk` 取得。
-
-Three.js viewer 可以用：
-
-```text
-width  = top_right.x - bottom_left.x
-depth  = top_right.y - bottom_left.y
-height = thk
-center = [
-  (bottom_left.x + top_right.x) / 2,
-  (bottom_left.y + top_right.y) / 2,
-  bottom_left.z + thk / 2
-]
-```
-
-##### 5.2 PolygonGeometry
-
-JSON 範例：
-
-```json
-{
-  "type": "PolygonGeometry",
-  "polys": [
-    [
-      [0, 0, 0],
-      [10, 0, 0],
-      [10, 10, 0],
-      [0, 10, 0]
-    ]
-  ],
-  "thk": 1
-}
-```
-
-欄位說明：
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `polys` | `number[][][]` | 一個或多個 polygon footprint。每個 polygon 是一組 `[x, y, z]` 點。 |
-| `thk` | `number` | 沿 Z axis 的 extrusion 厚度。 |
-
-目前實作使用第一個 polygon 的第一個點的 Z 作為底面 Z。Viewer 讀取時應把
-polygon footprint 沿 Z axis extrude `thk`。
-
-JavaScript `PolygonGeometry` constructor 目前會驗證 polygon loop：所有點必須
-在同一個 XY plane、每個 loop 至少需要 3 個 unique points、不能有重複點、
-零長度邊、自交、零面積，且不同 loops 不能相交或相切。CAD exporter 會用
-odd-even containment 將 loops 分成 outer loop 與 holes，再沿 Z axis extrude。
-
-##### 5.3 CylinderGeometry
-
-JSON 範例：
-
-```json
-{
-  "type": "CylinderGeometry",
-  "center": [5, 5, 0],
-  "bottom_radius": 1,
-  "thk": 2
-}
-```
-
-欄位說明：
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `center` | `number[3]` | Cylinder 底面的中心點。 |
-| `bottom_radius` | `number` | Cylinder 半徑。 |
-| `thk` | `number` | 沿 Z axis 的高度。 |
-
-Cylinder top Z 可以用 `center[2] + thk` 取得。
-
-##### 5.4 ConeGeometry
-
-JSON 範例：
-
-```json
-{
-  "type": "ConeGeometry",
-  "center": [5, 5, 0],
-  "bottom_radius": 1,
-  "top_radius": 0.5,
-  "thk": 2
-}
-```
-
-欄位說明：
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `center` | `number[3]` | Cone 或 frustum 底面的中心點。 |
-| `bottom_radius` | `number` | 底面半徑。 |
-| `top_radius` | `number` | 頂面半徑。 |
-| `thk` | `number` | 沿 Z axis 的高度。 |
-
-當 `bottom_radius` 與 `top_radius` 相同時，這個 payload 可被視為 cylinder-like
-frustum。Cone top Z 可以用 `center[2] + thk` 取得。
-
-#### Structure Translation and Composition
-
-Reader、viewer 或 geometry engine 解讀 `standard` structure 時，應從
-`structure.root` 開始遞迴讀取 container tree：
-
-1. 讀取目前 container 的 `bodies`，建立此 container scope 內的 solid volume。
-2. 讀取目前 container 的 `vias`、`circuits`、`bumps`，建立只屬於此 container
-   scope 的 density features。
-3. 遞迴讀取每個 `children` container。
-4. 套用 ancestor-descendant composition：descendant container 的 body、via、
-   circuit 或 bump 與 ancestor container 的 body、via、circuit 或 bump 發生空間
-   overlap 時，overlap 區域由 descendant item 佔據。
-
-這個規則的意思是：ancestor container 可以代表較粗略的外殼、包覆體、背景體積或
-package-level feature；descendant container 代表更高優先權、更具體的幾何。當
-descendant item 與 ancestor item 重疊時，該重疊區域不應被解讀成 ancestor material
-加 descendant material 兩份體積，也不應被解讀成 ancestor feature 加 descendant
-feature 兩份 feature effect，而應由 descendant item 的材料、feature type、density
-與幾何語意取代 ancestor item 在該區域的語意。
-
-例如 root container 有一個 mold compound body，而 child container 有一個 die
-silicon body。如果 die body 的空間範圍落在 mold body 內，這段 overlap volume
-屬於 child die 的 silicon body，不屬於 parent mold compound body。
-
-若 root container 有一個 full-area bump feature，而 child die container 有自己的
-bump feature，兩者 envelope overlap 的區域由 child die 的 bump 表達；root bump 的
-effective feature volume 需要排除該區域。這個 ancestor-descendant spatial priority
-同樣適用於 body、via、circuit 與 bump 的任意組合。
-
-`standard` structure 只定義 ancestor-descendant chain 上的 overlap priority。若同
-一個 container 內的 sibling items 互相 overlap，或不同 child branches 內的 cousin
-items 互相 overlap，structure 只描述它們的位置、材料與 feature 欄位，不額外定義哪
-一個 item 擁有 overlap 區域；資料建模時應避免依賴這類非 ancestor-descendant
-overlap 的 ownership 或 priority 語意。
-
-## ProcessStepTemplate
-
-代表站點層級 process step。
-
-必要欄位：
-
-1. `id`：process step template 在 process step template DB 中的唯一 ID
-2. `version`：人閱讀以及UI顯示 version
-3. `name`：人閱讀以及UI顯示 process name
-4. `category`：階層式 category，用來描述這個 process step 是什麼種類，例如 Bounding.TCP。Category 是給 UI 搜尋、瀏覽與建立 template 時使用的主要分類。
-5. `program`：runtime process program 的 module path，格式為相對 Python `process_flow_steps` package 的 extensionless path，例如 `layer/molding` 或 `bump/bga_bump_formation`。
-    - `program` 不使用絕對路徑、`..`、空 segment 或檔案副檔名。
-    - Path segment 只使用英文字母、數字、`_` 與 `-`。
-    - 多個 process step template 可以共用同一個 `program`。
-6. `description`：用於描述此物件來源用途等資訊，並且提供在UI顯示。
-7. `owner`：負責此 process step 的 owner 或 owning team。
-8. `fieldDefinitions`： 用於描述此process step所需要的參數有哪些，每個參數 definition 以 FieldDefinition 結構來描述。 
-    - 每個 FieldDefinition 直接內嵌在 `fieldDefinitions[]` 中，不透過 id 間接 reference。
-
-典型 step template 例子：
-
-1. Molding / Encapsulation：描述 mold compound、mold thickness、cure condition。
-2. Underfill：描述 underfill material、dispense pattern、cure profile。
-3. Die attach：描述 attach material、bondline thickness、placement condition。
-
-Golden Rule:
-
-1. 所有 process step template 必須有一個 `FieldDefinition`，其 `id` 與 `name` 為 `main_geometry`，且 `valueType` 為 `geometryRef`。此欄位是 process step 接收 initial geometry 或前一個 process step output geometry 的主要入口。
-
-ProcessStepTemplate JSON 範本：
-
-<details>
-<summary>展開查看 ProcessStepTemplate JSON 範本</summary>
-
-```json
-{
-  "id": "step_tpl_die_attach",
-  "version": "V1.0.0",
-  "name": "Die attach",
-  "category": "assembly.die_attach",
-  "program": "assembly/die_attach/step_tpl_die_attach",
-  "description": "Define die attach process parameters and resulting package state.",
+  "schemaVersion": 2,
+  "id": "flow_tpl_cowosl_2_0_0",
+  "name": "CoWoS-L",
+  "version": "V2.0.0",
+  "description": "Reusable technology topology.",
   "owner": "integration.platform",
-  "fieldDefinitions": [
+  "flowInputs": [
     {
-      "id": "main_geometry",
-      "name": "main_geometry",
-      "description": "Complete geometry state consumed by this process step.",
-      "scope": "inputState",
-      "valueType": "geometryRef",
-      "controlType": null,
-      "selectionMode": null,
-      "unit": null
-    },
-    {
-      "id": "incoming_pad_finish",
-      "name": "Incoming pad finish",
-      "description": "Pad finish before micro bump bonding starts.",
-      "scope": "inputState",
-      "valueType": "string",
-      "controlType": "select",
-      "selectionMode": "single",
-      "unit": null,
-      "optionSource": {
-        "type": "static",
-        "options": [
-          {
-            "value": "cu",
-            "name": "Cu"
-          },
-          {
-            "value": "ni_au",
-            "name": "Ni/Au"
-          }
-        ]
+      "flowInputId": "incoming_panel",
+      "name": "Incoming panel",
+      "dataType": "geometry",
+      "required": true,
+      "geometryConstraints": {
+        "entityTypes": ["panel"],
+        "categories": ["carrier.panel"],
+        "structureFormats": ["standard"]
       }
-    },
+    }
+  ],
+  "stepRefs": [
     {
-      "id": "bump_pitch",
-      "name": "Bump pitch",
-      "description": "Nominal micro bump pitch used by this bonding process.",
-      "scope": "processParameter",
-      "valueType": "float",
-      "controlType": "number",
-      "unit": "um",
-      "validation": {
-        "min": 0
-      }
-    },
+      "stepRefId": "pnp",
+      "stepLabel": "PnP",
+      "processStepTemplateId": "step_tpl_pnp_2_0_0"
+    }
+  ],
+  "flowEdges": [
     {
-      "id": "bonding_profile",
-      "name": "Bonding profile",
-      "description": "Named bonding recipe or process profile family.",
-      "scope": "processParameter",
-      "valueType": "string",
-      "controlType": "select",
-      "selectionMode": "single",
-      "unit": null,
-      "optionSource": {
-        "type": "static",
-        "options": [
-          {
-            "value": "baseline_thermal_compression",
-            "name": "Baseline thermal compression"
-          },
-          {
-            "value": "low_temperature",
-            "name": "Low temperature"
-          }
-        ]
-      }
-    },
-    {
-      "id": "post_bond_alignment_error",
-      "name": "Post-bond alignment error",
-      "description": "Measured or expected alignment error after bonding.",
-      "scope": "outputState",
-      "valueType": "float",
-      "controlType": "number",
-      "unit": "um",
-      "validation": {
-        "min": 0
+      "edgeId": "edge_panel_to_pnp",
+      "source": {
+        "kind": "flowInput",
+        "flowInputId": "incoming_panel"
+      },
+      "target": {
+        "stepRefId": "pnp",
+        "inputPortId": "main_geometry"
       }
     }
   ]
 }
 ```
-</details>
 
-## FieldDefinition
+Edge source union：
 
-- 用於定義 process step template 中的參數 欄位語意、資料型別、輸入控制、限制、選項與 repeater 行為，
-- 不保存任何 TV/Product instance 的實際值。
-
-欄位與行為規則：
-
-1. `id`：欄位在引用他的 process step template 中 ID。
-  - 此為一個local ID 只在用其的 process step template 作用
-2. `name`：人閱讀以及 UI 顯示名稱。
-3. `description`：欄位語意說明，應描述這個欄位代表什麼 process state 或 parameter、何時使用、避免哪些誤解。
-4. `scope`：欄位在站點中的語意分組。支援值為 `inputState`、`outputState`、`processParameter`。
-    - `inputState` 描述進入此站點前，上游已形成且此站點需要知道的狀態，例如進 molding 前的 stack thickness、die placement state、substrate warpage baseline。它不是此站點產生的結果，也不是此站點的 recipe parameter。
-    - `outputState` 描述該站點完成後形成的 package/process state。
-    - `processParameter` 描述影響該站點結果的 process parameters 或 recipe choices。
-5. `valueType`：欄位值的 domain 型別，定義 instance value 可接受的資料形態。支援值為
-    1. `string`
-    2. `integer`
-    3. `float`
-    4. `boolean`
-    5. `materialRef`：材料名稱、材料代碼或 material DB entity id。雖然名稱帶有 `Ref`，但 persisted value payload 是 string，不是 `ReferenceValue` object。
-    6. `geometryRef`：表示此欄位接收 geometry database 中的 immutable geometry entity id。Instance value 可以是 geometry DB id string，或在特定 graph 條件下為 `null`。
-        - `geometryRef` value 為 string 時，該 string 必須是 `GeometryEntity.id`。
-        - `geometryRef` value 為 `null` 時，表示此欄位使用上游 process step output geometry；此欄位必須有且只能有一條 incoming `flowEdges[]`，且 edge source 必須是 `stepOutput`。
-        - Initial geometry 或沒有 incoming `stepOutput` edge 的 `geometryRef` 欄位不可使用 `null`。
-        - `geometryRef` 沒有使用者可編輯的 control type，實際來源由 `ProcessFlowTemplate.flowEdges[]` 與 instance value 決定。
-    7. `coordinates`：表示一組 2D placement coordinates。Instance value 是 `number[][]`，每個 item 必須是固定長度為 2 的 `[x, y]` number tuple。
-        - 每個 `[x, y]` 代表一個 die 在 global coordinate system 中的 bottom-left coordinate；`x` 為 `bottomLeft_x`，`y` 為 `bottomLeft_y`。
-        - `coordinates` 欄位可使用 `unit` 表示 canonical unit，例如 `"um"`。Instance value 中保存的數值必須已轉換為該 canonical unit。
-        - Coordinate array 的順序沒有語意，process program 不應依賴 item order。
-        - 空 array `[]` 是合法 value。
-        - 不允許重複 coordinate pair；相同 `[x, y]` 只可保存一次。
-        - `coordinates` 只支援 `controlType: "coordinateList"`。
-        - `coordinateList` UI 可提供不同輸入方式，例如手動新增 x/y rows，或由 browser 端 GDS file import 填入同一份 coordinate list。
-        - GDS import 使用 browser File API 讀取使用者選取的本機檔案，並在 user side 完成解析與轉換；GDS file 不上傳 server，也不保存到 process flow instance payload。
-        - `coordinates` 目前不使用 `validation`；`minItems`、`maxItems`、coordinate range 或其他座標限制不由目前 schema 表達。
-    8. `fieldGroupArray`：用來定義一種特殊 valueType。依據現有 fieldDefinition 定義一組 參數組 。
-        - 此欄位設計目的主要是用於像 RDL layer，會有好幾層，每層有個別 厚度、材料 與 metal density (或 real pattern)。如果一層一層建 RDL 會帶來兩個問題，一是這讓 engineer感覺很煩，二則是只要有不同 RDL layer 就需要產生不同 process flow template，但往往不同 tech 我們才建立不同 flow template。因此引入此可以讓使用者調整參數組數量的 valueType
-        - 此 valueType 必須搭配 `controlType: repeater` 使用
-        - 此 valueType 必須搭配 `repeatDefinition` 欄位使用，作為描述每一組 fields 的 FieldDefinition。
-        - 此 valueType 參數組不可以再使用 fieldGroupArray，只允許第一層使用 fieldGroupArray
-    9. 以及 array value type：`string[]`、`integer[]`、`float[]`、`materialRef[]`。但是 `boolean[]`、`coordinates[]`、`fieldGroupArray[]` 不支援。
-6. `controlType`：此欄位在 UI 表現方式。支援值為 `text`、`number`、`checkbox`、`select`、`repeater`、`coordinateList`；`geometryRef` 欄位使用 `null` 或省略。
-7. `selectionMode`：當 controlType 是選項型欄位 (`checkbox` 與 `select`) 須透過此設定使來決定為 `single` 或 `multiple`；非選項型欄位使用 `null` 或省略。
-    - `"single"`：表示只能選一個。必須搭配非 array `valueType`
-    - `"multiple"`：可以選擇多個。必須搭配 array `valueType`。
-8. `optionSource`：選擇性欄位 (`checkbox` 與 `select`) primitive 選項來源，可為 static options 或外部 primitive option catalog。
-9. `unit`：欄位的 canonical unit；`integer`、`float` 或 `coordinates` 欄位若有單位應使用此欄位，無單位欄位使用 `null`，不要使用空字串。
-10. `validation`：欄位限制規則，例如 `min`、`max`、`exclusiveMin`、`exclusiveMax`、`regex`、`minLength`、`maxLength`。`coordinates` 目前不使用 `validation` 表達座標數量、範圍或去重規則。
-11. `repeatDefinition`：`repeater` 欄位的重複群組定義。用於 RDL build-up 這類需要在單一欄位內建立多組 PM + RDL repeat items 的情境；repeat item 數量由 `fieldGroupArray.value.items.length` 表示。
-
-### Control type behavior：
-
-| `controlType` | UI 行為 | 對應 `valueType` | 必要或常用設定 |
-| --- | --- | --- | --- |
-| `text` | 文字輸入框，只能輸入文字。 | `string` 或 `materialRef` | 可用 `validation.regex`、`minLength`、`maxLength` 限制格式與長度。 |
-| `number` | 數字輸入框。 | `integer` 或 `float` | `integer` 不允許小數；`float` 可允許小數。用 `validation` 控制範圍。 |
-| `checkbox` | 單一 yes/no 核取方塊，或多個核取方塊直接展開在畫面上。 | `boolean`、`string`、`string[]`、`integer[]`、`float[]`、`materialRef[]` | 單一 yes/no checkbox 使用 `boolean`；選項型 checkbox 使用 `selectionMode` 與 `optionSource.options`，多選時使用 array `valueType`。 |
-| `select` | 下拉選單或 compact list。 | `string`、`integer`、`float`、`materialRef`、`string[]`、`integer[]`、`float[]`、`materialRef[]` | 使用 `selectionMode` 控制單選或多選，選項放在 `optionSource.options` 或由 `externalReference` 指定；多選時使用 array `valueType`。 |
-| `repeater` | 在單一欄位中動態新增、縮減或移除多組子欄位。 | `fieldGroupArray` | 必須提供 `repeatDefinition`；`itemFieldDefinitions[]` 定義每個 repeat item 內的 child fields，`minItems` 與 `maxItems` 可限制 `items.length`。 |
-| `coordinateList` | 新增、移除與編輯多組 `[x, y]` coordinates。UI 可提供手動 x/y rows，也可提供 browser-side GDS import action 將 GDS 解析結果填入 coordinate list。 | `coordinates` | Instance value 直接保存 `number[][]`，不使用 `fieldGroupArray` 的 nested `items[].fieldValues[]` 結構。GDS file、layer 與 datatype 是 import action 的暫時輸入，不保存到 `FieldValue.value`。 |
-| `null` 或省略 | 不由一般 UI control 直接輸入。 | `geometryRef` | Instance value 為 geometry DB id string 或符合 flow edge 規則的 `null`。 |
-
-### Numeric validation 
-使用 `min`、`max`、`exclusiveMin`、`exclusiveMax` 表達大小限制：
-
-| 語意 | `validation` |
-| --- | --- |
-| `> 0` | `{ "min": 0, "exclusiveMin": true }` |
-| `>= 0` | `{ "min": 0 }` |
-| `< 0` | `{ "max": 0, "exclusiveMax": true }` |
-| `<= 0` | `{ "max": 0 }` |
-
-### Option source 規則：
-#### static Type
-直接在 option 中定義好有哪些選項：
 ```json
-"type": "static",
-"options": [],
+{ "kind": "flowInput", "flowInputId": "incoming_panel" }
 ```
-  - `Option` 的格式為 `{ "value": string | number, "name": string, "description"?: string}`。
-
-#### externalReference Type
-選項來自外部 DB 或 catalog 中內容：
-```json
-"type": "externalReference",
-"source": "material-DB",
-"category": "wafer.glass"
-```
-- 使用外部資源中特定 category 以下的 entity 或 primitive catalog item 作為 options。
-- `source` 指定外部 DB 或 catalog。
-- `category` 指定外部 DB 或 catalog 中要列為選項的分類。
-
-#### 共通 Rule
-- `externalReference` 在 `optionSource` 中代表外部 primitive option catalog，不代表 `ReferenceDefinition`，也不保存外部 entity identity object。
-- 每個 option 必須有唯一 `value`，並應提供給 UI 顯示的 `name`。
-- `option.value` 必須符合 `valueType` 的 primitive 型別；例如 `valueType: "string"`、`valueType: "string[]"`、`valueType: "materialRef"` 或 `valueType: "materialRef[]"` 使用 string option value，`valueType: "integer"` 或 `valueType: "integer[]"` 使用 integer number option value。
-- `selectionMode: "single"` 時，`valueType` 必須是非 array 型別，instance `value` 保存單一 option value。
-- `selectionMode: "multiple"` 時，`valueType` 必須是 array 型別，instance `value` 保存 option value array。
-- Instance value 必須存在於 `optionSource.options[].value`；若使用 `externalReference` 且沒有本地 `options`，則由外部 option catalog 驗證。
-
-### FieldDefinition 與 value 範例：
-
-單選 static select：
 
 ```json
 {
-  "id": "incoming_pad_finish",
-  "name": "Incoming pad finish",
-  "description": "Pad finish before micro bump bonding starts.",
-  "scope": "inputState",
-  "valueType": "string",
-  "controlType": "select",
-  "selectionMode": "single",
-  "optionSource": {
-    "type": "static",
-    "options": [
-      {
-        "value": "cu",
-        "name": "Cu"
-      },
-      {
-        "value": "ni_au",
-        "name": "Ni/Au"
-      }
-    ]
-  }
+  "kind": "stepOutput",
+  "stepRefId": "pnp",
+  "outputPortId": "result_geometry"
 }
 ```
 
-- Instance
-  ```json
-  {
-    "fieldId": "incoming_pad_finish",
-    "value": "cu"
-  }
-  ```
+### 4.1 Topology invariants
 
+- `flowInputId`、`stepRefId`、`edgeId` 各自在 flow template 內唯一。
+- 每個 declared flow input 至少有一條 outgoing edge。
+- 每個 required step input port 剛好有一條 incoming edge。
+- Optional step input port 可以有零或一條 incoming edge。
+- Edge source 與 target port 的 `dataType` 必須相同。
+- Step output 不可連回自己，graph 不可有 cycle。
+- 本版每個 step output port 最多一個 consumer；未來放寬 fan-out 時不需改 payload。
+- Flow input 可以 fan-out 到多個 step ports。
 
-多選 checkbox：
+### 4.2 Optional flow inputs
+
+`FlowInputDefinition.required: false` 只有在它連到的 ports 都是 optional 時才可省略
+binding。若其中任何 target port 為 required，該 flow input 的 binding 仍是 execution
+required。Compiler 與 viewer 使用相同規則。
+
+### 4.3 Unsaved preview draft
+
+Template Editor 可把尚未保存的 topology inline 傳給 preview API。此時 template
+`id` 可以是空字串，因為 compiler 不使用 persistence identity；flow input、step ref、
+port 與 edge identifiers 仍須符合 topology invariants。正式建立
+`ProcessFlowTemplate` 時 `id` 仍必須是非空且唯一。
+
+## 5. Shared FlowConfiguration
+
+Workspace、preview 與 compiler input 共用：
 
 ```json
 {
-  "id": "mold_risk_flags",
-  "name": "Mold risk flags",
-  "description": "Visible checkbox group for risk tags that should be considered during process setup.",
-  "scope": "processParameter",
-  "valueType": "string[]",
-  "controlType": "checkbox",
-  "selectionMode": "multiple",
-  "optionSource": {
-    "type": "static",
-    "options": [
-      {
-        "value": "void_risk",
-        "name": "Void risk"
-      },
-      {
-        "value": "cte_mismatch",
-        "name": "CTE mismatch"
-      }
-    ]
-  }
-}
-```
-- Instance
-  ```json
-  {
-    "fieldId": "mold_risk_flags",
-    "value": ["void_risk", "cte_mismatch"]
-  }
-  ```
-
-多選 numeric select：
-
-```json
-{
-  "id": "qualified_reflow_temperatures",
-  "name": "Qualified reflow temperatures",
-  "description": "Qualified peak reflow temperatures for this process window.",
-  "scope": "processParameter",
-  "valueType": "integer[]",
-  "controlType": "select",
-  "selectionMode": "multiple",
-  "optionSource": {
-    "type": "static",
-    "options": [
-      {
-        "value": 245,
-        "name": "245 degC"
-      },
-      {
-        "value": 260,
-        "name": "260 degC"
-      }
-    ]
-  }
-}
-```
-
-- Instance
-
-  ```json
-  {
-    "fieldId": "qualified_reflow_temperatures",
-    "value": [245, 260]
-  }
-  ```
-
-Geometry input field：
-
-```json
-{
-  "id": "main_geometry",
-  "name": "main_geometry",
-  "description": "Complete geometry state consumed by this process step.",
-  "scope": "inputState",
-  "valueType": "geometryRef",
-  "controlType": null,
-  "selectionMode": null,
-  "unit": null
-}
-```
-- Instance
-  ```json
-  {
-    "fieldId": "main_geometry",
-    "value": "geom_wafer_aaatv_rev_a"
-  }
-  ```
-
-- Instance using upstream step output
-  ```json
-  {
-    "fieldId": "main_geometry",
-    "value": null
-  }
-  ```
-
-Coordinates field：
-
-```json
-{
-  "id": "die_coordinates",
-  "name": "Die coordinates",
-  "description": "Global bottom-left placement coordinates for dies placed by this PnP step.",
-  "scope": "processParameter",
-  "valueType": "coordinates",
-  "controlType": "coordinateList",
-  "selectionMode": null,
-  "unit": "um"
-}
-```
-
-`coordinateList` UI 可提供多種輸入方式。手動輸入時，UI 提供 `+` 新增一列
-x/y number inputs。GDS 匯入時，UI 讓使用者選取本機 GDS file，並輸入 layer
-與 datatype。GDS file、layer 與 datatype 只存在於匯入操作中，不保存到
-`FieldValue.value`。
-
-GDS importer 在 browser / user side 解析 GDS，不上傳 GDS file 到 server。Importer
-將 GDS DB unit / user unit 轉成 `unit` 指定的 canonical unit、resolve hierarchy /
-cell reference / transform 成 global coordinates，並讀取每一個 top cell。符合
-layer/datatype 的 drawing object 會取 global bounding box bottom-left 作為
-coordinate。`BOUNDARY` 以 `DATATYPE` 比對；`BOX` 以 `BOXTYPE` 比對同一個 UI
-datatype input。支援的 GDS drawing element 為 `BOUNDARY` 與 `BOX`。`PATH`、
-`TEXT`、`NODE` 與其他未列入支援的 drawing elements 不轉成 coordinates；若它們
-符合 layer/datatype，UI 需在 import summary 顯示 unsupported count。`SREF` 與
-`AREF` 用於 hierarchy traversal 與 transform，不直接產生 coordinate。
-
-若 GDS 匯入結果包含重複 coordinates，importer 只保留一筆。去重比對使用 canonical
-unit 下的 numeric tolerance；`unit: "um"` 時 tolerance 為 `1e-6 um`。不論使用手動輸入
-或 GDS 匯入，instance payload 都直接保存 `number[][]`，不使用 `fieldGroupArray` 的
-nested `items[].fieldValues[]` 結構。
-
-- Instance
-  ```json
-  {
-    "fieldId": "die_coordinates",
-    "value": [
-      [100.0, 200.0],
-      [300.5, 200.0]
-    ]
-  }
-  ```
-
-- Instance with no coordinates
-  ```json
-  {
-    "fieldId": "die_coordinates",
-    "value": []
-  }
-  ```
-
-*** Repeatable field group 規則：
-- `repeatDefinition.itemFieldDefinitions[]` 內的 child field 不可以使用 `valueType: "geometryRef"`、`valueType: "coordinates"` 或 `valueType: "fieldGroupArray"`。
-- `controlType: "repeater"` 必須搭配 `valueType: "fieldGroupArray"` 與 `repeatDefinition`。
-- `repeatDefinition.itemFieldDefinitions[]` 使用完整 `FieldDefinition` shape，描述每一個 repeat item 內會出現的 child fields。
-- Repeat item 數量由 `fieldGroupArray.value.items.length` 表示，不另外建立或保存 count `FieldDefinition`。
-- Child field id 只需要在同一個 `repeatDefinition.itemFieldDefinitions[]` 內唯一；實際 resolve path 使用 parent field id、item index 與 child field id，例如 `rdl_layers[1].pm_thickness`。
-- UI 遇到 `repeater` 欄位時，應在該欄位內提供 repeat count 操作介面，例如 number input、stepper、add item/remove item controls。此 count control 只是操作 `items[]` 的 UI，不輸出為獨立 `FieldValue`。
-- 當使用者將 count 設為 `N` 時，UI 應讓 `fieldGroupArray.value.items.length` 等於 `N`，並依 `repeatDefinition.itemFieldDefinitions[]` 建立或移除 repeat items。新增 item 應產生穩定 `itemId`、依 `indexBase` 設定 `index`，並建立對應 child `FieldValue[]`。
-- 縮減 item 數量時，UI 應提醒使用者會移除超出新 count 的 child field values。
-- `repeatDefinition.minItems` 與 `repeatDefinition.maxItems` 可限制 `fieldGroupArray.value.items.length`。
-- Parent `repeater` field 代表整個 repeat group；每個 child field 的 value 仍依 child `FieldDefinition` 驗證。
-
-RDL repeatable field group 範例：
-
-<details>
-<summary>展開查看 RDL repeatable field group JSON 範例</summary>
-
-```json
-[
-  {
-    "id": "rdl_layers",
-    "name": "RDL layers",
-    "description": "Repeatable PM + RDL layer definitions. The number of RDL layers is represented by rdl_layers.value.items.length.",
-    "scope": "processParameter",
-    "valueType": "fieldGroupArray",
-    "controlType": "repeater",
-    "unit": null,
-    "repeatDefinition": {
-      "itemNameTemplate": "RDL layer {{index}}",
-      "indexBase": 1,
-      "minItems": 1,
-      "maxItems": 12,
-      "itemFieldDefinitions": [
-        {
-          "id": "pm_material",
-          "name": "PM material",
-          "description": "Photo-material used before this RDL layer.",
-          "scope": "processParameter",
-          "valueType": "materialRef",
-          "controlType": "select",
-          "selectionMode": "single",
-          "unit": null,
-          "optionSource": {
-            "type": "static",
-            "options": [
-              {
-                "value": "PM-001",
-                "name": "Baseline photo-material"
-              },
-              {
-                "value": "PM-002",
-                "name": "Low-stress photo-material"
-              }
-            ]
-          }
-        },
-        {
-          "id": "pm_thickness",
-          "name": "PM thickness",
-          "description": "Photo-material thickness for this layer.",
-          "scope": "processParameter",
-          "valueType": "float",
-          "controlType": "number",
-          "unit": "um",
-          "validation": {
-            "min": 0
-          }
-        },
-        {
-          "id": "rdl_thickness",
-          "name": "RDL thickness",
-          "description": "Copper RDL thickness for this layer.",
-          "scope": "processParameter",
-          "valueType": "float",
-          "controlType": "number",
-          "unit": "um",
-          "validation": {
-            "min": 0
-          }
-        }
-      ]
+  "inputBindings": {
+    "incoming_panel": {
+      "kind": "catalog",
+      "geometryId": "panel_v1_0_0"
     }
-  }
-]
-```
-
-</details>
-
-`fieldGroupArray` instance value 範例：
-
-<details>
-<summary>展開查看 fieldGroupArray instance value JSON 範例</summary>
-
-```json
-{
-  "fieldId": "rdl_layers",
-  "value": {
-    "items": [
-      {
-        "itemId": "rdl_layer_1",
-        "index": 1,
-        "name": "RDL layer 1",
-        "fieldValues": [
-          {
-            "fieldId": "pm_material",
-            "value": "PM-001",
-          },
-          {
-            "fieldId": "pm_thickness",
-            "value": 8.5
-          },
-          {
-            "fieldId": "rdl_thickness",
-            "value": 3
-          }
-        ]
-      },
-      {
-        "itemId": "rdl_layer_2",
-        "index": 2,
-        "name": "RDL layer 2",
-        "fieldValues": [
-          {
-            "fieldId": "pm_material",
-            "value": "PM-002"
-          },
-          {
-            "fieldId": "pm_thickness",
-            "value": 7.5
-          },
-          {
-            "fieldId": "rdl_thickness",
-            "value": 2.5
-          }
-        ]
+  },
+  "stepConfigurations": {
+    "pnp": {
+      "parameterValues": {
+        "coordinates": [[0, 0]]
       }
-    ]
-  }
+    }
+  },
+  "embeddedGeometries": {}
 }
 ```
 
-</details>
+`stepConfigurations` 以 `stepRefId` keyed。它不重複
+`processStepTemplateId`，因為這個 binding 由 template 擁有。
 
-`ValuePayload` 的形狀由 `valueType` 決定；`selectionMode` 只用來描述選項型 UI 的單選或多選行為：
+Geometry binding 是 discriminated union：
 
-| `valueType` | `selectionMode` | `ValuePayload` |
-| --- | --- | --- |
-| `string` | N/A 或 `single` | `string`；若提供 `optionSource`，必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `string[]` | `multiple` | `string[]`；每個值都必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `integer` | N/A 或 `single` | `number`，但不可有小數；若提供 `optionSource`，必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `integer[]` | `multiple` | `number[]`，每個值都不可有小數，且必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `float` | N/A 或 `single` | `number`，可有小數；若提供 `optionSource`，必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `float[]` | `multiple` | `number[]`，每個值都可有小數，且必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `boolean` | N/A | `boolean` |
-| `materialRef` | N/A 或 `single` | `string`，代表材料名稱、材料代碼或 material DB entity id；若提供 `optionSource`，必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `materialRef[]` | `multiple` | `string[]`，每個值都代表材料名稱、材料代碼或 material DB entity id；若提供 `optionSource`，必須存在於 `optionSource.options[].value` 或外部 option catalog。 |
-| `geometryRef` | N/A | `string` 或 `null`。`string` 必須是 `GeometryEntity.id`；`null` 只允許用在有 incoming `stepOutput` edge 的 geometry input field。 |
-| `coordinates` | N/A | `number[][]`。每個 item 必須是固定長度為 2 的 `[x, y]` number tuple，代表 global bottom-left coordinate；空 array 合法，重複 coordinate pair 不合法，array order 沒有語意。 |
-| `fieldGroupArray` | N/A | `RepeatableGroupValue`，包含 `items[]`，每個 item 內保存一組 child `FieldValue[]`。 |
+```json
+{ "kind": "catalog", "geometryId": "panel_v1_0_0" }
+```
 
-`materialRef` 的 payload 是 string，不是 reference object。若需要透過 UI 選取 material，可使用 `optionSource` 提供 static options 或 external option catalog。
+```json
+{ "kind": "embedded", "localId": "draft_panel_1" }
+```
 
-### FieldDefinition 合法組合矩陣
+## 6. ProcessFlowWorkspace
 
-FieldDefinition editor 與資料驗證應只允許下列 `valueType`、`controlType` 與 `selectionMode` 組合：
+```json
+{
+  "schemaVersion": 2,
+  "id": "workspace_123",
+  "name": "Customer package study",
+  "processFlowTemplateId": "flow_tpl_cowosl_2_0_0",
+  "revision": 3,
+  "status": "draft",
+  "createdAt": "2026-07-10T10:00:00Z",
+  "updatedAt": "2026-07-10T10:12:00Z",
+  "inputBindings": {},
+  "stepConfigurations": {},
+  "embeddedGeometries": {}
+}
+```
 
-矩陣中需要 `optionSource` 的欄位可使用 `type: "static"` 或 `type: "externalReference"`。
+Workspace 只 reference 一個已存在的 immutable template，因此不保存 `stepRefs` 或
+`flowEdges`。它可以不完整：
 
-| `valueType` | 合法 `controlType` | `selectionMode` | 必要或可用設定 |
-| --- | --- | --- | --- |
-| `string` | `text` | `null` 或省略 | 可使用 `validation.regex`、`validation.minLength`、`validation.maxLength`。 |
-| `string` | `select` | `single` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
-| `string` | `checkbox` | `single` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
-| `string[]` | `select` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
-| `string[]` | `checkbox` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
-| `integer` | `number` | `null` 或省略 | 可使用 `validation.min`、`validation.max`、`validation.exclusiveMin`、`validation.exclusiveMax`；instance value 不可有小數。 |
-| `integer` | `select` | `single` | 必須提供 `optionSource`；所有 `option.value` 必須為 integer number。 |
-| `integer[]` | `select` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 integer number。 |
-| `integer[]` | `checkbox` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 integer number。 |
-| `float` | `number` | `null` 或省略 | 可使用 `validation.min`、`validation.max`、`validation.exclusiveMin`、`validation.exclusiveMax`。 |
-| `float` | `select` | `single` | 必須提供 `optionSource`；所有 `option.value` 必須為 number。 |
-| `float[]` | `select` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 number。 |
-| `float[]` | `checkbox` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 number。 |
-| `boolean` | `checkbox` | `null` 或省略 | 不使用 `optionSource`；instance value 為 boolean。 |
-| `materialRef` | `text` | `null` 或省略 | Payload 為 string，可使用 `validation.regex`、`validation.minLength`、`validation.maxLength`。 |
-| `materialRef` | `select` | `single` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
-| `materialRef[]` | `select` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
-| `materialRef[]` | `checkbox` | `multiple` | 必須提供 `optionSource`；所有 `option.value` 必須為 string。 |
-| `geometryRef` | `null` 或省略 | `null` 或省略 | 不使用 `optionSource`、`validation` 或 `unit`；instance value 為 geometry DB id string 或符合 flow edge 規則的 `null`。 |
-| `coordinates` | `coordinateList` | `null` 或省略 | 不使用 `optionSource` 或 `validation`；可使用 `unit`。UI 可提供手動 x/y rows 或 browser-side GDS import action，instance value 只保存 `number[][]`。 |
-| `fieldGroupArray` | `repeater` | `null` 或省略 | 必須提供 `repeatDefinition`；child field 不可使用 `geometryRef`、`coordinates` 或 `fieldGroupArray`。 |
+- required binding 可以尚未選擇。
+- required parameter 可以不存在或為空。
+- Repeater item 可以存在但 child values 尚未完成。
+- 已提供的 key、binding shape、parameter type 與 nested structure 仍必須合法。
 
-不支援的組合不可存入 process step template。特別是 `boolean[]`、`coordinates[]`、`fieldGroupArray[]`、`referenceSelect` 與巢狀 `fieldGroupArray` 均不屬於目前 FieldDefinition schema。
+Update request 必須帶目前 `revision`。成功後 revision 加一；stale update 回傳
+`409 Conflict`。Committed workspace read-only。
 
+## 7. ProcessFlowInstance
 
-## ProcessFlowTemplate
+```json
+{
+  "schemaVersion": 2,
+  "id": "flow_inst_customer_a",
+  "name": "Customer A",
+  "processFlowTemplateId": "flow_tpl_cowosl_2_0_0",
+  "inputBindings": {
+    "incoming_panel": {
+      "kind": "catalog",
+      "geometryId": "panel_v1_0_0"
+    }
+  },
+  "stepConfigurations": {}
+}
+```
 
-代表封裝技術平台的標準 process graph。Process flow template 不儲存 TV/Product 實際 value，也不直接定義欄位；它定義 geometry input slots、引用 global step template，並用 directed edges 表示 process steps 之間的連接關係。
+Instance 必須 complete，且所有 bindings 都是 catalog bindings。API 沒有 instance
+update endpoint。建立另一個產品或新 study result 時產生新的 instance id。
 
-同時也可以把他視為 geometry 物件的資料流。所有 process 都會有對應的幾何輸入以及幾何輸出
+## 8. Workspace Commit
 
-必要欄位：
+Commit 是單一 SQLite transaction：
 
-- `id`：此 process flow template 在 DB 中 ID。是系統識別碼、DB key 或不可變 reference key。
-      - 例如 `XXX-Tech`。每個 published flow template version 應有自己的 `id`，讓 instance 的 `processFlowTemplateId` 可直接鎖定到單一不可變 snapshot。
-- `name`：人可讀的 package technology name，人閱讀以及UI顯示 name
-- `version`：人閱讀以及UI顯示 version
-- `description`：描述此process flow technology用途，並且提供在UI顯示
-- `owner`：負責此 process flow template 的 owner 或 owning team
-- `stepRefs`：`stepRefs` 代表 process flow template 對 global step template 的引用清單。每一筆 `stepRefs[]` item 包含：
-  - `stepRefId`：此 process step 在此 process flow template 中的 ID (local) 
-      - 是 flow 內穩定 reference，用於 flow edge、instance value set、diff 與 UI anchor。
-      - 為什麼process step 引用不直接用 global id ? 因為同一個 process step template 可能被在同一個 process flow template 被引用多次，如果想同，在instance就會造成同時有兩個指向相同 process step 卻用不同 value。因此 `flowEdges[]` 必須使用 `stepRefId` 連接 nodes，不可使用 global 
-      - array order 不代表 process flow 順序。真正的 flow topology 由 `flowEdges[]` 表示
-  - `stepLabel`：使用者對此 process step 在此 process flow template 中指定的人可讀名稱。
-      - 例如同一個 RDL process step template 可在同一個 flow 中分別命名為 `frontside RDL` 與 `backside RDL`。
-      - `stepLabel` 只用於 UI display、搜尋與閱讀，不作為 graph identity，也不取代 `stepRefId`。
-      - `stepLabel` 不要求在同一個 process flow template 中唯一，允許多個 step 使用相同 label。
-      - 若 `stepLabel` 缺失或為空字串，UI 應 fallback 顯示對應 `ProcessStepTemplate.name`。
-      - `stepLabel` 只保存在 `ProcessFlowTemplate.stepRefs[]`。`ProcessFlowInstance.stepValueSets[]` 不複製此欄位，instance 顯示時從綁定的 immutable flow template 讀取。
-  - `processStepTemplateId`：引用 process step template 的 global ID
-- `flowEdges`：代表 process graph 的 directed acyclic edges。
-  - `flowEdges[]` 中每個 item 包含參數：
-    - `edgeId`：edge 在 flowEdges 中的 ID。
-    - `source`：edge 的 geometry 來源，可以是 geometry DB 或 step output。
-      1. geometryRef：表示來源為 geometry DB。
-        ```json
-        {
-          "sourceType": "geometryRef",
-        }
-        ```
-      2. stepOutput：表示來源為某個 process step 完成後產生的 output geometry。
+1. 驗證 workspace revision 與 `status: draft`。
+2. 以 complete mode compile workspace。
+3. 只 materialize 被 binding reference 的 embedded geometries。
+4. 將 embedded bindings 改寫成 catalog bindings。
+5. Insert 新 immutable `ProcessFlowInstance`。
+6. 將 workspace 標記 `committed`、revision 加一並保存
+   `committedInstanceId`。
 
-        ```json
-        { "sourceType": "stepOutput", "stepRefId": "micro_bump_formation"}
-        ```
-        - `stepRefId`：來源 step 在 process flow template 的 local id
-    - `target`：edge 的目標，永遠是某個 process step input slot。使用以下 shape：
-      ```json
-      {
-        "stepRefId": "pnp",
-        "targetFieldId": "soic_geometry"
-      }
-      ```
-      - `stepRefId`：輸入 step 在 process flow template 的 local id
-      - `targetFieldId: string` 表示來源 geometry 被導入到 target step 的哪個 field (field ID)
-        - stepRefId 中對應 targetFieldId 的參數 valueType 必須是 ```geometryRef```
+Committed workspace 自身也保存改寫後的 catalog bindings，並清空
+`embeddedGeometries`。`committedInstanceId` 只提供 retry idempotency，不表示 instance
+lineage。重送 commit 回傳第一次建立的 instance。
 
-  - Flow graph 只描述真實幾何物件在 process steps 之間的加工順序與匯入關係。厚度、warpage、process state 或 recipe parameter 這類非 geometryRef 欄位不由 graph edge 傳遞；它們保存在 `FieldValue.value`，由使用者在 step form 中填寫，或由 computed field 在同一個 step value set 內計算。
+## 9. Compile and Execute Boundary
 
-  - Geometry resolve 規則：
-     - 每個 target `geometryRef` field 必須有且只能有一條 incoming edge。Runtime 依該 edge 的 `source.sourceType` 決定 geometry 來源。
-     - 若 incoming edge 的 `source.sourceType` 是 `geometryRef`，target `geometryRef` 的 `FieldValue.value` 必須是非空 string，且該 string 必須是 geometry database 中的 `GeometryEntity.id`。Runtime 使用該 geometry entity 的 `structure` 作為此欄位的輸入 geometry。
-     - 若 incoming edge 的 `source.sourceType` 是 `stepOutput`，target `geometryRef` 的 `FieldValue.value` 必須是 `null`。Runtime 使用 source step 執行後產生的 output geometry 作為此欄位的輸入 geometry。
-     - `FieldValue.value` 為 string 但 incoming edge source 是 `stepOutput`，或 `FieldValue.value` 為 `null` 但 incoming edge source 是 `geometryRef`，都代表 graph 與 instance value 來源衝突，runtime 不可執行。
-     - 若 source step 尚未產生 output geometry，依賴該 output 且 value 為 `null` 的 target field 不算 complete。
+```mermaid
+flowchart LR
+  UI["Workspace / Instance JSON"] --> API["API"]
+  API --> Compiler["FlowCompiler"]
+  DB["Template + Geometry DB"] --> Compiler
+  Compiler --> Plan["ExecutionPlan"]
+  Plan --> Kernel["GeometryKernel"]
+  Kernel --> Result["ExecutionResult"]
+```
 
-  - Flow graph 規則：
-     - 每個 process flow 是一個 directed acyclic graph，不能有 cycle。
-     - 每個 target `geometryRef` field 必須有且只能有一條 incoming edge。
-     - 每個 process step 可以有多個 `geometryRef` field
-     - process step incoming geometry edge 數量等於 `geometryRef` field 數量
-     - 若某個 `geometryRef` field 在 instance 中使用 `null`，該 field 必須有一條 incoming `stepOutput` edge。
-     - 每個 process step output 最多只能被一條 downstream `stepOutput` edge consume；fan-out 不允許。Terminal step 可以沒有 outgoing `stepOutput` edge。
+Compiler：
 
-### Runtime flow graph validation
+- resolve step templates；
+- validate topology 與 configuration；
+- resolve catalog / embedded geometries；
+- normalize external structures；
+- select preview upstream closure；
+- 產生 ordered `PlannedStep[]` 與 explicit geometry input sources。
 
-Kernel 在執行 `ProcessFlowInstance` 前必須先執行 `validate_flow_graph()`。
-此 validation 的目的，是確認 flow template、step templates、instance value sets
-與 geometry dataflow 規則彼此一致。它只驗證 graph 結構、`geometryRef`
-來源解析與執行所需的基本 value-set binding；材料、厚度、density、座標格式與其他
-process parameter 的 domain validation 由各 process step module 自己負責。
+Kernel：
 
-`validate_flow_graph()` 是 deterministic 且 read-only 的 operation。在相同的
-`ProcessFlowTemplate`、`ProcessFlowInstance` 與 resolved `ProcessStepTemplate`
-內容下，validation result 必須相同。此 operation 不修改 input payload、不執行
-process step module、不讀取 `GeometryEntity.structure`，也不執行 CAD、preview 或
-geometry export。Geometry entity id 是否能在 geometry repository 中找到，由
-geometry resolve 階段處理；`validate_flow_graph()` 只檢查 geometry field value
-與 edge source type 是否一致。
+- 不持有 repository；
+- 不接受 geometry DB id；
+- 不查 template / instance；
+- clone upstream state、執行 process modules、收集 outputs。
 
-`validate_flow_graph()` 必須檢查下列規則：
+## 10. Persistence
 
-1. `ProcessFlowTemplate.stepRefs[]` 中每個 `stepRefId` 必須是唯一且非空字串。
-2. 若 `ProcessFlowTemplate.stepRefs[].stepLabel` 存在，必須是 string；不檢查唯一性。
-   缺失或空字串不阻擋 runtime，UI 顯示時 fallback 到對應 `ProcessStepTemplate.name`。
-3. 每個 `stepRefs[].processStepTemplateId` 必須能 resolve 到存在的
-   `ProcessStepTemplate`。
-4. `ProcessFlowInstance.processFlowTemplateId` 必須等於正在執行的
-   `ProcessFlowTemplate.id`。
-5. Instance 中每個 step 必須有且只能有一個 `StepValueSet`。每個
-   `StepValueSet.stepRefId` 必須存在於 `ProcessFlowTemplate.stepRefs[]`。
-6. 每個 `StepValueSet.processStepTemplateId` 必須與其 `stepRefId` resolve 到的
-   `ProcessStepTemplate.id` 一致。
-7. 每個 `flowEdges[].target.stepRefId` 必須存在於
-   `ProcessFlowTemplate.stepRefs[]`。
-8. 每個 `flowEdges[].target.targetFieldId` 必須存在於 target step 的
-   `ProcessStepTemplate.fieldDefinitions[]`，且該 field 的 `valueType` 必須是
-   `geometryRef`。
-9. 每個 target `geometryRef` field 必須剛好有一條 incoming edge；同一個
-   `{ stepRefId, targetFieldId }` 不可被多條 edge 指向。
-10. 若 edge `source.sourceType` 是 `geometryRef`，target field 的
-   `FieldValue.value` 必須是非空 geometry entity id string。此情況不允許使用
-   `null`。
-11. 若 edge `source.sourceType` 是 `stepOutput`，`source.stepRefId` 必須存在於
-    `ProcessFlowTemplate.stepRefs[]`，不可等於 target `stepRefId`，且 target
-    field 的 `FieldValue.value` 必須是 `null`。
-12. 所有 `stepOutput` edges 必須形成 directed acyclic graph，不能有 cycle。
-13. 同一個 source `stepOutput` 最多只能出現在一條 outgoing edge 中；也就是同一個
-    process step output 不可 fan-out 到多個 downstream geometry input。
-14. `flowEdges[].source.sourceType` 只允許 `geometryRef` 或 `stepOutput`。其他
-    source type 不可執行。
+同一個 SQLite database 包含：
 
-## ProcessFlowInstance
+```text
+process_step_templates
+process_flow_templates
+process_flow_instances
+process_flow_workspaces
+geometries
+schema_metadata
+```
 
-代表特定 TV/Product 的 process flow。
-
-必要欄位：
-
-- `id`
-- `name`
-- `processFlowTemplateId`：指向此 instance 所引用的 process flow template ID
-- `stepValueSets`
-
-必要設計：
-
-- Instance 建立後鎖定 `processFlowTemplateId`，任何後續 edit、import、save 或 API update 都不得修改此欄位。
-- Process flow template 更新不會、也不得改變既有 instance 的 binding。
-- Published template 不可直接修改；若同一 TV/Product 需要使用新版 template，必須建立新的 `ProcessFlowInstance`，不可在既有 instance 上切換 `processFlowTemplateId`。
-- UI 可以提供「由舊 instance 建立新版 instance」的複製流程，但輸出的資料會是 template 用與舊相同 id 但是 instance 為新 id
-
-### StepValueSet and FieldValue
-
-`StepValueSet` 代表某個 step ref 在 instance 中的實際填值集合。Step value set 只屬於某個 `ProcessFlowInstance`，不回寫 global step template 或 process flow template。
-
-每個 `StepValueSet` 包含：
-
-- `stepRefId`：用此 value set 的 process step 在 process flow template 中的 local id。 
-    - 必須對應到 instance 綁定的 `ProcessFlowTemplate.stepRefs[].stepRefId`。
-- `processStepTemplateId`：用此 value set 的 process step 所參照 process step template 的 global id。 
-    - 是 export/debug 用的 denormalized snapshot，必須與 `stepRefId` resolve 結果一致。
-- `fieldValues`：每個 field 實際值
-    - 每個 `FieldValue` 包含：
-        - `fieldId`：該 field 在 process step template 中的 local id
-            - `fieldId` 必須對應到該 step template version 中存在的 `FieldDefinition.id`
-            - repeat item child `fieldId` 必須對應到 parent `repeatDefinition.itemFieldDefinitions[].id`。
-        - `value`
-          - `value` 必須符合對應 `FieldDefinition` 的 `valueType`、`controlType`、`unit`、`validation`、`optionSource` 與 `repeatDefinition` 規則。
-          - `valueType: "geometryRef"` 時，`value` 必須是 geometry DB id string，或符合 flow edge resolve 規則的 `null`。
-          - `valueType: "coordinates"` 時，`value` 必須是 `number[][]`；每個 item 必須是固定長度為 2 的 `[x, y]`，代表 global bottom-left coordinate，且不可包含重複 coordinate pair。
-
-Field completion 規則：
-
-- 若某個 `FieldDefinition` 出現在 process step template 中，UI 需讓使用者填寫或選取對應 value。
-- `FieldValue.value` 需符合對應 `FieldDefinition` 的 value type 與 validation rule，才算 complete。`coordinates` 目前不使用 `validation`；空 array 合法，符合 `number[][]` shape 且沒有重複 coordinate pair 即可視為 complete。
-- `computed` 欄位需由前端依 `derivedRule` 計算出 value，才算 complete。
-- `repeater` 欄位需符合 `repeatDefinition.minItems` / `maxItems`，且每個 repeat item 的 child fields 都需 complete。
-- geometryRef payload 規則如下：`string`：geometry database 中的 `GeometryEntity.id`。`null`：不在此欄位手動指定 geometry DB id，runtime 必須依`ProcessFlowTemplate.flowEdges[]` 從上游 process step output 取得 geometry DB id。
+`schema_metadata.databaseSchemaVersion` 目前是 `2`。因本產品尚未 release，啟動時若
+偵測到 unversioned 或非 V2 local database，resource tables 會清空並由 V2 fixtures
+重建；不執行 V1 payload migration。

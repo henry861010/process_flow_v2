@@ -1,168 +1,256 @@
 [
   {
-    "id": "flow_tpl_cowosl_demo_1_0_0",
+    "schemaVersion": 2,
+    "id": "flow_tpl_cowosl_demo_2_0_0",
     "name": "CoWoS-L Demo",
-    "version": "V1.0.0",
+    "version": "V2.0.0",
     "description": "Demo CoWoS-L style package flow with die placement, molding, RDL, and C4 bump formation.",
     "owner": "demo.example",
+    "flowInputs": [
+      {
+        "flowInputId": "incoming_panel",
+        "name": "Incoming panel",
+        "description": "External geometry supplied by the process flow instance.",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": [
+            "panel"
+          ],
+          "categories": [
+            "carrier.panel"
+          ],
+          "structureFormats": [
+            "standard"
+          ]
+        }
+      },
+      {
+        "flowInputId": "incoming_hbm",
+        "name": "Incoming HBM",
+        "description": "External geometry supplied by the process flow instance.",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": [
+            "die"
+          ],
+          "categories": [
+            "die.hbm"
+          ],
+          "structureFormats": [
+            "standard"
+          ]
+        }
+      }
+    ],
     "stepRefs": [
       {
         "stepRefId": "pnp_hbm",
         "stepLabel": "PnP",
-        "processStepTemplateId": "step_tpl_pnp_1_0_0"
+        "processStepTemplateId": "step_tpl_pnp_2_0_0"
       },
       {
         "stepRefId": "mold_cap",
         "stepLabel": "molding",
-        "processStepTemplateId": "step_tpl_molding_1_0_0"
+        "processStepTemplateId": "step_tpl_molding_2_0_0"
       },
       {
         "stepRefId": "rdl_build",
         "stepLabel": "RDL layer",
-        "processStepTemplateId": "step_tpl_rdl_1_0_0"
+        "processStepTemplateId": "step_tpl_rdl_2_0_0"
       },
       {
         "stepRefId": "c4_bump",
         "stepLabel": "C4 Bump",
-        "processStepTemplateId": "step_tpl_c4_bump_formation_1_0_0"
+        "processStepTemplateId": "step_tpl_c4_bump_formation_2_0_0"
       }
     ],
     "flowEdges": [
       {
         "edgeId": "edge_cowosl_panel_to_pnp_main",
         "source": {
-          "sourceType": "geometryRef"
+          "kind": "flowInput",
+          "flowInputId": "incoming_panel"
         },
         "target": {
           "stepRefId": "pnp_hbm",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       },
       {
         "edgeId": "edge_cowosl_hbm_to_pnp_die",
         "source": {
-          "sourceType": "geometryRef"
+          "kind": "flowInput",
+          "flowInputId": "incoming_hbm"
         },
         "target": {
           "stepRefId": "pnp_hbm",
-          "targetFieldId": "die_geometry"
+          "inputPortId": "die_geometry"
         }
       },
       {
         "edgeId": "edge_cowosl_pnp_to_mold",
         "source": {
-          "sourceType": "stepOutput",
-          "stepRefId": "pnp_hbm"
+          "kind": "stepOutput",
+          "stepRefId": "pnp_hbm",
+          "outputPortId": "result_geometry"
         },
         "target": {
           "stepRefId": "mold_cap",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       },
       {
         "edgeId": "edge_cowosl_mold_to_rdl",
         "source": {
-          "sourceType": "stepOutput",
-          "stepRefId": "mold_cap"
+          "kind": "stepOutput",
+          "stepRefId": "mold_cap",
+          "outputPortId": "result_geometry"
         },
         "target": {
           "stepRefId": "rdl_build",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       },
       {
         "edgeId": "edge_cowosl_rdl_to_c4",
         "source": {
-          "sourceType": "stepOutput",
-          "stepRefId": "rdl_build"
+          "kind": "stepOutput",
+          "stepRefId": "rdl_build",
+          "outputPortId": "result_geometry"
         },
         "target": {
           "stepRefId": "c4_bump",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       }
     ]
   },
   {
-    "id": "flow_tpl_fanout_demo_1_0_0",
+    "schemaVersion": 2,
+    "id": "flow_tpl_fanout_demo_2_0_0",
     "name": "Fan-Out Demo",
-    "version": "V1.0.0",
+    "version": "V2.0.0",
     "description": "Demo fan-out package flow with SoC placement, micro bump formation, flip, and BGA bump formation.",
     "owner": "demo.example",
+    "flowInputs": [
+      {
+        "flowInputId": "incoming_panel",
+        "name": "Incoming panel",
+        "description": "External geometry supplied by the process flow instance.",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": [
+            "panel"
+          ],
+          "categories": [
+            "carrier.panel"
+          ],
+          "structureFormats": [
+            "standard"
+          ]
+        }
+      },
+      {
+        "flowInputId": "incoming_soc",
+        "name": "Incoming SoC",
+        "description": "External geometry supplied by the process flow instance.",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": [
+            "die"
+          ],
+          "categories": [
+            "die.soc"
+          ],
+          "structureFormats": [
+            "standard"
+          ]
+        }
+      }
+    ],
     "stepRefs": [
       {
         "stepRefId": "pnp_soc",
         "stepLabel": "PnP",
-        "processStepTemplateId": "step_tpl_pnp_1_0_0"
+        "processStepTemplateId": "step_tpl_pnp_2_0_0"
       },
       {
         "stepRefId": "micro_bump",
         "stepLabel": "Micro Bump",
-        "processStepTemplateId": "step_tpl_ubump_formation_1_0_0"
+        "processStepTemplateId": "step_tpl_ubump_formation_2_0_0"
       },
       {
         "stepRefId": "flip_package",
         "stepLabel": "Flip",
-        "processStepTemplateId": "step_tpl_flip_1_0_0"
+        "processStepTemplateId": "step_tpl_flip_2_0_0"
       },
       {
         "stepRefId": "bga_array",
         "stepLabel": "BGA Bump",
-        "processStepTemplateId": "step_tpl_bga_bump_formation_1_0_0"
+        "processStepTemplateId": "step_tpl_bga_bump_formation_2_0_0"
       }
     ],
     "flowEdges": [
       {
         "edgeId": "edge_fanout_panel_to_pnp_main",
         "source": {
-          "sourceType": "geometryRef"
+          "kind": "flowInput",
+          "flowInputId": "incoming_panel"
         },
         "target": {
           "stepRefId": "pnp_soc",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       },
       {
         "edgeId": "edge_fanout_soc_to_pnp_die",
         "source": {
-          "sourceType": "geometryRef"
+          "kind": "flowInput",
+          "flowInputId": "incoming_soc"
         },
         "target": {
           "stepRefId": "pnp_soc",
-          "targetFieldId": "die_geometry"
+          "inputPortId": "die_geometry"
         }
       },
       {
         "edgeId": "edge_fanout_pnp_to_micro_bump",
         "source": {
-          "sourceType": "stepOutput",
-          "stepRefId": "pnp_soc"
+          "kind": "stepOutput",
+          "stepRefId": "pnp_soc",
+          "outputPortId": "result_geometry"
         },
         "target": {
           "stepRefId": "micro_bump",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       },
       {
         "edgeId": "edge_fanout_micro_bump_to_flip",
         "source": {
-          "sourceType": "stepOutput",
-          "stepRefId": "micro_bump"
+          "kind": "stepOutput",
+          "stepRefId": "micro_bump",
+          "outputPortId": "result_geometry"
         },
         "target": {
           "stepRefId": "flip_package",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       },
       {
         "edgeId": "edge_fanout_flip_to_bga",
         "source": {
-          "sourceType": "stepOutput",
-          "stepRefId": "flip_package"
+          "kind": "stepOutput",
+          "stepRefId": "flip_package",
+          "outputPortId": "result_geometry"
         },
         "target": {
           "stepRefId": "bga_array",
-          "targetFieldId": "main_geometry"
+          "inputPortId": "main_geometry"
         }
       }
     ]

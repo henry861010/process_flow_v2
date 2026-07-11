@@ -2,6 +2,7 @@ import type {
   GeometryEntity,
   ProcessFlowInstance,
   ProcessFlowTemplate,
+  ProcessFlowWorkspace,
   ProcessStepTemplate,
 } from "@/lib/process-flow/types";
 
@@ -33,13 +34,32 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const message =
-      payload && typeof payload.message === "string"
-        ? payload.message
-        : `API request failed: ${response.status}`;
+    const message = getApiErrorMessage(payload) ?? `API request failed: ${response.status}`;
     throw new Error(message);
   }
   return payload as T;
+}
+
+function getApiErrorMessage(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.message === "string") return record.message;
+  if (typeof record.detail === "string") return record.detail;
+  if (!Array.isArray(record.detail)) return null;
+
+  const messages = record.detail.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const detail = item as Record<string, unknown>;
+    if (typeof detail.msg !== "string") return [];
+    const location = Array.isArray(detail.loc)
+      ? detail.loc
+          .filter((part) => part !== "body")
+          .map(String)
+          .join(".")
+      : "";
+    return [location ? `${location}: ${detail.msg}` : detail.msg];
+  });
+  return messages.length > 0 ? messages.join("; ") : null;
 }
 
 export async function loadBootstrap(): Promise<BootstrapPayload> {
@@ -73,6 +93,13 @@ export async function listProcessFlowTemplates<T>(): Promise<T[]> {
   return apiFetch<T[]>("/api/process-flow-templates");
 }
 
+export async function createProcessFlowTemplate<T>(template: T): Promise<T> {
+  return apiFetch<T>("/api/process-flow-templates", {
+    method: "POST",
+    body: JSON.stringify(template),
+  });
+}
+
 export async function createProcessFlowTemplateInstance<
   TTemplate,
   TInstance,
@@ -93,5 +120,60 @@ export async function createProcessFlowInstance<T>(instance: T): Promise<T> {
   return apiFetch<T>("/api/process-flow-instances", {
     method: "POST",
     body: JSON.stringify(instance),
+  });
+}
+
+export type ProcessFlowWorkspaceCreate = Pick<
+  ProcessFlowWorkspace,
+  | "name"
+  | "processFlowTemplateId"
+  | "inputBindings"
+  | "stepConfigurations"
+  | "embeddedGeometries"
+>;
+
+export type ProcessFlowWorkspaceUpdate = Pick<
+  ProcessFlowWorkspace,
+  "name" | "revision" | "inputBindings" | "stepConfigurations" | "embeddedGeometries"
+>;
+
+export async function createProcessFlowWorkspace(
+  workspace: ProcessFlowWorkspaceCreate,
+) {
+  return apiFetch<ProcessFlowWorkspace>("/api/process-flow-workspaces", {
+    method: "POST",
+    body: JSON.stringify(workspace),
+  });
+}
+
+export async function getProcessFlowWorkspace(workspaceId: string) {
+  return apiFetch<ProcessFlowWorkspace>(
+    `/api/process-flow-workspaces/${encodeURIComponent(workspaceId)}`,
+  );
+}
+
+export async function updateProcessFlowWorkspace(
+  workspaceId: string,
+  workspace: ProcessFlowWorkspaceUpdate,
+) {
+  return apiFetch<ProcessFlowWorkspace>(
+    `/api/process-flow-workspaces/${encodeURIComponent(workspaceId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(workspace),
+    },
+  );
+}
+
+export async function commitProcessFlowWorkspace(
+  workspaceId: string,
+  request: { instanceId: string; instanceName: string; revision: number },
+) {
+  return apiFetch<{
+    workspace: ProcessFlowWorkspace;
+    processFlowInstance: ProcessFlowInstance;
+  }>(`/api/process-flow-workspaces/${encodeURIComponent(workspaceId)}/commit`, {
+    method: "POST",
+    body: JSON.stringify(request),
   });
 }
