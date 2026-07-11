@@ -48,15 +48,6 @@
           "min": 0,
           "exclusiveMin": true
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -121,15 +112,6 @@
         "validation": {
           "min": 0
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -220,15 +202,6 @@
             }
           ]
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -272,15 +245,6 @@
           "min": 0,
           "exclusiveMin": true
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -347,15 +311,6 @@
         "controlType": "number",
         "selectionMode": null,
         "unit": "um"
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -386,17 +341,7 @@
         "dataType": "geometry"
       }
     ],
-    "parameterDefinitions": [
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
-      }
-    ]
+    "parameterDefinitions": []
   },
   {
     "schemaVersion": 2,
@@ -433,17 +378,7 @@
         "dataType": "geometry"
       }
     ],
-    "parameterDefinitions": [
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
-      }
-    ]
+    "parameterDefinitions": []
   },
   {
     "schemaVersion": 2,
@@ -472,17 +407,7 @@
         "dataType": "geometry"
       }
     ],
-    "parameterDefinitions": [
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
-      }
-    ]
+    "parameterDefinitions": []
   },
   {
     "schemaVersion": 2,
@@ -545,15 +470,6 @@
         "validation": {
           "min": 0
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -631,15 +547,6 @@
         "validation": {
           "min": 0
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -717,15 +624,6 @@
         "validation": {
           "min": 0
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -803,15 +701,6 @@
         "validation": {
           "min": 0
         }
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   },
@@ -859,15 +748,6 @@
         "controlType": "coordinateList",
         "selectionMode": null,
         "unit": "um"
-      },
-      {
-        "id": "workingTemp",
-        "name": "Working temperature",
-        "description": "Reference process temperature for downstream simulation input generation. Geometry process programs currently ignore this value.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "degC"
       }
     ]
   }
