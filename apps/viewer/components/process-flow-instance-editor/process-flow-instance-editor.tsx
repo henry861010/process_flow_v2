@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { MarkerType, ReactFlowProvider, type Edge, type Node } from "@xyflow/react";
 import {
   ArrowLeft,
-  Box,
   Check,
   CircleDot,
   Eye,
@@ -24,6 +23,11 @@ import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
 } from "@/components/geometry-preview/geometry-preview-panel";
+import {
+  FlowInputAdvancedDisclosure,
+  FlowInputAdvancedReadOnly,
+  FlowInputBindingControl,
+} from "@/components/process-flow-fields/flow-input-controls";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import {
   ProcessFlowGraph,
@@ -306,13 +310,16 @@ function ProcessFlowInstanceEditorInner() {
     setMessage(null);
   }
 
-  function updateInputBinding(flowInputId: string, geometryId: string | null) {
+  function updateInputBinding(flowInputId: string, geometryId: string) {
     if (committed) return;
     setConfiguration((current) => {
-      const inputBindings = { ...current.inputBindings };
-      if (geometryId) inputBindings[flowInputId] = { kind: "catalog", geometryId };
-      else delete inputBindings[flowInputId];
-      return { ...current, inputBindings };
+      return {
+        ...current,
+        inputBindings: {
+          ...current.inputBindings,
+          [flowInputId]: { kind: "catalog", geometryId },
+        },
+      };
     });
     setPickerFlowInputId(null);
     setDirty(true);
@@ -646,10 +653,6 @@ function ProcessFlowInstanceEditorInner() {
             isFlowInputNode(editingNode) &&
             setPickerFlowInputId(editingNode.data.definition.flowInputId)
           }
-          onClear={() =>
-            isFlowInputNode(editingNode) &&
-            updateInputBinding(editingNode.data.definition.flowInputId, null)
-          }
           onPreview={() =>
             isFlowInputNode(editingNode) && openInputPreview(editingNode.data.definition)
           }
@@ -882,7 +885,6 @@ function InstanceNodeEditorDialog({
   disabled,
   onClose,
   onPick,
-  onClear,
   onPreview,
   onStepChange,
 }: {
@@ -892,7 +894,6 @@ function InstanceNodeEditorDialog({
   disabled: boolean;
   onClose: () => void;
   onPick: () => void;
-  onClear: () => void;
   onPreview: () => void;
   onStepChange: (values: Record<string, unknown>) => void;
 }) {
@@ -938,7 +939,6 @@ function InstanceNodeEditorDialog({
               geometries={geometries}
               disabled={disabled}
               onPick={onPick}
-              onClear={onClear}
               onPreview={onPreview}
             />
           ) : (
@@ -961,7 +961,6 @@ function FlowInputInspector({
   geometries,
   disabled,
   onPick,
-  onClear,
   onPreview,
 }: {
   node: FlowInputNode;
@@ -969,49 +968,26 @@ function FlowInputInspector({
   geometries: GeometryEntity[];
   disabled: boolean;
   onPick: () => void;
-  onClear: () => void;
   onPreview: () => void;
 }) {
   const definition = node.data.definition;
   const geometry = geometryForFlowInput(configuration, definition.flowInputId, geometries);
   return (
     <section className="p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <div className="text-sm font-semibold">Geometry Input</div>
-          <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-            {definition.flowInputId}
-          </div>
-        </div>
+      <div className="mb-2 flex min-h-8 items-center justify-end">
         <Badge variant={geometry ? "signal" : "outline"}>
           {geometry ? "Bound" : node.data.statusLabel ?? "Optional"}
         </Badge>
       </div>
-      <div className="rounded-md border bg-muted/20 p-3">
-        <div className="truncate text-sm font-medium">{geometry?.name ?? "No geometry"}</div>
-        <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
-          {geometry?.id ?? definition.name}
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" disabled={disabled} onClick={onPick}>
-          <Box />
-          Select
-        </Button>
-        <Button variant="outline" size="sm" disabled={!geometry} onClick={onPreview}>
-          <Eye />
-          Preview
-        </Button>
-        <Button variant="ghost" size="sm" disabled={disabled || !geometry} onClick={onClear}>
-          <X />
-          Clear
-        </Button>
-      </div>
-      {definition.description ? (
-        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-          {definition.description}
-        </p>
-      ) : null}
+      <FlowInputBindingControl
+        geometry={geometry}
+        canEdit={!disabled}
+        onPick={onPick}
+        onPreview={onPreview}
+      />
+      <FlowInputAdvancedDisclosure>
+        <FlowInputAdvancedReadOnly definition={definition} />
+      </FlowInputAdvancedDisclosure>
     </section>
   );
 }

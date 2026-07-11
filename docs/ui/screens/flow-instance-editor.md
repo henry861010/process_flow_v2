@@ -92,11 +92,14 @@ Node Editor shell width `min(920px,100vw-32px)`，max-height `100vh-32px`，body
 
 ### Geometry Input inspector
 
-- 顯示 `Geometry Input`、`flowInputId`、badge `Bound` 或 readiness label。
-- geometry card顯示 name與 ID；未綁定顯示 `No geometry`。
-- actions依序 `Select`、`Preview`、`Clear`。
-- committed時 Select/Clear disabled；已有 geometry時 Preview仍 enabled。
-- description存在時顯示；definition本身不可編。
+- 顯示badge `Bound`或readiness label；geometry binding是主要內容。
+- 未綁定且workspace可編時顯示`Add geometry`；已綁定顯示name、ID、`Preview`與
+  `Change geometry` icon，不提供Clear binding action。
+- committed時不顯示Add/Change；已有geometry時Preview仍可用，未綁定則顯示
+  `No geometry bound`。
+- `Advanced settings`預設收合，使用靠右、borderless小字。展開後以唯讀文字顯示
+  Name、Description、Required、Allowed entity types、Allowed categories與flow input ID；
+  Instance Editor不得覆寫template definition。
 
 Geometry Catalog dialog width `min(820px,100vw-32px)`，只列符合 `entityTypes`、category
 exact/descendant、`structureFormats` constraints 的 records。Desktop items兩欄；選中 card有
@@ -192,3 +195,4 @@ Reference capture：reset 後開 route，選擇 `CoWoS-L Demo`，等待 graph、
 | `UI-FIE-006` | ready edge/final node，click Eye | Preview開啟；unrelated incomplete branch不阻擋。 |
 | `UI-FIE-007` | committed workspace reload | identity resolve，Preview可用，editing controls disabled。 |
 | `UI-FIE-008` | single-click geometry/step node | respective inspector開啟，不要求double-click。 |
+| `UI-FIE-009` | 開啟Geometry Input inspector並展開`Advanced settings` | definition只以唯讀文字顯示；已綁定時可Preview或Change，但沒有Clear action。 |

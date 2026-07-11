@@ -19,7 +19,6 @@ import {
   Box,
   Boxes,
   Check,
-  ChevronDown,
   CircleDot,
   Eye,
   FileJson,
@@ -39,6 +38,11 @@ import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
 } from "@/components/geometry-preview/geometry-preview-panel";
+import {
+  FlowInputAdvancedDisclosure,
+  FlowInputAdvancedReadOnly,
+  FlowInputBindingControl,
+} from "@/components/process-flow-fields/flow-input-controls";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import {
   ProcessFlowGraph,
@@ -611,16 +615,16 @@ function ProcessFlowTemplateEditorInner() {
     );
   }
 
-  function setInputGeometry(node: FlowInputNode, geometryId: string | null) {
+  function setInputGeometry(node: FlowInputNode, geometryId: string) {
     const flowInputId = node.data.definition.flowInputId;
     setConfiguration((current) => {
-      const inputBindings = { ...current.inputBindings };
-      if (geometryId) {
-        inputBindings[flowInputId] = { kind: "catalog", geometryId };
-      } else {
-        delete inputBindings[flowInputId];
-      }
-      return { ...current, inputBindings };
+      return {
+        ...current,
+        inputBindings: {
+          ...current.inputBindings,
+          [flowInputId]: { kind: "catalog", geometryId },
+        },
+      };
     });
     setPickerNodeId(null);
     setMessage(null);
@@ -1027,9 +1031,6 @@ function ProcessFlowTemplateEditorInner() {
           onPickGeometry={() =>
             isFlowInputNode(editingNode) && setPickerNodeId(editingNode.id)
           }
-          onClearGeometry={() =>
-            isFlowInputNode(editingNode) && setInputGeometry(editingNode, null)
-          }
           onPreviewFlowInput={() =>
             isFlowInputNode(editingNode) && openFlowInputPreview(editingNode)
           }
@@ -1181,7 +1182,6 @@ function NodeEditorDialog({
   onStepLabelChange,
   onStepValuesChange,
   onPickGeometry,
-  onClearGeometry,
   onPreviewFlowInput,
   stepPreviewAvailability,
   onPreviewStep,
@@ -1197,7 +1197,6 @@ function NodeEditorDialog({
   onStepLabelChange: (label: string) => void;
   onStepValuesChange: (values: Record<string, unknown>) => void;
   onPickGeometry: () => void;
-  onClearGeometry: () => void;
   onPreviewFlowInput: () => void;
   stepPreviewAvailability: PreviewAvailability | null;
   onPreviewStep: () => void;
@@ -1248,7 +1247,6 @@ function NodeEditorDialog({
               outgoingCount={edges.filter((edge) => edge.source === node.id).length}
               onChange={onFlowInputChange}
               onPick={onPickGeometry}
-              onClear={onClearGeometry}
               onPreview={onPreviewFlowInput}
               onDelete={onDelete}
             />
@@ -1284,7 +1282,6 @@ function FlowInputInspector({
   outgoingCount,
   onChange,
   onPick,
-  onClear,
   onPreview,
   onDelete,
 }: {
@@ -1295,139 +1292,103 @@ function FlowInputInspector({
   outgoingCount: number;
   onChange: (patch: EditableFlowInputPatch) => void;
   onPick: () => void;
-  onClear: () => void;
   onPreview: () => void;
   onDelete: () => void;
 }) {
   const definition = node.data.definition;
   const geometry = geometryForFlowInput(configuration, definition.flowInputId, geometries);
   const constraints = definition.geometryConstraints;
-  const hasAdvancedSettings = Boolean(
-    constraints?.entityTypes?.length || constraints?.categories?.length,
-  );
 
   return (
     <section className="p-4">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div>
-          <div className="text-sm font-semibold">Geometry Input</div>
-          <div className="mt-1 text-xs text-muted-foreground">{outgoingCount} connections</div>
-        </div>
+      <div className="mb-2 flex min-h-8 items-center justify-between gap-2">
+        <div className="text-xs text-muted-foreground">{outgoingCount} connections</div>
         {!topologyLocked ? (
-          <Button variant="ghost" size="icon" title="Delete geometry input" onClick={onDelete}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Delete geometry input"
+            aria-label="Delete geometry input"
+            onClick={onDelete}
+          >
             <Trash2 />
           </Button>
         ) : null}
       </div>
 
-      <div className="grid gap-3">
-        <FormField label="Name" required>
-          <input
-            className={inputClass}
-            value={definition.name}
-            disabled={topologyLocked}
-            onChange={(event) => onChange({ name: event.target.value })}
-          />
-        </FormField>
-        <FormField label="Description">
-          <textarea
-            className={textareaClass}
-            value={definition.description ?? ""}
-            disabled={topologyLocked}
-            onChange={(event) => onChange({ description: event.target.value })}
-          />
-        </FormField>
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            checked={definition.required}
-            disabled={topologyLocked}
-            onChange={(event) => onChange({ required: event.target.checked })}
-          />
-          Required
-        </label>
-      </div>
+      <FlowInputBindingControl
+        geometry={geometry}
+        canEdit
+        onPick={onPick}
+        onPreview={onPreview}
+      />
 
-      <div className="mt-5 border-t pt-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold">Instance Binding</div>
-          <Badge variant={geometry ? "signal" : "outline"}>
-            {geometry ? "Catalog" : "Missing"}
-          </Badge>
-        </div>
-        <div className="rounded-md border bg-muted/20 p-3">
-          <div className="truncate text-sm font-medium">{geometry?.name ?? "No geometry"}</div>
-          <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
-            {geometry?.id ?? definition.flowInputId}
+      <FlowInputAdvancedDisclosure>
+        {topologyLocked ? (
+          <FlowInputAdvancedReadOnly definition={definition} />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField label="Name" required>
+              <input
+                className={inputClass}
+                value={definition.name}
+                onChange={(event) => onChange({ name: event.target.value })}
+              />
+            </FormField>
+            <label className="flex items-end gap-2 pb-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={definition.required}
+                onChange={(event) => onChange({ required: event.target.checked })}
+              />
+              Required
+            </label>
+            <div className="sm:col-span-2">
+              <FormField label="Description">
+                <textarea
+                  className={textareaClass}
+                  value={definition.description ?? ""}
+                  onChange={(event) => onChange({ description: event.target.value })}
+                />
+              </FormField>
+            </div>
+            <FormField label="Allowed entity types">
+              <input
+                className={inputClass}
+                value={(constraints?.entityTypes ?? []).join(", ")}
+                onChange={(event) =>
+                  onChange({
+                    geometryConstraints: cleanConstraints({
+                      ...constraints,
+                      entityTypes: parseList(event.target.value),
+                    }),
+                  })
+                }
+              />
+            </FormField>
+            <FormField label="Allowed categories">
+              <input
+                className={inputClass}
+                value={(constraints?.categories ?? []).join(", ")}
+                onChange={(event) =>
+                  onChange({
+                    geometryConstraints: cleanConstraints({
+                      ...constraints,
+                      categories: parseList(event.target.value),
+                    }),
+                  })
+                }
+              />
+            </FormField>
+            <div className="sm:col-span-2">
+              <div className="text-xs font-medium text-muted-foreground">Flow input ID</div>
+              <div className="mt-1 font-mono text-[10px] text-foreground">
+                {definition.flowInputId}
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={onPick}>
-            <Box />
-            Select
-          </Button>
-          <Button size="sm" variant="outline" disabled={!geometry} onClick={onPreview}>
-            <Eye />
-            Preview
-          </Button>
-          <Button size="sm" variant="ghost" disabled={!geometry} onClick={onClear}>
-            <X />
-            Clear
-          </Button>
-        </div>
-      </div>
-
-      <details className="group mt-5 rounded-md border bg-white">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/20">
-          <span className="text-sm font-semibold">Advanced</span>
-          <span className="flex items-center gap-2">
-            {hasAdvancedSettings ? (
-              <span className="rounded-md border px-2 py-0.5 text-xs font-medium text-foreground">
-                Configured
-              </span>
-            ) : null}
-            <ChevronDown
-              aria-hidden="true"
-              className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180"
-            />
-          </span>
-        </summary>
-        <div className="grid gap-3 border-t p-4">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Limit which geometry entities can be selected for this input.
-          </p>
-          <FormField label="Entity types">
-            <input
-              className={inputClass}
-              value={(constraints?.entityTypes ?? []).join(", ")}
-              disabled={topologyLocked}
-              onChange={(event) =>
-                onChange({
-                  geometryConstraints: cleanConstraints({
-                    ...constraints,
-                    entityTypes: parseList(event.target.value),
-                  }),
-                })
-              }
-            />
-          </FormField>
-          <FormField label="Categories">
-            <input
-              className={inputClass}
-              value={(constraints?.categories ?? []).join(", ")}
-              disabled={topologyLocked}
-              onChange={(event) =>
-                onChange({
-                  geometryConstraints: cleanConstraints({
-                    ...constraints,
-                    categories: parseList(event.target.value),
-                  }),
-                })
-              }
-            />
-          </FormField>
-        </div>
-      </details>
+        )}
+      </FlowInputAdvancedDisclosure>
     </section>
   );
 }

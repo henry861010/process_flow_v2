@@ -125,16 +125,18 @@ name，secondary label維持readiness提示。拖入、重新選擇或清除geom
 | Section | Controls/copy | Topology locked |
 | --- | --- | --- |
 | Header metadata | `Name` 與系統建立的 monospace input ID；ID 只以 read-only text 顯示，不是 form control | 保持 read-only |
-| Basic | `Name`*、`Description`、`Required` | disabled |
-| Instance Binding | badge `Catalog`/`Missing`、selected geometry card、`Select`、`Preview`、`Clear` | 保持可用 |
-| `Advanced` expansion | 預設收合；展開後顯示 `Entity types`、`Categories`，皆採 comma split/trim | disabled |
+| Instance Binding | 未綁定顯示 `Add geometry`；已綁定顯示 geometry name/ID、`Preview` icon與`Change geometry` icon | 保持可用 |
+| `Advanced settings` expansion | 預設收合；borderless、靠右、使用小字；展開後顯示 `Name`、`Description`、`Required`、`Allowed entity types`、`Allowed categories`與唯讀input ID | 全部改為唯讀文字 |
 | Header action | delete icon | hidden |
 
 Input ID MUST 在建立 flow input 時由系統產生且保持穩定；使用者不能輸入或修改，變更
 `Name` 也不得重算 ID、搬移 binding key 或改變既有 edge。`Structure formats` 不顯示於
 inspector；既有值 MUST 在編輯與保存後原樣保留，並維持原有 constraint/filtering 語意。
 
-Instance Binding 是 inspector 的主要區塊，不放入 `Advanced`。`Preview` 只在 geometry resolved 時 enabled。Binding selector dialog width
+Instance Binding 是 inspector 的主要區塊，不放入 `Advanced settings`。Binding不存在時
+`Add geometry`開啟selector；binding存在時`Change geometry`取代現值，沒有清除單一binding的
+action。若不再需要該input，topology unlocked時刪除整個Flow Input。`Preview`只在geometry
+resolved時出現。Binding selector dialog width
 `min(820px,100vw-32px)`，matching geometries依 constraints過濾、desktop兩欄；click card後
 立即選定並關閉 picker。
 
@@ -222,5 +224,6 @@ Fresh capture：reset後開 route，不選 copy、不新增 node，等待 bootst
 | `UI-FTE-007` | 390px touch-only | Step可click-add；Geometry無fallback的已知 gap可重現。 |
 | `UI-FTE-008` | 1024px | test明確偵測右pane是否被裁切，對應 `UI-GAP-RESP-001`。 |
 | `UI-FTE-009` | 建立多個 flow inputs，開啟 inspector後修改其中一個 `Name` | 每個 input ID由系統建立且唯一，只以read-only text顯示；改名後ID、binding key與edges不變。 |
-| `UI-FTE-010` | 開啟 Geometry Input inspector | Instance Binding直接顯示；`Advanced`預設收合，展開後只顯示`Entity types`與`Categories`，不顯示`Structure formats`。 |
+| `UI-FTE-010` | 開啟 Geometry Input inspector | Binding直接顯示；`Advanced settings`是靠右、無邊框的小字且預設收合，展開後可編輯definition欄位但不顯示`Structure formats`。 |
 | `UI-FTE-011` | 載入含既有`structureFormats`的template，修改其他可見欄位後保存 | hidden `structureFormats`值原樣保留，且matching geometry仍套用其constraint語意。 |
+| `UI-FTE-012` | 已綁定Geometry Input | 顯示geometry name、Preview與Change geometry；沒有Clear binding action。 |
