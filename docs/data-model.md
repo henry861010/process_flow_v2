@@ -237,6 +237,35 @@ values。在 PnP 範例中，它以兩條 edges 將 `incoming_panel` 與 `incomi
 
 ### 6.1 FlowInputDefinition
 
+`FlowInputDefinition` 是 `ProcessFlowTemplate` graph 中的外部 geometry source node。它代表
+flow 需要由外部提供的一個 geometry 輸入位置，不是實際的 geometry，也不是 step input
+port。
+
+每個 flow input 可以透過 `flowEdges` 將 geometry 傳到一個或多個 step input ports。Flow
+input 沒有 incoming edge、不執行 process program，也沒有 step parameters；執行時使用的
+實際 geometry 由 `FlowConfiguration.inputBindings[flowInputId]` 綁定 catalog 或 embedded
+geometry。
+
+因此，Template 負責定義 flow input 的名稱、型別、constraints 與 routing；Workspace 或
+Instance 的 Configuration 則負責選擇這次實際使用的 geometry。
+
+| Model | 所屬位置 | 責任 | PnP 範例 |
+| --- | --- | --- | --- |
+| `FlowInputDefinition` | `ProcessFlowTemplate.flowInputs` | 定義 graph 上的外部 geometry source node。 | `incoming_die` |
+| `GeometryBinding` | `FlowConfiguration.inputBindings` | 指定該 flow input 實際使用的 geometry 來源。 | `{ "kind": "catalog", "geometryId": "hbm_v1_3_1" }` |
+| `GeometryEntity`／`EmbeddedGeometry` | Catalog 或 `embeddedGeometries` | 保存實際的 geometry metadata 與 `GeometryStructure`。 | HBM die geometry |
+| `FlowEdge` | `ProcessFlowTemplate.flowEdges` | 將 flow input 的 geometry 傳到 step input port。 | `incoming_die -> pnp.die_geometry` |
+| Step input port | `ProcessStepTemplate.inputPorts` | 定義 step 可以接收 geometry 的位置。 | `die_geometry` |
+
+```mermaid
+flowchart LR
+  Catalog["Catalog GeometryEntity"] -->|"geometryId"| Binding["inputBindings[incoming_die]"]
+  Embedded["embeddedGeometries[localId]"] -->|"localId"| Binding
+  Binding --> Input["FlowInput node<br/>incoming_die"]
+  Input -->|"FlowEdge"| Port["Step input port<br/>pnp.die_geometry"]
+  Port --> Step["PnP step"]
+```
+
 | 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
 | --- | --- | --- | --- | --- |
 | `flowInputId` | identifier | yes | none | Template-local identity。 |
