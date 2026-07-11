@@ -344,19 +344,34 @@ Binding requirement 是 flow input 與其實際 consumers 的 composite rule：
 Inline preview MAY 使用 `ProcessFlowTemplateDraft`，其 `id` MAY 是空字串；所有
 flow input、step、port 與 edge ids 仍 MUST 合法。Persisted create MUST 使用非空唯一 id。
 
-## 7. 共用 `FlowConfiguration`
+## 7. `FlowConfiguration`
 
-Workspace、preview 與 compiler input 共用 `FlowConfiguration`：
-在 PnP 範例中，`inputBindings` 選擇 panel 與 die，`stepConfigurations.pnp` 則提供
-`coordinates`。這也顯示 geometry binding 與 parameter values 是兩組不同資料。
+`FlowConfiguration` 是保存某一次 flow 實際設定的共用資料結構，包含 flow inputs 實際綁定
+的 geometry 來源、每個 step 實際使用的 parameter values，以及尚未存入 catalog 的 embedded
+geometries。它不定義 steps、ports 或 topology；這些結構仍由 `ProcessFlowTemplate` 與其引用
+的 `ProcessStepTemplate` 定義。
 
-| 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
-| --- | --- | --- | --- | --- |
-| `inputBindings` | map of `flowInputId -> GeometryBinding` | canonical yes | `{}` | Unknown flow-input key MUST reject。 |
-| `stepConfigurations` | map of `stepRefId -> StepConfiguration` | canonical yes | `{}` | Unknown step key MUST reject。 |
-| `embeddedGeometries` | map of `localId -> EmbeddedGeometry` | configuration canonical yes | `{}` | Instance MUST NOT persist this field。 |
+Workspace 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的設定；preview request 使用
+同一個結構傳入臨時設定；compiler 則讀取它並產生 `ExecutionPlan`。Instance 保存 commit 後的
+完整設定，但只允許 catalog bindings，MUST NOT 保存 `embeddedGeometries`。
 
-Geometry binding：
+| 欄位 | 型別 | 用途 | 必填條件 | Request 省略時 | 契約 |
+| --- | --- | --- | --- | --- | --- |
+| `inputBindings` | map of `flowInputId -> GeometryBinding` | 記錄每個 flow input 實際使用的 geometry 來源。`catalog` binding 以 `geometryId` 引用已存入 catalog 的 `GeometryEntity`；`embedded` binding 以 `localId` 引用同一份 configuration 中的 `embeddedGeometries`。Template 的 `flowEdges` 再將該 geometry route 到 step port。 | canonical yes | `{}` | Unknown flow-input key MUST reject。 |
+| `stepConfigurations` | map of `stepRefId -> StepConfiguration` | 記錄每個 step 實際使用的 `parameterValues`，例如 PnP 的 `coordinates` 或 molding 的 material、thickness。Parameter id 與 value shape 由該 step 引用的 `ProcessStepTemplate` 定義。 | canonical yes | `{}` | Unknown step key MUST reject。 |
+| `embeddedGeometries` | map of `localId -> EmbeddedGeometry` | 作為 draft-local geometry store，暫存尚未進入 catalog 的完整 geometry metadata 與 `GeometryStructure`，供 `embedded` input binding 引用。Commit 只會將實際被引用的項目 materialize 到 catalog。 | configuration canonical yes | `{}` | Instance MUST NOT persist this field。 |
+
+三個 map 的資料關係如下：
+
+- `inputBindings[flowInputId]` 決定 geometry 來自 catalog 或 `embeddedGeometries`，再由
+  template edge 傳到對應的 step port。
+- `stepConfigurations[stepRefId].parameterValues` 直接提供該 step 執行時使用的製程參數。
+- `embeddedGeometries` 不會由 step 直接查詢；它必須先被 `inputBindings` 以 `localId` 引用。
+
+在 PnP 範例中，`inputBindings` 分別為 `incoming_panel` 與 `incoming_die` 選擇 geometry，
+`stepConfigurations.pnp.parameterValues` 則提供 placement `coordinates`。
+
+`inputBindings` 中的 `GeometryBinding` 有兩種來源：
 
 ```json
 { "kind": "catalog", "geometryId": "panel_v1_0_0" }
@@ -366,10 +381,10 @@ Geometry binding：
 { "kind": "embedded", "localId": "draft_panel_1" }
 ```
 
-| Binding kind | 必填欄位 | 禁止欄位 |
-| --- | --- | --- |
-| `catalog` | `kind: "catalog"`、non-empty `geometryId` | `localId` |
-| `embedded` | `kind: "embedded"`、non-empty `localId` | `geometryId` |
+| Binding kind | Geometry 來源 | 必填欄位 | 禁止欄位 |
+| --- | --- | --- | --- |
+| `catalog` | Persisted `GeometryEntity` catalog record。 | `kind: "catalog"`、non-empty `geometryId` | `localId` |
+| `embedded` | 同一份 `FlowConfiguration.embeddedGeometries` 中的 draft-local record。 | `kind: "embedded"`、non-empty `localId` | `geometryId` |
 
 `StepConfiguration` 只有一個 canonical field：`parameterValues` 是 parameter-id keyed object，
 request MAY 省略並 default 為 `{}`。Unknown top-level fields 與 unknown parameter ids MUST
