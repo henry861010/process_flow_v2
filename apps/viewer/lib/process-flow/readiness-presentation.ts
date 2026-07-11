@@ -5,6 +5,24 @@ export function geometryInputDisplayName(name: string) {
   return name.trim().toLowerCase() === "flow input" ? "Geometry input" : name;
 }
 
+export function geometryInputNodePresentation(
+  flowInputName: string,
+  geometryName: string | null | undefined,
+  readiness: ConfigurationReadiness,
+) {
+  const displayFlowInputName = geometryInputDisplayName(flowInputName);
+  if (geometryName) {
+    return {
+      displayLabel: geometryName,
+      displaySublabel: displayFlowInputName,
+    };
+  }
+  return {
+    displayLabel: displayFlowInputName,
+    displaySublabel: geometryInputSublabel(readiness),
+  };
+}
+
 export function geometryInputStatusLabel(
   readiness: ConfigurationReadiness,
   bindingKind: GeometryBinding["kind"] | undefined,

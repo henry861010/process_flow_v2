@@ -81,6 +81,10 @@ Header下方 status strip min-height `36px`；graph是剩餘空間，沒有 docu
 Graph固定 `mode="view"`、nodes不可拖、topology不可連線，`panOnScroll=true`、min zoom
 `0.28`、max zoom `1.45`；有 nodes才顯示 MiniMap。單擊 node選取並開 dialog。
 
+Geometry Input node在binding可解析時 MUST 以 `geometry.name` 作為primary label，並以 Flow
+Input name作為secondary label。binding未設定或無法解析時，primary label回退到 Flow Input
+name，secondary label維持readiness提示。選擇或清除geometry後 MUST 即時更新。
+
 沒有 template時 graph中央顯示 dashed white card：`Layers3`、`Select a flow template`、
 `The graph appears here after a process flow template is selected.`。
 

@@ -111,6 +111,10 @@ Graph 使用 [Process Flow Graph](../components/process-flow-graph.md)；fresh s
 | Delete node | 刪 node、相關 edges與對應 configuration entry。 |
 | Delete edge | 只在edit mode顯示；不改 parameter values。 |
 
+Geometry Input node在catalog binding可解析時 MUST 以 `geometry.name` 作為primary label，並以
+Flow Input name作為secondary label。binding未設定或無法解析時，primary label回退到 Flow Input
+name，secondary label維持readiness提示。拖入、重新選擇或清除geometry後 MUST 即時更新。
+
 ## Node Editor dialogs
 
 共用 shell：fixed `z=50`、16px page margin、max height `100vh-32px`、width

@@ -57,6 +57,10 @@ primary fill。
 | Label width | `132px` | `138px` |
 | Status badge | hidden | `Bound/Unbound/...` visible |
 
+Node能解析到已綁定的geometry時，primary label MUST 顯示 `geometry.name`，secondary label
+顯示 Flow Input name。未綁定或binding指向無法解析的geometry時，primary label MUST 回退顯示
+Flow Input name，secondary label顯示目前的readiness提示。Template與Instance graph MUST 使用相同規則。
+
 Icon path由 dotted key轉成 `/resources/icons/<encoded segments>.svg`；default `iconScale=0.8`，
 合法範圍 `(0,1]`。load失敗回退 round `CircleDot` card，不留破圖。
 

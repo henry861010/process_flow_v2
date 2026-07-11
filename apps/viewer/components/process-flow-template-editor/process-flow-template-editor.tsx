@@ -59,8 +59,8 @@ import {
 } from "@/lib/process-flow/configuration";
 import {
   geometryInputDisplayName,
+  geometryInputNodePresentation,
   geometryInputStatusLabel,
-  geometryInputSublabel,
   stepReadinessStatusLabel,
 } from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
@@ -257,14 +257,18 @@ function ProcessFlowTemplateEditorInner() {
           );
           const binding =
             configuration.inputBindings[node.data.definition.flowInputId];
+          const presentation = geometryInputNodePresentation(
+            node.data.definition.name,
+            geometry?.name,
+            readiness,
+          );
           return {
             ...node,
             selected: node.id === selectedNodeId,
             data: {
               ...node.data,
               graphMode: topologyLocked ? "view" : "edit",
-              displayLabel: geometryInputDisplayName(node.data.definition.name),
-              displaySublabel: geometry?.name ?? geometryInputSublabel(readiness),
+              ...presentation,
               icon: geometry?.icon,
               iconScale: geometry?.iconScale,
               status: connected ? readiness.status : "error",

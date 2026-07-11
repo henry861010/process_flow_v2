@@ -43,8 +43,8 @@ import {
 } from "@/lib/process-flow/configuration";
 import {
   geometryInputDisplayName,
+  geometryInputNodePresentation,
   geometryInputStatusLabel,
-  geometryInputSublabel,
   stepReadinessStatusLabel,
 } from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
@@ -720,6 +720,11 @@ function graphForInstance(
       definition.flowInputId,
     );
     const binding = configuration.inputBindings[definition.flowInputId];
+    const presentation = geometryInputNodePresentation(
+      displayDefinition.name,
+      geometry?.name,
+      readiness,
+    );
     const nodeId = flowInputNodeId(definition.flowInputId);
     flowInputNodes.set(definition.flowInputId, {
       id: nodeId,
@@ -731,8 +736,7 @@ function graphForInstance(
         nodeKind: "flowInput",
         definition: displayDefinition,
         graphMode: "view",
-        displayLabel: displayDefinition.name,
-        displaySublabel: geometry?.name ?? geometryInputSublabel(readiness),
+        ...presentation,
         icon: geometry?.icon,
         iconScale: geometry?.iconScale,
         pickId: definition.flowInputId,
