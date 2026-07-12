@@ -39,25 +39,28 @@ Default tab `Manual`，另一tab `GDS`；Radix tabs高度36px，content上margin
 
 ### 手動輸入
 
-White bordered card。Header padding12px/8px，左顯示
-`<n> coordinate/coordinates`，右 primary small `Plus + Add die`。
+White bordered card，不顯示額外的 coordinate count/header。`Plus + Add die` 位於 coordinate rows
+底部的 white footer，點擊後新增的 row 會直接出現在按鈕上方。
 
-Rows column gap8、padding12。Coordinate parameter 使用完整 parameter row 寬度，不與左側
-parameter description 分欄。每個 die row header 以 compact muted badge 顯示 `Die <n>`，右側
-是 compact remove button；下方是
-Lower-left／Upper-right 兩個 bordered point groups。寬螢幕兩個 point groups並排，
-窄螢幕垂直堆疊；每個 group 內 X/Y 在 `sm` 以上兩欄，更窄時各自占滿一列。
+Coordinate parameter 使用完整 parameter row 寬度，不與左側 parameter description 分欄。`md`
+以上以 compact table 顯示，共用白底表頭依序為 Die、Lower-left X/Y、Upper-right X/Y 與 remove
+action；unit 若存在則分別顯示為 `Lower-left (<unit>)` 與 `Upper-right (<unit>)`。兩個 group title
+各自與該組 X 欄左緣對齊，同組 X/Y 使用 8px gap、兩組座標使用
+24px gap，以強化 point grouping。每個 die 僅占一列，rows 以淡色水平分隔線區隔，不使用
+nested card/fieldset。Unit只在 header
+顯示一次。窄螢幕時每個 die row 以 Lower-left 與 Upper-right 兩個 section 垂直排列，各 section
+的 X/Y 維持兩欄。
 
-每個 point group 以 legend 顯示 point 名稱，X/Y input 使用完整可用寬度。Unit若存在顯示在
-input右側，accessible name 保留完整 `Lower-left X` 等語意。
-Empty state exact copy `No coordinates`。Invalid/duplicate row改 destructive border/surface，依序顯示：
+Input 使用 tabular numbers；accessible name 保留完整 `Lower-left X` 等語意。Remove 使用 ghost
+icon button，hover 時呈 destructive color。Empty state exact copy `No coordinates`。Invalid row
+只加左側 destructive indicator，empty input 顯示 destructive border，不鋪滿 destructive surface；
+依序顯示：
 
 - `Duplicate coordinate`
-- `All lower-left and upper-right values must be finite numbers`
+- `Enter a finite number in every coordinate field`
 - `Upper-right must be greater than lower-left on both axes`
 
-Card下方聚合 diagnostics依情況顯示 `Invalid rows: ...`、`Invalid bounds rows: ...`、
-`Duplicate rows: ...`。
+錯誤訊息只在對應 row 內顯示，不另外重複 aggregate diagnostics。
 
 ### GDS
 
@@ -115,7 +118,7 @@ coordinates，顯示worker message或 `GDS import failed.`。
 
 | ID | Given / When | Then |
 | --- | --- | --- |
-| `UI-COORD-001` | invalid/duplicate rows | row + aggregate diagnostics都列1-based index。 |
+| `UI-COORD-001` | invalid/duplicate rows | 對應 row 顯示 compact inline error。 |
 | `UI-COORD-002` | 四個對應values差都小於或等於duplicate tolerance | 後一列被判duplicate。 |
 | `UI-COORD-003` | valid GDS/layer/datatype | transformed axis-aligned bounds以um取代原list。 |
 | `UI-COORD-006` | upper-right任一axis不大於lower-left | row顯示invalid bounds且configuration incomplete。 |

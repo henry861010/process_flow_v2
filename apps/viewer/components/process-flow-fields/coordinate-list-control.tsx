@@ -50,7 +50,7 @@ type GdsImportResponse =
 type ImportSummary = Extract<GdsImportResponse, { type: "success" }>;
 
 const coordinateInputClass =
-  "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+  "h-9 w-full rounded-md border border-input bg-white px-2.5 py-1.5 text-sm tabular-nums shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
 export function CoordinateListControl({
   value,
@@ -151,10 +151,51 @@ export function CoordinateListControl({
 
       <TabsContent value="manual">
         <div className="rounded-md border bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-            <div className="text-sm font-medium">
-              {rows.length} {rows.length === 1 ? "coordinate" : "coordinates"}
-            </div>
+          <div>
+            {rows.length === 0 ? (
+              <div className="m-3 rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                No coordinates
+              </div>
+            ) : (
+              <div className="min-w-0">
+                <CoordinateTableHeader unit={unit} />
+                {rows.map((row, index) => (
+                  <CoordinateRowEditor
+                    key={index}
+                    index={index}
+                    row={row}
+                    unit={unit}
+                    invalid={diagnostics.invalidRowIndexes.includes(index)}
+                    invalidBounds={diagnostics.invalidBoundsRowIndexes.includes(index)}
+                    duplicate={diagnostics.duplicateRowIndexes.includes(index)}
+                    onChange={(pointIndex, axisIndex, nextValue) =>
+                      updateRows((current) =>
+                        current.map((candidate, candidateIndex) =>
+                          candidateIndex === index
+                            ? candidate.map((point, currentPointIndex) =>
+                                currentPointIndex === pointIndex
+                                  ? point.map((cell, currentAxisIndex) =>
+                                      currentAxisIndex === axisIndex
+                                        ? nextValue
+                                        : cell,
+                                    )
+                                  : point,
+                              ) as CoordinateDraftRow
+                            : candidate,
+                        ),
+                      )
+                    }
+                    onRemove={() =>
+                      updateRows((current) =>
+                        current.filter((_, candidateIndex) => candidateIndex !== index),
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end border-t px-3 py-2">
             <Button
               type="button"
               size="sm"
@@ -164,53 +205,7 @@ export function CoordinateListControl({
               Add die
             </Button>
           </div>
-          <div className="flex flex-col gap-2 p-3">
-            {rows.length === 0 ? (
-              <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                No coordinates
-              </div>
-            ) : (
-              rows.map((row, index) => (
-                <CoordinateRowEditor
-                  key={index}
-                  index={index}
-                  row={row}
-                  unit={unit}
-                  invalid={diagnostics.invalidRowIndexes.includes(index)}
-                  invalidBounds={diagnostics.invalidBoundsRowIndexes.includes(index)}
-                  duplicate={diagnostics.duplicateRowIndexes.includes(index)}
-                  onChange={(pointIndex, axisIndex, nextValue) =>
-                    updateRows((current) =>
-                      current.map((candidate, candidateIndex) =>
-                        candidateIndex === index
-                          ? candidate.map((point, currentPointIndex) =>
-                              currentPointIndex === pointIndex
-                                ? point.map((cell, currentAxisIndex) =>
-                                    currentAxisIndex === axisIndex
-                                      ? nextValue
-                                      : cell,
-                                  )
-                                : point,
-                            ) as CoordinateDraftRow
-                          : candidate,
-                      ),
-                    )
-                  }
-                  onRemove={() =>
-                    updateRows((current) =>
-                      current.filter((_, candidateIndex) => candidateIndex !== index),
-                    )
-                  }
-                />
-              ))
-            )}
-          </div>
         </div>
-        <CoordinateDiagnostics
-          invalidRowIndexes={diagnostics.invalidRowIndexes}
-          invalidBoundsRowIndexes={diagnostics.invalidBoundsRowIndexes}
-          duplicateRowIndexes={diagnostics.duplicateRowIndexes}
-        />
       </TabsContent>
 
       <TabsContent value="gds">
@@ -271,6 +266,45 @@ export function CoordinateListControl({
   );
 }
 
+const coordinateGridClass =
+  "md:grid md:grid-cols-[72px_minmax(0,1fr)_36px] md:gap-x-2";
+
+function CoordinateTableHeader({ unit }: { unit?: string | null }) {
+  return (
+    <div className="hidden border-b bg-white px-3 py-2 text-xs font-medium text-muted-foreground md:block">
+      <div className={cn(coordinateGridClass, "items-end")}>
+        <div className="pb-0.5">Die</div>
+        <div className="grid min-w-0 grid-cols-2 gap-6">
+          <CoordinateGroupHeader title="Lower-left" unit={unit} />
+          <CoordinateGroupHeader title="Upper-right" unit={unit} />
+        </div>
+        <div />
+      </div>
+    </div>
+  );
+}
+
+function CoordinateGroupHeader({
+  title,
+  unit,
+}: {
+  title: string;
+  unit?: string | null;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 text-left text-foreground">
+        {title}
+        {unit ? ` (${unit})` : ""}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>X</div>
+        <div>Y</div>
+      </div>
+    </div>
+  );
+}
+
 function CoordinateRowEditor({
   index,
   row,
@@ -297,91 +331,88 @@ function CoordinateRowEditor({
   return (
     <section
       className={cn(
-        "rounded-md border p-2.5",
-        invalid || invalidBounds || duplicate
-          ? "border-destructive/60 bg-destructive/5"
-          : "bg-muted/10",
+        "relative border-b px-3 py-2.5 last:border-b-0",
+        (invalid || invalidBounds || duplicate) && "border-l-2 border-l-destructive",
       )}
     >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="inline-flex h-6 items-center rounded bg-muted px-2 text-xs font-medium text-muted-foreground">
+      <div className={cn(coordinateGridClass, "min-w-0 items-end")}>
+        <div className="mb-2 flex h-9 items-center font-medium md:mb-0 md:text-sm">
           Die {index + 1}
+        </div>
+        <div className="grid min-w-0 gap-3 md:grid-cols-2 md:gap-6">
+          <CoordinatePointInputs
+            title="Lower-left"
+            unit={unit}
+            point={row[0]}
+            onChange={(axisIndex, nextValue) => onChange(0, axisIndex, nextValue)}
+          />
+          <CoordinatePointInputs
+            title="Upper-right"
+            unit={unit}
+            point={row[1]}
+            onChange={(axisIndex, nextValue) => onChange(1, axisIndex, nextValue)}
+          />
         </div>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0"
+          className="absolute right-3 top-2.5 h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive md:static"
           aria-label={`Remove coordinate ${index + 1}`}
           onClick={onRemove}
         >
           <Trash2 />
         </Button>
       </div>
-      <div className="grid min-w-0 gap-3 md:grid-cols-2">
-        <CoordinatePointEditor
-          title="Lower-left"
-          point={row[0]}
-          unit={unit}
-          onChange={(axisIndex, nextValue) => onChange(0, axisIndex, nextValue)}
-        />
-        <CoordinatePointEditor
-          title="Upper-right"
-          point={row[1]}
-          unit={unit}
-          onChange={(axisIndex, nextValue) => onChange(1, axisIndex, nextValue)}
-        />
-      </div>
-      {duplicate ? (
-        <div className="mt-2 text-xs text-destructive">
-          Duplicate coordinate
-        </div>
-      ) : null}
-      {invalid ? (
-        <div className="mt-2 text-xs text-destructive">
-          All lower-left and upper-right values must be finite numbers
-        </div>
-      ) : null}
-      {invalidBounds ? (
-        <div className="mt-2 text-xs text-destructive">
-          Upper-right must be greater than lower-left on both axes
+      {duplicate || invalid || invalidBounds ? (
+        <div className="mt-1.5 text-xs text-destructive md:ml-[80px]">
+          {duplicate ? <div>Duplicate coordinate</div> : null}
+          {invalid ? (
+            <div>Enter a finite number in every coordinate field</div>
+          ) : null}
+          {invalidBounds ? (
+            <div>Upper-right must be greater than lower-left on both axes</div>
+          ) : null}
         </div>
       ) : null}
     </section>
   );
 }
 
-function CoordinatePointEditor({
+function CoordinatePointInputs({
   title,
-  point,
   unit,
+  point,
   onChange,
 }: {
   title: string;
-  point: CoordinateDraftRow[0];
   unit?: string | null;
+  point: CoordinateDraftRow[0];
   onChange: (axisIndex: 0 | 1, value: CoordinateDraftCell) => void;
 }) {
   return (
-    <fieldset className="min-w-0 rounded-md border bg-white p-3">
-      <legend className="px-1 text-sm font-semibold">{title}</legend>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+    <div className="min-w-0">
+      <div className="mb-0.5 text-xs font-medium text-muted-foreground md:hidden">
+        {title}
+        {unit ? ` (${unit})` : ""}
+      </div>
+      <div className="grid min-w-0 grid-cols-2 gap-2">
         <CoordinateNumberInput
           label="X"
           ariaLabel={`${title} X`}
           value={point[0]}
-          unit={unit}
+          invalid={point[0] === ""}
           onChange={(nextValue) => onChange(0, nextValue)}
         />
         <CoordinateNumberInput
           label="Y"
           ariaLabel={`${title} Y`}
           value={point[1]}
-          unit={unit}
+          invalid={point[1] === ""}
           onChange={(nextValue) => onChange(1, nextValue)}
         />
       </div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -389,68 +420,32 @@ function CoordinateNumberInput({
   label,
   ariaLabel,
   value,
-  unit,
+  invalid,
   onChange,
 }: {
   label: string;
   ariaLabel: string;
   value: CoordinateDraftCell;
-  unit?: string | null;
+  invalid: boolean;
   onChange: (value: CoordinateDraftCell) => void;
 }) {
   return (
     <label className="min-w-0 text-xs font-medium text-muted-foreground">
-      <span>{label}</span>
-      <div className="mt-1 flex items-center gap-2">
-        <input
-          className={coordinateInputClass}
-          type="number"
-          step="any"
-          aria-label={ariaLabel}
-          value={value === "" ? "" : String(value)}
-          onChange={(event) => onChange(parseCoordinateInput(event.target.value))}
-        />
-        {unit ? <span className="shrink-0">{unit}</span> : null}
-      </div>
+      <span className="md:sr-only">{label}</span>
+      <input
+        className={cn(
+          coordinateInputClass,
+          "mt-1 md:mt-0",
+          invalid && "border-destructive/70 focus:border-destructive focus:ring-destructive/15",
+        )}
+        type="number"
+        step="any"
+        aria-label={ariaLabel}
+        aria-invalid={invalid}
+        value={value === "" ? "" : String(value)}
+        onChange={(event) => onChange(parseCoordinateInput(event.target.value))}
+      />
     </label>
-  );
-}
-
-function CoordinateDiagnostics({
-  invalidRowIndexes,
-  invalidBoundsRowIndexes,
-  duplicateRowIndexes,
-}: {
-  invalidRowIndexes: number[];
-  invalidBoundsRowIndexes: number[];
-  duplicateRowIndexes: number[];
-}) {
-  if (
-    invalidRowIndexes.length === 0 &&
-    invalidBoundsRowIndexes.length === 0 &&
-    duplicateRowIndexes.length === 0
-  ) {
-    return null;
-  }
-  return (
-    <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-      <div className="flex items-start gap-2">
-        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <div>
-          {invalidRowIndexes.length > 0 ? (
-            <div>Invalid rows: {formatRowIndexes(invalidRowIndexes)}</div>
-          ) : null}
-          {invalidBoundsRowIndexes.length > 0 ? (
-            <div>
-              Invalid bounds rows: {formatRowIndexes(invalidBoundsRowIndexes)}
-            </div>
-          ) : null}
-          {duplicateRowIndexes.length > 0 ? (
-            <div>Duplicate rows: {formatRowIndexes(duplicateRowIndexes)}</div>
-          ) : null}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -528,10 +523,6 @@ function parseIntegerInput(value: string) {
     return null;
   }
   return parsed;
-}
-
-function formatRowIndexes(indexes: number[]) {
-  return indexes.map((index) => index + 1).join(", ");
 }
 
 function formatTopCells(topCellNames: string[]) {
