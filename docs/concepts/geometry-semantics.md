@@ -66,7 +66,7 @@ Geometry structure 本身不為不同 sibling branches 定義通用 ownership pr
 | Kernel serialization | 保存 | 保存 envelope、material、density | 保存；flip 反轉 | 保存 | Box、Polygon、Cylinder、Cone |
 | Legacy GLB preview（current） | 輸出 materialized bodies | 不輸出 feature bodies；viewer 可由 JSON overlay | JSON overlay 可讀 | JSON overlay 可讀 | Box、Polygon、Cylinder、Cone |
 | Session binary display mesh（current） | 以geometryHash/version cache的binary GLB顯示resolved bodies | 仍不輸出feature bodies；manifest/viewer只顯示estimated overlay | metadata可讀，不改變body mesh | metadata可讀，不預先inset | Box、Polygon、Cylinder、Cone |
-| OCC exact body section（current） | 對resolved CadBody shape產生X/Y vertical body/material regions；viewer由contours產生caps | 排除density feature envelope，除非future ADR定義materialization | 不改變body section | 不對body section套feature KOZ | 跟隨CadBody resolver支援範圍 |
+| OCC exact body section（current） | 對resolved CadBody shape產生X/Y vertical body/material regions；viewer由contours產生caps | Exact response排除density feature；viewer可另疊加estimated envelope section pattern | 不改變body section | pattern metadata保留但不套KOZ | 跟隨CadBody resolver支援範圍 |
 | STEP AP242 | 輸出 materialized bodies | 以完整 feature envelope 輸出獨立 solid，名稱包含 feature/material/density | 不改變 solid 形狀 | 目前未做 XY inset | Box、Polygon、Cylinder、Cone |
 | Text CDB | 2.5D extrusion | 在 envelope 內以 deterministic density cell selection materialize | 目前忽略 | 目前忽略 | Cone 不支援；Cylinder 只支援單一 distinct circular base face |
 
@@ -79,8 +79,9 @@ OpenCascade body shape產生；viewer shader clipping只作drag/debounce期間fe
 CAD face area與region topology是exact authority；curved edge輸出的polyline依positive tolerance近似。
 
 `Exact section`只表示materialized body的CAD section在documented tolerance內exact。Via、circuit、
-bump的envelope、density hatch與glyph仍是estimated representation，不表示actual feature placement；
-2D/3D viewer必須標示`Estimated density`。Exact body section不得把feature envelope填成實體材料。
+bump的envelope、density hatch、glyph與feature-section pattern仍是estimated representation，不表示actual
+feature placement；2D/3D viewer必須標示`Estimated density`。Composite section可把estimated pattern疊在
+exact fill上，但exact response、area與material ownership不得包含feature envelope。
 
 ## Material instance name
 

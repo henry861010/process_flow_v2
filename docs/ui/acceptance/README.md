@@ -91,6 +91,9 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |
+| `UI-PREVIEW-017` | feature view on + section plane inside feature envelope | drag/settle | 3D cross-section與2D顯示同一Estimated pattern，不依glyph row。 |
+| `UI-PREVIEW-018` | exact body empty/loading + feature non-empty | open/drag section | Estimated layer仍立即顯示，Exact狀態獨立。 |
+| `UI-PREVIEW-019` | embedded/partial/gap feature fixture | orbit full view | embedded不可見，partial與die-gap feature可見。 |
 | `UI-EXPORT-001` | ready preview | submit valid JSON path | job加入 drawer，狀態從 queued/running到 terminal。 |
 | `UI-EXPORT-002` | running job | cancel | 先顯示 canceling，再顯示 canceled或 server terminal result。 |
 | `UI-EXPORT-008` | ready preview，Export form open | press Escape while idle | 只關閉 Export form，Geometry Preview 保持開啟；submitting 時 Escape 不關閉。 |

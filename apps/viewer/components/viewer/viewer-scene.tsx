@@ -23,6 +23,7 @@ type ViewerSceneProps = {
   model: LoadedCadModel | null;
   bounds: BoundsTuple;
   sectionBounds?: BoundsTuple;
+  sectionEpsilonBounds?: BoundsTuple;
   sectionEnabled: boolean;
   sectionPlane: SectionPlaneMode;
   sectionPosition: number;
@@ -39,6 +40,7 @@ export function ViewerScene({
   model,
   bounds,
   sectionBounds,
+  sectionEpsilonBounds,
   sectionEnabled,
   sectionPlane,
   sectionPosition,
@@ -77,6 +79,7 @@ export function ViewerScene({
       <OrbitControls target={bounds.center} />
       <SectionController
         bounds={sectionBounds ?? bounds}
+        epsilonBounds={sectionEpsilonBounds ?? sectionBounds ?? bounds}
         enabled={sectionEnabled}
         mode={sectionPlane}
         position={sectionPosition}
@@ -251,12 +254,14 @@ function OrbitControls({ target }: { target: [number, number, number] }) {
 
 function SectionController({
   bounds,
+  epsilonBounds,
   enabled,
   mode,
   position,
   flip,
 }: {
   bounds: BoundsTuple;
+  epsilonBounds: BoundsTuple;
   enabled: boolean;
   mode: SectionPlaneMode;
   position: number;
@@ -271,14 +276,14 @@ function SectionController({
       return undefined;
     }
 
-    setSectionPlaneFromState(plane, bounds, mode, position, flip);
+    setSectionPlaneFromState(plane, bounds, epsilonBounds, mode, position, flip);
     gl.localClippingEnabled = true;
     gl.clippingPlanes = [plane];
 
     return () => {
       gl.clippingPlanes = [];
     };
-  }, [bounds, enabled, flip, gl, mode, plane, position]);
+  }, [bounds, enabled, epsilonBounds, flip, gl, mode, plane, position]);
 
   if (!enabled) return null;
 
@@ -354,19 +359,20 @@ function getSectionPlaneFrame(
 
 function setSectionPlaneFromState(
   plane: THREE.Plane,
-  bounds: BoundsTuple,
+  visualBounds: BoundsTuple,
+  epsilonBounds: BoundsTuple,
   mode: SectionPlaneMode,
   position: number,
   flip: boolean,
 ) {
-  const frame = getSectionPlaneFrame(bounds, mode, position, flip);
+  const frame = getSectionPlaneFrame(visualBounds, mode, position, flip);
   // Move the display clipping plane a fraction into the retained half-space.
   // OpenCascade can return an exact cap on a plane that is also an existing
   // tessellated cavity wall. Without this inset, Three.js retains the wall at
   // distance zero and it can depth-occlude the authoritative material cap.
   const insetPosition = frame.position
     .clone()
-    .addScaledVector(frame.normal, sectionDisplayEpsilon(bounds) * 0.5);
+    .addScaledVector(frame.normal, sectionDisplayEpsilon(epsilonBounds) * 0.5);
   plane.setFromNormalAndCoplanarPoint(frame.normal, insetPosition);
 }
 

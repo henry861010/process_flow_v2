@@ -166,6 +166,10 @@ feature被排除。
 Exact只修飾materialized body section。Via/circuit/bump仍是density envelope與estimated glyph/hatch，
 不會因session或cap endpoint自動成為physical placement；UI必須標示`Estimated density`。
 
+Viewer另依ADR-0005從snapshot GeometryStructure同步建立`EstimatedFeatureSectionLayer`。這個presentation
+layer不進section response/cache key：plane與enabled feature envelope相交時，3D cross-section與2D SVG以
+同一deterministic pattern model疊加；exact body loading/error不阻止estimated layer更新。
+
 ## 背景檔案 export
 
 Viewer 可將同一份 ready snapshot 送到 `POST /api/geometry-preview/export-jobs`。Legacy alias

@@ -23,6 +23,8 @@ import {
 } from "@/components/geometry-preview/geometry-preview-client";
 import { GeometrySectionCaps } from "@/components/geometry-preview/geometry-section-caps";
 import { GeometrySectionView } from "@/components/geometry-preview/geometry-section-view";
+import { GeometryFeatureSectionCaps } from "@/components/geometry-preview/geometry-feature-section-caps";
+import { GeometryFeatureQualityController } from "@/components/geometry-preview/geometry-feature-quality-controller";
 import { FileExportDialog } from "@/components/geometry-preview/file-export-dialog";
 import type {
   FileExportJob,
@@ -39,6 +41,9 @@ import {
   type FeatureOverlaySettings,
   type PreviewFeature,
 } from "@/components/geometry-preview/geometry-feature-overlay";
+import { mergeFeatureBounds } from "@/lib/geometry-preview/features/feature-model";
+import { buildEstimatedFeatureSection } from "@/lib/geometry-preview/features/feature-section";
+import type { FeatureQualityTier } from "@/lib/geometry-preview/features/feature-quality";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -313,6 +318,8 @@ function PreviewCadWorkbench({
   const [featureMaxInstances, setFeatureMaxInstances] = React.useState(
     DEFAULT_FEATURE_MAX_INSTANCES,
   );
+  const [featureQualityTier, setFeatureQualityTier] =
+    React.useState<FeatureQualityTier>("balanced");
   const [selectedFeatureId, setSelectedFeatureId] = React.useState<string | null>(
     null,
   );
@@ -334,11 +341,22 @@ function PreviewCadWorkbench({
     () => extractPreviewFeatures(geometryStructure),
     [geometryStructure],
   );
-  const bounds = React.useMemo(
-    () => mergeFeatureBounds(modelBounds, features),
-    [features, modelBounds],
+  const enabledFeatures = React.useMemo(
+    () =>
+      featureOverlayEnabled
+        ? features.filter((feature) => {
+            if (feature.type === "bump") return showBumps;
+            if (feature.type === "via") return showVias;
+            return showCircuits;
+          })
+        : [],
+    [featureOverlayEnabled, features, showBumps, showCircuits, showVias],
   );
-  const range = getSectionRange(modelBounds, sectionPlane);
+  const bounds = React.useMemo(
+    () => mergeFeatureBounds(modelBounds, enabledFeatures),
+    [enabledFeatures, modelBounds],
+  );
+  const range = getSectionRange(bounds, sectionPlane);
   const rangeStep = Math.max((range.max - range.min) / 400, 0.001);
   const sectionAxis = sectionPlane === "xz" ? "y" : "x";
   const exactSection = sectionMatchesRequest(
@@ -372,6 +390,7 @@ function PreviewCadWorkbench({
       glyphSizeScale: featureGlyphSizeScale,
       opacity: featureOpacity,
       maxInstances: featureMaxInstances,
+      qualityTier: featureQualityTier,
     }),
     [
       featureDensityScale,
@@ -379,7 +398,34 @@ function PreviewCadWorkbench({
       featureMaxInstances,
       featureMode,
       featureOpacity,
+      featureQualityTier,
       featureOverlayEnabled,
+      showBumps,
+      showCircuits,
+      showVias,
+    ],
+  );
+  const estimatedFeatureSection = React.useMemo(
+    () =>
+      sectionEnabled && featureOverlayEnabled
+        ? buildEstimatedFeatureSection(features, {
+            axis: sectionAxis,
+            position: sectionPosition,
+            densityScale: featureDensityScale,
+            visibility: {
+              bumps: showBumps,
+              vias: showVias,
+              circuits: showCircuits,
+            },
+          })
+        : null,
+    [
+      featureDensityScale,
+      featureOverlayEnabled,
+      features,
+      sectionAxis,
+      sectionEnabled,
+      sectionPosition,
       showBumps,
       showCircuits,
       showVias,
@@ -537,7 +583,8 @@ function PreviewCadWorkbench({
           <ViewerScene
             model={model}
             bounds={bounds}
-            sectionBounds={modelBounds}
+            sectionBounds={bounds}
+            sectionEpsilonBounds={modelBounds}
             sectionEnabled={sectionEnabled}
             sectionPlane={sectionPlane}
             sectionPosition={sectionPosition}
@@ -552,6 +599,16 @@ function PreviewCadWorkbench({
               section={sectionEnabled ? exactSection : null}
               bounds={modelBounds}
               flip={sectionFlip}
+            />
+            <GeometryFeatureSectionCaps
+              section={estimatedFeatureSection}
+              bounds={modelBounds}
+              flip={sectionFlip}
+            />
+            <GeometryFeatureQualityController
+              enabled={featureOverlayEnabled && featureMode === "auto"}
+              tier={featureQualityTier}
+              onTierChange={setFeatureQualityTier}
             />
             <GeometryFeatureOverlay
               features={features}
@@ -678,7 +735,7 @@ function PreviewCadWorkbench({
             {sectionEnabled ? (
               <div className="space-y-2 border-t pt-3">
                 <div className="flex items-center justify-between gap-3">
-                  <Label>Exact material section</Label>
+                  <Label>Section view</Label>
                   <Badge variant={sectionError ? "outline" : "signal"}>
                     {exactSectionLoading
                       ? "Computing"
@@ -689,13 +746,14 @@ function PreviewCadWorkbench({
                 </div>
                 <GeometrySectionView
                   section={exactSection}
+                  estimatedFeatures={estimatedFeatureSection}
                   loading={exactSectionLoading}
                   error={sectionError}
                 />
                 {featureSummary.total > 0 ? (
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Body fills are exact OCC sections. Density features remain estimated
-                    envelopes until pattern or instance placement is available.
+                    Body fills are exact OCC sections. Feature patterns are estimated
+                    envelope projections, not physical placement.
                   </p>
                 ) : null}
               </div>
@@ -813,6 +871,10 @@ function PreviewCadWorkbench({
             <div className="border-t pt-3">
               <InfoTable
                 rows={[
+                  [
+                    "Auto quality",
+                    featureMode === "auto" ? featureQualityTier : "manual",
+                  ],
                   ["Total", formatNumber(featureSummary.total)],
                   ["Bumps", formatNumber(featureSummary.bumps)],
                   ["Vias", formatNumber(featureSummary.vias)],
@@ -853,6 +915,7 @@ function PreviewCadWorkbench({
                         )})`,
                       ],
                       ["Direction", selectedFeature.direction ?? "n/a"],
+                      ["KOZ", formatLength(selectedFeature.koz)],
                       ["Container", selectedFeature.containerPath],
                       ["Bounds", formatFeatureBounds(selectedFeature)],
                     ]}
@@ -1097,32 +1160,6 @@ function formatFeatureSummaryLine(summary: {
   return `${formatNumber(summary.total)} total · B ${formatNumber(
     summary.bumps,
   )} · V ${formatNumber(summary.vias)} · C ${formatNumber(summary.circuits)}`;
-}
-
-function mergeFeatureBounds(baseBounds: BoundsTuple, features: PreviewFeature[]) {
-  if (features.length === 0) return baseBounds;
-
-  const min: [number, number, number] = [...baseBounds.min];
-  const max: [number, number, number] = [...baseBounds.max];
-  features.forEach((feature) => {
-    for (let axis = 0; axis < 3; axis += 1) {
-      min[axis] = Math.min(min[axis], feature.bounds.min[axis]);
-      max[axis] = Math.max(max[axis], feature.bounds.max[axis]);
-    }
-  });
-
-  const center: [number, number, number] = [
-    (min[0] + max[0]) / 2,
-    (min[1] + max[1]) / 2,
-    (min[2] + max[2]) / 2,
-  ];
-  const size: [number, number, number] = [
-    Math.max(max[0] - min[0], 0),
-    Math.max(max[1] - min[1], 0),
-    Math.max(max[2] - min[2], 0),
-  ];
-
-  return { min, max, center, size };
 }
 
 function featureById(features: PreviewFeature[], featureId: string | null) {
