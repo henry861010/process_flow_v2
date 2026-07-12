@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import base64
+from dataclasses import dataclass
 from typing import Any
 
 from process_flow_kernel import (
     ExecuteOptions,
+    ExecutionPlan,
     FlowCompiler,
     GeometryKernel,
+    InMemoryGeometryCatalog,
     validate_flow_graph,
     validate_process_step_template as validate_step_contract,
 )
@@ -24,6 +28,37 @@ from .repository import NotFoundError, SQLiteStore
 
 
 JsonObject = dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class PreviewRequestContext:
+    """Fully resolved, immutable input used to address and build a preview session."""
+
+    template: JsonObject
+    step_templates: tuple[JsonObject, ...]
+    configuration: JsonObject
+    target: JsonObject
+    source_label: str | None
+    referenced_catalog_geometries: JsonObject
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedPreviewExecution:
+    """A compiled step timeline or one resolved flow-input geometry."""
+
+    context: PreviewRequestContext
+    execution_plan: ExecutionPlan | None = None
+    flow_input_geometry: JsonObject | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PreviewSnapshotGeometry:
+    source_kind: str
+    step_ref_id: str | None
+    label: str
+    order: int
+    target: JsonObject
+    geometry_structure: JsonObject
 
 
 def bootstrap_payload(store: SQLiteStore) -> JsonObject:
@@ -115,10 +150,12 @@ def execute_instance(store: SQLiteStore, instance_id: str) -> JsonObject:
     }
 
 
-async def preview_geometry(
+def resolve_preview_request(
     store: SQLiteStore,
     body: GeometryPreviewRequest,
-) -> JsonObject:
+) -> PreviewRequestContext:
+    """Resolve database-backed inputs without compiling or executing the flow."""
+
     template = (
         body.flowTemplate.payload()
         if body.flowTemplate is not None
@@ -127,41 +164,168 @@ async def preview_geometry(
             body.processFlowTemplateId,
         )
     )
-    step_templates = load_step_templates_for_template(store, template)
+    step_templates = tuple(load_step_templates_for_template(store, template))
     configuration = body.configuration.payload()
     target = body.target.payload()
-    compiler = _compiler(store)
+    referenced_catalog_geometries: JsonObject = {}
+    for binding in configuration.get("inputBindings", {}).values():
+        if binding.get("kind") != "catalog":
+            continue
+        geometry_id = binding.get("geometryId")
+        if not isinstance(geometry_id, str) or geometry_id in referenced_catalog_geometries:
+            continue
+        geometry = store.get_geometry(geometry_id)
+        referenced_catalog_geometries[geometry_id] = geometry or {"missingGeometryId": geometry_id}
 
+    return PreviewRequestContext(
+        template=template,
+        step_templates=step_templates,
+        configuration=configuration,
+        target=target,
+        source_label=body.sourceLabel,
+        referenced_catalog_geometries=referenced_catalog_geometries,
+    )
+
+
+def preview_request_identity(context: PreviewRequestContext) -> JsonObject:
+    """Return all semantic inputs that can affect a preview session."""
+
+    return {
+        "contractVersion": 1,
+        "target": context.target,
+        "sourceLabel": context.source_label,
+        "flowTemplate": context.template,
+        "stepTemplates": list(context.step_templates),
+        "configuration": context.configuration,
+        "catalogGeometries": context.referenced_catalog_geometries,
+    }
+
+
+def prepare_preview_execution(
+    context: PreviewRequestContext,
+) -> PreparedPreviewExecution:
+    """Compile at most once against resources captured by the request context."""
+
+    catalog_geometries = [
+        geometry
+        for geometry in context.referenced_catalog_geometries.values()
+        if isinstance(geometry, dict) and isinstance(geometry.get("id"), str)
+    ]
+    compiler = FlowCompiler(InMemoryGeometryCatalog(catalog_geometries))
+    target = context.target
     if target["type"] == "flowInput":
         geometry_structure = compiler.resolve_flow_input(
-            template,
-            configuration,
-            step_templates,
+            context.template,
+            context.configuration,
+            context.step_templates,
             target["flowInputId"],
         )
-        source_kind = "flowInput"
-        output_step_ref_id = None
-    else:
-        output_step_ref_id = target["stepRefId"]
-        plan = compiler.compile(
-            template,
-            configuration,
-            step_templates,
-            output_step_ref_id=output_step_ref_id,
+        return PreparedPreviewExecution(
+            context=context,
+            flow_input_geometry=dict(geometry_structure),
         )
-        result = GeometryKernel().execute(
-            plan,
-            ExecuteOptions(output_step_ref_id=output_step_ref_id),
+
+    if target.get("outputPortId") != "result_geometry":
+        raise ValueError(
+            "Preview currently supports only the result_geometry step output port"
         )
-        geometry_structure = result.geometry()
-        source_kind = "stepOutput"
+    output_step_ref_id = target["stepRefId"]
+    plan = compiler.compile(
+        context.template,
+        context.configuration,
+        context.step_templates,
+        output_step_ref_id=output_step_ref_id,
+    )
+    return PreparedPreviewExecution(context=context, execution_plan=plan)
+
+
+async def materialize_preview_snapshots(
+    prepared: PreparedPreviewExecution,
+) -> tuple[PreviewSnapshotGeometry, ...]:
+    """Execute one plan once and expose every ordered upstream step output."""
+
+    context = prepared.context
+    target = context.target
+    if target["type"] == "flowInput":
+        geometry_structure = prepared.flow_input_geometry
+        if geometry_structure is None:
+            raise RuntimeError("Resolved flow-input preview is missing geometry")
+        flow_input_id = target["flowInputId"]
+        flow_input = next(
+            (
+                candidate
+                for candidate in context.template.get("flowInputs", [])
+                if candidate.get("flowInputId") == flow_input_id
+            ),
+            None,
+        )
+        label = context.source_label or (flow_input or {}).get("name") or flow_input_id
+        return (
+            PreviewSnapshotGeometry(
+                source_kind="flowInput",
+                step_ref_id=None,
+                label=label,
+                order=0,
+                target=target,
+                geometry_structure=geometry_structure,
+            ),
+        )
+
+    plan = prepared.execution_plan
+    if plan is None:
+        raise RuntimeError("Step-output preview is missing its execution plan")
+    output_step_ref_id = target["stepRefId"]
+    result = await asyncio.to_thread(
+        _execute_preview_plan,
+        plan,
+        output_step_ref_id,
+    )
+    step_outputs = result.step_outputs()
+    snapshots = []
+    for order, planned_step in enumerate(plan.steps):
+        geometry_structure = step_outputs.get(planned_step.step_ref_id)
+        if geometry_structure is None:
+            raise RuntimeError(
+                f"Preview execution did not return output for step {planned_step.step_ref_id}"
+            )
+        label = planned_step.step_label
+        if planned_step.step_ref_id == output_step_ref_id and context.source_label:
+            label = context.source_label
+        snapshots.append(
+            PreviewSnapshotGeometry(
+                source_kind="stepOutput",
+                step_ref_id=planned_step.step_ref_id,
+                label=label or planned_step.step_ref_id,
+                order=order,
+                target={
+                    "type": "stepOutput",
+                    "stepRefId": planned_step.step_ref_id,
+                    "outputPortId": planned_step.output_port_id,
+                },
+                geometry_structure=geometry_structure,
+            )
+        )
+    if not snapshots or snapshots[-1].step_ref_id != output_step_ref_id:
+        raise RuntimeError(f"Preview execution did not reach target step {output_step_ref_id}")
+    return tuple(snapshots)
+
+
+async def preview_geometry(
+    store: SQLiteStore,
+    body: GeometryPreviewRequest,
+) -> JsonObject:
+    context = resolve_preview_request(store, body)
+    prepared = await asyncio.to_thread(prepare_preview_execution, context)
+    snapshots = await materialize_preview_snapshots(prepared)
+    selected = snapshots[-1]
+    geometry_structure = selected.geometry_structure
 
     glb_bytes = await export_geometry(geometry_structure, format="glb")
     geometry_entity_json = build_geometry_entity_download(
         geometry_structure=geometry_structure,
-        target=target,
-        source_kind=source_kind,
-        output_step_ref_id=output_step_ref_id,
+        target=selected.target,
+        source_kind=selected.source_kind,
+        output_step_ref_id=selected.step_ref_id,
         source_label=body.sourceLabel,
     )
     return {
@@ -204,3 +368,10 @@ def build_geometry_entity_download(
 
 def _compiler(store: SQLiteStore) -> FlowCompiler:
     return FlowCompiler(StoreGeometryCatalog(store))
+
+
+def _execute_preview_plan(plan: ExecutionPlan, output_step_ref_id: str):
+    return GeometryKernel().execute(
+        plan,
+        ExecuteOptions(output_step_ref_id=output_step_ref_id),
+    )

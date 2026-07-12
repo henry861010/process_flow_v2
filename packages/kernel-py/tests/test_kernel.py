@@ -715,7 +715,7 @@ def die_geometry():
                         "thk": 2,
                     },
                     "material": "SnAg",
-                    "density": 0.8,
+                    "density": 80,
                     "direction": "-z",
                     "koz": 0,
                 }

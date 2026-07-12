@@ -14,6 +14,7 @@ import type {
   LoadedCadModel,
 } from "@/components/viewer/model-loader";
 import { DEMO_BOUNDS } from "@/components/viewer/model-loader";
+import { sectionDisplayEpsilon } from "@/components/viewer/section-display";
 
 export type SectionPlaneMode = "xz" | "yz";
 export type CameraViewMode = "iso" | "x" | "y" | "z";
@@ -21,6 +22,7 @@ export type CameraViewMode = "iso" | "x" | "y" | "z";
 type ViewerSceneProps = {
   model: LoadedCadModel | null;
   bounds: BoundsTuple;
+  sectionBounds?: BoundsTuple;
   sectionEnabled: boolean;
   sectionPlane: SectionPlaneMode;
   sectionPosition: number;
@@ -29,12 +31,14 @@ type ViewerSceneProps = {
   showAxes: boolean;
   cameraResetKey: number;
   cameraView: CameraViewMode;
+  showDemoWhenEmpty?: boolean;
   children?: React.ReactNode;
 };
 
 export function ViewerScene({
   model,
   bounds,
+  sectionBounds,
   sectionEnabled,
   sectionPlane,
   sectionPosition,
@@ -43,6 +47,7 @@ export function ViewerScene({
   showAxes,
   cameraResetKey,
   cameraView,
+  showDemoWhenEmpty = true,
   children,
 }: ViewerSceneProps) {
   const contentRef = React.useRef<THREE.Group>(null);
@@ -51,9 +56,15 @@ export function ViewerScene({
     <Canvas
       className="h-full w-full"
       camera={{ fov: 42, position: [7200, -8200, 5200], near: 0.1, far: 100000 }}
-      dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true }}
-      shadows
+      dpr={1}
+      frameloop="demand"
+      gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}
+      fallback={
+        <div className="flex h-full min-h-[320px] items-center justify-center p-6 text-center text-sm text-muted-foreground">
+          3D acceleration is unavailable. Use the exact engineering section in the
+          settings panel.
+        </div>
+      }
       onCreated={({ camera, gl }) => {
         camera.up.set(0, 0, 1);
         gl.localClippingEnabled = true;
@@ -62,9 +73,10 @@ export function ViewerScene({
     >
       <SceneLights bounds={bounds} />
       <CameraRig bounds={bounds} resetKey={cameraResetKey} view={cameraView} />
+      <CameraClipRange bounds={bounds} />
       <OrbitControls target={bounds.center} />
       <SectionController
-        bounds={bounds}
+        bounds={sectionBounds ?? bounds}
         enabled={sectionEnabled}
         mode={sectionPlane}
         position={sectionPosition}
@@ -75,9 +87,9 @@ export function ViewerScene({
       <group ref={contentRef}>
         {model ? (
           <primitive object={model.object} key={model.id} />
-        ) : (
+        ) : showDemoWhenEmpty ? (
           <DemoPackage />
-        )}
+        ) : null}
         {children}
       </group>
     </Canvas>
@@ -90,16 +102,13 @@ function SceneLights({ bounds }: { bounds: BoundsTuple }) {
 
   return (
     <>
-      <hemisphereLight args={["#eff7fb", "#b7b0a2", 2.1]} />
+      <hemisphereLight args={["#eff7fb", "#b7b0a2", 1.35]} />
       <directionalLight
-        castShadow
-        intensity={2.8}
+        intensity={1.65}
         position={[cx + maxDim * 0.7, cy - maxDim * 0.9, cz + maxDim * 1.2]}
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
       />
       <directionalLight
-        intensity={0.85}
+        intensity={0.45}
         position={[cx - maxDim, cy + maxDim * 0.55, cz + maxDim * 0.6]}
       />
     </>
@@ -115,7 +124,7 @@ function CameraRig({
   resetKey: number;
   view: CameraViewMode;
 }) {
-  const { camera } = useThree();
+  const { camera, invalidate } = useThree();
   const boundsKey = `${bounds.min.join(",")}:${bounds.max.join(",")}:${resetKey}:${view}`;
 
   React.useEffect(() => {
@@ -129,15 +138,50 @@ function CameraRig({
 
     camera.up.copy(up);
     camera.position.copy(center).add(direction.multiplyScalar(distance * 1.55));
-    if (camera instanceof THREE.PerspectiveCamera) {
-      camera.near = Math.max(maxDim / 10000, 0.001);
-      camera.far = Math.max(maxDim * 80, 1000);
-    }
     camera.lookAt(center);
+    setCameraClipRange(camera, bounds);
     camera.updateProjectionMatrix();
-  }, [boundsKey, camera, bounds.center, bounds.size, view]);
+    invalidate();
+  }, [bounds, boundsKey, camera, bounds.center, bounds.size, invalidate, view]);
 
   return null;
+}
+
+function CameraClipRange({ bounds }: { bounds: BoundsTuple }) {
+  const { camera } = useThree();
+
+  const updateClipRange = React.useCallback(() => {
+    setCameraClipRange(camera, bounds);
+  }, [bounds, camera]);
+
+  React.useEffect(updateClipRange, [updateClipRange]);
+  useFrame(updateClipRange);
+  return null;
+}
+
+function setCameraClipRange(camera: THREE.Camera, bounds: BoundsTuple) {
+  if (!(camera instanceof THREE.PerspectiveCamera)) return;
+
+  const center = new THREE.Vector3(...bounds.center);
+  const radius = Math.max(
+    new THREE.Vector3(...bounds.size).length() / 2,
+    0.001,
+  );
+  const distance = camera.position.distanceTo(center);
+  const padding = radius * 1.35;
+  const near = Math.max(radius / 10000, distance - padding, 0.001);
+  const far = Math.max(distance + padding, near + radius * 0.01, near + 1);
+
+  if (
+    Math.abs(camera.near - near) <= near * 1e-4 &&
+    Math.abs(camera.far - far) <= far * 1e-4
+  ) {
+    return;
+  }
+
+  camera.near = near;
+  camera.far = far;
+  camera.updateProjectionMatrix();
 }
 
 function getCameraViewFrame(view: CameraViewMode) {
@@ -167,7 +211,7 @@ function getCameraViewFrame(view: CameraViewMode) {
 }
 
 function OrbitControls({ target }: { target: [number, number, number] }) {
-  const { camera, gl } = useThree();
+  const { camera, gl, invalidate } = useThree();
   const controlsRef = React.useRef<OrbitControlsImpl | null>(null);
   const targetKey = target.join(",");
 
@@ -181,18 +225,22 @@ function OrbitControls({ target }: { target: [number, number, number] }) {
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.PAN,
     };
+    const handleChange = () => invalidate();
+    controls.addEventListener("change", handleChange);
     controlsRef.current = controls;
 
     return () => {
+      controls.removeEventListener("change", handleChange);
       controls.dispose();
       controlsRef.current = null;
     };
-  }, [camera, gl.domElement]);
+  }, [camera, gl.domElement, invalidate]);
 
   React.useEffect(() => {
     controlsRef.current?.target.set(...target);
     controlsRef.current?.update();
-  }, [target, targetKey]);
+    invalidate();
+  }, [invalidate, target, targetKey]);
 
   useFrame(() => {
     controlsRef.current?.update();
@@ -255,26 +303,21 @@ function SectionPlaneVisual({
   position: number;
   flip: boolean;
 }) {
-  const [cx, cy, cz] = bounds.center;
-  const [sx, sy, sz] = bounds.size;
-  const pad = 1.08;
-
-  const planeArgs: [number, number] =
-    mode === "xz" ? [sx * pad, sz * pad] : [sy * pad, sz * pad];
-  const planePosition: [number, number, number] =
-    mode === "xz" ? [cx, position, cz] : [position, cy, cz];
-  const planeRotation: [number, number, number] =
-    mode === "xz"
-      ? [Math.PI / 2, 0, flip ? Math.PI : 0]
-      : [0, Math.PI / 2, flip ? Math.PI : 0];
+  const frame = getSectionPlaneFrame(bounds, mode, position, flip);
+  const planeArgs = frame.size;
+  // Keep the translucent guide with the cap, beyond the inset clipping plane.
+  const planePosition = frame.position
+    .clone()
+    .addScaledVector(frame.normal, sectionDisplayEpsilon(bounds))
+    .toArray() as [number, number, number];
 
   return (
-    <mesh position={planePosition} rotation={planeRotation} renderOrder={10}>
+    <mesh position={planePosition} rotation={frame.rotation} renderOrder={10}>
       <planeGeometry args={planeArgs} />
       <meshBasicMaterial
         color="#1aa7d2"
         transparent
-        opacity={0.16}
+        opacity={0.05}
         side={THREE.DoubleSide}
         depthWrite={false}
       />
@@ -317,7 +360,14 @@ function setSectionPlaneFromState(
   flip: boolean,
 ) {
   const frame = getSectionPlaneFrame(bounds, mode, position, flip);
-  plane.setFromNormalAndCoplanarPoint(frame.normal, frame.position);
+  // Move the display clipping plane a fraction into the retained half-space.
+  // OpenCascade can return an exact cap on a plane that is also an existing
+  // tessellated cavity wall. Without this inset, Three.js retains the wall at
+  // distance zero and it can depth-occlude the authoritative material cap.
+  const insetPosition = frame.position
+    .clone()
+    .addScaledVector(frame.normal, sectionDisplayEpsilon(bounds) * 0.5);
+  plane.setFromNormalAndCoplanarPoint(frame.normal, insetPosition);
 }
 
 function SceneGrid({ bounds }: { bounds: BoundsTuple }) {
@@ -358,51 +408,47 @@ function SceneAxes({ bounds }: { bounds: BoundsTuple }) {
 function DemoPackage() {
   const packageMaterials = React.useMemo(
     () => ({
-      substrate: new THREE.MeshPhysicalMaterial({
+      substrate: new THREE.MeshStandardMaterial({
         color: "#10775d",
         roughness: 0.58,
         metalness: 0.02,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
-      silicon: new THREE.MeshPhysicalMaterial({
+      silicon: new THREE.MeshStandardMaterial({
         color: "#858987",
         roughness: 0.5,
         metalness: 0.08,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
-      hbm: new THREE.MeshPhysicalMaterial({
+      hbm: new THREE.MeshStandardMaterial({
         color: "#aeb5b2",
         roughness: 0.54,
         metalness: 0.04,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
-      rdl: new THREE.MeshPhysicalMaterial({
+      rdl: new THREE.MeshStandardMaterial({
         color: "#e0c629",
         roughness: 0.38,
         metalness: 0.4,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
-      dielectric: new THREE.MeshPhysicalMaterial({
+      dielectric: new THREE.MeshStandardMaterial({
         color: "#20a8cf",
         roughness: 0.5,
         metalness: 0.02,
-        transparent: true,
-        opacity: 0.86,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
-      solder: new THREE.MeshPhysicalMaterial({
+      solder: new THREE.MeshStandardMaterial({
         color: "#e3e7e5",
         roughness: 0.34,
         metalness: 0.28,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
-      mold: new THREE.MeshPhysicalMaterial({
+      mold: new THREE.MeshStandardMaterial({
         color: "#c5cbc8",
         roughness: 0.62,
         metalness: 0.04,
-        transparent: true,
-        opacity: 0.38,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
     }),
     [],
@@ -462,23 +508,19 @@ function DemoPackage() {
       {bumpXs.map((x) => (
         <mesh
           key={`bga-${x}`}
-          castShadow
-          receiveShadow
           position={[x, -2300, -520]}
           material={packageMaterials.solder}
         >
-          <sphereGeometry args={[270, 32, 16]} />
+          <sphereGeometry args={[270, 16, 10]} />
         </mesh>
       ))}
       {bumpXs.map((x) => (
         <mesh
           key={`bga-back-${x}`}
-          castShadow
-          receiveShadow
           position={[x, 2300, -520]}
           material={packageMaterials.solder}
         >
-          <sphereGeometry args={[270, 32, 16]} />
+          <sphereGeometry args={[270, 16, 10]} />
         </mesh>
       ))}
     </group>
@@ -495,7 +537,7 @@ function Box({
   material: THREE.Material;
 }) {
   return (
-    <mesh castShadow receiveShadow position={position} material={material}>
+    <mesh position={position} material={material}>
       <boxGeometry args={scale} />
     </mesh>
   );

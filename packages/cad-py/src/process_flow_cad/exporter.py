@@ -54,6 +54,11 @@ class CadBody:
     container_key: str
     material: str
     shape: Any
+    # Container ids from the geometry root down to (but excluding) the
+    # container that owns this body.  The path is retained after Boolean
+    # resolution so downstream sectioning can give a nested material priority
+    # over a coincident cavity-wall face from one of its ancestors.
+    container_ancestors: tuple[str, ...] = ()
     body_kind: Literal["body", "feature"] = "body"
     feature_type: str | None = None
     density: Any = None
@@ -126,10 +131,17 @@ class CadQueryConverter:
         structure = normalize_geometry_structure(payload)
         return self._convert_container(structure["root"])
 
-    def _convert_container(self, container: JsonObject) -> list[CadBody]:
-        direct_bodies = [self._body_to_cad(container, body) for body in container["bodies"]]
+    def _convert_container(
+        self,
+        container: JsonObject,
+        container_ancestors: tuple[str, ...] = (),
+    ) -> list[CadBody]:
+        direct_bodies = [
+            self._body_to_cad(container, body, container_ancestors)
+            for body in container["bodies"]
+        ]
         direct_feature_bodies = (
-            self._container_features_to_cad(container)
+            self._container_features_to_cad(container, container_ancestors)
             if self.options.include_feature_bodies
             else []
         )
@@ -145,7 +157,12 @@ class CadQueryConverter:
 
         descendant_bodies = []
         for child in container["children"]:
-            descendant_bodies.extend(self._convert_container(child))
+            descendant_bodies.extend(
+                self._convert_container(
+                    child,
+                    (*container_ancestors, container["id"]),
+                )
+            )
 
         cut_tool = self._union_shapes([body.shape for body in descendant_bodies])
         if cut_tool is not None:
@@ -154,7 +171,12 @@ class CadQueryConverter:
 
         return [*direct_solids, *descendant_bodies]
 
-    def _body_to_cad(self, container: JsonObject, body: JsonObject) -> CadBody:
+    def _body_to_cad(
+        self,
+        container: JsonObject,
+        body: JsonObject,
+        container_ancestors: tuple[str, ...],
+    ) -> CadBody:
         return CadBody(
             id=body["id"],
             source_ids=[body["id"]],
@@ -162,16 +184,42 @@ class CadQueryConverter:
             container_key=container.get("key") or "",
             material=body.get("material") or "generic",
             shape=self._geometry_to_shape(body["geometry"]),
+            container_ancestors=container_ancestors,
         )
 
-    def _container_features_to_cad(self, container: JsonObject) -> list[CadBody]:
+    def _container_features_to_cad(
+        self,
+        container: JsonObject,
+        container_ancestors: tuple[str, ...],
+    ) -> list[CadBody]:
         return [
-            *[self._feature_to_cad(container, "via", feature) for feature in container["vias"]],
             *[
-                self._feature_to_cad(container, "circuit", feature)
+                self._feature_to_cad(
+                    container,
+                    "via",
+                    feature,
+                    container_ancestors,
+                )
+                for feature in container["vias"]
+            ],
+            *[
+                self._feature_to_cad(
+                    container,
+                    "circuit",
+                    feature,
+                    container_ancestors,
+                )
                 for feature in container["circuits"]
             ],
-            *[self._feature_to_cad(container, "bump", feature) for feature in container["bumps"]],
+            *[
+                self._feature_to_cad(
+                    container,
+                    "bump",
+                    feature,
+                    container_ancestors,
+                )
+                for feature in container["bumps"]
+            ],
         ]
 
     def _feature_to_cad(
@@ -179,6 +227,7 @@ class CadQueryConverter:
         container: JsonObject,
         feature_type: str,
         feature: JsonObject,
+        container_ancestors: tuple[str, ...],
     ) -> CadBody:
         return CadBody(
             id=stable_id("feature-body", [container["id"], feature_type, feature["id"]]),
@@ -187,6 +236,7 @@ class CadQueryConverter:
             container_key=container.get("key") or "",
             material=feature_material_name(feature_type, feature.get("material"), feature.get("density")),
             shape=self._geometry_to_shape(feature["geometry"]),
+            container_ancestors=container_ancestors,
             body_kind="feature",
             feature_type=feature_type,
             density=feature.get("density"),
@@ -219,6 +269,7 @@ class CadQueryConverter:
                     container_key=container.get("key") or "",
                     material=material,
                     shape=fused_shape,
+                    container_ancestors=component[0].container_ancestors,
                 )
             )
         return resolved

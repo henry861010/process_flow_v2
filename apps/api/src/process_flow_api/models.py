@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 JsonObject = dict[str, Any]
+FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
+PositiveFiniteFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
+SectionPoint = tuple[FiniteFloat, FiniteFloat]
+SectionLoop = Annotated[list[SectionPoint], Field(min_length=4)]
 
 
 class StrictModel(BaseModel):
@@ -272,7 +276,7 @@ class FlowInputPreviewTarget(StrictModel):
 class StepOutputPreviewTarget(StrictModel):
     type: Literal["stepOutput"]
     stepRefId: str = Field(min_length=1)
-    outputPortId: str = "result_geometry"
+    outputPortId: str = Field(default="result_geometry", min_length=1)
 
 
 GeometryPreviewTarget = Annotated[
@@ -330,6 +334,57 @@ class ExecuteInstanceResponse(StrictModel):
 class GeometryPreviewResponse(StrictModel):
     geometryEntityJson: JsonObject
     glbBase64: str
+
+
+class PreviewSnapshot(StrictModel):
+    snapshotId: str = Field(min_length=1)
+    sourceKind: Literal["flowInput", "stepOutput"]
+    stepRefId: str | None = None
+    label: str = Field(min_length=1)
+    order: int = Field(ge=0)
+    geometryHash: str = Field(min_length=1)
+    geometryEntityJson: JsonObject
+    meshUrl: str = Field(min_length=1)
+    sectionUrl: str = Field(min_length=1)
+
+
+class PreviewSessionResponse(StrictModel):
+    sessionId: str = Field(min_length=1)
+    initialSnapshotId: str = Field(min_length=1)
+    snapshots: list[PreviewSnapshot] = Field(min_length=1)
+
+
+class PreviewSectionRegion(StrictModel):
+    bodyId: str = Field(min_length=1)
+    sourceIds: list[str]
+    containerId: str = Field(min_length=1)
+    containerKey: str
+    material: str = Field(min_length=1)
+    bodyKind: Literal["body", "feature"]
+    featureType: str | None = None
+    approximationKind: Literal["exact", "envelope"]
+    area: PositiveFiniteFloat
+    outer: SectionLoop
+    holes: list[SectionLoop]
+
+    @model_validator(mode="after")
+    def loops_are_closed(self):
+        for label, loop in [
+            ("outer", self.outer),
+            *((f"holes[{index}]", hole) for index, hole in enumerate(self.holes)),
+        ]:
+            if loop[0] != loop[-1]:
+                raise ValueError(f"Preview section {label} loop must be closed")
+        return self
+
+
+class PreviewSectionResponse(StrictModel):
+    snapshotId: str = Field(min_length=1)
+    geometryHash: str = Field(min_length=1)
+    unitSystem: str = Field(min_length=1)
+    axis: Literal["x", "y"]
+    position: FiniteFloat
+    regions: list[PreviewSectionRegion]
 
 
 class GeometryPreviewStepResponse(StrictModel):

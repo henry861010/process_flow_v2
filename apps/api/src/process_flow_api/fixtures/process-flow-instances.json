@@ -26,15 +26,13 @@
               760,
               -520
             ]
-          ],
-          "workingTemp": 25
+          ]
         }
       },
       "mold_cap": {
         "parameterValues": {
           "material": "EMC-G700",
-          "thickness": 180,
-          "workingTemp": 175
+          "thickness": 180
         }
       },
       "rdl_build": {
@@ -48,7 +46,7 @@
                   "Dielectric": "PI-2611",
                   "Conductivity": "Cu",
                   "thk": 8,
-                  "density": 0.62
+                  "density": 62
                 }
               },
               {
@@ -58,21 +56,19 @@
                   "Dielectric": "PI-2611",
                   "Conductivity": "Cu",
                   "thk": 6,
-                  "density": 0.48
+                  "density": 48
                 }
               }
             ]
-          },
-          "workingTemp": 200
+          }
         }
       },
       "c4_bump": {
         "parameterValues": {
           "material": "SAC305",
           "thk": 65,
-          "density": 0.58,
-          "koz": 18,
-          "workingTemp": 245
+          "density": 58,
+          "koz": 18
         }
       }
     }
@@ -108,15 +104,13 @@
               820,
               -560
             ]
-          ],
-          "workingTemp": 25
+          ]
         }
       },
       "mold_cap": {
         "parameterValues": {
           "material": "EMC-R920",
-          "thickness": 210,
-          "workingTemp": 175
+          "thickness": 210
         }
       },
       "rdl_build": {
@@ -130,21 +124,19 @@
                   "Dielectric": "ABF-GX92",
                   "Conductivity": "Cu",
                   "thk": 10,
-                  "density": 0.56
+                  "density": 56
                 }
               }
             ]
-          },
-          "workingTemp": 200
+          }
         }
       },
       "c4_bump": {
         "parameterValues": {
           "material": "SAC405",
           "thk": 72,
-          "density": 0.53,
-          "koz": 20,
-          "workingTemp": 245
+          "density": 53,
+          "koz": 20
         }
       }
     }
@@ -172,31 +164,26 @@
               -1000,
               -800
             ]
-          ],
-          "workingTemp": 25
+          ]
         }
       },
       "micro_bump": {
         "parameterValues": {
           "material": "Cu/Ni/SnAg",
           "thk": 28,
-          "density": 0.42,
-          "koz": 12,
-          "workingTemp": 250
+          "density": 42,
+          "koz": 12
         }
       },
       "flip_package": {
-        "parameterValues": {
-          "workingTemp": 25
-        }
+        "parameterValues": {}
       },
       "bga_array": {
         "parameterValues": {
           "material": "SAC305",
           "thk": 240,
-          "density": 0.36,
-          "koz": 35,
-          "workingTemp": 245
+          "density": 36,
+          "koz": 35
         }
       }
     }

@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -22,6 +23,8 @@ from .models import (
     GeometryPreviewResponse,
     GeometryPreviewStepRequest,
     GeometryPreviewStepResponse,
+    PreviewSectionResponse,
+    PreviewSessionResponse,
     ProcessFlowInstance,
     ProcessFlowTemplate,
     ProcessFlowWorkspaceCreate,
@@ -30,6 +33,7 @@ from .models import (
     TemplateInstanceCreateRequest,
     WorkspaceCommitRequest,
 )
+from .preview_sessions import PreviewCapacityError, PreviewSessionManager, etag_matches
 from .repository import DuplicateItemError, NotFoundError, ResourceConflictError, SQLiteStore
 from .seed import load_seed_fixtures
 from .services import (
@@ -50,6 +54,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="Process Flow API", version="0.2.0", lifespan=app_lifespan)
     app.state.store = SQLiteStore(db_path or default_db_path())
     app.state.file_export_jobs = FileExportJobManager()
+    app.state.preview_sessions = PreviewSessionManager.from_environment()
 
     app.add_middleware(
         CORSMiddleware,
@@ -71,6 +76,14 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     async def resource_conflict_handler(_: Request, error: ResourceConflictError):
         return JSONResponse({"message": str(error)}, status_code=status.HTTP_409_CONFLICT)
 
+    @app.exception_handler(PreviewCapacityError)
+    async def preview_capacity_handler(_: Request, error: PreviewCapacityError):
+        return JSONResponse(
+            {"message": str(error)},
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": "1"},
+        )
+
     @app.exception_handler(ValueError)
     async def value_error_handler(_: Request, error: ValueError):
         return JSONResponse({"message": str(error)}, status_code=status.HTTP_400_BAD_REQUEST)
@@ -88,6 +101,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     async def reset(request: Request):
         store = get_store(request)
         store.seed(load_seed_fixtures(), reset=True)
+        await get_preview_sessions(request).clear()
         return bootstrap_payload(store)
 
     @app.get("/api/process-step-templates")
@@ -201,6 +215,55 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     async def geometry_preview(request: Request, body: GeometryPreviewRequest):
         return await preview_geometry(get_store(request), body)
 
+    @app.post("/api/preview-sessions", response_model=PreviewSessionResponse)
+    async def create_preview_session(request: Request, body: GeometryPreviewRequest):
+        return await get_preview_sessions(request).create_session(get_store(request), body)
+
+    @app.get(
+        "/api/preview-sessions/{session_id}/snapshots/{snapshot_id}/mesh",
+        response_class=Response,
+    )
+    async def get_preview_session_mesh(
+        request: Request,
+        session_id: str,
+        snapshot_id: str,
+    ):
+        asset = await get_preview_sessions(request).mesh_asset(session_id, snapshot_id)
+        headers = {"ETag": asset.etag, "Cache-Control": asset.cache_control}
+        if etag_matches(request.headers.get("if-none-match"), asset.etag):
+            return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+        return Response(
+            content=asset.content,
+            media_type=asset.media_type,
+            headers=headers,
+        )
+
+    @app.get(
+        "/api/preview-sessions/{session_id}/snapshots/{snapshot_id}/section",
+        response_model=PreviewSectionResponse,
+    )
+    async def get_preview_session_section(
+        request: Request,
+        response: Response,
+        session_id: str,
+        snapshot_id: str,
+        axis: Literal["x", "y"],
+        position: float,
+        tolerance: float = Query(default=0.1, gt=0),
+    ):
+        asset = await get_preview_sessions(request).section_asset(
+            session_id,
+            snapshot_id,
+            axis=axis,
+            position=position,
+            tolerance=tolerance,
+        )
+        headers = {"ETag": asset.etag, "Cache-Control": asset.cache_control}
+        if etag_matches(request.headers.get("if-none-match"), asset.etag):
+            return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+        response.headers.update(headers)
+        return asset.content
+
     @app.post("/api/geometry-preview/step", response_model=GeometryPreviewStepResponse)
     async def geometry_preview_step(body: GeometryPreviewStepRequest):
         return await preview_step_geometry(body)
@@ -258,6 +321,7 @@ async def app_lifespan(app: FastAPI):
         yield
     finally:
         await app.state.file_export_jobs.shutdown()
+        await app.state.preview_sessions.shutdown()
 
 
 def default_db_path() -> Path:
@@ -281,6 +345,10 @@ def cors_origins() -> list[str]:
 
 def get_store(request: Request) -> SQLiteStore:
     return request.app.state.store
+
+
+def get_preview_sessions(request: Request) -> PreviewSessionManager:
+    return request.app.state.preview_sessions
 
 
 app = create_app()

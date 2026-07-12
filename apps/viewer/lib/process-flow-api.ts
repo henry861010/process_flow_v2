@@ -8,6 +8,16 @@ import type {
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
 export type BootstrapPayload = {
   processStepTemplates: ProcessStepTemplate[];
   processFlowTemplates: ProcessFlowTemplate[];
@@ -28,14 +38,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${processFlowApiBaseUrl()}${path}`, {
+  const requestUrl = /^https?:\/\//i.test(path)
+    ? path
+    : `${processFlowApiBaseUrl()}${path}`;
+  const response = await fetch(requestUrl, {
     ...init,
     headers,
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     const message = getApiErrorMessage(payload) ?? `API request failed: ${response.status}`;
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status);
   }
   return payload as T;
 }

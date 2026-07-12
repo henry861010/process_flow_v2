@@ -3,14 +3,19 @@ from __future__ import annotations
 import json
 import sqlite3
 import tempfile
+import threading
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 
 from fastapi.testclient import TestClient
 
 import process_flow_api.main as api_main
 from process_flow_api.main import create_app
+from process_flow_api import services as api_services
+from process_flow_api.models import PreviewSectionResponse
 from process_flow_api.seed import load_seed_fixtures
 
 
@@ -279,7 +284,6 @@ class ProcessFlowApiTests(unittest.TestCase):
                     "parameterValues": {
                         "material": "EMC",
                         "thickness": 10,
-                        "workingTemp": 175,
                     }
                 }
             },
@@ -385,6 +389,316 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         self.assertEqual(step.status_code, 200, step.text)
         self.assertIn("stepBase64", step.json())
+
+    def test_preview_session_flow_input_mesh_cache_etag_and_not_found(self):
+        bootstrap = self.reset_poc_data()
+        flow_template = bootstrap["processFlowTemplates"][0]
+        instance = bootstrap["processFlowInstances"][0]
+        request_payload = preview_session_request(
+            flow_template,
+            instance,
+            target={"type": "flowInput", "flowInputId": "incoming_panel"},
+            source_label="Panel timeline input",
+        )
+
+        created = self.client.post("/api/preview-sessions", json=request_payload)
+        repeated = self.client.post("/api/preview-sessions", json=request_payload)
+
+        self.assertEqual(created.status_code, 200, created.text)
+        self.assertEqual(repeated.json(), created.json())
+        payload = created.json()
+        self.assertTrue(payload["sessionId"].startswith("preview_"))
+        self.assertEqual(len(payload["snapshots"]), 1)
+        snapshot = payload["snapshots"][0]
+        self.assertEqual(payload["initialSnapshotId"], snapshot["snapshotId"])
+        self.assertEqual(snapshot["sourceKind"], "flowInput")
+        self.assertIsNone(snapshot["stepRefId"])
+        self.assertEqual(snapshot["order"], 0)
+        self.assertTrue(snapshot["meshUrl"].startswith("/api/preview-sessions/"))
+        self.assertTrue(snapshot["sectionUrl"].startswith("/api/preview-sessions/"))
+
+        mesh_exporter = mock.AsyncMock(return_value=b"glTF-preview-session-test")
+        self.app.state.preview_sessions._mesh_exporter = mesh_exporter
+        mesh = self.client.get(snapshot["meshUrl"])
+        self.assertEqual(mesh.status_code, 200, mesh.text)
+        self.assertEqual(mesh.content, b"glTF-preview-session-test")
+        self.assertEqual(mesh.headers["content-type"], "model/gltf-binary")
+        self.assertIn("immutable", mesh.headers["cache-control"])
+        self.assertTrue(mesh.headers["etag"].startswith('"geometry-'))
+
+        not_modified = self.client.get(
+            snapshot["meshUrl"],
+            headers={"If-None-Match": mesh.headers["etag"]},
+        )
+        self.assertEqual(not_modified.status_code, 304, not_modified.text)
+        self.assertEqual(not_modified.content, b"")
+        mesh_exporter.assert_awaited_once()
+
+        missing_session = self.client.get(
+            "/api/preview-sessions/preview_missing/snapshots/snapshot_missing/mesh"
+        )
+        missing_snapshot = self.client.get(
+            snapshot["meshUrl"].replace(snapshot["snapshotId"], "snapshot_missing")
+        )
+        self.assertEqual(missing_session.status_code, 404, missing_session.text)
+        self.assertEqual(missing_snapshot.status_code, 404, missing_snapshot.text)
+
+    def test_preview_session_step_timeline_compiles_and_executes_once(self):
+        bootstrap = self.reset_poc_data()
+        flow_template = bootstrap["processFlowTemplates"][0]
+        instance = bootstrap["processFlowInstances"][0]
+        target_step_ref_id = flow_template["stepRefs"][1]["stepRefId"]
+        request_payload = preview_session_request(
+            flow_template,
+            instance,
+            target={
+                "type": "stepOutput",
+                "stepRefId": target_step_ref_id,
+                "outputPortId": "result_geometry",
+            },
+            source_label="Mold target",
+            bootstrap=bootstrap,
+            through_step_index=1,
+        )
+        request_payload["processFlowTemplateId"] = request_payload.pop("flowTemplate")["id"]
+        original_compile = api_services.FlowCompiler.compile
+        original_execute = api_services._execute_preview_plan
+
+        with (
+            mock.patch.object(
+                api_services.FlowCompiler,
+                "compile",
+                autospec=True,
+                side_effect=original_compile,
+            ) as compile_flow,
+            mock.patch(
+                "process_flow_api.services._execute_preview_plan",
+                wraps=original_execute,
+            ) as execute_flow,
+        ):
+            created = self.client.post("/api/preview-sessions", json=request_payload)
+            repeated = self.client.post("/api/preview-sessions", json=request_payload)
+
+        self.assertEqual(created.status_code, 200, created.text)
+        self.assertEqual(repeated.json(), created.json())
+        snapshots = created.json()["snapshots"]
+        self.assertEqual(
+            [snapshot["stepRefId"] for snapshot in snapshots],
+            [step_ref["stepRefId"] for step_ref in flow_template["stepRefs"][:2]],
+        )
+        self.assertEqual([snapshot["order"] for snapshot in snapshots], [0, 1])
+        self.assertTrue(all(snapshot["sourceKind"] == "stepOutput" for snapshot in snapshots))
+        self.assertEqual(created.json()["initialSnapshotId"], snapshots[-1]["snapshotId"])
+        self.assertEqual(snapshots[-1]["label"], "Mold target")
+        self.assertEqual(compile_flow.call_count, 1)
+        self.assertEqual(execute_flow.call_count, 1)
+
+        invalid_port = {
+            **request_payload,
+            "target": {
+                "type": "stepOutput",
+                "stepRefId": target_step_ref_id,
+                "outputPortId": "unknown_output",
+            },
+        }
+        rejected = self.client.post("/api/preview-sessions", json=invalid_port)
+        self.assertEqual(rejected.status_code, 400, rejected.text)
+
+    def test_preview_session_exact_section_cache_etag_and_validation(self):
+        bootstrap = self.reset_poc_data()
+        flow_template = bootstrap["processFlowTemplates"][0]
+        instance = bootstrap["processFlowInstances"][0]
+        request_payload = preview_session_request(
+            flow_template,
+            instance,
+            target={"type": "flowInput", "flowInputId": "incoming_panel"},
+        )
+        created = self.client.post("/api/preview-sessions", json=request_payload)
+        self.assertEqual(created.status_code, 200, created.text)
+        snapshot = created.json()["snapshots"][0]
+        section_generator = mock.Mock(
+            return_value={
+                "unitSystem": "um",
+                "axis": "x",
+                "position": 5.0,
+                "regions": [
+                    {
+                        "bodyId": "body-1",
+                        "sourceIds": ["body-1"],
+                        "containerId": "container-1",
+                        "containerKey": "",
+                        "material": "Cu",
+                        "bodyKind": "body",
+                        "featureType": None,
+                        "approximationKind": "exact",
+                        "area": 0.5,
+                        "outer": [[0, 0], [1, 0], [1, 1], [0, 0]],
+                        "holes": [],
+                    }
+                ],
+            }
+        )
+        self.app.state.preview_sessions._section_generator = section_generator
+        section_url = f'{snapshot["sectionUrl"]}?axis=x&position=5&tolerance=0.25'
+
+        section = self.client.get(section_url)
+        self.assertEqual(section.status_code, 200, section.text)
+        payload = section.json()
+        self.assertEqual(payload["snapshotId"], snapshot["snapshotId"])
+        self.assertEqual(payload["geometryHash"], snapshot["geometryHash"])
+        self.assertEqual(payload["unitSystem"], "um")
+        self.assertEqual(payload["axis"], "x")
+        self.assertEqual(payload["position"], 5.0)
+        self.assertEqual(len(payload["regions"]), 1)
+        self.assertEqual(payload["regions"][0]["containerKey"], "")
+        self.assertEqual(
+            set(payload["regions"][0]),
+            {
+                "bodyId",
+                "sourceIds",
+                "containerId",
+                "containerKey",
+                "material",
+                "bodyKind",
+                "featureType",
+                "approximationKind",
+                "area",
+                "outer",
+                "holes",
+            },
+        )
+        self.assertIn("immutable", section.headers["cache-control"])
+
+        invalid_shape = {
+            **payload,
+            "regions": [
+                {
+                    **payload["regions"][0],
+                    "outer": [[0, 0], [1, 0], [1, 1], [0, 1]],
+                }
+            ],
+        }
+        with self.assertRaises(ValueError):
+            PreviewSectionResponse.model_validate(invalid_shape)
+
+        alternate_session = self.client.post(
+            "/api/preview-sessions",
+            json={**request_payload, "sourceLabel": "Alternate snapshot identity"},
+        )
+        self.assertEqual(alternate_session.status_code, 200, alternate_session.text)
+        alternate_snapshot = alternate_session.json()["snapshots"][0]
+        self.assertEqual(alternate_snapshot["geometryHash"], snapshot["geometryHash"])
+        self.assertNotEqual(alternate_snapshot["snapshotId"], snapshot["snapshotId"])
+        alternate_section = self.client.get(
+            f'{alternate_snapshot["sectionUrl"]}?axis=x&position=5&tolerance=0.25'
+        )
+        self.assertEqual(alternate_section.status_code, 200, alternate_section.text)
+        self.assertEqual(
+            alternate_section.json()["snapshotId"],
+            alternate_snapshot["snapshotId"],
+        )
+        self.assertNotEqual(alternate_section.headers["etag"], section.headers["etag"])
+
+        not_modified = self.client.get(
+            section_url,
+            headers={"If-None-Match": section.headers["etag"]},
+        )
+        self.assertEqual(not_modified.status_code, 304, not_modified.text)
+        self.assertEqual(section_generator.call_count, 1)
+
+        invalid_axis = self.client.get(
+            f'{snapshot["sectionUrl"]}?axis=z&position=5&tolerance=0.25'
+        )
+        invalid_tolerance = self.client.get(
+            f'{snapshot["sectionUrl"]}?axis=x&position=5&tolerance=0'
+        )
+        self.assertEqual(invalid_axis.status_code, 422, invalid_axis.text)
+        self.assertEqual(invalid_tolerance.status_code, 422, invalid_tolerance.text)
+
+    def test_preview_session_prepares_cad_once_for_multiple_section_positions(self):
+        bootstrap = self.reset_poc_data()
+        flow_template = bootstrap["processFlowTemplates"][0]
+        instance = bootstrap["processFlowInstances"][0]
+        created = self.client.post(
+            "/api/preview-sessions",
+            json=preview_session_request(
+                flow_template,
+                instance,
+                target={"type": "flowInput", "flowInputId": "incoming_panel"},
+            ),
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+        snapshot = created.json()["snapshots"][0]
+        prepared_model = mock.Mock()
+        prepared_model.section.side_effect = lambda *, axis, position, tolerance: {
+            "unitSystem": "um",
+            "axis": axis,
+            "position": position,
+            "regions": [],
+        }
+        section_preparer = mock.Mock(return_value=prepared_model)
+        manager = self.app.state.preview_sessions
+        manager._section_generator = None
+        manager._section_preparer = section_preparer
+
+        first = self.client.get(f'{snapshot["sectionUrl"]}?axis=x&position=2')
+        second = self.client.get(f'{snapshot["sectionUrl"]}?axis=x&position=8')
+        repeated = self.client.get(f'{snapshot["sectionUrl"]}?axis=x&position=2')
+
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertEqual(repeated.status_code, 200, repeated.text)
+        self.assertEqual(first.json()["position"], 2)
+        self.assertEqual(second.json()["position"], 8)
+        section_preparer.assert_called_once()
+        self.assertEqual(prepared_model.section.call_count, 2)
+
+    def test_preview_section_inflight_limit_returns_retryable_503(self):
+        bootstrap = self.reset_poc_data()
+        flow_template = bootstrap["processFlowTemplates"][0]
+        instance = bootstrap["processFlowInstances"][0]
+        created = self.client.post(
+            "/api/preview-sessions",
+            json=preview_session_request(
+                flow_template,
+                instance,
+                target={"type": "flowInput", "flowInputId": "incoming_panel"},
+            ),
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+        snapshot = created.json()["snapshots"][0]
+        started = threading.Event()
+        release = threading.Event()
+
+        def blocking_section(*_, axis, position, tolerance):
+            started.set()
+            release.wait(timeout=5)
+            return {
+                "unitSystem": "um",
+                "axis": axis,
+                "position": position,
+                "regions": [],
+            }
+
+        manager = self.app.state.preview_sessions
+        manager._section_generator = blocking_section
+        manager._max_section_inflight = 1
+        first_url = f'{snapshot["sectionUrl"]}?axis=x&position=1'
+        overflow_url = f'{snapshot["sectionUrl"]}?axis=x&position=2'
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            first_future = executor.submit(self.client.get, first_url)
+            try:
+                self.assertTrue(started.wait(timeout=2), "first section did not start")
+                overflow = self.client.get(overflow_url)
+            finally:
+                release.set()
+            first = first_future.result(timeout=5)
+
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(overflow.status_code, 503, overflow.text)
+        self.assertEqual(overflow.headers["retry-after"], "1")
+        self.assertIn("queue is full", overflow.json()["message"])
 
     def test_workspace_save_reload_stale_update_and_commit(self):
         bootstrap = self.reset_poc_data()
@@ -647,6 +961,50 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(cancel.status_code, 200, cancel.text)
         self.assertEqual(cancel.json()["job"]["status"], "canceled")
         self.assertFalse(output_path.exists())
+
+
+def preview_session_request(
+    flow_template,
+    instance,
+    *,
+    target,
+    source_label=None,
+    bootstrap=None,
+    through_step_index=None,
+):
+    step_configurations = instance["stepConfigurations"]
+    if bootstrap is not None and through_step_index is not None:
+        step_templates = {
+            template["id"]: template for template in bootstrap["processStepTemplates"]
+        }
+        filtered_configurations = {}
+        for step_ref in flow_template["stepRefs"][: through_step_index + 1]:
+            step_ref_id = step_ref["stepRefId"]
+            allowed_parameters = {
+                definition["id"]
+                for definition in step_templates[step_ref["processStepTemplateId"]][
+                    "parameterDefinitions"
+                ]
+            }
+            raw_values = step_configurations.get(step_ref_id, {}).get("parameterValues", {})
+            filtered_configurations[step_ref_id] = {
+                "parameterValues": {
+                    key: value for key, value in raw_values.items() if key in allowed_parameters
+                }
+            }
+        step_configurations = filtered_configurations
+    payload = {
+        "target": target,
+        "flowTemplate": flow_template,
+        "configuration": {
+            "inputBindings": instance["inputBindings"],
+            "stepConfigurations": step_configurations,
+            "embeddedGeometries": {},
+        },
+    }
+    if source_label is not None:
+        payload["sourceLabel"] = source_label
+    return payload
 
 
 def preview_geometry_entity():

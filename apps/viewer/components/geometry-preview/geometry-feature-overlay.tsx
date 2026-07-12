@@ -241,6 +241,53 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
   }
 }
 
+export function extractPreviewGeometryBounds(
+  structure: unknown,
+): BoundsTuple | null {
+  const root = asRecord(structure)?.root;
+  if (!isRecord(root)) return null;
+
+  const geometryBoundsList: BoundsTuple[] = [];
+  visitContainer(root);
+  if (geometryBoundsList.length === 0) return null;
+
+  const min: [number, number, number] = [
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+  ];
+  const max: [number, number, number] = [
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  ];
+  geometryBoundsList.forEach((bounds) => {
+    for (let axis = 0; axis < 3; axis += 1) {
+      min[axis] = Math.min(min[axis], bounds.min[axis]);
+      max[axis] = Math.max(max[axis], bounds.max[axis]);
+    }
+  });
+  return boundsFromMinMax(min, max);
+
+  function visitContainer(container: Record<string, unknown>) {
+    ["bodies"].forEach((collection) => {
+      const items = Array.isArray(container[collection])
+        ? container[collection]
+        : [];
+      items.forEach((item) => {
+        if (!isRecord(item)) return;
+        const geometry = parseFeatureGeometry(item.geometry);
+        if (geometry) geometryBoundsList.push(geometryBounds(geometry));
+      });
+    });
+
+    const children = Array.isArray(container.children) ? container.children : [];
+    children.forEach((child) => {
+      if (isRecord(child)) visitContainer(child);
+    });
+  }
+}
+
 export function summarizeFeatures(features: PreviewFeature[]): FeatureSummary {
   let densityMin: number | null = null;
   let densityMax: number | null = null;
@@ -259,13 +306,9 @@ export function summarizeFeatures(features: PreviewFeature[]): FeatureSummary {
     if (feature.type === "circuit") summary.circuits += 1;
 
     densityMin =
-      densityMin === null
-        ? feature.normalizedDensity
-        : Math.min(densityMin, feature.normalizedDensity);
+      densityMin === null ? feature.density : Math.min(densityMin, feature.density);
     densityMax =
-      densityMax === null
-        ? feature.normalizedDensity
-        : Math.max(densityMax, feature.normalizedDensity);
+      densityMax === null ? feature.density : Math.max(densityMax, feature.density);
   });
 
   summary.densityMin = densityMin;
@@ -305,18 +348,22 @@ function SummaryFeatureMesh({
     [feature.geometry],
   );
   const material = React.useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
+    () => {
+      const highlighted = selected || hovered;
+      return new THREE.MeshBasicMaterial({
         color: FEATURE_COLORS[feature.type],
-        transparent: true,
-        opacity: selected
-          ? clamp(settings.opacity + 0.2, 0.2, 0.88)
-          : hovered
-            ? clamp(settings.opacity + 0.12, 0.16, 0.78)
-            : clamp(settings.opacity * 0.62, 0.08, 0.58),
+        wireframe: !highlighted,
+        transparent: highlighted,
+        opacity: highlighted ? clamp(settings.opacity * 0.35, 0.1, 0.35) : 1,
+        depthTest: true,
         depthWrite: false,
-        side: THREE.DoubleSide,
-      }),
+        side: THREE.FrontSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+        toneMapped: false,
+      });
+    },
     [feature.type, hovered, selected, settings.opacity],
   );
 
@@ -387,9 +434,9 @@ function CircuitHatchOverlay({
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineBasicMaterial({
       color: FEATURE_COLORS.circuit,
-      transparent: true,
-      opacity: clamp(settings.opacity + 0.18, 0.18, 0.9),
-      depthTest: false,
+      transparent: false,
+      opacity: 1,
+      depthTest: true,
       depthWrite: false,
     });
     const object = new THREE.LineSegments(geometry, material);
@@ -426,11 +473,12 @@ function InstancedFeatureGlyphs({
     const geometry = createGlyphGeometry(kind);
     const material = new THREE.MeshBasicMaterial({
       color: FEATURE_COLORS[kind],
-      transparent: true,
-      opacity: clamp(settings.opacity + 0.18, 0.18, 0.92),
-      depthTest: kind === "circuit" ? false : true,
+      transparent: false,
+      opacity: 1,
+      depthTest: true,
       depthWrite: false,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
+      toneMapped: false,
     });
     const object = new THREE.InstancedMesh(geometry, material, samples.length);
     object.name = `feature-${kind}-glyphs`;
@@ -444,7 +492,7 @@ function InstancedFeatureGlyphs({
     });
     object.instanceMatrix.needsUpdate = true;
     return object;
-  }, [kind, samples, settings.opacity]);
+  }, [kind, samples]);
 
   React.useEffect(() => {
     return () => {
@@ -960,8 +1008,7 @@ function boundsFromMinMax(
 
 function normalizeDensity(value: number) {
   if (!Number.isFinite(value)) return 0;
-  if (value > 1) return clamp(value / 100, 0, 1);
-  return clamp(value, 0, 1);
+  return clamp(value / 100, 0, 1);
 }
 
 function parsePolygonLoops(value: unknown) {

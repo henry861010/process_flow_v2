@@ -13,10 +13,16 @@ import {
 } from "lucide-react";
 
 import {
-  requestGeometryPreview,
-  type GeometryEntityDownload,
+  requestGeometryPreviewModel,
+  requestGeometryPreviewSession,
+  requestGeometrySection,
+  type GeometryPreviewSession,
   type GeometryPreviewRequest,
+  type GeometryPreviewSnapshot,
+  type GeometrySectionResponse,
 } from "@/components/geometry-preview/geometry-preview-client";
+import { GeometrySectionCaps } from "@/components/geometry-preview/geometry-section-caps";
+import { GeometrySectionView } from "@/components/geometry-preview/geometry-section-view";
 import { FileExportDialog } from "@/components/geometry-preview/file-export-dialog";
 import type {
   FileExportJob,
@@ -24,6 +30,7 @@ import type {
 } from "@/components/geometry-preview/file-export-client";
 import {
   GeometryFeatureOverlay,
+  extractPreviewGeometryBounds,
   extractPreviewFeatures,
   formatDensityPercent,
   formatFeatureKind,
@@ -52,6 +59,7 @@ import {
   type SectionPlaneMode,
   ViewerScene,
 } from "@/components/viewer/viewer-scene";
+import { ApiRequestError } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 export type GeometryPreviewContext = {
@@ -64,17 +72,14 @@ export type GeometryPreviewContext = {
 
 type PanelState =
   | { status: "loading" }
-  | {
-      status: "ready";
-      geometryEntityJson: GeometryEntityDownload;
-      glbBlob: Blob;
-    }
+  | { status: "ready"; session: GeometryPreviewSession }
   | { status: "error"; message: string };
 
 const DEFAULT_FEATURE_DENSITY_SCALE = 0.4;
 const DEFAULT_FEATURE_GLYPH_SIZE_SCALE = 1;
 const DEFAULT_FEATURE_OPACITY = 0.6;
 const DEFAULT_FEATURE_MAX_INSTANCES = 10000;
+const DEFAULT_DECODED_MODEL_CACHE_ENTRIES = 3;
 
 export function GeometryPreviewPanel({
   preview,
@@ -88,6 +93,20 @@ export function GeometryPreviewPanel({
   const [state, setState] = React.useState<PanelState>({ status: "loading" });
   const [fileExportDialogKind, setFileExportDialogKind] =
     React.useState<FileExportKind | null>(null);
+  const [sessionRequestVersion, setSessionRequestVersion] = React.useState(0);
+  const sessionRecoveryRef = React.useRef({
+    previewId: preview.previewId,
+    attempts: 0,
+    recovering: false,
+  });
+
+  if (sessionRecoveryRef.current.previewId !== preview.previewId) {
+    sessionRecoveryRef.current = {
+      previewId: preview.previewId,
+      attempts: 0,
+      recovering: false,
+    };
+  }
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -104,18 +123,16 @@ export function GeometryPreviewPanel({
     setFileExportDialogKind(null);
     setState({ status: "loading" });
 
-    requestGeometryPreview(preview.request, controller.signal)
+    requestGeometryPreviewSession(preview.request, controller.signal)
       .then((response) => {
-        setState({
-          status: "ready",
-          geometryEntityJson: response.geometryEntityJson,
-          glbBlob: base64ToBlob(response.glbBase64, "model/gltf-binary"),
-        });
+        sessionRecoveryRef.current.recovering = false;
+        setState({ status: "ready", session: response });
       })
       .catch((error) => {
         if (controller.signal.aborted) {
           return;
         }
+        sessionRecoveryRef.current.recovering = false;
         setState({
           status: "error",
           message:
@@ -128,9 +145,29 @@ export function GeometryPreviewPanel({
     return () => {
       controller.abort();
     };
-  }, [preview]);
+  }, [preview, sessionRequestVersion]);
 
-  const ready = state.status === "ready";
+  const handleSessionExpired = React.useCallback(() => {
+    if (sessionRecoveryRef.current.recovering) return;
+    if (sessionRecoveryRef.current.attempts >= 1) {
+      setState({
+        status: "error",
+        message: "The preview session expired and could not be restored. Reopen the preview to try again.",
+      });
+      return;
+    }
+    sessionRecoveryRef.current.attempts += 1;
+    sessionRecoveryRef.current.recovering = true;
+    setSessionRequestVersion((version) => version + 1);
+  }, []);
+
+  const targetSnapshot =
+    state.status === "ready"
+      ? state.session.snapshots.find(
+          (snapshot) => snapshot.snapshotId === state.session.initialSnapshotId,
+        ) ?? null
+      : null;
+  const ready = targetSnapshot !== null;
 
   function openFileExportDialog(kind: FileExportKind) {
     if (state.status !== "ready") return;
@@ -187,9 +224,8 @@ export function GeometryPreviewPanel({
             <PreviewMessage icon={<Scissors />}>{state.message}</PreviewMessage>
           ) : (
             <PreviewCadWorkbench
-              glbBlob={state.glbBlob}
-              fileName={`geometry-preview-${preview.previewId}.glb`}
-              geometryStructure={state.geometryEntityJson.structure}
+              targetSnapshot={targetSnapshot}
+              onSessionExpired={handleSessionExpired}
             />
           )}
         </div>
@@ -222,12 +258,12 @@ export function GeometryPreviewPanel({
         </footer>
       </section>
 
-      {fileExportDialogKind && state.status === "ready" ? (
+      {fileExportDialogKind && targetSnapshot ? (
         <FileExportDialog
           kind={fileExportDialogKind}
-          geometryStructure={state.geometryEntityJson.structure}
-          geometryEntityJson={state.geometryEntityJson}
-          sourceLabel={`${preview.sourceLabel} -> ${preview.slotLabel}`}
+          geometryStructure={targetSnapshot.geometryEntityJson.structure}
+          geometryEntityJson={targetSnapshot.geometryEntityJson}
+          sourceLabel={`${preview.sourceLabel} -> ${targetSnapshot.label}`}
           onClose={() => setFileExportDialogKind(null)}
           onJobCreated={handleFileExportJobCreated}
         />
@@ -237,17 +273,16 @@ export function GeometryPreviewPanel({
 }
 
 function PreviewCadWorkbench({
-  glbBlob,
-  fileName,
-  geometryStructure,
+  targetSnapshot,
+  onSessionExpired,
 }: {
-  glbBlob: Blob;
-  fileName: string;
-  geometryStructure: unknown;
+  targetSnapshot: GeometryPreviewSnapshot | null;
+  onSessionExpired: () => void;
 }) {
-  const activeModelRef = React.useRef<LoadedCadModel | null>(null);
+  const modelCacheRef = React.useRef(new Map<string, LoadedCadModel>());
   const [model, setModel] = React.useState<LoadedCadModel | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [modelLoading, setModelLoading] = React.useState(false);
   const [sectionEnabled, setSectionEnabled] = React.useState(false);
   const [sectionSettingsExpanded, setSectionSettingsExpanded] =
     React.useState(false);
@@ -258,7 +293,7 @@ function PreviewCadWorkbench({
   const [cameraResetKey, setCameraResetKey] = React.useState(0);
   const [cameraView, setCameraView] = React.useState<CameraViewMode>("iso");
   const [featureOverlayEnabled, setFeatureOverlayEnabled] =
-    React.useState(true);
+    React.useState(false);
   const [featureSettingsExpanded, setFeatureSettingsExpanded] =
     React.useState(false);
   const [showBumps, setShowBumps] = React.useState(true);
@@ -284,9 +319,17 @@ function PreviewCadWorkbench({
   const [hoveredFeatureId, setHoveredFeatureId] = React.useState<string | null>(
     null,
   );
+  const [section, setSection] = React.useState<GeometrySectionResponse | null>(null);
+  const [sectionLoading, setSectionLoading] = React.useState(false);
+  const [sectionError, setSectionError] = React.useState<string | null>(null);
 
-  const modelBounds = model?.stats.bounds ?? DEMO_BOUNDS;
-  const modelKey = model?.id ?? "loading";
+  const geometryStructure = targetSnapshot?.geometryEntityJson.structure;
+  const structureBounds = React.useMemo(
+    () => extractPreviewGeometryBounds(geometryStructure),
+    [geometryStructure],
+  );
+  const modelBounds = model?.stats.bounds ?? structureBounds ?? DEMO_BOUNDS;
+  const modelKey = model?.id ?? targetSnapshot?.geometryHash ?? "loading";
   const features = React.useMemo(
     () => extractPreviewFeatures(geometryStructure),
     [geometryStructure],
@@ -295,8 +338,21 @@ function PreviewCadWorkbench({
     () => mergeFeatureBounds(modelBounds, features),
     [features, modelBounds],
   );
-  const range = getSectionRange(bounds, sectionPlane);
+  const range = getSectionRange(modelBounds, sectionPlane);
   const rangeStep = Math.max((range.max - range.min) / 400, 0.001);
+  const sectionAxis = sectionPlane === "xz" ? "y" : "x";
+  const exactSection = sectionMatchesRequest(
+    section,
+    targetSnapshot,
+    sectionAxis,
+    sectionPosition,
+  )
+    ? section
+    : null;
+  const exactSectionLoading =
+    sectionEnabled && !exactSection && !sectionError
+      ? true
+      : sectionLoading;
   const featureSummary = React.useMemo(
     () => summarizeFeatures(features),
     [features],
@@ -331,53 +387,137 @@ function PreviewCadWorkbench({
   );
 
   React.useEffect(() => {
+    if (!targetSnapshot) {
+      setModel(null);
+      return undefined;
+    }
+
     let disposed = false;
+    const controller = new AbortController();
+    const cached = modelCacheRef.current.get(targetSnapshot.geometryHash);
     setLoadError(null);
-    loadCadBlob(glbBlob, {
-      fileName,
-      fileKind: "glb",
-      fileSize: glbBlob.size,
-      id: `${fileName}-${glbBlob.size}-${Date.now()}`,
-    })
+    setSection(null);
+    setSelectedFeatureId(null);
+    setHoveredFeatureId(null);
+
+    if (cached) {
+      modelCacheRef.current.delete(targetSnapshot.geometryHash);
+      modelCacheRef.current.set(targetSnapshot.geometryHash, cached);
+      setModel(cached);
+      setModelLoading(false);
+      setCameraResetKey((value) => value + 1);
+      return () => controller.abort();
+    }
+
+    setModel(null);
+    setModelLoading(true);
+    requestGeometryPreviewModel(targetSnapshot, controller.signal)
+      .then((blob) =>
+        loadCadBlob(blob, {
+          fileName: `geometry-preview-${targetSnapshot.snapshotId}.glb`,
+          fileKind: "glb",
+          fileSize: blob.size,
+          id: targetSnapshot.geometryHash,
+        }),
+      )
       .then((loaded) => {
         if (disposed) {
           disposeModel(loaded.object);
           return;
         }
-        setModel((current) => {
-          if (current) disposeModel(current.object);
-          return loaded;
-        });
+        cacheDecodedModel(
+          modelCacheRef.current,
+          targetSnapshot.geometryHash,
+          loaded,
+        );
+        setModel(loaded);
         setCameraResetKey((value) => value + 1);
       })
       .catch((error) => {
-        if (!disposed) {
+        if (!disposed && !controller.signal.aborted) {
+          if (isMissingPreviewSession(error)) {
+            onSessionExpired();
+            return;
+          }
           setLoadError(
             error instanceof Error ? error.message : "Unable to load preview GLB.",
           );
         }
+      })
+      .finally(() => {
+        if (!disposed) setModelLoading(false);
       });
 
     return () => {
       disposed = true;
+      controller.abort();
     };
-  }, [fileName, glbBlob]);
+  }, [onSessionExpired, targetSnapshot]);
 
   React.useEffect(() => {
-    activeModelRef.current = model;
-  }, [model]);
-
-  React.useEffect(() => {
+    const modelCache = modelCacheRef.current;
     return () => {
-      if (activeModelRef.current) {
-        disposeModel(activeModelRef.current.object);
-      }
+      modelCache.forEach((cachedModel) => disposeModel(cachedModel.object));
+      modelCache.clear();
     };
   }, []);
 
   React.useEffect(() => {
-    setSectionPosition(getSectionCenter(bounds, sectionPlane));
-  }, [bounds, modelKey, sectionPlane]);
+    setSectionPosition(getSectionCenter(modelBounds, sectionPlane));
+  }, [modelBounds, modelKey, sectionPlane]);
+
+  React.useEffect(() => {
+    if (!sectionEnabled || !targetSnapshot) {
+      setSection(null);
+      setSectionLoading(false);
+      setSectionError(null);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    // Invalidate the previous cut immediately. During slider debounce the
+    // clipping plane has already moved, so retaining the old cap would present
+    // a stale section as exact geometry.
+    setSection(null);
+    setSectionLoading(true);
+    setSectionError(null);
+    const timer = window.setTimeout(() => {
+      requestGeometrySection(
+        targetSnapshot,
+        sectionAxis,
+        sectionPosition,
+        controller.signal,
+      )
+        .then(setSection)
+        .catch((error) => {
+          if (!controller.signal.aborted) {
+            if (isMissingPreviewSession(error)) {
+              onSessionExpired();
+              return;
+            }
+            setSectionError(
+              error instanceof Error
+                ? error.message
+                : "Unable to compute exact material section.",
+            );
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSectionLoading(false);
+        });
+    }, 140);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    onSessionExpired,
+    sectionAxis,
+    sectionEnabled,
+    sectionPosition,
+    targetSnapshot,
+  ]);
 
   React.useEffect(() => {
     if (selectedFeatureId && !features.some((feature) => feature.id === selectedFeatureId)) {
@@ -397,6 +537,7 @@ function PreviewCadWorkbench({
           <ViewerScene
             model={model}
             bounds={bounds}
+            sectionBounds={modelBounds}
             sectionEnabled={sectionEnabled}
             sectionPlane={sectionPlane}
             sectionPosition={sectionPosition}
@@ -405,7 +546,13 @@ function PreviewCadWorkbench({
             showAxes
             cameraResetKey={cameraResetKey}
             cameraView={cameraView}
+            showDemoWhenEmpty={false}
           >
+            <GeometrySectionCaps
+              section={sectionEnabled ? exactSection : null}
+              bounds={modelBounds}
+              flip={sectionFlip}
+            />
             <GeometryFeatureOverlay
               features={features}
               bounds={bounds}
@@ -428,6 +575,7 @@ function PreviewCadWorkbench({
                 {formatNumber(featureSummary.total)} features
               </Badge>
             ) : null}
+            {modelLoading ? <Badge variant="secondary">Loading mesh</Badge> : null}
           </div>
 
           <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white/86 px-3 py-2 text-xs text-muted-foreground backdrop-blur">
@@ -527,11 +675,36 @@ function PreviewCadWorkbench({
                 <FlipHorizontal2 />
               </Button>
             </ControlRow>
+            {sectionEnabled ? (
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label>Exact material section</Label>
+                  <Badge variant={sectionError ? "outline" : "signal"}>
+                    {exactSectionLoading
+                      ? "Computing"
+                      : sectionError
+                        ? "Error"
+                        : "Exact"}
+                  </Badge>
+                </div>
+                <GeometrySectionView
+                  section={exactSection}
+                  loading={exactSectionLoading}
+                  error={sectionError}
+                />
+                {featureSummary.total > 0 ? (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Body fills are exact OCC sections. Density features remain estimated
+                    envelopes until pattern or instance placement is available.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </ExpandableSettingsBlock>
 
           <ExpandableSettingsBlock
             icon={<Eye />}
-            title="Bump/Via/Circuit View Setting"
+            title="Estimated Bump/Via/Circuit"
             summary={formatFeatureSummaryLine(featureSummary)}
             expanded={featureSettingsExpanded}
             active={featureOverlayEnabled && featureSummary.total > 0}
@@ -611,7 +784,7 @@ function PreviewCadWorkbench({
               onChange={setFeatureGlyphSizeScale}
             />
             <SliderControl
-              label="Opacity"
+              label="Highlight opacity"
               value={featureOpacity}
               display={`${Math.round(featureOpacity * 100)}%`}
               min={0.15}
@@ -978,11 +1151,41 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function base64ToBlob(base64: string, mimeType: string) {
-  const binary = window.atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+function sectionMatchesRequest(
+  section: GeometrySectionResponse | null,
+  snapshot: GeometryPreviewSnapshot | null,
+  axis: "x" | "y",
+  position: number,
+) {
+  if (!section || !snapshot) return false;
+  const epsilon = Math.max(1e-9, Math.abs(position) * 1e-12);
+  return (
+    section.snapshotId === snapshot.snapshotId &&
+    section.geometryHash === snapshot.geometryHash &&
+    section.axis === axis &&
+    Math.abs(section.position - position) <= epsilon
+  );
+}
+
+function isMissingPreviewSession(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 404;
+}
+
+function cacheDecodedModel(
+  cache: Map<string, LoadedCadModel>,
+  geometryHash: string,
+  model: LoadedCadModel,
+) {
+  const replaced = cache.get(geometryHash);
+  if (replaced && replaced !== model) disposeModel(replaced.object);
+  cache.delete(geometryHash);
+  cache.set(geometryHash, model);
+
+  while (cache.size > DEFAULT_DECODED_MODEL_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    const evicted = cache.get(oldestKey);
+    cache.delete(oldestKey);
+    if (evicted && evicted !== model) disposeModel(evicted.object);
   }
-  return new Blob([bytes], { type: mimeType });
 }

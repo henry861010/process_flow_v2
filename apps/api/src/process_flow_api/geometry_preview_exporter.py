@@ -45,6 +45,14 @@ async def export_geometry(
             process.kill()
             await process.communicate()
             raise RuntimeError(f"Geometry {format} export timed out after {timeout}s") from None
+        except asyncio.CancelledError:
+            # Manager shutdown/reset can cancel an export even though a client
+            # disconnect is shielded. Reap the CAD worker before releasing its
+            # temporary directory so no orphan process keeps writing to it.
+            if process.returncode is None:
+                process.kill()
+            await process.communicate()
+            raise
 
         if process.returncode != 0:
             details = (stderr or stdout).decode("utf-8", errors="replace").strip()

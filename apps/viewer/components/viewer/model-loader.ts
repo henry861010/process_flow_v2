@@ -4,6 +4,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
+import { materialPreviewColor } from "@/components/viewer/material-palette";
+
 export type CadFileKind = "glb" | "gltf" | "stl";
 
 export type BoundsTuple = {
@@ -84,14 +86,25 @@ export async function loadCadBlob(
 }
 
 export function disposeModel(object: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  const textures = new Set<THREE.Texture>();
   object.traverse((child) => {
     if (!isMesh(child)) return;
-    child.geometry.dispose();
-    const materials = Array.isArray(child.material)
+    geometries.add(child.geometry);
+    const meshMaterials = Array.isArray(child.material)
       ? child.material
       : [child.material];
-    materials.forEach((material) => material.dispose());
+    meshMaterials.forEach((material) => {
+      materials.add(material);
+      Object.values(material).forEach((value) => {
+        if (value instanceof THREE.Texture) textures.add(value);
+      });
+    });
   });
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
+  textures.forEach((texture) => texture.dispose());
 }
 
 export function formatFileSize(bytes: number) {
@@ -149,12 +162,11 @@ function loadStl(url: string, fileName: string) {
         geometry.computeBoundingBox();
         const mesh = new THREE.Mesh(
           geometry,
-          new THREE.MeshPhysicalMaterial({
+          new THREE.MeshStandardMaterial({
             color: "#8f9894",
             metalness: 0.12,
             roughness: 0.62,
-            clearcoat: 0.1,
-            side: THREE.DoubleSide,
+            side: THREE.FrontSide,
           }),
         );
         mesh.name = fileName;
@@ -171,8 +183,8 @@ function standardizeImportedObject(object: THREE.Object3D) {
   object.traverse((child) => {
     if (!isMesh(child)) return;
 
-    child.castShadow = true;
-    child.receiveShadow = true;
+    child.castShadow = false;
+    child.receiveShadow = false;
 
     if (!child.geometry.getAttribute("normal")) {
       child.geometry.computeVertexNormals();
@@ -184,11 +196,23 @@ function standardizeImportedObject(object: THREE.Object3D) {
 
     materials.forEach((material, index) => {
       if (!(material instanceof THREE.MeshStandardMaterial)) return;
-      material.side = THREE.DoubleSide;
+      material.side = THREE.FrontSide;
+      material.transparent = false;
+      material.opacity = 1;
+      material.alphaTest = 0;
+      material.depthTest = true;
+      material.depthWrite = true;
+      material.blending = THREE.NormalBlending;
       material.roughness = Math.max(material.roughness, 0.45);
       material.metalness = Math.min(material.metalness, 0.55);
+      if (material instanceof THREE.MeshPhysicalMaterial) {
+        material.transmission = 0;
+        material.thickness = 0;
+      }
       if (looksUnstyled(material)) {
-        material.color.set(packageFallbackColor(child.name, index));
+        material.color.set(
+          materialPreviewColor(material.name || child.name || `material-${index}`),
+        );
       }
       material.needsUpdate = true;
     });
@@ -242,50 +266,6 @@ function collectModelStats(object: THREE.Object3D): ModelStats {
     vertexCount,
     triangleCount: Math.round(triangleCount),
   };
-}
-
-function packageFallbackColor(name: string, index: number) {
-  const normalized = name.toLowerCase();
-  if (normalized.includes("substrate") || normalized.includes("bt")) {
-    return "#10775d";
-  }
-  if (
-    normalized.includes("cu") ||
-    normalized.includes("copper") ||
-    normalized.includes("metal") ||
-    normalized.includes("rdl") ||
-    normalized.includes("via")
-  ) {
-    return "#dfc22d";
-  }
-  if (
-    normalized.includes("solder") ||
-    normalized.includes("snag") ||
-    normalized.includes("bump")
-  ) {
-    return "#d9dddb";
-  }
-  if (
-    normalized.includes("dielectric") ||
-    normalized.includes("underfill") ||
-    normalized.includes("interface")
-  ) {
-    return "#1aa7d2";
-  }
-  if (
-    normalized.includes("si") ||
-    normalized.includes("die") ||
-    normalized.includes("logic") ||
-    normalized.includes("hbm")
-  ) {
-    return "#8c8f8d";
-  }
-  if (normalized.includes("mold") || normalized.includes("epoxy")) {
-    return "#b9bfbd";
-  }
-
-  const fallbackPalette = ["#8f9894", "#10775d", "#d8bd28", "#1aa7d2"];
-  return fallbackPalette[index % fallbackPalette.length];
 }
 
 function looksUnstyled(material: THREE.MeshStandardMaterial) {
