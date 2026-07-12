@@ -124,9 +124,9 @@ Flow Instance Workspace的底層狀態轉移仍存在，但目前draft persisten
 
 ```text
 fresh route -> template selected -> local dirty configuration
-     ^                 |
-     |                 v
-    New       Save Draft / Reload not rendered
+                                |
+                                v
+                  Save Draft / Reload not rendered
 
 known workspaceId -> saved clean workspace -> dirty after edit
                            |

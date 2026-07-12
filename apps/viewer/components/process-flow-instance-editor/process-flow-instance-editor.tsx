@@ -318,23 +318,6 @@ function ProcessFlowInstanceEditorInner() {
     router.replace("/flow-instance-editor");
   }
 
-  function startNew() {
-    if (dirty && !window.confirm("Discard the current workspace draft?")) return;
-    setSelectedTemplateId("");
-    setWorkspace(null);
-    setWorkspaceName("");
-    setInstanceIdentity({ id: "", name: "" });
-    setConfiguration(emptyConfiguration());
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
-    setPickerFlowInputId(null);
-    setDirty(false);
-    setSaveDialogMode(null);
-    setSaveDialogError(null);
-    setMessage(null);
-    router.replace("/flow-instance-editor");
-  }
-
   function updateWorkspaceName(name: string) {
     if (committed) return;
     setWorkspaceName(name);
@@ -552,10 +535,6 @@ function ProcessFlowInstanceEditorInner() {
                 <ArrowLeft />
                 Home
               </Link>
-            </Button>
-            <Button variant="outline" disabled={busyAction !== null} onClick={startNew}>
-              <GitBranch />
-              New
             </Button>
             {SHOW_DRAFT_WORKSPACE_UI && workspace && !committed ? (
               <Button

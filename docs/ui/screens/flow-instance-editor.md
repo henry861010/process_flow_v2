@@ -63,8 +63,7 @@ padding `20px 12px`（horizontal/vertical在CSS為 `px-5 py-3`），其餘高度
 `Create a product instance from an immutable flow template.`。右側 command依序：
 
 1. `Home`
-2. `New`
-3. `Commit Instance`
+2. `Commit Instance`
 
 `Reload`與`Save Draft`的實作保留在feature flag後方，目前不得render。
 
@@ -134,7 +133,6 @@ branch不得阻擋。
 | Action | Preconditions | Result |
 | --- | --- | --- |
 | Select template | 無 workspace/dirty；否則先 confirm `Discard the current workspace draft?` | default config、name、dirty=true；URL清除 query。 |
-| `New` | dirty時confirm | 全部清空；URL回 route root。 |
 | `Commit Instance` | saved、clean、complete、非 busy | 開instance dialog；ID/name valid且unique後POST commit，workspace/graph鎖定、revision更新。 |
 | Preview | input resolved或step ready | 共用 Geometry Preview。 |
 

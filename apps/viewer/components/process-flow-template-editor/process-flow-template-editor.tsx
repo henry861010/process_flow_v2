@@ -24,7 +24,6 @@ import {
   FileJson,
   GitBranch,
   Layers3,
-  Plus,
   Save,
   Trash2,
   Workflow,
@@ -404,20 +403,6 @@ function ProcessFlowTemplateEditorInner() {
     if (busyAction) return;
     setSaveDialogMode(null);
     setSaveDialogError(null);
-  }
-
-  function newFlow() {
-    setMetadata(newMetadata());
-    setInstanceIdentity({ id: "", name: "" });
-    setConfiguration(emptyConfiguration());
-    setNodes([]);
-    setEdges([]);
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
-    setSavedTemplate(null);
-    setSaveDialogMode(null);
-    setSaveDialogError(null);
-    setMessage(null);
   }
 
   function loadTemplateAsCopy(templateId: string) {
@@ -847,10 +832,6 @@ function ProcessFlowTemplateEditorInner() {
                 </option>
               ))}
             </select>
-            <Button variant="outline" onClick={newFlow} disabled={busyAction !== null}>
-              <Plus />
-              New
-            </Button>
             <Button
               variant="outline"
               disabled={!canSaveTemplate}
