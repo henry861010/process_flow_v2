@@ -46,15 +46,16 @@ source_of_truth:
 - [ ] fresh state 顯示空 graph、兩側 library 與 disabled save commands。
 - [ ] Step item 可 click-add；Geometry item 的 drag-only 行為若仍存在，標記 `UI-GAP-DRAG-001`。
 - [ ] node 單擊開啟 inspector；double-click 不得是唯一路徑。
-- [ ] valid topology + incomplete configuration 可 Save Template 並鎖 topology。
+- [ ] Template/Instance metadata不在editor header常駐顯示。
+- [ ] valid topology + incomplete configuration 可開Save Template dialog，完成資訊後保存並鎖 topology。
 - [ ] `1024×768` 明確檢查 right pane 是否裁切，引用 `UI-GAP-RESP-001`。
 
 ### Flow Instance Editor
 
-- [ ] 選擇 CoWoS-L 後 default configuration、workspace name、dirty status 正確。
+- [ ] 選擇 CoWoS-L 後default configuration與dirty status正確；workspace name只在首次Save Draft dialog顯示。
 - [ ] graph 是 view-only；single-click node 開啟 inspector。
 - [ ] ready target 可 Preview；unrelated incomplete branch 不阻擋。
-- [ ] Save Draft、Reload、409 stale revision、Commit 的 status/copy 正確。
+- [ ] 首次Save Draft開dialog、後續save直接更新；Reload、409 stale revision、Commit dialog的status/copy正確。
 - [ ] committed 後 configuration read-only，但 ready Preview 仍可用。
 
 ### Process Step Template Editor
@@ -107,4 +108,3 @@ target screenshot 才能放入 `docs/ui/assets/reference/`。
 - [ ] reference screenshot 的 fixture、viewport、copy、icon、scroll owner 已核對。
 - [ ] `venv/bin/python scripts/check_docs.py` 通過。
 - [ ] 若 UI code 同時變更，screen/component spec、acceptance、reference 與 conformance 已在同一 change set 更新。
-

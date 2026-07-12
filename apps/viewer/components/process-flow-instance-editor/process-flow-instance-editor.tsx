@@ -30,6 +30,11 @@ import {
 } from "@/components/process-flow-fields/flow-input-controls";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import {
+  SaveInformationDialog,
+  type InstanceSaveInformation,
+  type SaveInformationMode,
+} from "@/components/process-flow-save/save-information-dialog";
+import {
   ProcessFlowGraph,
   type ProcessFlowGraphEdgeData,
   type ProcessFlowGraphNodeData,
@@ -118,6 +123,10 @@ function ProcessFlowInstanceEditorInner() {
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [busyAction, setBusyAction] = React.useState<"save" | "commit" | "reload" | null>(null);
+  const [saveDialogMode, setSaveDialogMode] = React.useState<
+    Extract<SaveInformationMode, "workspace" | "instance"> | null
+  >(null);
+  const [saveDialogError, setSaveDialogError] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<
     { kind: "success" | "error"; text: string } | null
   >(null);
@@ -162,6 +171,8 @@ function ProcessFlowInstanceEditorInner() {
       setSelectedNodeId(null);
       setEditingNodeId(null);
       setDirty(false);
+      setSaveDialogMode(null);
+      setSaveDialogError(null);
       setMessage({
         kind: "success",
         text:
@@ -248,11 +259,9 @@ function ProcessFlowInstanceEditorInner() {
     selectedTemplate &&
       isConfigurationComplete(selectedTemplate, stepTemplates, configuration, geometries),
   );
-  const duplicateInstanceId = instanceIds.has(instanceIdentity.id.trim());
   const canSaveDraft = Boolean(
     hydrated &&
       selectedTemplate &&
-      workspaceName.trim() &&
       !committed &&
       busyAction === null &&
       (dirty || !workspace),
@@ -262,11 +271,26 @@ function ProcessFlowInstanceEditorInner() {
       !committed &&
       !dirty &&
       configurationComplete &&
-      !duplicateInstanceId &&
-      instanceIdentity.id.trim() &&
-      instanceIdentity.name.trim() &&
       busyAction === null,
   );
+
+  function openSaveDialog(mode: Extract<SaveInformationMode, "workspace" | "instance">) {
+    setSaveDialogError(null);
+    setMessage(null);
+    setSaveDialogMode(mode);
+  }
+
+  function closeSaveDialog() {
+    if (busyAction) return;
+    setSaveDialogMode(null);
+    setSaveDialogError(null);
+  }
+
+  function updateInstanceIdentity(patch: Partial<InstanceSaveInformation>) {
+    setInstanceIdentity((current) => ({ ...current, ...patch }));
+    setSaveDialogError(null);
+    setMessage(null);
+  }
 
   function selectTemplate(templateId: string) {
     if (workspace || dirty) {
@@ -284,6 +308,8 @@ function ProcessFlowInstanceEditorInner() {
     setSelectedNodeId(null);
     setEditingNodeId(null);
     setDirty(Boolean(template));
+    setSaveDialogMode(null);
+    setSaveDialogError(null);
     setMessage(null);
     router.replace("/flow-instance-editor");
   }
@@ -299,6 +325,8 @@ function ProcessFlowInstanceEditorInner() {
     setEditingNodeId(null);
     setPickerFlowInputId(null);
     setDirty(false);
+    setSaveDialogMode(null);
+    setSaveDialogError(null);
     setMessage(null);
     router.replace("/flow-instance-editor");
   }
@@ -307,6 +335,7 @@ function ProcessFlowInstanceEditorInner() {
     if (committed) return;
     setWorkspaceName(name);
     setDirty(true);
+    setSaveDialogError(null);
     setMessage(null);
   }
 
@@ -341,7 +370,13 @@ function ProcessFlowInstanceEditorInner() {
 
   async function saveDraft() {
     if (!canSaveDraft || !selectedTemplate) return;
+    const firstSave = workspace === null;
+    if (firstSave && !workspaceName.trim()) {
+      setSaveDialogError("Workspace name is required.");
+      return;
+    }
     setBusyAction("save");
+    setSaveDialogError(null);
     setMessage(null);
     try {
       const saved = workspace
@@ -358,16 +393,19 @@ function ProcessFlowInstanceEditorInner() {
       setWorkspace(saved);
       setWorkspaceName(saved.name);
       setDirty(false);
+      setSaveDialogMode(null);
       router.replace(`/flow-instance-editor?workspaceId=${encodeURIComponent(saved.id)}`);
       setMessage({
         kind: "success",
         text: `Draft saved at revision ${saved.revision}.`,
       });
     } catch (error) {
-      setMessage({
-        kind: "error",
-        text: error instanceof Error ? error.message : "Unable to save workspace.",
-      });
+      const text = error instanceof Error ? error.message : "Unable to save workspace.";
+      if (firstSave) {
+        setSaveDialogError(text);
+      } else {
+        setMessage({ kind: "error", text });
+      }
     } finally {
       setBusyAction(null);
     }
@@ -392,7 +430,20 @@ function ProcessFlowInstanceEditorInner() {
 
   async function commitWorkspace() {
     if (!canCommit || !workspace) return;
+    if (!instanceIdentity.name.trim()) {
+      setSaveDialogError("Instance name is required.");
+      return;
+    }
+    if (!instanceIdentity.id.trim()) {
+      setSaveDialogError("Instance id is required.");
+      return;
+    }
+    if (instanceIds.has(instanceIdentity.id.trim())) {
+      setSaveDialogError("Instance id already exists.");
+      return;
+    }
     setBusyAction("commit");
+    setSaveDialogError(null);
     setMessage(null);
     try {
       const result = await commitProcessFlowWorkspace(workspace.id, {
@@ -408,15 +459,15 @@ function ProcessFlowInstanceEditorInner() {
       });
       setInstanceIds((current) => new Set(current).add(result.processFlowInstance.id));
       setDirty(false);
+      setSaveDialogMode(null);
       setMessage({
         kind: "success",
         text: `Committed immutable instance ${result.processFlowInstance.id}.`,
       });
     } catch (error) {
-      setMessage({
-        kind: "error",
-        text: error instanceof Error ? error.message : "Unable to commit workspace.",
-      });
+      setSaveDialogError(
+        error instanceof Error ? error.message : "Unable to commit workspace.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -471,13 +522,9 @@ function ProcessFlowInstanceEditorInner() {
       ? `Workspace committed as ${workspace?.committedInstanceId}.`
       : dirty
         ? "Workspace has unsaved changes."
-        : duplicateInstanceId
-          ? "Instance id already exists."
         : !configurationComplete
           ? "Draft saved; configuration is incomplete."
-          : !instanceIdentity.id.trim() || !instanceIdentity.name.trim()
-            ? "Configuration is complete; enter immutable instance identity."
-            : "Workspace is ready to commit.";
+          : "Workspace is ready to commit.";
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-background text-foreground">
@@ -520,27 +567,24 @@ function ProcessFlowInstanceEditorInner() {
             <Button
               variant="outline"
               disabled={!canSaveDraft}
-              onClick={() => void saveDraft()}
+              onClick={() =>
+                workspace ? void saveDraft() : openSaveDialog("workspace")
+              }
             >
               <Save />
               Save Draft
             </Button>
-            <Button disabled={!canCommit} onClick={() => void commitWorkspace()}>
+            <Button
+              disabled={!canCommit}
+              onClick={() => openSaveDialog("instance")}
+            >
               <Check />
               Commit Instance
             </Button>
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(200px,1fr)_minmax(260px,1.2fr)_minmax(200px,1fr)_minmax(200px,1fr)_minmax(220px,1fr)]">
-          <FormField label="Workspace name" required>
-            <input
-              className={inputClass}
-              value={workspaceName}
-              disabled={!selectedTemplate || committed}
-              onChange={(event) => updateWorkspaceName(event.target.value)}
-            />
-          </FormField>
+        <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-[minmax(260px,1fr)_minmax(220px,auto)]">
           <FormField label="Process flow template" required>
             <select
               className={selectClass}
@@ -557,32 +601,6 @@ function ProcessFlowInstanceEditorInner() {
                 </option>
               ))}
             </select>
-          </FormField>
-          <FormField label="Instance name">
-            <input
-              className={inputClass}
-              value={instanceIdentity.name}
-              disabled={!workspace || committed}
-              onChange={(event) =>
-                setInstanceIdentity((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-            />
-          </FormField>
-          <FormField label="Instance id">
-            <input
-              className={inputClass}
-              value={instanceIdentity.id}
-              disabled={!workspace || committed}
-              onChange={(event) =>
-                setInstanceIdentity((current) => ({
-                  ...current,
-                  id: event.target.value,
-                }))
-              }
-            />
           </FormField>
           <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm">
             <Badge variant={committed ? "signal" : "outline"}>
@@ -641,6 +659,20 @@ function ProcessFlowInstanceEditorInner() {
           ) : null
         }
       />
+
+      {saveDialogMode ? (
+        <SaveInformationDialog
+          mode={saveDialogMode}
+          instance={instanceIdentity}
+          workspaceName={workspaceName}
+          error={saveDialogError}
+          submitting={busyAction !== null}
+          onInstanceChange={updateInstanceIdentity}
+          onWorkspaceNameChange={updateWorkspaceName}
+          onClose={closeSaveDialog}
+          onSubmit={saveDialogMode === "workspace" ? saveDraft : commitWorkspace}
+        />
+      ) : null}
 
       {editingNode ? (
         <InstanceNodeEditorDialog

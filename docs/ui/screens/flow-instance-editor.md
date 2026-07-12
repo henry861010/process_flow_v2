@@ -63,16 +63,16 @@ padding `20px 12px`（horizontal/vertical在CSS為 `px-5 py-3`），其餘高度
 4. `Save Draft`
 5. `Commit Instance`
 
-Field grid：base一欄、`md`兩欄、`2xl` 才是五欄
-`1fr 1.2fr 1fr 1fr 1fr`：
+Field grid：base一欄、`md`以上是`minmax(260px,1fr) minmax(220px,auto)`：
 
 | Field | Enabled | Notes |
 | --- | --- | --- |
-| `Workspace name`* | selected template且未 committed | select template時default `<template.name> study`。 |
 | `Process flow template`* | 尚未建立 workspace、未 committed、非 busy | option `<name> / <version>`。 |
-| `Instance name` | workspace已保存且未 committed | commit required，不保存於 draft update。 |
-| `Instance id` | workspace已保存且未 committed | commit required、unique、ID regex由 API/contract驗證。 |
 | Status box | read-only | badge `draft/committed` + `<workspaceId> / r<revision>` 或 `Unsaved workspace`。 |
+
+Workspace name與Instance name/id不在Editor header常駐顯示。第一次Save Draft由save dialog
+詢問Workspace name；後續Save Draft沿用persisted name直接更新。Commit Instance由instance
+dialog詢問name/id。兩種dialog都在submitting期間鎖定close與重複submit。
 
 Header下方 status strip min-height `36px`；graph是剩餘空間，沒有 document scroll。
 
@@ -129,10 +129,10 @@ branch不得阻擋。
 | --- | --- | --- |
 | Select template | 無 workspace/dirty；否則先 confirm `Discard the current workspace draft?` | default config、name、dirty=true；URL清除 query。 |
 | `New` | dirty時confirm | 全部清空；URL回 route root。 |
-| First `Save Draft` | hydrated、template、workspace name、dirty/unsaved、非 busy | POST workspace；URL replace加入 encoded `workspaceId`；dirty=false。 |
-| Later `Save Draft` | 同上 | PUT含 current revision；success revision增加。 |
+| First `Save Draft` | hydrated、template、dirty/unsaved、非 busy | 開workspace dialog；name valid後POST，URL replace加入 encoded `workspaceId`；dirty=false。 |
+| Later `Save Draft` | hydrated、template、dirty、非 busy | 不開dialog；沿用persisted name PUT current revision，success revision增加。 |
 | `Reload` | workspace且未 committed | GET server revision並覆蓋 local；現況即使dirty也不另confirm。 |
-| `Commit Instance` | saved、clean、complete、ID/name、unique、非 busy | POST commit；workspace/graph鎖定、revision更新。 |
+| `Commit Instance` | saved、clean、complete、非 busy | 開instance dialog；ID/name valid且unique後POST commit，workspace/graph鎖定、revision更新。 |
 | Preview | input resolved或step ready | 共用 Geometry Preview。 |
 
 Save success copy：`Draft saved at revision <n>.`；commit success copy：
@@ -144,11 +144,9 @@ Save success copy：`Draft saved at revision <n>.`；commit success copy：
 | State | Save Draft | Commit | Configuration | Status copy |
 | --- | --- | --- | --- | --- |
 | No template | disabled | disabled | none | `Select a process flow template.` |
-| New unsaved | enabled if name | disabled | editable | incomplete/dirty precedence |
+| New unsaved | enabled | disabled | editable | incomplete/dirty precedence |
 | Saved clean incomplete | disabled | disabled | editable | `Draft saved; configuration is incomplete.` |
 | Dirty | enabled | disabled | editable | `Workspace has unsaved changes.` |
-| Clean complete, identity empty | disabled | disabled | editable | `Configuration is complete; enter immutable instance identity.` |
-| Duplicate instance ID | disabled | disabled | editable | `Instance id already exists.` |
 | Ready | disabled | enabled | editable | `Workspace is ready to commit.` |
 | Busy | disabled | disabled | 保留 | strip顯示既有/fallback狀態 |
 | Committed | disabled | disabled | read-only | `Workspace committed as <id>.` |
@@ -187,10 +185,10 @@ Reference capture：reset 後開 route，選擇 `CoWoS-L Demo`，等待 graph、
 
 | ID | Given / When | Then |
 | --- | --- | --- |
-| `UI-FIE-001` | fresh page，select CoWoS-L | read-only graph/default config出現，workspace name default，dirty。 |
-| `UI-FIE-002` | unsaved draft，Save Draft | URL加入 workspaceId、revision顯示、dirty清除。 |
+| `UI-FIE-001` | fresh page，select CoWoS-L | read-only graph/default config出現，workspace name在hidden state使用default，dirty。 |
+| `UI-FIE-002` | unsaved draft，Save Draft | workspace name dialog只在首次出現；submit後URL加入workspaceId、revision顯示、dirty清除。 |
 | `UI-FIE-003` | saved draft，edit field | dirty copy出現、Commit disabled、beforeunload active。 |
-| `UI-FIE-004` | clean complete + identity，Commit | committed badge、controls locked、immutable ID保留。 |
+| `UI-FIE-004` | clean complete，Commit | instance identity dialog出現；valid submit後committed badge、controls locked、immutable ID保留。 |
 | `UI-FIE-005` | stale revision，Save Draft | local data保留、409 message可見、Reload可恢復server。 |
 | `UI-FIE-006` | ready edge/final node，click Eye | Preview開啟；unrelated incomplete branch不阻擋。 |
 | `UI-FIE-007` | committed workspace reload | identity resolve，Preview可用，editing controls disabled。 |

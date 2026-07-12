@@ -130,16 +130,17 @@ template selected -> unsaved workspace -> saved clean draft
                                                |
                                       Save Draft / Reload
                                                |
-                                  complete + clean + identity
+                                      complete + clean
                                                v
-                                      committed (read-only)
+                               Commit dialog -> committed
 ```
 
 - `dirty` 時註冊 `beforeunload` protection。
 - `Save Draft` 只在有 selected template、非 committed、dirty、非 busy 時 enabled。
 - `Reload` 丟棄 local dirty data，載入 server revision；現況沒有額外 confirm。
 - stale revision 的 `409` 保留 local draft並顯示 error，使用者再選 Reload。
-- `Commit Instance` 必須是 saved、clean、complete、identity valid、ID unique。
+- 第一次`Save Draft`開dialog詢問workspace name；後續save沿用persisted name直接更新。
+- `Commit Instance` toolbar必須是saved、clean、complete；identity valid與ID unique在dialog submit驗證。
 - committed 後 configuration controls read-only；Preview 仍可由已綁定 geometry/ready output 開啟。
 
 ## Modal 與 overlay 層級
@@ -149,6 +150,7 @@ template selected -> unsaved workspace -> saved clean draft
 | Node Editor | Close、Escape、outside | `foreground/40` | `50` |
 | Geometry Catalog | Close、Escape、outside | `foreground/40` | `50` |
 | Geometry Preview | Close、Escape、outside | `foreground/45` | `50` |
+| Save Information | Close、Cancel、Escape、outside when idle | `foreground/40` | `90` |
 | Export requests | collapse button | none | `80` |
 | Export form | Cancel、Close、Escape、outside when idle | `foreground/35` | `100` |
 

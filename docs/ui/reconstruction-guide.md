@@ -56,6 +56,7 @@ fresh draft
   -> single-click node
   -> edit inspector
   -> Save Template
+  -> enter template information in save dialog
   -> topology locked, configuration remains editable
   -> open Preview when target is ready
 ```
@@ -64,7 +65,8 @@ fresh draft
 
 - Step palette 必須支援 click-add；Geometry palette 的 touch/keyboard fallback 是已知 gap。
 - graph node 的 primary editor path 是單擊，不得要求雙擊。
-- Save Template 可在 configuration incomplete 時成功，但會鎖 topology。
+- Template metadata不在editor常駐顯示；Save Template才開啟save dialog。
+- Save Template 可在configuration incomplete時開dialog並成功保存，但會鎖topology。
 - topology locked 後，catalog binding、parameters 與 Preview 仍依規格可用。
 
 對應驗收：`UI-FTE-001`、`UI-FTE-002`、`UI-FTE-003`、`UI-FTE-004`、`UI-GRAPH-001`。
@@ -77,17 +79,19 @@ no selected template
   -> default configuration created
   -> bind geometry / edit parameters
   -> Save Draft
+  -> enter workspace name in first-save dialog
   -> edit again (dirty)
-  -> Reload or Save Draft
-  -> enter immutable identity
+  -> Reload or direct Save Draft (no dialog)
   -> Commit Instance
+  -> enter immutable identity in commit dialog
   -> committed read-only workspace
 ```
 
 必要結果：
 
 - Select template 會建立 `<template.name> study` workspace name。
-- Save Draft 後 URL 必須帶 `workspaceId` 與 revision。
+- 第一次Save Draft開啟workspace name dialog；成功後URL必須帶`workspaceId`與revision。
+- 後續dirty Save Draft沿用persisted name直接更新，不再次開dialog。
 - dirty 時 Save Draft enabled、Commit disabled，並啟用 `beforeunload` protection。
 - committed 後 configuration controls locked，但 ready Geometry Preview 仍可開啟。
 

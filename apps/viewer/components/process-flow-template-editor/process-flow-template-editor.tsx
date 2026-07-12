@@ -45,6 +45,12 @@ import {
 } from "@/components/process-flow-fields/flow-input-controls";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import {
+  SaveInformationDialog,
+  type InstanceSaveInformation,
+  type SaveInformationMode,
+  type TemplateSaveInformation,
+} from "@/components/process-flow-save/save-information-dialog";
+import {
   ProcessFlowGraph,
   type ProcessFlowGraphEdgeData,
   type ProcessFlowGraphNodeData,
@@ -98,10 +104,7 @@ const selectClass =
 const textareaClass =
   "min-h-[72px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted";
 
-type TemplateMetadata = Pick<
-  ProcessFlowTemplate,
-  "id" | "name" | "version" | "description" | "owner"
->;
+type TemplateMetadata = TemplateSaveInformation;
 
 type FlowInputNodeData = ProcessFlowGraphNodeData & {
   nodeKind: "flowInput";
@@ -162,6 +165,10 @@ function ProcessFlowTemplateEditorInner() {
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
   const [savedTemplate, setSavedTemplate] = React.useState<ProcessFlowTemplate | null>(null);
   const [busyAction, setBusyAction] = React.useState<"template" | "instance" | null>(null);
+  const [saveDialogMode, setSaveDialogMode] = React.useState<
+    Extract<SaveInformationMode, "template" | "template-and-instance" | "instance"> | null
+  >(null);
+  const [saveDialogError, setSaveDialogError] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<
     { kind: "success" | "error"; text: string } | null
   >(null);
@@ -212,23 +219,13 @@ function ProcessFlowTemplateEditorInner() {
       isConfigurationComplete(draftTemplate, stepTemplates, configuration, geometries),
     [analysis.error, configuration, draftTemplate, geometries, stepTemplates],
   );
-  const duplicateTemplateId =
-    !topologyLocked && flowTemplates.some((template) => template.id === metadata.id);
-  const duplicateInstanceId = flowInstances.some(
-    (instance) => instance.id === instanceIdentity.id,
-  );
   const canSaveTemplate =
-    hydrated && !topologyLocked && !busyAction && !analysis.error && !duplicateTemplateId;
-  const instanceIdentityComplete =
-    instanceIdentity.id.trim().length > 0 && instanceIdentity.name.trim().length > 0;
+    hydrated && !topologyLocked && !busyAction && !analysis.error;
   const canSaveInstance =
     hydrated &&
     !busyAction &&
     !analysis.error &&
-    !duplicateTemplateId &&
-    !duplicateInstanceId &&
-    configurationComplete &&
-    instanceIdentityComplete;
+    configurationComplete;
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
   const editingStepPreviewAvailability =
     editingNode && isStepNode(editingNode)
@@ -385,7 +382,28 @@ function ProcessFlowTemplateEditorInner() {
   function updateMetadata(patch: Partial<TemplateMetadata>) {
     if (topologyLocked) return;
     setMetadata((current) => ({ ...current, ...patch }));
+    setSaveDialogError(null);
     setMessage(null);
+  }
+
+  function updateInstanceIdentity(patch: Partial<InstanceSaveInformation>) {
+    setInstanceIdentity((current) => ({ ...current, ...patch }));
+    setSaveDialogError(null);
+    setMessage(null);
+  }
+
+  function openSaveDialog(
+    mode: Extract<SaveInformationMode, "template" | "template-and-instance" | "instance">,
+  ) {
+    setSaveDialogError(null);
+    setMessage(null);
+    setSaveDialogMode(mode);
+  }
+
+  function closeSaveDialog() {
+    if (busyAction) return;
+    setSaveDialogMode(null);
+    setSaveDialogError(null);
   }
 
   function newFlow() {
@@ -397,6 +415,8 @@ function ProcessFlowTemplateEditorInner() {
     setSelectedNodeId(null);
     setEditingNodeId(null);
     setSavedTemplate(null);
+    setSaveDialogMode(null);
+    setSaveDialogError(null);
     setMessage(null);
   }
 
@@ -418,6 +438,8 @@ function ProcessFlowTemplateEditorInner() {
     setSelectedNodeId(null);
     setEditingNodeId(null);
     setSavedTemplate(null);
+    setSaveDialogMode(null);
+    setSaveDialogError(null);
     setMessage(null);
     requestAnimationFrame(() => reactFlow.fitView({ padding: 0.18, duration: 250 }));
   }
@@ -697,18 +719,24 @@ function ProcessFlowTemplateEditorInner() {
 
   async function saveTemplateOnly() {
     if (!canSaveTemplate) return;
+    const validationError = validateTemplateSaveInformation(metadata, flowTemplates);
+    if (validationError) {
+      setSaveDialogError(validationError);
+      return;
+    }
     setBusyAction("template");
+    setSaveDialogError(null);
     setMessage(null);
     try {
       const saved = await createProcessFlowTemplate<ProcessFlowTemplate>(draftTemplate);
       setSavedTemplate(saved);
       setFlowTemplates((current) => [...current, saved]);
+      setSaveDialogMode(null);
       setMessage({ kind: "success", text: `Template ${saved.id} saved. Topology is now locked.` });
     } catch (error) {
-      setMessage({
-        kind: "error",
-        text: error instanceof Error ? error.message : "Unable to save template.",
-      });
+      setSaveDialogError(
+        error instanceof Error ? error.message : "Unable to save template.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -716,7 +744,26 @@ function ProcessFlowTemplateEditorInner() {
 
   async function saveInstance() {
     if (!canSaveInstance) return;
+    if (!savedTemplate) {
+      const templateValidationError = validateTemplateSaveInformation(
+        metadata,
+        flowTemplates,
+      );
+      if (templateValidationError) {
+        setSaveDialogError(templateValidationError);
+        return;
+      }
+    }
+    const instanceValidationError = validateInstanceSaveInformation(
+      instanceIdentity,
+      flowInstances,
+    );
+    if (instanceValidationError) {
+      setSaveDialogError(instanceValidationError);
+      return;
+    }
     setBusyAction("instance");
+    setSaveDialogError(null);
     setMessage(null);
     try {
       if (savedTemplate) {
@@ -724,6 +771,7 @@ function ProcessFlowTemplateEditorInner() {
           buildInstance(savedTemplate.id),
         );
         setFlowInstances((current) => [...current, instance]);
+        setSaveDialogMode(null);
         setMessage({ kind: "success", text: `Instance ${instance.id} saved.` });
       } else {
         const result = await createProcessFlowTemplateInstance<
@@ -736,16 +784,16 @@ function ProcessFlowTemplateEditorInner() {
         setSavedTemplate(result.processFlowTemplate);
         setFlowTemplates((current) => [...current, result.processFlowTemplate]);
         setFlowInstances((current) => [...current, result.processFlowInstance]);
+        setSaveDialogMode(null);
         setMessage({
           kind: "success",
           text: `Template ${result.processFlowTemplate.id} and instance ${result.processFlowInstance.id} saved.`,
         });
       }
     } catch (error) {
-      setMessage({
-        kind: "error",
-        text: error instanceof Error ? error.message : "Unable to save instance.",
-      });
+      setSaveDialogError(
+        error instanceof Error ? error.message : "Unable to save instance.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -756,16 +804,11 @@ function ProcessFlowTemplateEditorInner() {
     setFileExportJobsRefreshKey((current) => current + 1);
   }
 
-  const statusText = duplicateTemplateId
-    ? "Template id already exists."
-    : duplicateInstanceId
-      ? "Instance id already exists."
-    : analysis.error ??
-      (!configurationComplete
-        ? "Template topology can be saved; instance configuration is incomplete."
-        : !instanceIdentityComplete
-          ? "Instance id and name are required for Save Instance."
-          : "Template and instance configuration are ready.");
+  const statusText =
+    analysis.error ??
+    (!configurationComplete
+      ? "Template topology can be saved; instance configuration is incomplete."
+      : "Template and instance configuration are ready to save.");
 
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground lg:h-screen lg:min-h-[760px] lg:overflow-hidden">
@@ -811,95 +854,20 @@ function ProcessFlowTemplateEditorInner() {
             <Button
               variant="outline"
               disabled={!canSaveTemplate}
-              onClick={() => void saveTemplateOnly()}
+              onClick={() => openSaveDialog("template")}
             >
               <Save />
               Save Template
             </Button>
-            <Button disabled={!canSaveInstance} onClick={() => void saveInstance()}>
+            <Button
+              disabled={!canSaveInstance}
+              onClick={() =>
+                openSaveDialog(savedTemplate ? "instance" : "template-and-instance")
+              }
+            >
               <GitBranch />
               {savedTemplate ? "Save Instance" : "Save Template & Instance"}
             </Button>
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 items-end gap-3 xl:grid-cols-[minmax(180px,1.1fr)_minmax(180px,1fr)_110px_minmax(150px,0.8fr)_minmax(220px,1.4fr)]">
-          <FormField label="Template name" required>
-            <input
-              className={inputClass}
-              value={metadata.name}
-              disabled={topologyLocked}
-              onChange={(event) => updateMetadata({ name: event.target.value })}
-            />
-          </FormField>
-          <FormField label="Template id" required>
-            <input
-              className={inputClass}
-              value={metadata.id}
-              disabled={topologyLocked}
-              onChange={(event) => updateMetadata({ id: event.target.value })}
-            />
-          </FormField>
-          <FormField label="Version" required>
-            <input
-              className={inputClass}
-              value={metadata.version}
-              disabled={topologyLocked}
-              onChange={(event) => updateMetadata({ version: event.target.value })}
-            />
-          </FormField>
-          <FormField label="Owner" required>
-            <input
-              className={inputClass}
-              value={metadata.owner ?? ""}
-              disabled={topologyLocked}
-              onChange={(event) => updateMetadata({ owner: event.target.value })}
-            />
-          </FormField>
-          <div className="col-span-2 xl:col-span-1">
-            <FormField label="Description">
-              <input
-                className={inputClass}
-                value={metadata.description ?? ""}
-                disabled={topologyLocked}
-                onChange={(event) => updateMetadata({ description: event.target.value })}
-              />
-            </FormField>
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 items-end gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_minmax(280px,1.4fr)]">
-          <FormField label="Instance name">
-            <input
-              className={inputClass}
-              value={instanceIdentity.name}
-              onChange={(event) =>
-                setInstanceIdentity((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-            />
-          </FormField>
-          <FormField label="Instance id">
-            <input
-              className={inputClass}
-              value={instanceIdentity.id}
-              onChange={(event) =>
-                setInstanceIdentity((current) => ({
-                  ...current,
-                  id: event.target.value,
-                }))
-              }
-            />
-          </FormField>
-          <div className="col-span-2 flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm xl:col-span-1">
-            {message?.kind === "success" ? (
-              <Check className="h-4 w-4 shrink-0 text-emerald-600" />
-            ) : (
-              <CircleDot className="h-4 w-4 shrink-0 text-primary" />
-            )}
-            <span className="truncate">{message?.text ?? statusText}</span>
           </div>
         </div>
       </header>
@@ -1010,6 +978,22 @@ function ProcessFlowTemplateEditorInner() {
           </div>
         </aside>
       </section>
+
+      {saveDialogMode ? (
+        <SaveInformationDialog
+          mode={saveDialogMode}
+          template={metadata}
+          instance={instanceIdentity}
+          error={saveDialogError}
+          submitting={busyAction !== null}
+          onTemplateChange={updateMetadata}
+          onInstanceChange={updateInstanceIdentity}
+          onClose={closeSaveDialog}
+          onSubmit={
+            saveDialogMode === "template" ? saveTemplateOnly : saveInstance
+          }
+        />
+      ) : null}
 
       {editingNode ? (
         <NodeEditorDialog
@@ -1710,19 +1694,6 @@ function analyzeTemplate(
   stepTemplates: ProcessStepTemplate[],
 ): TemplateAnalysis {
   const missingPortKeys = new Set<string>();
-  const identityFields: Array<[string, string | undefined]> = [
-    ["Template id", template.id],
-    ["Template name", template.name],
-    ["Version", template.version],
-    ["Owner", template.owner],
-  ];
-  const missingIdentity = identityFields.find(([, value]) => !value?.trim());
-  if (missingIdentity) {
-    return { error: `${missingIdentity[0]} is required.`, missingPortKeys, hasCycle: false };
-  }
-  if (!validIdentifier(template.id)) {
-    return { error: "Template id contains unsupported characters.", missingPortKeys, hasCycle: false };
-  }
   if (template.flowInputs.length === 0) {
     return { error: "Add at least one geometry input.", missingPortKeys, hasCycle: false };
   }
@@ -1975,6 +1946,39 @@ function uniqueIdentifierError(ids: string[], label: string) {
 
 function validIdentifier(value: string) {
   return /^[A-Za-z][A-Za-z0-9_.-]*$/.test(value);
+}
+
+function validateTemplateSaveInformation(
+  metadata: TemplateMetadata,
+  templates: ProcessFlowTemplate[],
+) {
+  const requiredFields: Array<[string, string]> = [
+    ["Template name", metadata.name],
+    ["Template id", metadata.id],
+    ["Version", metadata.version],
+    ["Owner", metadata.owner],
+  ];
+  const missingField = requiredFields.find(([, value]) => !value.trim());
+  if (missingField) return `${missingField[0]} is required.`;
+  if (!validIdentifier(metadata.id)) {
+    return "Template id contains unsupported characters.";
+  }
+  if (templates.some((template) => template.id === metadata.id)) {
+    return "Template id already exists.";
+  }
+  return null;
+}
+
+function validateInstanceSaveInformation(
+  identity: InstanceSaveInformation,
+  instances: ProcessFlowInstance[],
+) {
+  if (!identity.name.trim()) return "Instance name is required.";
+  if (!identity.id.trim()) return "Instance id is required.";
+  if (instances.some((instance) => instance.id === identity.id.trim())) {
+    return "Instance id already exists.";
+  }
+  return null;
 }
 
 function slugId(value: string) {
