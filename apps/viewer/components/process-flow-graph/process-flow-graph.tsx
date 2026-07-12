@@ -566,6 +566,14 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
   const data = props.data;
   const graphMode = data?.graphMode ?? "edit";
   const status = data?.status ?? "neutral";
+  const sourceIsBeingReconnected = useConnection((connection) => {
+    const sourceHandleId = props.sourceHandleId ?? "result_geometry";
+    return (
+      connection.fromHandle?.type === "source" &&
+      connection.fromHandle.nodeId === props.source &&
+      (connection.fromHandle.id ?? "result_geometry") === sourceHandleId
+    );
+  });
   const canViewGeometry =
     Boolean(data?.onGeometryView) &&
     (data?.geometryViewVisible === true || data?.sourceKind === "stepOutput");
@@ -580,7 +588,11 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
         interactionWidth={graphMode === "edit" ? 18 : 16}
         className={cn(
           "!stroke-[2.5px]",
-          props.selected ? "!stroke-primary" : getEdgeStatusClasses(status),
+          sourceIsBeingReconnected
+            ? "!stroke-muted-foreground/35"
+            : props.selected
+              ? "!stroke-primary"
+              : getEdgeStatusClasses(status),
         )}
       />
       <EdgeLabelRenderer>

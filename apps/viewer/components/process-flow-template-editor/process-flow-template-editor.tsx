@@ -549,20 +549,26 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function handleConnect(connection: Connection) {
-    if (topologyLocked || !validConnection(connection, nodes, edges)) return;
-    setEdges((current) => [
-      ...current,
-      {
-        id: internalId("edge"),
-        type: "dataFlow",
-        source: connection.source,
-        target: connection.target,
-        sourceHandle: connection.sourceHandle,
-        targetHandle: connection.targetHandle,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        data: emptyEdgeData(),
-      },
-    ]);
+    if (topologyLocked) return;
+    setEdges((current) => {
+      if (!validConnection(connection, nodes, current)) return current;
+      const existingEdge = current.find((edge) => sameConnection(edge, connection));
+      if (existingEdge) return current;
+
+      return [
+        ...withoutConnectionConflicts(current, connection),
+        {
+          id: internalId("edge"),
+          type: "dataFlow",
+          source: connection.source,
+          target: connection.target,
+          sourceHandle: connection.sourceHandle,
+          targetHandle: connection.targetHandle,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          data: emptyEdgeData(),
+        },
+      ];
+    });
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
@@ -1704,13 +1710,14 @@ function analyzeTemplate(
       return { error: `Input port ${targetKey} has multiple sources.`, missingPortKeys, hasCycle: false };
     }
     incoming.add(targetKey);
-    if (edge.source.kind === "stepOutput") {
-      const sourceKey = `${edge.source.stepRefId}:${edge.source.outputPortId}`;
-      if (outputSources.has(sourceKey)) {
-        return { error: `Output port ${sourceKey} has multiple consumers.`, missingPortKeys, hasCycle: false };
-      }
-      outputSources.add(sourceKey);
+    const sourceKey =
+      edge.source.kind === "flowInput"
+        ? `flowInput:${edge.source.flowInputId}:out`
+        : `stepOutput:${edge.source.stepRefId}:${edge.source.outputPortId}`;
+    if (outputSources.has(sourceKey)) {
+      return { error: `Output port ${sourceKey} has multiple consumers.`, missingPortKeys, hasCycle: false };
     }
+    outputSources.add(sourceKey);
   }
   for (const stepRef of template.stepRefs) {
     const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
@@ -1770,29 +1777,39 @@ function validConnection(
   ) {
     return false;
   }
-  if (
-    edges.some(
-      (edge) =>
-        edge.target === connection.target && edge.targetHandle === connection.targetHandle,
-    )
-  ) {
-    return false;
-  }
-  if (
-    isStepNode(sourceNode) &&
-    edges.some(
-      (edge) =>
-        edge.source === connection.source &&
-        (edge.sourceHandle ?? "result_geometry") ===
-          (connection.sourceHandle ?? "result_geometry"),
-    )
-  ) {
-    return false;
-  }
-  if (isStepNode(sourceNode) && pathExists(targetNode.id, sourceNode.id, edges)) {
+  const remainingEdges = withoutConnectionConflicts(edges, connection);
+  if (isStepNode(sourceNode) && pathExists(targetNode.id, sourceNode.id, remainingEdges)) {
     return false;
   }
   return true;
+}
+
+function withoutConnectionConflicts(
+  edges: FlowEdge[],
+  connection: Connection | FlowEdge,
+) {
+  return edges.filter(
+    (edge) =>
+      !sameSourceHandle(edge, connection) && !sameTargetHandle(edge, connection),
+  );
+}
+
+function sameConnection(left: Connection | FlowEdge, right: Connection | FlowEdge) {
+  return sameSourceHandle(left, right) && sameTargetHandle(left, right);
+}
+
+function sameSourceHandle(left: Connection | FlowEdge, right: Connection | FlowEdge) {
+  return (
+    left.source === right.source &&
+    (left.sourceHandle ?? "result_geometry") ===
+      (right.sourceHandle ?? "result_geometry")
+  );
+}
+
+function sameTargetHandle(left: Connection | FlowEdge, right: Connection | FlowEdge) {
+  return (
+    left.target === right.target && left.targetHandle === right.targetHandle
+  );
 }
 
 function previewAvailabilityFromReadiness(

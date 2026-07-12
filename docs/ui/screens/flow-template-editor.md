@@ -102,7 +102,7 @@ Graph 使用 [Process Flow Graph](../components/process-flow-graph.md)；fresh s
 | --- | --- |
 | Drop Geometry | 新增 `flowInput` definition；working config 同時綁該 catalog geometry。 |
 | Add/Drop Step | 新增 `stepRef`、default step config；ID由 template name slug後去重。 |
-| Connect | target是step input、target未占用、step output未被消費、非self/cycle。 |
+| Connect | target是step input、非self/cycle；source output或target input已有edge時，由新edge原子式取代舊edge。 |
 | Delete node | 刪 node、相關 edges與對應 configuration entry。 |
 | Delete edge | 只在edit mode顯示；不改 parameter values。 |
 
@@ -160,8 +160,8 @@ Disabled wrapper title顯示第一個 reason。
 | Preview input/step | resolved input或ready closure | 共用 Geometry Preview。 |
 
 Topology validity MUST 包含：至少一個 flow input與step、graph IDs唯一合法、
-所有 flow input有 outgoing edge、所有 required input port有source、每target單一source、step
-output不fan-out、無cycle，且 process step template可resolve。Working configuration不完整不阻止
+所有 flow input有 outgoing edge、所有 required input port有source、每target單一source、每個
+source output（flow input與step output）只有一個consumer、無cycle，且 process step template可resolve。Working configuration不完整不阻止
 `Save Template`。Template/Instance save information不參與toolbar enabled條件，只在dialog submit時驗證。
 
 ## 狀態矩陣
@@ -211,10 +211,12 @@ Fresh capture：reset後開 route，不選 copy、不新增 node，等待 bootst
 | `UI-FTE-003` | valid topology、incomplete config，Save Template | dialog顯示template fields；完成資訊後成功保存並鎖 topology，binding/parameters仍可編。 |
 | `UI-FTE-004` | unsaved template、ready step，Preview | request帶 inline template，panel可到 Ready。 |
 | `UI-FTE-005` | saved template、complete config，Save Instance | 開instance-only dialog；完成identity後只新增instance，不重建template。 |
-| `UI-FTE-006` | attempt cycle/fan-out/occupied target | connection rejected且persisted topology不變。 |
+| `UI-FTE-006` | 從已有edge的source output連到另一input | 新edge接上後舊source edge自動消失；拖曳期間舊edge顯示灰色；拉回原target則topology不變。 |
 | `UI-FTE-007` | 390px touch-only | Step可click-add；Geometry無fallback的已知 gap可重現。 |
 | `UI-FTE-008` | 1024px | test明確偵測右pane是否被裁切，對應 `UI-GAP-RESP-001`。 |
 | `UI-FTE-009` | 建立多個 flow inputs，開啟 inspector後修改其中一個 `Name` | 每個 input ID由系統建立且唯一，只以read-only text顯示；改名後ID、binding key與edges不變。 |
 | `UI-FTE-010` | 開啟 Geometry Input inspector | Binding直接顯示；`Advanced settings`是靠右、無邊框的小字且預設收合，展開後可編輯definition欄位但不顯示`Structure formats`。 |
 | `UI-FTE-011` | 載入含既有`structureFormats`的template，修改其他可見欄位後保存 | hidden `structureFormats`值原樣保留，且matching geometry仍套用其constraint語意。 |
 | `UI-FTE-012` | 已綁定Geometry Input | 顯示geometry name、Preview與Change geometry；沒有Clear binding action。 |
+| `UI-FTE-013` | 新edge接到已有incoming edge的input | 新edge接上後舊target edge自動消失，不要求使用者先手動刪除。 |
+| `UI-FTE-014` | replacement edge會形成cycle | connection rejected且persisted topology不變。 |
