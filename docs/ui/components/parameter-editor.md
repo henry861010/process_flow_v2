@@ -29,7 +29,8 @@ values，不修改definitions；required/type/range/enum/repeat completeness由c
 white bordered card + dividers。
 
 Primitive row desktop grid：`minmax(180px,.8fr) minmax(240px,1.2fr)`、gap16、padding16；
-`<768px` one column。Label顯示 name、required `*`（`required !== false`）、monospace
+`<768px` one column。Coordinates 是例外，label 在 control 上方並使用完整 row 寬度，避免四個
+bounds values 被 description column 壓縮。Label顯示 name、required `*`（`required !== false`）、monospace
 `id / unit`、非compact時description。
 
 ## Control 解析矩陣

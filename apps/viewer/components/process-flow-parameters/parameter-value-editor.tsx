@@ -83,6 +83,25 @@ function ParameterRow({
     );
   }
 
+  if (
+    definition.valueType === "coordinates" ||
+    definition.controlType === "coordinateList"
+  ) {
+    return (
+      <div className="px-4 py-4 text-sm">
+        <div className="mb-3">
+          <ParameterLabel definition={definition} />
+        </div>
+        <PrimitiveControl
+          definition={definition}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1">
       <ParameterLabel definition={definition} />

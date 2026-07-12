@@ -295,79 +295,105 @@ function CoordinateRowEditor({
   onRemove: () => void;
 }) {
   return (
-    <div
+    <section
       className={cn(
-        "grid grid-cols-[52px_minmax(0,1fr)_36px] items-end gap-2 rounded-md border p-2 max-sm:grid-cols-[44px_minmax(0,1fr)_36px]",
+        "rounded-md border p-2.5",
         invalid || invalidBounds || duplicate
           ? "border-destructive/60 bg-destructive/5"
           : "bg-muted/10",
       )}
     >
-      <div className="pb-2 text-xs font-medium text-muted-foreground">
-        #{index + 1}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="inline-flex h-6 items-center rounded bg-muted px-2 text-xs font-medium text-muted-foreground">
+          Die {index + 1}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          aria-label={`Remove coordinate ${index + 1}`}
+          onClick={onRemove}
+        >
+          <Trash2 />
+        </Button>
       </div>
-      <div className="grid min-w-0 grid-cols-2 gap-2 xl:grid-cols-4">
-        <CoordinateNumberInput
-          label="Lower-left X"
-          value={row[0][0]}
+      <div className="grid min-w-0 gap-3 md:grid-cols-2">
+        <CoordinatePointEditor
+          title="Lower-left"
+          point={row[0]}
           unit={unit}
-          onChange={(nextValue) => onChange(0, 0, nextValue)}
+          onChange={(axisIndex, nextValue) => onChange(0, axisIndex, nextValue)}
         />
-        <CoordinateNumberInput
-          label="Lower-left Y"
-          value={row[0][1]}
+        <CoordinatePointEditor
+          title="Upper-right"
+          point={row[1]}
           unit={unit}
-          onChange={(nextValue) => onChange(0, 1, nextValue)}
-        />
-        <CoordinateNumberInput
-          label="Upper-right X"
-          value={row[1][0]}
-          unit={unit}
-          onChange={(nextValue) => onChange(1, 0, nextValue)}
-        />
-        <CoordinateNumberInput
-          label="Upper-right Y"
-          value={row[1][1]}
-          unit={unit}
-          onChange={(nextValue) => onChange(1, 1, nextValue)}
+          onChange={(axisIndex, nextValue) => onChange(1, axisIndex, nextValue)}
         />
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="h-9 w-9"
-        aria-label={`Remove coordinate ${index + 1}`}
-        onClick={onRemove}
-      >
-        <Trash2 />
-      </Button>
       {duplicate ? (
-        <div className="col-span-3 text-xs text-destructive">
+        <div className="mt-2 text-xs text-destructive">
           Duplicate coordinate
         </div>
       ) : null}
       {invalid ? (
-        <div className="col-span-3 text-xs text-destructive">
+        <div className="mt-2 text-xs text-destructive">
           All lower-left and upper-right values must be finite numbers
         </div>
       ) : null}
       {invalidBounds ? (
-        <div className="col-span-3 text-xs text-destructive">
+        <div className="mt-2 text-xs text-destructive">
           Upper-right must be greater than lower-left on both axes
         </div>
       ) : null}
-    </div>
+    </section>
+  );
+}
+
+function CoordinatePointEditor({
+  title,
+  point,
+  unit,
+  onChange,
+}: {
+  title: string;
+  point: CoordinateDraftRow[0];
+  unit?: string | null;
+  onChange: (axisIndex: 0 | 1, value: CoordinateDraftCell) => void;
+}) {
+  return (
+    <fieldset className="min-w-0 rounded-md border bg-white p-3">
+      <legend className="px-1 text-sm font-semibold">{title}</legend>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <CoordinateNumberInput
+          label="X"
+          ariaLabel={`${title} X`}
+          value={point[0]}
+          unit={unit}
+          onChange={(nextValue) => onChange(0, nextValue)}
+        />
+        <CoordinateNumberInput
+          label="Y"
+          ariaLabel={`${title} Y`}
+          value={point[1]}
+          unit={unit}
+          onChange={(nextValue) => onChange(1, nextValue)}
+        />
+      </div>
+    </fieldset>
   );
 }
 
 function CoordinateNumberInput({
   label,
+  ariaLabel,
   value,
   unit,
   onChange,
 }: {
   label: string;
+  ariaLabel: string;
   value: CoordinateDraftCell;
   unit?: string | null;
   onChange: (value: CoordinateDraftCell) => void;
@@ -380,6 +406,7 @@ function CoordinateNumberInput({
           className={coordinateInputClass}
           type="number"
           step="any"
+          aria-label={ariaLabel}
           value={value === "" ? "" : String(value)}
           onChange={(event) => onChange(parseCoordinateInput(event.target.value))}
         />

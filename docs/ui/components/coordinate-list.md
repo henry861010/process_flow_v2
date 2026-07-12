@@ -42,11 +42,14 @@ Default tab `Manual`，另一tab `GDS`；Radix tabs高度36px，content上margin
 White bordered card。Header padding12px/8px，左顯示
 `<n> coordinate/coordinates`，右 primary small `Plus + Add die`。
 
-Rows column gap8、padding12。每row outer grid是 index、fields、remove button；fields 在寬螢幕
-四欄、小螢幕兩欄。
+Rows column gap8、padding12。Coordinate parameter 使用完整 parameter row 寬度，不與左側
+parameter description 分欄。每個 die row header 以 compact muted badge 顯示 `Die <n>`，右側
+是 compact remove button；下方是
+Lower-left／Upper-right 兩個 bordered point groups。寬螢幕兩個 point groups並排，
+窄螢幕垂直堆疊；每個 group 內 X/Y 在 `sm` 以上兩欄，更窄時各自占滿一列。
 
-每列：`#<1-based>`、Lower-left X/Y、Upper-right X/Y、36px Trash button。Unit若存在顯示在
-input右側。
+每個 point group 以 legend 顯示 point 名稱，X/Y input 使用完整可用寬度。Unit若存在顯示在
+input右側，accessible name 保留完整 `Lower-left X` 等語意。
 Empty state exact copy `No coordinates`。Invalid/duplicate row改 destructive border/surface，依序顯示：
 
 - `Duplicate coordinate`
