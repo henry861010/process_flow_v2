@@ -35,7 +35,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Micro Bump | `bump/uBump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
-| PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `coordinates` | 依 `[x, y]` placements clone/place die geometry |
+| PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `coordinates` | 依 target rectangles clone、additive resize、place BoxGeometry-only die |
 
 ## 共同行為
 
@@ -56,7 +56,7 @@ Material instance suffix 由 kernel 配置，module 不自行產生。所有 ste
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 bump envelope。 |
-| PnP | 不變 | 不變 | 依 coordinates order attach cloned child scopes。 |
+| PnP | 不變 | 不變 | 依 coordinates order resize 並 attach cloned child scopes。 |
 
 ## 重要 operation 說明
 
@@ -72,7 +72,12 @@ Material instance suffix 由 kernel 配置，module 不自行產生。所有 ste
   target overall geometry maximum Z。Carrier child containers、via/circuit/bump 都不複製。
 - Debond 只看 direct root bodies，不依 material name 搜尋 carrier；最高 `zMax` 相同時全部
   移除，empty root 是 no-op。
-- PnP coordinates 必須 unique、finite；placement anchor 是 bottom-left，bottom Z 對齊 current cursor。
+- PnP coordinate item 是 `[[xMin,yMin],[xMax,yMax]]` target rectangle，必須 finite、
+  positive-area，並以 `1e-6 um` tolerance unique。Source size 取完整 subtree aggregate bounds；
+  每個 BoxGeometry 固定 lower-left、將 upper-right 加上 target/source size delta，再把 resized
+  aggregate lower-left 對齊 target lower-left，bottom Z 對齊 current cursor。
+- PnP resize 允許負 delta，但任何 BoxGeometry collapse 時整個 placement 失敗且不得 attach child。
+  Source 中任何 PolygonGeometry、CylinderGeometry 或 ConeGeometry 都會明確 reject。
 - Bump feature envelope 不會預先套用 `koz`；各 exporter 的 current behavior 見 [geometry-semantics.md](../../concepts/geometry-semantics.md)。
 
 ## 開發與驗證

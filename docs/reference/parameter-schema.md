@@ -77,7 +77,7 @@ Parameter ids、nested item parameter ids 與 repeat `itemId` MUST 符合：
 | `float` | finite JSON number | float | n/a |
 | `boolean` | boolean | boolean | n/a |
 | `materialRef` | non-empty string when present | string；kernel MAY rewrite suffix | n/a |
-| `coordinates` | array of unique `[x, y]` pairs | array of float pairs | yes |
+| `coordinates` | array of unique `[[xMin, yMin], [xMax, yMax]]` rectangles | array of float rectangles | yes |
 | `string[]` | string array | string array | yes |
 | `integer[]` | integral finite number array | integer array | yes |
 | `float[]` | finite number array | float array | yes |
@@ -90,8 +90,9 @@ Rules：
 - `integer` MAY 接受 `1.0`，但 normalized value MUST 是 `1`；非 integral number MUST reject。
 - `float` MAY 接受 JSON integer，normalized value MUST 使用 numeric float semantics。
 - NaN 與 positive/negative Infinity 不是合法 JSON/parameter number，MUST reject。
-- Coordinates MUST 使用 exactly two finite numbers，MUST 依 numeric equality 去除歧義並
-  reject duplicates；coordinates 代表 `[x, y]`，canonical length unit 是 `um`。
+- Coordinates 每個 item MUST 是 `[[xMin, yMin], [xMax, yMax]]`，四個值都 MUST finite，
+  且 `xMax > xMin`、`yMax > yMin`。四個對應值都在 absolute tolerance `1e-6 um`
+  內時視為 duplicate 並 MUST reject；canonical length unit 是 `um`。
 - Required collection 的 `[]` 是「已提供的空 collection」，不是 missing。若 domain
   至少需要一個 item，definition MUST 使用可表達 cardinality 的 schema；
   `fieldGroupArray` 使用 `minItems`。目前 generic arrays/coordinates 沒有 `minItems` field。

@@ -99,7 +99,7 @@ screen
 | Numeric | input `type=number`；integer step `1`，float step `any`；尊重 min/max。 |
 | Option enum | `optionSource.options` 是合法值集合；UI 不可送集合外值。 |
 | Array text fallback | comma split、trim、移除 empty，再依 value type coercion。 |
-| Coordinate | 每列 X/Y 都須 finite，duplicate/invalid 顯示 row error；完整規則見 component spec。 |
+| Coordinate | 每列 lower-left/upper-right 四值都須 finite 且形成 positive-area rectangle；duplicate tolerance 是 `1e-6 um`，invalid 顯示 row error。 |
 | Repeat group | Add/Remove 受 min/maxItems 限制；`itemId` 必須穩定。 |
 
 Validation 以 progressive disclosure 呈現：control 保留使用者輸入，status strip 顯示第一個

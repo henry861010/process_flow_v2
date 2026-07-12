@@ -98,7 +98,7 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | `UI-EXPORT-002` | running job | cancel | 先顯示 canceling，再顯示 canceled或 server terminal result。 |
 | `UI-EXPORT-008` | ready preview，Export form open | press Escape while idle | 只關閉 Export form，Geometry Preview 保持開啟；submitting 時 Escape 不關閉。 |
 | `UI-CAD-001` | axis view X、imported model | Reset | demo回復且 camera仍為 X view並重新 fit。 |
-| `UI-COORD-001` | duplicate/invalid coordinate rows | edit row | inline diagnostics顯示且 configuration不算 complete。 |
+| `UI-COORD-001` | duplicate/invalid/zero-area coordinate rectangle rows | edit row | inline diagnostics顯示且 configuration不算 complete。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。

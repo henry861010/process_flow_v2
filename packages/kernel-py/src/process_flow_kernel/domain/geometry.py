@@ -27,6 +27,9 @@ class Geometry:
     def move(self, x=0, y=0, z=0):
         raise NotImplementedError
 
+    def resize_xy_by(self, delta_x, delta_y):
+        raise NotImplementedError
+
     def clip_top_to(self, to_z):
         raise NotImplementedError
 
@@ -86,6 +89,16 @@ class BoxGeometry(Geometry):
         self._top_right[1] += y
         self._bottom_left[2] += z
         self._top_right[2] += z
+
+    def resize_xy_by(self, delta_x, delta_y):
+        resized_x = self._top_right[0] + _finite_number(delta_x, "deltaX")
+        resized_y = self._top_right[1] + _finite_number(delta_y, "deltaY")
+        if math.f_le(resized_x, self._bottom_left[0]) or math.f_le(
+            resized_y, self._bottom_left[1]
+        ):
+            raise ValueError("BoxGeometry XY resize collapses the footprint")
+        self._top_right[0] = resized_x
+        self._top_right[1] = resized_y
 
     def clip_top_to(self, to_z):
         z_bottom = self.z_min()
@@ -159,6 +172,10 @@ class PolygonGeometry(Geometry):
                 node[0] += x
                 node[1] += y
                 node[2] += z
+
+    def resize_xy_by(self, delta_x, delta_y):
+        _ = delta_x, delta_y
+        raise ValueError("PnP XY resize supports only BoxGeometry")
 
     def clip_top_to(self, to_z):
         z_bottom = self.z_min()
@@ -234,6 +251,10 @@ class CylinderGeometry(Geometry):
         self._center[1] += y
         self._center[2] += z
 
+    def resize_xy_by(self, delta_x, delta_y):
+        _ = delta_x, delta_y
+        raise ValueError("PnP XY resize supports only BoxGeometry")
+
     def clip_top_to(self, to_z):
         z_bottom = self.z_min()
         z_top = z_bottom + self._thk
@@ -306,6 +327,10 @@ class ConeGeometry(Geometry):
         self._center[0] += x
         self._center[1] += y
         self._center[2] += z
+
+    def resize_xy_by(self, delta_x, delta_y):
+        _ = delta_x, delta_y
+        raise ValueError("PnP XY resize supports only BoxGeometry")
 
     def clip_top_to(self, to_z):
         z_bottom = self.z_min()

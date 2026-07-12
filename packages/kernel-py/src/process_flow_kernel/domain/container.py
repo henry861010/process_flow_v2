@@ -131,6 +131,12 @@ class Container:
         for child in self._children:
             child.move(x=x, y=y, z=z)
 
+    def resize_xy_by(self, delta_x, delta_y):
+        for feature in self._direct_features():
+            feature.resize_xy_by(delta_x, delta_y)
+        for child in self._children:
+            child.resize_xy_by(delta_x, delta_y)
+
     def grind_to(self, to_z):
         self._vias = self._features_after_clip(self._vias, to_z)
         self._circuits = self._features_after_clip(self._circuits, to_z)

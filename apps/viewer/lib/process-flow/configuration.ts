@@ -260,20 +260,42 @@ export function isParameterValueComplete(
   }
   if (definition.valueType === "coordinates") {
     if (!Array.isArray(value)) return false;
-    const seen = new Set<string>();
+    const seen: number[][][] = [];
     return value.every((coordinate) => {
       if (
         !Array.isArray(coordinate) ||
         coordinate.length !== 2 ||
         !coordinate.every(
-          (item) => typeof item === "number" && Number.isFinite(item),
+          (point) =>
+            Array.isArray(point) &&
+            point.length === 2 &&
+            point.every(
+              (item) => typeof item === "number" && Number.isFinite(item),
+            ),
         )
       ) {
         return false;
       }
-      const key = `${coordinate[0]}:${coordinate[1]}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
+      const rectangle = coordinate as number[][];
+      if (
+        rectangle[1][0] <= rectangle[0][0] ||
+        rectangle[1][1] <= rectangle[0][1]
+      ) {
+        return false;
+      }
+      if (
+        seen.some((existing) =>
+          existing.every((point, pointIndex) =>
+            point.every(
+              (item, axisIndex) =>
+                Math.abs(item - rectangle[pointIndex][axisIndex]) <= 1e-6,
+            ),
+          ),
+        )
+      ) {
+        return false;
+      }
+      seen.push(rectangle);
       return true;
     });
   }

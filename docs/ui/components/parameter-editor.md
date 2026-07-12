@@ -38,7 +38,7 @@ Primitive row desktop grid：`minmax(180px,.8fr) minmax(240px,1.2fr)`、gap16、
 
 | Definition | Render | Serialization |
 | --- | --- | --- |
-| `coordinates` 或 `coordinateList` | [Coordinate List](coordinate-list.md) | `[x,y][]` |
+| `coordinates` 或 `coordinateList` | [Coordinate List](coordinate-list.md) | `[[xMin,yMin],[xMax,yMax]][]` |
 | disabled coordinates | muted monospace JSON/`Not set` | no change |
 | `select` + array type | option checkboxes | typed array |
 | `select` + primitive | native select，首項 `Select value` | coerced primitive/empty |

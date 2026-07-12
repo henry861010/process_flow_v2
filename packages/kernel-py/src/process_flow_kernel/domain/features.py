@@ -30,6 +30,9 @@ class Body:
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
 
+    def resize_xy_by(self, delta_x, delta_y):
+        self._geometry.resize_xy_by(delta_x, delta_y)
+
     def clip_top_to(self, to_z):
         return self._geometry.clip_top_to(to_z)
 
@@ -88,6 +91,9 @@ class Via:
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
 
+    def resize_xy_by(self, delta_x, delta_y):
+        self._geometry.resize_xy_by(delta_x, delta_y)
+
     def clip_top_to(self, to_z):
         return self._geometry.clip_top_to(to_z)
 
@@ -144,6 +150,9 @@ class Circuit:
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
+
+    def resize_xy_by(self, delta_x, delta_y):
+        self._geometry.resize_xy_by(delta_x, delta_y)
 
     def clip_top_to(self, to_z):
         return self._geometry.clip_top_to(to_z)
@@ -204,6 +213,9 @@ class Bump:
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
+
+    def resize_xy_by(self, delta_x, delta_y):
+        self._geometry.resize_xy_by(delta_x, delta_y)
 
     def clip_top_to(self, to_z):
         return self._geometry.clip_top_to(to_z)

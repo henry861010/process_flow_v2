@@ -113,7 +113,7 @@ Visual regression 的預設資料狀態稱為 `ui-golden`：
 
 | 資料 | Canonical record |
 | --- | --- |
-| Flow template | `flow_tpl_cowosl_demo_2_0_0` / `CoWoS-L Demo` |
+| Flow template | `flow_tpl_cowosl_demo_3_0_0` / `CoWoS-L Demo` |
 | Immutable instance | `flow_inst_cowosl_demo_hbm4_alpha` / `HBM4 Alpha Build` |
 | Geometry | `panel_v1_0_0`、`hbm_v1_3_1` |
 | Process step | `step_tpl_molding_2_0_0`，以及 fixture 中其餘 current templates |

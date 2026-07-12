@@ -12,6 +12,7 @@ last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
 source_of_truth:
   - apps/viewer/components/process-flow-fields/coordinate-list-control.tsx
   - apps/viewer/components/process-flow-fields/coordinate-list-value.ts
+  - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-import.worker.ts
 ---
 
@@ -23,12 +24,14 @@ Canonical editable value是：
 
 ```ts
 type CoordinatePair = [number, number];
-type CoordinateList = CoordinatePair[];
+type CoordinateBounds = [CoordinatePair, CoordinatePair];
+type CoordinateList = CoordinateBounds[];
 ```
 
-Draft cell可暫時是empty string。Complete條件：value是array、每列X/Y皆finite、無duplicate。
-Duplicate key以 tolerance `1e-6`量化；只有後出現的row標duplicate。Empty list本component視為shape
-complete，required/min count由parameter validator決定。
+每列依序保存 lower-left 與 upper-right。Draft cell可暫時是empty string。Complete條件：value
+是array、每列四值皆finite、`xMax > xMin`、`yMax > yMin`，且無duplicate。四個對應值都在
+absolute tolerance `1e-6 um` 內時視為duplicate；只有後出現的row標duplicate。Empty list本
+component視為shape complete，required/min count由parameter validator決定。
 
 ## Tabs 與版面配置
 
@@ -39,17 +42,19 @@ Default tab `Manual`，另一tab `GDS`；Radix tabs高度36px，content上margin
 White bordered card。Header padding12px/8px，左顯示
 `<n> coordinate/coordinates`，右 primary small `Plus + Add die`。
 
-Rows column gap8、padding12。每row desktop grid
-`52px minmax(0,1fr) minmax(0,1fr) 36px`；`<640px` 是
-`44px minmax(0,1fr) 36px`，Y field依CSS flow換至下一行。Row padding8、background muted/10。
+Rows column gap8、padding12。每row outer grid是 index、fields、remove button；fields 在寬螢幕
+四欄、小螢幕兩欄。
 
-每列：`#<1-based>`、X number、Y number、36px Trash button。Unit若存在顯示在input右側。
+每列：`#<1-based>`、Lower-left X/Y、Upper-right X/Y、36px Trash button。Unit若存在顯示在
+input右側。
 Empty state exact copy `No coordinates`。Invalid/duplicate row改 destructive border/surface，依序顯示：
 
 - `Duplicate coordinate`
-- `X and Y must both be finite numbers`
+- `All lower-left and upper-right values must be finite numbers`
+- `Upper-right must be greater than lower-left on both axes`
 
-Card下方聚合 diagnostics依情況顯示 `Invalid rows: ...`、`Duplicate rows: ...`。
+Card下方聚合 diagnostics依情況顯示 `Invalid rows: ...`、`Invalid bounds rows: ...`、
+`Duplicate rows: ...`。
 
 ### GDS
 
@@ -67,8 +72,9 @@ importing時disabled；importing icon是 spinning `Loader2`，否則 `FileUp`。
 ## GDS 語意
 
 Parse在dedicated Web Worker執行；新import會terminate previous worker。只把指定layer/datatype的
-`BOUNDARY`/`BOX`轉成其所有transform後bounds左下角；遞迴展開`SREF/AREF`並套translation、
-rotation、magnification、reflection。其他matching element計入unsupported summary。
+`BOUNDARY`/`BOX`轉成其所有transform後的 axis-aligned bounds
+`[[minX,minY],[maxX,maxY]]`；遞迴展開`SREF/AREF`並套translation、rotation、magnification、
+reflection。其他matching element計入unsupported summary。
 
 Unit由GDS meters/database-unit換成definition unit；canonical專案unit是 `um`。Worker另支援
 m/mm/nm 保留為 legacy aliases；未知／空 unit scale 1。
@@ -87,8 +93,8 @@ coordinates，顯示worker message或 `GDS import failed.`。
 
 | State/action | Result |
 | --- | --- |
-| Add die | append `["",""]`；清import summary。 |
-| Edit X/Y | parse finite float或empty；清import summary。 |
+| Add die | append `[["",""],["",""]]`；清import summary。 |
+| Edit bounds | parse finite float或empty；清import summary。 |
 | Remove | 刪該row。 |
 | Importing | button disabled，舊coordinates保留。 |
 | Import success | replace全部rows，green feedback。 |
@@ -99,7 +105,7 @@ coordinates，顯示worker message或 `GDS import failed.`。
 
 - Tabs使用Radix keyboard semantics。
 - Remove accessible name exact `Remove coordinate <n>`。
-- X/Y native labels可讀；file/layer/datatype均以label包覆。
+- 四個bounds native labels可讀；file/layer/datatype均以label包覆。
 - Diagnostics需加入live-region是target gap；現行為普通text。
 
 ## 驗收案例
@@ -107,7 +113,8 @@ coordinates，顯示worker message或 `GDS import failed.`。
 | ID | Given / When | Then |
 | --- | --- | --- |
 | `UI-COORD-001` | invalid/duplicate rows | row + aggregate diagnostics都列1-based index。 |
-| `UI-COORD-002` | values差小於duplicate tolerance | 後一列被判duplicate。 |
-| `UI-COORD-003` | valid GDS/layer/datatype | transformed bottom-left coordinates以um取代原list。 |
+| `UI-COORD-002` | 四個對應values差都小於或等於duplicate tolerance | 後一列被判duplicate。 |
+| `UI-COORD-003` | valid GDS/layer/datatype | transformed axis-aligned bounds以um取代原list。 |
+| `UI-COORD-006` | upper-right任一axis不大於lower-left | row顯示invalid bounds且configuration incomplete。 |
 | `UI-COORD-004` | second import starts | first worker terminated，stale response不覆蓋值。 |
 | `UI-COORD-005` | 390px | row controls可用，無horizontal overflow。 |

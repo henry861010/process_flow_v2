@@ -99,6 +99,11 @@ Via/bump require direction；feature methods保存 0–100 density 與 non-negat
 - `bond_carrier_geometry(source, ...)`
 - `place_geometry_state(source, ...)` / `place_geometry_states(source, placements)`
 
+`place_geometry_state` 可同時提供 `top_right_x` / `top_right_y`。提供時 runtime 以 source
+subtree aggregate XY bounds 計算 target/source size delta，對 clone 中每個 BoxGeometry 固定
+lower-left 並將 upper-right 加上 delta，再執行 anchor placement。Resize 允許縮小，但任何
+primitive collapse 或非 BoxGeometry 都會在 attach 前 reject。
+
 ### Scope 與 inspection
 
 - `root_scope_ref()`

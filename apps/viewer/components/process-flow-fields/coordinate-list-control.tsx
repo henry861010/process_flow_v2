@@ -16,10 +16,11 @@ import { cn } from "@/lib/utils";
 
 import {
   analyzeCoordinateRows,
+  emptyCoordinateRow,
   normalizeCoordinateRows,
   type CoordinateDraftCell,
   type CoordinateDraftRow,
-  type CoordinatePair,
+  type CoordinateBounds,
 } from "./coordinate-list-value";
 
 type CoordinateListControlProps = {
@@ -32,7 +33,7 @@ type GdsImportResponse =
   | {
       type: "success";
       requestId: string;
-      coordinates: CoordinatePair[];
+      coordinates: CoordinateBounds[];
       matchedElements: number;
       duplicatesRemoved: number;
       topCellNames: string[];
@@ -157,7 +158,7 @@ export function CoordinateListControl({
             <Button
               type="button"
               size="sm"
-              onClick={() => updateRows((current) => [...current, ["", ""]])}
+              onClick={() => updateRows((current) => [...current, emptyCoordinateRow()])}
             >
               <Plus />
               Add die
@@ -176,14 +177,21 @@ export function CoordinateListControl({
                   row={row}
                   unit={unit}
                   invalid={diagnostics.invalidRowIndexes.includes(index)}
+                  invalidBounds={diagnostics.invalidBoundsRowIndexes.includes(index)}
                   duplicate={diagnostics.duplicateRowIndexes.includes(index)}
-                  onChange={(axis, nextValue) =>
+                  onChange={(pointIndex, axisIndex, nextValue) =>
                     updateRows((current) =>
                       current.map((candidate, candidateIndex) =>
                         candidateIndex === index
-                          ? axis === "x"
-                            ? [nextValue, candidate[1]]
-                            : [candidate[0], nextValue]
+                          ? candidate.map((point, currentPointIndex) =>
+                              currentPointIndex === pointIndex
+                                ? point.map((cell, currentAxisIndex) =>
+                                    currentAxisIndex === axisIndex
+                                      ? nextValue
+                                      : cell,
+                                  )
+                                : point,
+                            ) as CoordinateDraftRow
                           : candidate,
                       ),
                     )
@@ -200,6 +208,7 @@ export function CoordinateListControl({
         </div>
         <CoordinateDiagnostics
           invalidRowIndexes={diagnostics.invalidRowIndexes}
+          invalidBoundsRowIndexes={diagnostics.invalidBoundsRowIndexes}
           duplicateRowIndexes={diagnostics.duplicateRowIndexes}
         />
       </TabsContent>
@@ -267,6 +276,7 @@ function CoordinateRowEditor({
   row,
   unit,
   invalid,
+  invalidBounds,
   duplicate,
   onChange,
   onRemove,
@@ -275,32 +285,53 @@ function CoordinateRowEditor({
   row: CoordinateDraftRow;
   unit?: string | null;
   invalid: boolean;
+  invalidBounds: boolean;
   duplicate: boolean;
-  onChange: (axis: "x" | "y", value: CoordinateDraftCell) => void;
+  onChange: (
+    pointIndex: 0 | 1,
+    axisIndex: 0 | 1,
+    value: CoordinateDraftCell,
+  ) => void;
   onRemove: () => void;
 }) {
   return (
     <div
       className={cn(
-        "grid grid-cols-[52px_minmax(0,1fr)_minmax(0,1fr)_36px] items-end gap-2 rounded-md border p-2 max-sm:grid-cols-[44px_minmax(0,1fr)_36px]",
-        invalid || duplicate ? "border-destructive/60 bg-destructive/5" : "bg-muted/10",
+        "grid grid-cols-[52px_minmax(0,1fr)_36px] items-end gap-2 rounded-md border p-2 max-sm:grid-cols-[44px_minmax(0,1fr)_36px]",
+        invalid || invalidBounds || duplicate
+          ? "border-destructive/60 bg-destructive/5"
+          : "bg-muted/10",
       )}
     >
       <div className="pb-2 text-xs font-medium text-muted-foreground">
         #{index + 1}
       </div>
-      <CoordinateNumberInput
-        label="X"
-        value={row[0]}
-        unit={unit}
-        onChange={(nextValue) => onChange("x", nextValue)}
-      />
-      <CoordinateNumberInput
-        label="Y"
-        value={row[1]}
-        unit={unit}
-        onChange={(nextValue) => onChange("y", nextValue)}
-      />
+      <div className="grid min-w-0 grid-cols-2 gap-2 xl:grid-cols-4">
+        <CoordinateNumberInput
+          label="Lower-left X"
+          value={row[0][0]}
+          unit={unit}
+          onChange={(nextValue) => onChange(0, 0, nextValue)}
+        />
+        <CoordinateNumberInput
+          label="Lower-left Y"
+          value={row[0][1]}
+          unit={unit}
+          onChange={(nextValue) => onChange(0, 1, nextValue)}
+        />
+        <CoordinateNumberInput
+          label="Upper-right X"
+          value={row[1][0]}
+          unit={unit}
+          onChange={(nextValue) => onChange(1, 0, nextValue)}
+        />
+        <CoordinateNumberInput
+          label="Upper-right Y"
+          value={row[1][1]}
+          unit={unit}
+          onChange={(nextValue) => onChange(1, 1, nextValue)}
+        />
+      </div>
       <Button
         type="button"
         variant="outline"
@@ -312,13 +343,18 @@ function CoordinateRowEditor({
         <Trash2 />
       </Button>
       {duplicate ? (
-        <div className="col-span-4 text-xs text-destructive max-sm:col-span-3">
+        <div className="col-span-3 text-xs text-destructive">
           Duplicate coordinate
         </div>
       ) : null}
       {invalid ? (
-        <div className="col-span-4 text-xs text-destructive max-sm:col-span-3">
-          X and Y must both be finite numbers
+        <div className="col-span-3 text-xs text-destructive">
+          All lower-left and upper-right values must be finite numbers
+        </div>
+      ) : null}
+      {invalidBounds ? (
+        <div className="col-span-3 text-xs text-destructive">
+          Upper-right must be greater than lower-left on both axes
         </div>
       ) : null}
     </div>
@@ -355,12 +391,18 @@ function CoordinateNumberInput({
 
 function CoordinateDiagnostics({
   invalidRowIndexes,
+  invalidBoundsRowIndexes,
   duplicateRowIndexes,
 }: {
   invalidRowIndexes: number[];
+  invalidBoundsRowIndexes: number[];
   duplicateRowIndexes: number[];
 }) {
-  if (invalidRowIndexes.length === 0 && duplicateRowIndexes.length === 0) {
+  if (
+    invalidRowIndexes.length === 0 &&
+    invalidBoundsRowIndexes.length === 0 &&
+    duplicateRowIndexes.length === 0
+  ) {
     return null;
   }
   return (
@@ -370,6 +412,11 @@ function CoordinateDiagnostics({
         <div>
           {invalidRowIndexes.length > 0 ? (
             <div>Invalid rows: {formatRowIndexes(invalidRowIndexes)}</div>
+          ) : null}
+          {invalidBoundsRowIndexes.length > 0 ? (
+            <div>
+              Invalid bounds rows: {formatRowIndexes(invalidBoundsRowIndexes)}
+            </div>
           ) : null}
           {duplicateRowIndexes.length > 0 ? (
             <div>Duplicate rows: {formatRowIndexes(duplicateRowIndexes)}</div>

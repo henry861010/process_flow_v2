@@ -118,7 +118,7 @@ auxiliary geometry，`coordinates` 則是 PnP 的 parameter value。
 flowchart LR
   Panel["incoming_panel<br/>catalog: panel_v1_0_0"] --> Main["pnp.main_geometry"]
   Die["incoming_die<br/>catalog: hbm_v1_3_1"] --> Aux["pnp.die_geometry"]
-  Main --> PnP["pnp<br/>coordinates: [[-760,-520],[760,-520]]"]
+  Main --> PnP["pnp<br/>coordinates: [[[-760,-520],[640,480]], ...]"]
   Aux --> PnP
   PnP --> Result["pnp.result_geometry<br/>唯一 terminal output"]
 ```
@@ -426,7 +426,7 @@ reject；value shape 由對應 `ParameterDefinition` 決定。
 {
   "pnp": {
     "parameterValues": {
-      "coordinates": [[0, 0]]
+      "coordinates": [[[0, 0], [1400, 1000]]]
     }
   }
 }
@@ -528,7 +528,7 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"2"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"3"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Resource metadata label | `version` | string | 新 resource 使用 `"current"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 
@@ -699,7 +699,7 @@ Kernel MUST：
   "name": "PnP",
   "category": "assembly.pnp",
   "program": "pnp/pnp",
-  "description": "Places copies of an auxiliary die geometry on the primary geometry.",
+  "description": "Resizes and places BoxGeometry-only auxiliary die copies on the primary geometry.",
   "owner": "integration.platform",
   "inputPorts": [
     {
@@ -728,7 +728,7 @@ Kernel MUST：
     {
       "id": "coordinates",
       "name": "Coordinates",
-      "description": "Bottom-left placement coordinates for each die copy.",
+      "description": "Target [[xMin, yMin], [xMax, yMax]] rectangle for each resized die copy.",
       "valueType": "coordinates",
       "controlType": "coordinateList",
       "required": true,
@@ -828,8 +828,8 @@ Kernel MUST：
     "pnp": {
       "parameterValues": {
         "coordinates": [
-          [-760, -520],
-          [760, -520]
+          [[-760, -520], [640, 480]],
+          [[760, -520], [2160, 480]]
         ]
       }
     }
@@ -839,6 +839,12 @@ Kernel MUST：
 
 此 graph 的唯一 terminal 是 `pnp.result_geometry`；兩個 required ports 各有 exactly one
 source；兩個 required bindings 與 `coordinates` 都完整。
+
+PnP 以 auxiliary die 完整 subtree 的 aggregate bounds 計算每個 target rectangle 的 XY
+size delta。Clone 中每個 BoxGeometry 保持 lower-left，upper-right 加上相同 delta；之後將
+aggregate lower-left 對齊 target lower-left，Z bottom 對齊 current cursor。負 delta 合法，但
+任何 BoxGeometry collapse 或 source 出現 Polygon/Cylinder/Cone 時，operation MUST reject且不得
+attach部分結果。
 
 ## 15. 已知實作差異
 

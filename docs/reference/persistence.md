@@ -103,11 +103,11 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "2"
+  "value": "3"
 }
 ```
 
-Database internal marker string `"2"`、Process payload wire marker integer `2` 與
+Database internal marker string `"3"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 
 ## 3. 邏輯引用

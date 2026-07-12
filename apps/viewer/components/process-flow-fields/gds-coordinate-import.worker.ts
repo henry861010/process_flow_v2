@@ -2,9 +2,17 @@ import { RecordType, parseGDS } from "gdsii";
 
 import {
   COORDINATE_DUPLICATE_TOLERANCE,
-  coordinateKey,
+  coordinateBoundsEqual,
+  type CoordinateBounds,
   type CoordinatePair,
 } from "./coordinate-list-value";
+import {
+  IDENTITY,
+  multiply,
+  referenceTransform,
+  transformedBounds,
+  type Matrix,
+} from "./gds-coordinate-geometry";
 
 type GdsImportRequest = {
   requestId: string;
@@ -17,7 +25,7 @@ type GdsImportRequest = {
 type GdsImportSuccess = {
   type: "success";
   requestId: string;
-  coordinates: CoordinatePair[];
+  coordinates: CoordinateBounds[];
   matchedElements: number;
   duplicatesRemoved: number;
   topCellNames: string[];
@@ -59,10 +67,6 @@ type GdsStructure = {
   elements: GdsElement[];
 };
 
-type Matrix = [number, number, number, number, number, number];
-
-const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
-
 const workerScope = self as unknown as {
   onmessage: ((event: MessageEvent<GdsImportRequest>) => void) | null;
   postMessage: (message: GdsImportSuccess | GdsImportFailure) => void;
@@ -90,21 +94,29 @@ function importCoordinates(request: GdsImportRequest) {
   const layout = parseLayout(request.buffer);
   const topCellNames = getTopCellNames(layout.structures);
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
-  const coordinates: CoordinatePair[] = [];
-  const coordinateKeys = new Set<string>();
+  const coordinates: CoordinateBounds[] = [];
+  const coordinateBuckets = new Map<string, CoordinateBounds[]>();
   const unsupportedElements: Record<string, number> = {};
   let matchedElements = 0;
   let duplicatesRemoved = 0;
   let unresolvedReferences = 0;
   let cyclicReferences = 0;
 
-  const addCoordinate = (coordinate: CoordinatePair) => {
-    const key = coordinateKey(coordinate, COORDINATE_DUPLICATE_TOLERANCE);
-    if (coordinateKeys.has(key)) {
+  const addCoordinate = (coordinate: CoordinateBounds) => {
+    const duplicate = coordinateNeighborBucketKeys(coordinate).some((key) =>
+      (coordinateBuckets.get(key) ?? []).some((candidate) =>
+        coordinateBoundsEqual(candidate, coordinate),
+      ),
+    );
+    if (duplicate) {
       duplicatesRemoved += 1;
       return;
     }
-    coordinateKeys.add(key);
+    const bucketKey = coordinateBucketKey(coordinate);
+    coordinateBuckets.set(bucketKey, [
+      ...(coordinateBuckets.get(bucketKey) ?? []),
+      coordinate,
+    ]);
     coordinates.push(coordinate);
   };
 
@@ -129,14 +141,14 @@ function importCoordinates(request: GdsImportRequest) {
         if (!elementMatches(element, request.layer, request.datatype)) {
           return;
         }
-        const bottomLeft = transformedBottomLeft(element.xy ?? [], transform);
-        if (!bottomLeft) {
+        const bounds = transformedBounds(element.xy ?? [], transform);
+        if (!bounds) {
           return;
         }
         matchedElements += 1;
         addCoordinate([
-          bottomLeft[0] * coordinateScale,
-          bottomLeft[1] * coordinateScale,
+          [bounds[0][0] * coordinateScale, bounds[0][1] * coordinateScale],
+          [bounds[1][0] * coordinateScale, bounds[1][1] * coordinateScale],
         ]);
         return;
       }
@@ -334,52 +346,6 @@ function elementMatches(element: GdsElement, layer: number, datatype: number) {
   return element.layer === layer && element.datatype === datatype;
 }
 
-function transformedBottomLeft(points: CoordinatePair[], transform: Matrix) {
-  if (points.length === 0) {
-    return null;
-  }
-  const transformedPoints = points.map((point) => transformPoint(transform, point));
-  const xs = transformedPoints.map((point) => point[0]);
-  const ys = transformedPoints.map((point) => point[1]);
-  return [Math.min(...xs), Math.min(...ys)] satisfies CoordinatePair;
-}
-
-function referenceTransform(element: GdsElement, origin: CoordinatePair): Matrix {
-  const angle = ((element.angle ?? 0) * Math.PI) / 180;
-  const mag = element.mag ?? 1;
-  const reflected = Boolean((element.strans ?? 0) & 0x8000);
-  const scaleAndReflect: Matrix = [mag, 0, 0, reflected ? -mag : mag, 0, 0];
-  return multiply(translation(origin[0], origin[1]), multiply(rotation(angle), scaleAndReflect));
-}
-
-function translation(x: number, y: number): Matrix {
-  return [1, 0, 0, 1, x, y];
-}
-
-function rotation(angle: number): Matrix {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return [cos, sin, -sin, cos, 0, 0];
-}
-
-function multiply(left: Matrix, right: Matrix): Matrix {
-  return [
-    left[0] * right[0] + left[2] * right[1],
-    left[1] * right[0] + left[3] * right[1],
-    left[0] * right[2] + left[2] * right[3],
-    left[1] * right[2] + left[3] * right[3],
-    left[0] * right[4] + left[2] * right[5] + left[4],
-    left[1] * right[4] + left[3] * right[5] + left[5],
-  ];
-}
-
-function transformPoint(matrix: Matrix, point: CoordinatePair): CoordinatePair {
-  return [
-    matrix[0] * point[0] + matrix[2] * point[1] + matrix[4],
-    matrix[1] * point[0] + matrix[3] * point[1] + matrix[5],
-  ];
-}
-
 function unitScale(metersPerDbUnit: number, unit?: string | null) {
   const normalized = unit?.trim().toLowerCase();
   if (!normalized) {
@@ -405,4 +371,36 @@ function unitScale(metersPerDbUnit: number, unit?: string | null) {
     return metersPerDbUnit * 1e9;
   }
   return 1;
+}
+
+function coordinateBucketKey(bounds: CoordinateBounds) {
+  return coordinateBucketIndexes(bounds).join(":");
+}
+
+function coordinateNeighborBucketKeys(bounds: CoordinateBounds) {
+  const [xMin, yMin, xMax, yMax] = coordinateBucketIndexes(bounds);
+  const keys: string[] = [];
+  for (let dxMin = -1; dxMin <= 1; dxMin += 1) {
+    for (let dyMin = -1; dyMin <= 1; dyMin += 1) {
+      for (let dxMax = -1; dxMax <= 1; dxMax += 1) {
+        for (let dyMax = -1; dyMax <= 1; dyMax += 1) {
+          keys.push(
+            [
+              xMin + dxMin,
+              yMin + dyMin,
+              xMax + dxMax,
+              yMax + dyMax,
+            ].join(":"),
+          );
+        }
+      }
+    }
+  }
+  return keys;
+}
+
+function coordinateBucketIndexes(bounds: CoordinateBounds) {
+  return [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]].map(
+    (value) => Math.floor(value / COORDINATE_DUPLICATE_TOLERANCE),
+  );
 }

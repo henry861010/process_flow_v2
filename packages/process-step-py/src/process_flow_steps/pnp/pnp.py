@@ -14,6 +14,8 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
             {
                 "x": placement["x"],
                 "y": placement["y"],
+                "top_right_x": placement["top_right_x"],
+                "top_right_y": placement["top_right_y"],
                 "bottom_z": bottom_z,
                 "anchor": "bottomLeft",
                 "clone": True,
@@ -31,11 +33,24 @@ def _required_coordinates(value: Any) -> list[dict[str, float]]:
 
 
 def _coordinate_item(item: Any, index: int) -> dict[str, float]:
-    if not isinstance(item, list) or len(item) != 2:
-        raise ValueError(f"PnP.coordinates[{index}] must be an [x, y] tuple")
+    if (
+        not isinstance(item, list)
+        or len(item) != 2
+        or not all(isinstance(point, list) and len(point) == 2 for point in item)
+    ):
+        raise ValueError(
+            f"PnP.coordinates[{index}] must be a [[xMin, yMin], [xMax, yMax]] rectangle"
+        )
+    bottom_left, top_right = item
     return {
-        "x": _finite_number(item[0], f"PnP.coordinates[{index}][0]"),
-        "y": _finite_number(item[1], f"PnP.coordinates[{index}][1]"),
+        "x": _finite_number(bottom_left[0], f"PnP.coordinates[{index}][0][0]"),
+        "y": _finite_number(bottom_left[1], f"PnP.coordinates[{index}][0][1]"),
+        "top_right_x": _finite_number(
+            top_right[0], f"PnP.coordinates[{index}][1][0]"
+        ),
+        "top_right_y": _finite_number(
+            top_right[1], f"PnP.coordinates[{index}][1][1]"
+        ),
     }
 
 

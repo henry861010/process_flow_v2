@@ -583,13 +583,42 @@ class ProcessGeometryState:
             "topZ": target_top_z,
         }
 
-    def place_geometry_state(self, source, *, x, y, bottom_z=None, anchor="bottomLeft", clone=True, scope=ROOT_SCOPE, key=None):
+    def place_geometry_state(
+        self,
+        source,
+        *,
+        x,
+        y,
+        top_right_x=None,
+        top_right_y=None,
+        bottom_z=None,
+        anchor="bottomLeft",
+        clone=True,
+        scope=ROOT_SCOPE,
+        key=None,
+    ):
         if not isinstance(source, ProcessGeometryState):
             raise ValueError("place_geometry_state requires a ProcessGeometryState source")
         placed = source._root.copy() if clone else source._root
         if key is not None:
             placed._key = key
         source_bounds = _container_bounds(placed)
+        if top_right_x is not None or top_right_y is not None:
+            target_bounds = _normalize_placement_box(
+                bottom_left_x=x,
+                bottom_left_y=y,
+                top_right_x=top_right_x,
+                top_right_y=top_right_y,
+            )
+            source_width = source_bounds["xMax"] - source_bounds["xMin"]
+            source_height = source_bounds["yMax"] - source_bounds["yMin"]
+            if math.f_le(source_width, 0) or math.f_le(source_height, 0):
+                raise ValueError("PnP XY resize requires non-empty source geometry bounds")
+            placed.resize_xy_by(
+                target_bounds["xMax"] - target_bounds["xMin"] - source_width,
+                target_bounds["yMax"] - target_bounds["yMin"] - source_height,
+            )
+            source_bounds = _container_bounds(placed)
         target_point = _anchor_point(source_bounds, anchor)
         placed.move(
             x=_finite_number(x, "x") - target_point["x"],
@@ -1092,6 +1121,18 @@ def _normalize_saw_box(*, bottom_left_x, bottom_left_y, top_right_x, top_right_y
         raise ValueError("saw_to_box requires topRightX to be greater than bottomLeftX")
     if math.f_le(y_max, y_min):
         raise ValueError("saw_to_box requires topRightY to be greater than bottomLeftY")
+    return {"xMin": x_min, "xMax": x_max, "yMin": y_min, "yMax": y_max}
+
+
+def _normalize_placement_box(*, bottom_left_x, bottom_left_y, top_right_x, top_right_y):
+    x_min = _finite_number(bottom_left_x, "bottomLeftX")
+    y_min = _finite_number(bottom_left_y, "bottomLeftY")
+    x_max = _finite_number(top_right_x, "topRightX")
+    y_max = _finite_number(top_right_y, "topRightY")
+    if math.f_le(x_max, x_min):
+        raise ValueError("PnP target top-right X must be greater than bottom-left X")
+    if math.f_le(y_max, y_min):
+        raise ValueError("PnP target top-right Y must be greater than bottom-left Y")
     return {"xMin": x_min, "xMax": x_max, "yMin": y_min, "yMax": y_max}
 
 

@@ -263,6 +263,33 @@ class FlowCompilerTests(unittest.TestCase):
                 {"step_molding": molding_step_template()},
             )
 
+    def test_compiler_normalizes_coordinate_rectangles_and_rejects_near_duplicates(self):
+        configuration = pnp_configuration()
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["coordinates"] = [
+            [[0, 0], [10, 12]],
+            [[0.0000005, 0], [10, 12]],
+        ]
+
+        with self.assertRaisesRegex(ValueError, "duplicate coordinates"):
+            compiler().compile(
+                pnp_template(),
+                configuration,
+                {"step_pnp": pnp_step_template()},
+            )
+
+    def test_compiler_rejects_coordinate_rectangle_without_positive_area(self):
+        configuration = pnp_configuration()
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["coordinates"] = [
+            [[0, 0], [0, 12]],
+        ]
+
+        with self.assertRaisesRegex(ValueError, "top-right greater than bottom-left"):
+            compiler().compile(
+                pnp_template(),
+                configuration,
+                {"step_pnp": pnp_step_template()},
+            )
+
     def test_draft_validation_allows_incomplete_repeater_items(self):
         configuration = {
             "inputBindings": {},
@@ -377,6 +404,59 @@ class KernelExecutionTests(unittest.TestCase):
             [child["bodies"][0]["geometry"]["bottom_left"] for child in children],
             [[10, 20, 12], [-5, 0, 12]],
         )
+        self.assertEqual(
+            [child["bodies"][0]["geometry"]["top_right"] for child in children],
+            [[16, 25, 12], [-2, 2.5, 12]],
+        )
+        self.assertEqual(
+            [child["bumps"][0]["geometry"]["bottom_left"] for child in children],
+            [[11, 21, 10], [-4, 1, 10]],
+        )
+        self.assertEqual(
+            [child["bumps"][0]["geometry"]["top_right"] for child in children],
+            [[15, 24, 10], [-3, 1.5, 10]],
+        )
+
+    def test_real_pnp_rejects_resize_that_collapses_any_box_without_attaching_child(self):
+        state = ProcessGeometryState.from_structure(main_geometry())
+        die = ProcessGeometryState.from_structure(die_geometry())
+        original_die = die.to_geometry_structure()
+
+        with self.assertRaisesRegex(ValueError, "collapses the footprint"):
+            state.place_geometry_state(
+                die,
+                x=0,
+                y=0,
+                top_right_x=1,
+                top_right_y=1,
+                bottom_z=state.cursor_z(),
+            )
+
+        self.assertEqual(state.to_geometry_structure()["root"]["children"], [])
+        self.assertEqual(die.to_geometry_structure(), original_die)
+
+    def test_real_pnp_rejects_non_box_primitive(self):
+        die_payload = die_geometry()
+        die_payload["root"]["bodies"][0]["geometry"] = {
+            "type": "CylinderGeometry",
+            "center": [2, 1.5, 2],
+            "bottom_radius": 1,
+            "thk": 5,
+        }
+        state = ProcessGeometryState.from_structure(main_geometry())
+        die = ProcessGeometryState.from_structure(die_payload)
+
+        with self.assertRaisesRegex(ValueError, "supports only BoxGeometry"):
+            state.place_geometry_state(
+                die,
+                x=0,
+                y=0,
+                top_right_x=4,
+                top_right_y=3,
+                bottom_z=state.cursor_z(),
+            )
+
+        self.assertEqual(state.to_geometry_structure()["root"]["children"], [])
 
     def test_real_rdl_receives_normalized_repeater_values(self):
         plan = compiler().compile(
@@ -610,7 +690,14 @@ def pnp_configuration():
             "incoming_die": {"kind": "catalog", "geometryId": "geom_die"},
         },
         "stepConfigurations": {
-            "pnp": {"parameterValues": {"coordinates": [[10, 20], [-5, 0]]}}
+            "pnp": {
+                "parameterValues": {
+                    "coordinates": [
+                        [[10, 20], [16, 25]],
+                        [[-5, 0], [-2, 2.5]],
+                    ]
+                }
+            }
         },
         "embeddedGeometries": {},
     }

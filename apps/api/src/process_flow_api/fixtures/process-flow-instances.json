@@ -3,7 +3,7 @@
     "schemaVersion": 2,
     "id": "flow_inst_cowosl_demo_hbm4_alpha",
     "name": "HBM4 Alpha Build",
-    "processFlowTemplateId": "flow_tpl_cowosl_demo_2_0_0",
+    "processFlowTemplateId": "flow_tpl_cowosl_demo_3_0_0",
     "inputBindings": {
       "incoming_panel": {
         "kind": "catalog",
@@ -19,12 +19,24 @@
         "parameterValues": {
           "coordinates": [
             [
-              -760,
-              -520
+              [
+                -760,
+                -520
+              ],
+              [
+                640,
+                480
+              ]
             ],
             [
-              760,
-              -520
+              [
+                760,
+                -520
+              ],
+              [
+                2160,
+                480
+              ]
             ]
           ]
         }
@@ -77,7 +89,7 @@
     "schemaVersion": 2,
     "id": "flow_inst_cowosl_demo_hbm4_beta",
     "name": "HBM4 Beta Reliability",
-    "processFlowTemplateId": "flow_tpl_cowosl_demo_2_0_0",
+    "processFlowTemplateId": "flow_tpl_cowosl_demo_3_0_0",
     "inputBindings": {
       "incoming_panel": {
         "kind": "catalog",
@@ -93,16 +105,34 @@
         "parameterValues": {
           "coordinates": [
             [
-              -820,
-              -560
+              [
+                -820,
+                -560
+              ],
+              [
+                580,
+                440
+              ]
             ],
             [
-              0,
-              -560
+              [
+                0,
+                -560
+              ],
+              [
+                1400,
+                440
+              ]
             ],
             [
-              820,
-              -560
+              [
+                820,
+                -560
+              ],
+              [
+                2220,
+                440
+              ]
             ]
           ]
         }
@@ -145,7 +175,7 @@
     "schemaVersion": 2,
     "id": "flow_inst_fanout_demo_soc_ev1",
     "name": "SoC EV1",
-    "processFlowTemplateId": "flow_tpl_fanout_demo_2_0_0",
+    "processFlowTemplateId": "flow_tpl_fanout_demo_3_0_0",
     "inputBindings": {
       "incoming_panel": {
         "kind": "catalog",
@@ -161,8 +191,14 @@
         "parameterValues": {
           "coordinates": [
             [
-              -1000,
-              -800
+              [
+                -1000,
+                -800
+              ],
+              [
+                1000,
+                800
+              ]
             ]
           ]
         }

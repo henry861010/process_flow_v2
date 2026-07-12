@@ -309,25 +309,50 @@ def _normalize_coordinates(parameter_id, value):
     if not isinstance(value, list):
         raise ValueError(f"Parameter {parameter_id} must be a coordinate array")
     normalized = []
-    seen = set()
     for coordinate in value:
         if (
             not isinstance(coordinate, list)
             or len(coordinate) != 2
             or any(
+                not isinstance(point, list) or len(point) != 2
+                for point in coordinate
+            )
+            or any(
                 isinstance(number, bool)
                 or not isinstance(number, (int, float))
                 or not math.isfinite(number)
-                for number in coordinate
+                for point in coordinate
+                for number in point
             )
         ):
-            raise ValueError(f"Parameter {parameter_id} must contain [x, y] coordinates")
-        pair = (float(coordinate[0]), float(coordinate[1]))
-        if pair in seen:
+            raise ValueError(
+                f"Parameter {parameter_id} must contain [[xMin, yMin], [xMax, yMax]] rectangles"
+            )
+        rectangle = [
+            [float(coordinate[0][0]), float(coordinate[0][1])],
+            [float(coordinate[1][0]), float(coordinate[1][1])],
+        ]
+        if rectangle[1][0] <= rectangle[0][0] or rectangle[1][1] <= rectangle[0][1]:
+            raise ValueError(
+                f"Parameter {parameter_id} rectangles must have top-right greater than bottom-left"
+            )
+        if any(_coordinate_rectangles_equal(rectangle, existing) for existing in normalized):
             raise ValueError(f"Parameter {parameter_id} contains duplicate coordinates")
-        seen.add(pair)
-        normalized.append([*pair])
+        normalized.append(rectangle)
     return normalized
+
+
+def _coordinate_rectangles_equal(left, right, tolerance=1e-6):
+    return all(
+        math.isclose(
+            left[point_index][axis_index],
+            right[point_index][axis_index],
+            rel_tol=0,
+            abs_tol=tolerance,
+        )
+        for point_index in range(2)
+        for axis_index in range(2)
+    )
 
 
 def _normalize_parameter_group(definition, value, *, require_complete):

@@ -706,12 +706,12 @@
   },
   {
     "schemaVersion": 2,
-    "id": "step_tpl_pnp_2_0_0",
-    "version": "V2.0.0",
+    "id": "step_tpl_pnp_3_0_0",
+    "version": "V3.0.0",
     "name": "PnP",
     "category": "PnP",
     "program": "pnp/pnp",
-    "description": "Places one or more copied die geometry states onto the main geometry at the main cursorZ plane.",
+    "description": "Resizes and places one or more copied BoxGeometry-only die states onto the main geometry at the main cursorZ plane.",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -725,7 +725,7 @@
       {
         "portId": "die_geometry",
         "name": "die_geometry",
-        "description": "Die geometry state copied once for each coordinate item before placement.",
+        "description": "BoxGeometry-only die state copied and resized once for each coordinate rectangle before placement.",
         "dataType": "geometry",
         "role": "auxiliary",
         "required": true
@@ -743,7 +743,7 @@
       {
         "id": "coordinates",
         "name": "coordinates",
-        "description": "Placement coordinates. Each item gives the target lower-left XY point for one die copy.",
+        "description": "Placement rectangles. Each item gives [[xMin, yMin], [xMax, yMax]] for one resized die copy.",
         "valueType": "coordinates",
         "controlType": "coordinateList",
         "selectionMode": null,
