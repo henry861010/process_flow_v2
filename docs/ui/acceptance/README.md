@@ -6,8 +6,8 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-07-12
+last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - docs/ui/screens
   - docs/ui/components
@@ -86,8 +86,8 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | `UI-FTE-001` | fresh Template draft | add step by click | step出現在 graph，Node Editor以單擊可開啟。 |
 | `UI-FTE-002` | topology valid、configuration incomplete | Save Template → complete save dialog | metadata不在editor常駐顯示；template保存、topology locked、configuration仍可編輯。 |
 | `UI-FIE-001` | no selected template | select CoWoS-L | read-only topology出現、default configuration建立。 |
-| `UI-FIE-002` | unsaved workspace | Save Draft → enter workspace name | dialog只在第一次save出現；後續dirty save直接增加revision。 |
-| `UI-FIE-003` | saved clean complete workspace | Commit Instance → enter identity | status成為 committed，configuration controls locked。 |
+| `UI-FIE-002` | fresh或known workspace URL | inspect header | `Save Draft`、`Reload`與workspace badge/status box都不render。 |
+| `UI-FIE-003` | known saved clean complete workspace | Commit Instance → enter identity | workspace成為committed，configuration controls locked。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |
@@ -107,7 +107,7 @@ Review 不只驗證單一 component，還 MUST 依下列順序走完跨 screen j
 | Journey | Entry | Required transition | Completion evidence |
 | --- | --- | --- | --- |
 | Template topology | fresh `/flow-template-editor` | Step add → Geometry add → valid connect → Save Template → save dialog | metadata只在dialog顯示、topology locked、configuration仍可編 |
-| Instance workspace | `/flow-instance-editor` + CoWoS-L | bind → edit → first Save Draft dialog → later direct Save Draft → Commit dialog | revision、dirty、committed state正確 |
+| Instance configuration | `/flow-instance-editor` + CoWoS-L；另備known clean workspace URL | bind → edit → Preview；known workspace → Commit dialog | draft UI保持隱藏、dirty與committed state正確 |
 | Preview/export | ready input/step target | Loading → Ready → Export form → job terminal | Preview不被下層 overlay close path 誤關 |
 | CAD workbench | `/cad-viewer` demo | import/section/camera → Reset | model/error清理且 camera view保留 |
 

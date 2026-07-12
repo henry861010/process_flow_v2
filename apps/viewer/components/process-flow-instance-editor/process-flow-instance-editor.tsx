@@ -81,6 +81,10 @@ const inputClass =
 const selectClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
+// Draft persistence remains implemented for existing workspace URLs and can be
+// restored later without changing the workspace APIs.
+const SHOW_DRAFT_WORKSPACE_UI = false;
+
 type FlowInputNodeData = ProcessFlowGraphNodeData & {
   nodeKind: "flowInput";
   definition: FlowInputDefinition;
@@ -553,7 +557,7 @@ function ProcessFlowInstanceEditorInner() {
               <GitBranch />
               New
             </Button>
-            {workspace && !committed ? (
+            {SHOW_DRAFT_WORKSPACE_UI && workspace && !committed ? (
               <Button
                 variant="outline"
                 disabled={busyAction !== null}
@@ -564,16 +568,18 @@ function ProcessFlowInstanceEditorInner() {
                 Reload
               </Button>
             ) : null}
-            <Button
-              variant="outline"
-              disabled={!canSaveDraft}
-              onClick={() =>
-                workspace ? void saveDraft() : openSaveDialog("workspace")
-              }
-            >
-              <Save />
-              Save Draft
-            </Button>
+            {SHOW_DRAFT_WORKSPACE_UI ? (
+              <Button
+                variant="outline"
+                disabled={!canSaveDraft}
+                onClick={() =>
+                  workspace ? void saveDraft() : openSaveDialog("workspace")
+                }
+              >
+                <Save />
+                Save Draft
+              </Button>
+            ) : null}
             <Button
               disabled={!canCommit}
               onClick={() => openSaveDialog("instance")}
@@ -584,7 +590,13 @@ function ProcessFlowInstanceEditorInner() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-[minmax(260px,1fr)_minmax(220px,auto)]">
+        <div
+          className={cn(
+            "mt-3 grid grid-cols-1 items-end gap-3",
+            SHOW_DRAFT_WORKSPACE_UI &&
+              "md:grid-cols-[minmax(260px,1fr)_minmax(220px,auto)]",
+          )}
+        >
           <FormField label="Process flow template" required>
             <select
               className={selectClass}
@@ -602,14 +614,18 @@ function ProcessFlowInstanceEditorInner() {
               ))}
             </select>
           </FormField>
-          <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm">
-            <Badge variant={committed ? "signal" : "outline"}>
-              {committed ? "committed" : "draft"}
-            </Badge>
-            <span className="truncate font-mono text-xs">
-              {workspace ? `${workspace.id} / r${workspace.revision}` : "Unsaved workspace"}
-            </span>
-          </div>
+          {SHOW_DRAFT_WORKSPACE_UI ? (
+            <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm">
+              <Badge variant={committed ? "signal" : "outline"}>
+                {committed ? "committed" : "draft"}
+              </Badge>
+              <span className="truncate font-mono text-xs">
+                {workspace
+                  ? `${workspace.id} / r${workspace.revision}`
+                  : "Unsaved workspace"}
+              </span>
+            </div>
+          ) : null}
         </div>
       </header>
 

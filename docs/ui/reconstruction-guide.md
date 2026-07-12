@@ -6,8 +6,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-07-12
+last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - docs/ui/README.md
   - docs/ui/screens
@@ -39,7 +39,7 @@ source_of_truth:
 | --- | --- | --- | --- |
 | `/` | Home ready | reset 後完整 bootstrap | instance rows 與 template-only rows 同時存在 |
 | `/flow-template-editor` | fresh template draft | reset 後直接開 route，不選 template | header、雙 palette、空 graph 與 disabled save |
-| `/flow-instance-editor` | selected CoWoS-L workspace | 開 route 後選 `CoWoS-L Demo`，不儲存 workspace | graph、default configuration、dirty status |
+| `/flow-instance-editor` | selected CoWoS-L configuration | 開 route 後選 `CoWoS-L Demo`，不儲存 workspace | graph、default configuration、dirty status、無draft controls/status box |
 | `/admin/processstepeditor` | fresh step draft | reset 後直接開 route，不 clone template | library、empty identity、Geometry Ports、No parameters |
 | `/cad-viewer` | demo workbench | 直接開 route，不 import file | demo model、Section XZ、Grid/Axes on、ISO |
 | Geometry Preview | ready preview | Instance Editor 綁定 `panel_v1_0_0` 後開 Preview | Loading → Ready、viewport、right controls、footer |
@@ -78,10 +78,9 @@ no selected template
   -> select CoWoS-L Demo
   -> default configuration created
   -> bind geometry / edit parameters
-  -> Save Draft
-  -> enter workspace name in first-save dialog
-  -> edit again (dirty)
-  -> Reload or direct Save Draft (no dialog)
+  -> Preview a ready target
+
+known clean complete workspaceId URL
   -> Commit Instance
   -> enter immutable identity in commit dialog
   -> committed read-only workspace
@@ -90,9 +89,10 @@ no selected template
 必要結果：
 
 - Select template 會建立 `<template.name> study` workspace name。
-- 第一次Save Draft開啟workspace name dialog；成功後URL必須帶`workspaceId`與revision。
-- 後續dirty Save Draft沿用persisted name直接更新，不再次開dialog。
-- dirty 時 Save Draft enabled、Commit disabled，並啟用 `beforeunload` protection。
+- `Save Draft`、`Reload`、draft/committed badge與workspace ID/status box不得render。
+- Workspace persistence API與既有`workspaceId`載入路徑仍保留；UI隱藏不得刪除API。
+- dirty時Commit disabled，並啟用`beforeunload` protection。
+- Commit仍只接受saved、clean、complete workspace，因此以known workspace URL驗證commit dialog。
 - committed 後 configuration controls locked，但 ready Geometry Preview 仍可開啟。
 
 對應驗收：`UI-FIE-001` 至 `UI-FIE-008`。

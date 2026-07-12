@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-07-12
+last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - apps/viewer/components/process-flow-instance-editor/process-flow-instance-editor.tsx
   - apps/viewer/lib/process-flow/configuration.ts
@@ -25,6 +25,10 @@ Route：`/flow-instance-editor`
 bindings與 Process Step parameters後 commit成 immutable `ProcessFlowInstance`。本頁不修改
 topology、不 overwrite instance、不列 draft清單、不 clone existing instance，也不建立新的
 embedded geometry。
+
+目前 `SHOW_DRAFT_WORKSPACE_UI=false`。這是暫時的 UI visibility policy：`Save Draft`、
+`Reload` 與 workspace status box 不 render；workspace create/read/update API、frontend API client、
+save/reload handler 與 `workspaceId` entry仍保留，不代表 workspace lifecycle或API被移除。
 
 ## 進入狀態
 
@@ -44,7 +48,8 @@ Workspace不保存 topology；graph永遠由 referenced template + current confi
    `CoWoS-L Demo study` 完成 hydration。
 3. 單擊 `Incoming panel` node，開 Geometry inspector；選擇 `Panel1` 後確認 status 變成 `Bound`。
 4. 從 inspector 開 Geometry Preview，驗證 `Loading` → `Ready`，再檢查 footer export actions。
-5. 需要檢查 workspace lifecycle 時，再執行 Save Draft → edit → Reload 或 Commit；visual baseline 不應依賴已保存 workspace。
+5. 確認header不出現`Save Draft`、`Reload`、`draft` badge或`Unsaved workspace` status box；
+   visual baseline不應依賴已保存workspace。
 
 Current modal observation：Node Editor、Geometry Catalog、Geometry Preview 都能以 close/backdrop/Escape
 關閉，但尚未完整提供 dialog semantics 與 focus lifecycle，引用 `UI-GAP-A11Y-001`。
@@ -59,20 +64,19 @@ padding `20px 12px`（horizontal/vertical在CSS為 `px-5 py-3`），其餘高度
 
 1. `Home`
 2. `New`
-3. `Reload`（僅已有 workspace 且未 committed時 render）
-4. `Save Draft`
-5. `Commit Instance`
+3. `Commit Instance`
 
-Field grid：base一欄、`md`以上是`minmax(260px,1fr) minmax(220px,auto)`：
+`Reload`與`Save Draft`的實作保留在feature flag後方，目前不得render。
+
+Field grid目前維持單欄：
 
 | Field | Enabled | Notes |
 | --- | --- | --- |
 | `Process flow template`* | 尚未建立 workspace、未 committed、非 busy | option `<name> / <version>`。 |
-| Status box | read-only | badge `draft/committed` + `<workspaceId> / r<revision>` 或 `Unsaved workspace`。 |
 
-Workspace name與Instance name/id不在Editor header常駐顯示。第一次Save Draft由save dialog
-詢問Workspace name；後續Save Draft沿用persisted name直接更新。Commit Instance由instance
-dialog詢問name/id。兩種dialog都在submitting期間鎖定close與重複submit。
+Workspace status、Workspace name與Instance name/id不在Editor header常駐顯示。Workspace
+save dialog的實作仍保留，但目前沒有可見入口。Commit Instance由instance dialog詢問name/id；
+dialog在submitting期間鎖定close與重複submit。
 
 Header下方 status strip min-height `36px`；graph是剩餘空間，沒有 document scroll。
 
@@ -125,34 +129,35 @@ branch不得阻擋。
 
 ## Workspace action 矩陣
 
+目前可見UI action如下：
+
 | Action | Preconditions | Result |
 | --- | --- | --- |
 | Select template | 無 workspace/dirty；否則先 confirm `Discard the current workspace draft?` | default config、name、dirty=true；URL清除 query。 |
 | `New` | dirty時confirm | 全部清空；URL回 route root。 |
-| First `Save Draft` | hydrated、template、dirty/unsaved、非 busy | 開workspace dialog；name valid後POST，URL replace加入 encoded `workspaceId`；dirty=false。 |
-| Later `Save Draft` | hydrated、template、dirty、非 busy | 不開dialog；沿用persisted name PUT current revision，success revision增加。 |
-| `Reload` | workspace且未 committed | GET server revision並覆蓋 local；現況即使dirty也不另confirm。 |
 | `Commit Instance` | saved、clean、complete、非 busy | 開instance dialog；ID/name valid且unique後POST commit，workspace/graph鎖定、revision更新。 |
 | Preview | input resolved或step ready | 共用 Geometry Preview。 |
 
-Save success copy：`Draft saved at revision <n>.`；commit success copy：
-`Committed immutable instance <id>.`。Reload copy：
-`Workspace <id> loaded at revision <n>.`。
+Draft persistence handler仍維持原先POST/PUT/GET與success/error copy，但
+`SHOW_DRAFT_WORKSPACE_UI=false`時沒有可見的Save/Reload觸發入口。`Commit Instance`仍要求
+saved、clean、complete workspace，因此fresh route目前無法只靠可見UI進入commit；可由既有
+`?workspaceId=<id>` entry載入符合條件的workspace後commit。Commit success copy為
+`Committed immutable instance <id>.`。
 
 ## 狀態矩陣
 
-| State | Save Draft | Commit | Configuration | Status copy |
+| State | Draft controls | Commit | Configuration | Status copy |
 | --- | --- | --- | --- | --- |
-| No template | disabled | disabled | none | `Select a process flow template.` |
-| New unsaved | enabled | disabled | editable | incomplete/dirty precedence |
-| Saved clean incomplete | disabled | disabled | editable | `Draft saved; configuration is incomplete.` |
-| Dirty | enabled | disabled | editable | `Workspace has unsaved changes.` |
-| Ready | disabled | enabled | editable | `Workspace is ready to commit.` |
-| Busy | disabled | disabled | 保留 | strip顯示既有/fallback狀態 |
-| Committed | disabled | disabled | read-only | `Workspace committed as <id>.` |
+| No template | not rendered | disabled | none | `Select a process flow template.` |
+| New unsaved | not rendered | disabled | editable | incomplete/dirty precedence |
+| Saved clean incomplete（URL載入） | not rendered | disabled | editable | `Draft saved; configuration is incomplete.` |
+| Dirty | not rendered | disabled | editable | `Workspace has unsaved changes.` |
+| Saved clean complete（URL載入） | not rendered | enabled | editable | `Workspace is ready to commit.` |
+| Busy | not rendered | disabled | 保留 | strip顯示既有/fallback狀態 |
+| Committed | not rendered | disabled | read-only | `Workspace committed as <id>.` |
 
-Dirty state MUST 註冊 `beforeunload`。Stale `409` 不自動 merge，保留 local並顯示 API
-message；使用者選 Reload。
+Dirty state MUST 註冊 `beforeunload`。Stale revision的`409`處理仍保留在save handler內，
+但目前不屬於可見UI acceptance path。
 
 ## Preview 與 Export
 
@@ -186,10 +191,10 @@ Reference capture：reset 後開 route，選擇 `CoWoS-L Demo`，等待 graph、
 | ID | Given / When | Then |
 | --- | --- | --- |
 | `UI-FIE-001` | fresh page，select CoWoS-L | read-only graph/default config出現，workspace name在hidden state使用default，dirty。 |
-| `UI-FIE-002` | unsaved draft，Save Draft | workspace name dialog只在首次出現；submit後URL加入workspaceId、revision顯示、dirty清除。 |
+| `UI-FIE-002` | fresh或draft workspace page，檢查header | 不render `Save Draft`、`Reload`、draft/committed badge與workspace ID/status box。 |
 | `UI-FIE-003` | saved draft，edit field | dirty copy出現、Commit disabled、beforeunload active。 |
-| `UI-FIE-004` | clean complete，Commit | instance identity dialog出現；valid submit後committed badge、controls locked、immutable ID保留。 |
-| `UI-FIE-005` | stale revision，Save Draft | local data保留、409 message可見、Reload可恢復server。 |
+| `UI-FIE-004` | 以known `workspaceId`載入clean complete workspace，Commit | instance identity dialog出現；valid submit後controls locked、immutable ID保留。 |
+| `UI-FIE-005` | 以known draft `workspaceId`進入 | workspace/configuration可載入，但header仍不render draft persistence controls或status box。 |
 | `UI-FIE-006` | ready edge/final node，click Eye | Preview開啟；unrelated incomplete branch不阻擋。 |
 | `UI-FIE-007` | committed workspace reload | identity resolve，Preview可用，editing controls disabled。 |
 | `UI-FIE-008` | single-click geometry/step node | respective inspector開啟，不要求double-click。 |

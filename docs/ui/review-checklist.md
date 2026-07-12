@@ -8,8 +8,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-07-12
+last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - docs/ui/reconstruction-guide.md
   - docs/ui/acceptance/README.md
@@ -52,10 +52,12 @@ source_of_truth:
 
 ### Flow Instance Editor
 
-- [ ] 選擇 CoWoS-L 後default configuration與dirty status正確；workspace name只在首次Save Draft dialog顯示。
+- [ ] 選擇 CoWoS-L 後default configuration與dirty status正確。
+- [ ] Header不render `Save Draft`、`Reload`、draft/committed badge或workspace ID/status box。
 - [ ] graph 是 view-only；single-click node 開啟 inspector。
 - [ ] ready target 可 Preview；unrelated incomplete branch 不阻擋。
-- [ ] 首次Save Draft開dialog、後續save直接更新；Reload、409 stale revision、Commit dialog的status/copy正確。
+- [ ] 以known clean complete `workspaceId`載入時，Commit dialog與commit後status/copy正確。
+- [ ] Workspace API與`workspaceId`載入仍可用；UI隱藏沒有刪除或改寫API契約。
 - [ ] committed 後 configuration read-only，但 ready Preview 仍可用。
 
 ### Process Step Template Editor

@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-07-12
+last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx
   - apps/viewer/components/process-flow-instance-editor/process-flow-instance-editor.tsx
@@ -120,27 +120,28 @@ blocking reason；API error 不得清空 draft。
 
 ## Dirty、save、reload、commit 流程
 
-Flow Instance Workspace 的狀態轉移：
+Flow Instance Workspace的底層狀態轉移仍存在，但目前draft persistence UI暫時隱藏：
 
 ```text
-template selected -> unsaved workspace -> saved clean draft
-       ^                    |                     |
-       |                    v                     v
-      New              Save Draft           dirty draft
-                                               |
-                                      Save Draft / Reload
-                                               |
-                                      complete + clean
-                                               v
-                               Commit dialog -> committed
+fresh route -> template selected -> local dirty configuration
+     ^                 |
+     |                 v
+    New       Save Draft / Reload not rendered
+
+known workspaceId -> saved clean workspace -> dirty after edit
+                           |
+                           v
+             complete + clean -> Commit dialog -> committed
 ```
 
 - `dirty` 時註冊 `beforeunload` protection。
-- `Save Draft` 只在有 selected template、非 committed、dirty、非 busy 時 enabled。
-- `Reload` 丟棄 local dirty data，載入 server revision；現況沒有額外 confirm。
-- stale revision 的 `409` 保留 local draft並顯示 error，使用者再選 Reload。
-- 第一次`Save Draft`開dialog詢問workspace name；後續save沿用persisted name直接更新。
+- `SHOW_DRAFT_WORKSPACE_UI=false`時，`Save Draft`、`Reload`與workspace status box MUST NOT render。
+- Workspace POST/GET/PUT API、frontend client與save/reload handlers仍保留；這是UI visibility
+  change，不是API deprecation。
+- 已知`workspaceId` URL仍可載入draft或committed workspace。
 - `Commit Instance` toolbar必須是saved、clean、complete；identity valid與ID unique在dialog submit驗證。
+- 因draft save入口隱藏，fresh route目前無法只靠可見UI滿足saved precondition；commit journey須以
+  已存在的clean complete workspace URL作setup。
 - committed 後 configuration controls read-only；Preview 仍可由已綁定 geometry/ready output 開啟。
 
 ## Modal 與 overlay 層級
@@ -189,7 +190,8 @@ API error 顯示 server message；只有無法取得 message 時才使用 compon
 cross-screen contract：
 
 1. Template topology：click-add Step → drag Geometry → connect → single-click editor → Save Template → Preview。
-2. Instance workspace：select CoWoS-L → bind geometry → edit parameters → Save Draft → Reload/Commit。
+2. Instance configuration：select CoWoS-L → bind geometry → edit parameters → Preview；另以known
+   clean workspace URL驗證Commit，並確認draft controls/status box不顯示。
 3. Preview/export：open ready target → Loading/Ready → Export form → jobs drawer → terminal state。
 4. CAD workbench：demo/import → section/camera → error or imported state → Reset preserving camera view。
 
