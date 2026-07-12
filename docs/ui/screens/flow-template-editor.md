@@ -103,6 +103,7 @@ Graph 使用 [Process Flow Graph](../components/process-flow-graph.md)；fresh s
 | Drop Geometry | 新增 `flowInput` definition；working config 同時綁該 catalog geometry。 |
 | Add/Drop Step | 新增 `stepRef`、default step config；ID由 template name slug後去重。 |
 | Connect | target是step input、非self/cycle；source output或target input已有edge時，由新edge原子式取代舊edge。 |
+| Reconnect edge target | 拖曳既有edge的target箭頭到另一step input；source與edge ID保持不變，occupied target依Connect規則自動取代。 |
 | Delete node | 刪 node、相關 edges與對應 configuration entry。 |
 | Delete edge | 只在edit mode顯示；不改 parameter values。 |
 
@@ -220,3 +221,5 @@ Fresh capture：reset後開 route，不選 copy、不新增 node，等待 bootst
 | `UI-FTE-012` | 已綁定Geometry Input | 顯示geometry name、Preview與Change geometry；沒有Clear binding action。 |
 | `UI-FTE-013` | 新edge接到已有incoming edge的input | 新edge接上後舊target edge自動消失，不要求使用者先手動刪除。 |
 | `UI-FTE-014` | replacement edge會形成cycle | connection rejected且persisted topology不變。 |
+| `UI-FTE-015` | 拖曳既有edge的target箭頭到另一step input | edge直接改接，source與edge ID不變；新target原有incoming edge自動消失。 |
+| `UI-FTE-016` | target reconnect形成cycle或放開在無效位置 | reconnect取消，原edge與topology保持不變。 |

@@ -25,7 +25,7 @@ type ProcessFlowGraphMode = "edit" | "view";
 type ProcessFlowGraphStatus = "neutral" | "ready" | "incomplete" | "error";
 ```
 
-- `edit`：node draggable/connectable，edge/node delete controls可用。
+- `edit`：node draggable/connectable，edge target endpoint可reconnect，edge/node delete controls可用。
 - `view`：topology read-only，但 screen-level單擊 node仍開啟 binding/parameter dialog。
 
 Template Editor在保存前用 edit、保存後用 view；Instance Editor永遠 view。
@@ -105,6 +105,11 @@ Edit mode從已有consumer的source handle開始拖曳時，既有edge stroke暫
 若新連線成功落在另一個input，既有edge由screen state移除。拉回原target或取消拖曳不新增、
 不刪除edge，原有status stroke恢復。
 
+每條edit-mode edge只有target端可reconnect；React Flow target updater hit radius是`12px`。
+使用者拖曳target箭頭到另一個step input時，screen MUST 保留原source、edge ID、marker與edge
+metadata，只更新target node/handle。Source endpoint不提供edge reconnect；改source仍從新的output
+handle建立連線。
+
 ## 互動優先順序
 
 1. Screen傳入的 `onNodeClick` 是 primary：**單擊**選取並開 editor。
@@ -129,6 +134,10 @@ Connection commit MUST 保持每個source output與target input各最多一條ed
 outgoing edge，或target input已有incoming edge，新edge成功commit時 MUST 原子式移除衝突edge
 再新增新edge；使用者不需先手動刪除。Cycle validation MUST 以移除這些衝突edge後的候選graph
 計算。此source規則同時適用flow input的`out`與process step output handle。
+
+Target reconnect使用相同validator與conflict replacement。若新target已有incoming edge，該edge
+在reconnect成功時原子式移除；若形成self-loop/cycle、target無效或拖曳取消，原edge MUST 原樣
+保留。
 
 API/compiler仍是authoritative。Persist時不得保存 React Flow internal node ID/coordinates；轉成
 `FlowEdge` discriminated source/target。
@@ -176,3 +185,6 @@ neutral node/edge的isolated component fixture。這是既有 fixture 的 opaque
 | `UI-GRAPH-006` | 390px container | labels保持字級，可pan/zoom，canvas不擴張document。 |
 | `UI-GRAPH-007` | 新edge接到occupied target | 原incoming edge由新edge取代，不需先delete。 |
 | `UI-GRAPH-008` | replacement會形成cycle | rejected，graph state不變。 |
+| `UI-GRAPH-009` | drag既有edge target箭頭到另一input | 同一edge保留source/ID並改接target；occupied target edge自動移除。 |
+| `UI-GRAPH-010` | drag既有edge source endpoint | 無reconnect handle；source不可由edge endpoint改接。 |
+| `UI-GRAPH-011` | target reconnect到invalid/cycle或取消 | 原edge與graph state不變。 |

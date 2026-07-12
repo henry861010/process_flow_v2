@@ -359,6 +359,7 @@ function ProcessFlowTemplateEditorInner() {
           : null;
         return {
           ...edge,
+          reconnectable: topologyLocked ? false : "target",
           data: {
             sourceKind,
             targetStepRefId: targetNode?.data.stepRef.stepRefId ?? "",
@@ -566,6 +567,32 @@ function ProcessFlowTemplateEditorInner() {
           targetHandle: connection.targetHandle,
           markerEnd: { type: MarkerType.ArrowClosed },
           data: emptyEdgeData(),
+        },
+      ];
+    });
+  }
+
+  function handleReconnect(oldEdge: FlowEdge, connection: Connection) {
+    if (topologyLocked) return;
+    setEdges((current) => {
+      const existingEdge = current.find((edge) => edge.id === oldEdge.id);
+      if (
+        !existingEdge ||
+        !sameSourceHandle(existingEdge, connection) ||
+        sameConnection(existingEdge, connection) ||
+        !validConnection(connection, nodes, current)
+      ) {
+        return current;
+      }
+
+      return [
+        ...withoutConnectionConflicts(current, connection),
+        {
+          ...existingEdge,
+          source: connection.source,
+          target: connection.target,
+          sourceHandle: connection.sourceHandle,
+          targetHandle: connection.targetHandle,
         },
       ];
     });
@@ -908,11 +935,13 @@ function ProcessFlowTemplateEditorInner() {
           edges={displayEdges}
           className="min-h-[560px] lg:min-h-0"
           fitView
-          edgesReconnectable={false}
+          edgesReconnectable
+          reconnectRadius={12}
           defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onConnect={handleConnect}
+          onReconnect={handleReconnect}
           isValidConnection={(connection) => validConnection(connection, nodes, edges)}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
