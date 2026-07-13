@@ -85,6 +85,13 @@ export async function resetPocData(): Promise<BootstrapPayload> {
   });
 }
 
+export async function createGeometry(geometry: unknown): Promise<GeometryEntity> {
+  return apiFetch<GeometryEntity>("/api/geometries", {
+    method: "POST",
+    body: JSON.stringify(geometry),
+  });
+}
+
 export async function listProcessStepTemplates<T>(): Promise<T[]> {
   return apiFetch<T[]>("/api/process-step-templates");
 }
