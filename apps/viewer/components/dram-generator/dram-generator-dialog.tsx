@@ -6,12 +6,21 @@ import {
   Database,
   Download,
   Layers3,
-  Loader2,
-  Save,
   WandSparkles,
   X,
 } from "lucide-react";
 
+import {
+  GeometryGeneratorSaveDialog,
+  generatorSaveMetadataIsValid,
+  type GeneratorSaveMetadata,
+} from "@/components/geometry-generator/geometry-generator-save-dialog";
+import {
+  generatedGeometryDraft,
+  geometryGeneration,
+  type GeometryGeneratorDefineResult,
+  type GeometryGeneratorMode,
+} from "@/components/geometry-generator/geometry-generator-types";
 import {
   DramCrossSectionDrawing,
   DramTopViewDrawing,
@@ -35,15 +44,6 @@ import { createGeometry } from "@/lib/process-flow-api";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-const textareaClass =
-  "min-h-[82px] w-full resize-y rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-
-type SaveMetadata = {
-  name: string;
-  version: string;
-  owner: string;
-  description: string;
-};
 
 type GeneratorNotice = {
   tone: "success" | "neutral";
@@ -52,20 +52,30 @@ type GeneratorNotice = {
 
 type BulkValues = Record<DramStackSide, { thickness: number; density: number }>;
 
-const DEFAULT_SAVE_METADATA: SaveMetadata = {
+const DEFAULT_SAVE_METADATA: GeneratorSaveMetadata = {
   name: "Generated DRAM",
   version: "current",
   owner: "",
   description: "",
 };
 
-export function DramGeneratorDialog({ onClose }: { onClose: () => void }) {
+export function DramGeneratorDialog({
+  mode = "catalog",
+  initialParameters,
+  onClose,
+  onDefine,
+}: {
+  mode?: GeometryGeneratorMode;
+  initialParameters?: DramGeneratorParameters;
+  onClose: () => void;
+  onDefine?: (result: GeometryGeneratorDefineResult) => void;
+}) {
   const [parameters, setParameters] = React.useState<DramGeneratorParameters>(() => ({
-    ...DEFAULT_DRAM_PARAMETERS,
-    topBuildupLayers: DEFAULT_DRAM_PARAMETERS.topBuildupLayers.map((layer) => ({
+    ...(initialParameters ?? DEFAULT_DRAM_PARAMETERS),
+    topBuildupLayers: (initialParameters ?? DEFAULT_DRAM_PARAMETERS).topBuildupLayers.map((layer) => ({
       ...layer,
     })),
-    bottomBuildupLayers: DEFAULT_DRAM_PARAMETERS.bottomBuildupLayers.map((layer) => ({
+    bottomBuildupLayers: (initialParameters ?? DEFAULT_DRAM_PARAMETERS).bottomBuildupLayers.map((layer) => ({
       ...layer,
     })),
   }));
@@ -75,7 +85,7 @@ export function DramGeneratorDialog({ onClose }: { onClose: () => void }) {
   });
   const [saveDialogOpen, setSaveDialogOpen] = React.useState(false);
   const [saveMetadata, setSaveMetadata] =
-    React.useState<SaveMetadata>(DEFAULT_SAVE_METADATA);
+    React.useState<GeneratorSaveMetadata>(DEFAULT_SAVE_METADATA);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<GeneratorNotice | null>(null);
@@ -182,7 +192,7 @@ export function DramGeneratorDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function saveGeometry() {
-    if (!valid || !metadataIsValid(saveMetadata) || saving) return;
+    if (!valid || !generatorSaveMetadataIsValid(saveMetadata) || saving) return;
     setSaving(true);
     setSaveError(null);
     try {
@@ -197,6 +207,11 @@ export function DramGeneratorDialog({ onClose }: { onClose: () => void }) {
         icon: "die.stack",
         structureFormat: "standard",
         structure: buildDramGeometry(parameters),
+        generation: geometryGeneration(
+          "dram",
+          1,
+          parameters as unknown as Record<string, unknown>,
+        ),
       });
       setSaveDialogOpen(false);
       setNotice({
@@ -208,6 +223,26 @@ export function DramGeneratorDialog({ onClose }: { onClose: () => void }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function defineGeometry() {
+    if (!valid || !onDefine) return;
+    onDefine({
+      suggestedFlowInputName: "DRAM input",
+      geometry: generatedGeometryDraft({
+        name: "dram_generator",
+        entityType: "die",
+        category: "die.dram",
+        icon: "die.stack",
+        structureFormat: "standard",
+        structure: buildDramGeometry(parameters),
+        generation: geometryGeneration(
+          "dram",
+          1,
+          parameters as unknown as Record<string, unknown>,
+        ),
+      }),
+    });
   }
 
   return (
@@ -453,28 +488,39 @@ export function DramGeneratorDialog({ onClose }: { onClose: () => void }) {
               ? "Even buildup layers contain a full-layer circuit envelope with independently configured density."
               : "Resolve the highlighted parameters before generating geometry."}
           </p>
-          <div className="ml-auto flex gap-2">
-            <Button disabled={!valid} type="button" variant="outline" onClick={downloadGeometry}>
-              <Download />
-              Generate JSON
+          {mode === "flowInput" ? (
+            <Button className="ml-auto" disabled={!valid} type="button" onClick={defineGeometry}>
+              <Layers3 />
+              Define
             </Button>
-            <Button
-              disabled={!valid}
-              type="button"
-              onClick={() => {
-                setSaveError(null);
-                setSaveDialogOpen(true);
-              }}
-            >
-              <Database />
-              Save to DB
-            </Button>
-          </div>
+          ) : (
+            <div className="ml-auto flex gap-2">
+              <Button disabled={!valid} type="button" variant="outline" onClick={downloadGeometry}>
+                <Download />
+                Generate JSON
+              </Button>
+              <Button
+                disabled={!valid}
+                type="button"
+                onClick={() => {
+                  setSaveError(null);
+                  setSaveDialogOpen(true);
+                }}
+              >
+                <Database />
+                Save to DB
+              </Button>
+            </div>
+          )}
         </footer>
       </section>
 
       {saveDialogOpen ? (
-        <DramSaveDialog
+        <GeometryGeneratorSaveDialog
+          generatorLabel="DRAM"
+          entityType="die"
+          category="die.dram"
+          icon="die.stack"
           error={saveError}
           metadata={saveMetadata}
           saving={saving}
@@ -795,176 +841,5 @@ function TextField({
         </span>
       ) : null}
     </label>
-  );
-}
-
-function DramSaveDialog({
-  metadata,
-  error,
-  saving,
-  onChange,
-  onClose,
-  onSubmit,
-}: {
-  metadata: SaveMetadata;
-  error: string | null;
-  saving: boolean;
-  onChange: (patch: Partial<SaveMetadata>) => void;
-  onClose: () => void;
-  onSubmit: () => void | Promise<void>;
-}) {
-  const titleId = React.useId();
-  const descriptionId = React.useId();
-  const previousFocus = React.useRef<HTMLElement | null>(null);
-  const onCloseRef = React.useRef(onClose);
-  const savingRef = React.useRef(saving);
-  const valid = metadataIsValid(metadata);
-
-  React.useEffect(() => {
-    onCloseRef.current = onClose;
-    savingRef.current = saving;
-  }, [onClose, saving]);
-
-  React.useEffect(() => {
-    previousFocus.current = document.activeElement as HTMLElement | null;
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !savingRef.current) onCloseRef.current();
-    };
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("keydown", close);
-      previousFocus.current?.focus();
-    };
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-foreground/45"
-        onClick={saving ? undefined : onClose}
-      />
-      <form
-        aria-describedby={descriptionId}
-        aria-labelledby={titleId}
-        aria-modal="true"
-        className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(640px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
-        role="dialog"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (valid && !saving) void onSubmit();
-        }}
-      >
-        <header className="flex items-start justify-between gap-4 border-b bg-white px-5 py-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Save className="h-5 w-5 text-primary" />
-              <h2 id={titleId} className="text-lg font-semibold">
-                Save DRAM Geometry
-              </h2>
-            </div>
-            <p id={descriptionId} className="mt-1 text-sm text-muted-foreground">
-              Add catalog metadata before saving this immutable geometry snapshot.
-            </p>
-          </div>
-          <Button
-            aria-label="Close save dialog"
-            disabled={saving}
-            size="icon"
-            title="Close"
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-          >
-            <X />
-          </Button>
-        </header>
-
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-medium">
-              <span>Name</span>
-              <input
-                autoFocus
-                className={inputClass}
-                disabled={saving}
-                required
-                value={metadata.name}
-                onChange={(event) => onChange({ name: event.target.value })}
-              />
-            </label>
-            <label className="grid gap-1.5 text-sm font-medium">
-              <span>Version</span>
-              <input
-                className={inputClass}
-                disabled={saving}
-                required
-                value={metadata.version}
-                onChange={(event) => onChange({ version: event.target.value })}
-              />
-            </label>
-            <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
-              <span>Owner</span>
-              <input
-                className={inputClass}
-                disabled={saving}
-                required
-                value={metadata.owner}
-                onChange={(event) => onChange({ owner: event.target.value })}
-              />
-            </label>
-          </div>
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span>Description</span>
-            <textarea
-              className={textareaClass}
-              disabled={saving}
-              value={metadata.description}
-              onChange={(event) => onChange({ description: event.target.value })}
-            />
-          </label>
-
-          <div className="grid gap-2 rounded-md border bg-muted/20 px-3 py-3 text-xs sm:grid-cols-3">
-            <MetadataConstant label="Entity type" value="die" />
-            <MetadataConstant label="Category" value="die.dram" />
-            <MetadataConstant label="Icon" value="die.stack" />
-          </div>
-
-          {error ? (
-            <p
-              aria-live="polite"
-              className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-            >
-              {error}
-            </p>
-          ) : null}
-        </div>
-
-        <footer className="flex justify-end gap-2 border-t bg-white px-5 py-3">
-          <Button disabled={saving} type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!valid || saving} type="submit">
-            {saving ? <Loader2 className="animate-spin" /> : <Database />}
-            Save to DB
-          </Button>
-        </footer>
-      </form>
-    </div>
-  );
-}
-
-function MetadataConstant({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-muted-foreground">{label}</div>
-      <div className="mt-0.5 font-mono text-foreground">{value}</div>
-    </div>
-  );
-}
-
-function metadataIsValid(metadata: SaveMetadata) {
-  return Boolean(
-    metadata.name.trim() && metadata.version.trim() && metadata.owner.trim(),
   );
 }

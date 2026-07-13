@@ -122,10 +122,11 @@ export async function createProcessFlowTemplate<T>(template: T): Promise<T> {
 
 export async function createProcessFlowTemplateInstance<
   TTemplate,
-  TInstance,
+  TInstanceCreate,
+  TInstance = TInstanceCreate,
 >(payload: {
   processFlowTemplate: TTemplate;
-  processFlowInstance: TInstance;
+  processFlowInstance: TInstanceCreate;
 }): Promise<{
   processFlowTemplate: TTemplate;
   processFlowInstance: TInstance;
@@ -136,8 +137,11 @@ export async function createProcessFlowTemplateInstance<
   });
 }
 
-export async function createProcessFlowInstance<T>(instance: T): Promise<T> {
-  return apiFetch<T>("/api/process-flow-instances", {
+export async function createProcessFlowInstance<
+  TCreate,
+  TInstance = TCreate,
+>(instance: TCreate): Promise<TInstance> {
+  return apiFetch<TInstance>("/api/process-flow-instances", {
     method: "POST",
     body: JSON.stringify(instance),
   });

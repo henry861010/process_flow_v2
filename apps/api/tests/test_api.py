@@ -239,8 +239,93 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.json()["id"], "flow_inst_test_copy")
 
+    def test_direct_instance_create_materializes_generated_geometry(self):
+        bootstrap = self.reset_poc_data()
+        source = bootstrap["processFlowInstances"][0]
+        hbm = next(
+            geometry
+            for geometry in bootstrap["geometries"]
+            if geometry["id"] == "hbm_v1_3_1"
+        )
+        embedded = {key: value for key, value in hbm.items() if key != "id"}
+        embedded["name"] = "HBM generated for direct instance"
+        embedded["version"] = "v2.0.0"
+        embedded["owner"] = "test-owner"
+        embedded["generation"] = {
+            "generatorId": "hbm",
+            "schemaVersion": 1,
+            "parameters": {"packageX": 12000, "coreDieCount": 4},
+        }
+        input_bindings = dict(source["inputBindings"])
+        input_bindings["incoming_hbm"] = {
+            "kind": "embedded",
+            "localId": "draft_generated_hbm",
+        }
+        request = {
+            **source,
+            "id": "flow_inst_direct_embedded",
+            "name": "Direct embedded instance",
+            "inputBindings": input_bindings,
+            "embeddedGeometries": {"draft_generated_hbm": embedded},
+        }
+
+        response = self.client.post("/api/process-flow-instances", json=request)
+
+        self.assertEqual(response.status_code, 201, response.text)
+        binding = response.json()["inputBindings"]["incoming_hbm"]
+        self.assertEqual(binding["kind"], "catalog")
+        self.assertNotIn("embeddedGeometries", response.json())
+        saved = self.client.get(f"/api/geometries/{binding['geometryId']}")
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()["generation"], embedded["generation"])
+
+    def test_direct_instance_materialization_rolls_back_on_duplicate_instance(self):
+        bootstrap = self.reset_poc_data()
+        source = bootstrap["processFlowInstances"][0]
+        hbm = next(
+            geometry
+            for geometry in bootstrap["geometries"]
+            if geometry["id"] == "hbm_v1_3_1"
+        )
+        embedded = {key: value for key, value in hbm.items() if key != "id"}
+        bindings = dict(source["inputBindings"])
+        bindings["incoming_hbm"] = {
+            "kind": "embedded",
+            "localId": "draft_rollback_hbm",
+        }
+        geometry_count = len(bootstrap["geometries"])
+
+        response = self.client.post(
+            "/api/process-flow-instances",
+            json={
+                **source,
+                "inputBindings": bindings,
+                "embeddedGeometries": {"draft_rollback_hbm": embedded},
+            },
+        )
+
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(
+            len(self.client.get("/api/geometries").json()),
+            geometry_count,
+        )
+
     def test_create_template_and_bound_instance_transaction(self):
-        self.reset_poc_data()
+        bootstrap = self.reset_poc_data()
+        panel = next(
+            geometry
+            for geometry in bootstrap["geometries"]
+            if geometry["id"] == "panel_v1_0_0"
+        )
+        embedded_panel = {key: value for key, value in panel.items() if key != "id"}
+        embedded_panel["name"] = "Generated transaction panel"
+        embedded_panel["version"] = "v2.0.0"
+        embedded_panel["owner"] = "test-owner"
+        embedded_panel["generation"] = {
+            "generatorId": "test-panel",
+            "schemaVersion": 1,
+            "parameters": {"source": "combined-save-test"},
+        }
         template = {
             "schemaVersion": 2,
             "id": "flow_tpl_transaction_test",
@@ -277,7 +362,10 @@ class ProcessFlowApiTests(unittest.TestCase):
             "name": "Transaction Test Instance",
             "processFlowTemplateId": "flow_tpl_transaction_test",
             "inputBindings": {
-                "incoming_panel": {"kind": "catalog", "geometryId": "panel_v1_0_0"}
+                "incoming_panel": {
+                    "kind": "embedded",
+                    "localId": "draft_transaction_panel",
+                }
             },
             "stepConfigurations": {
                 "molding": {
@@ -286,6 +374,9 @@ class ProcessFlowApiTests(unittest.TestCase):
                         "thickness": 10,
                     }
                 }
+            },
+            "embeddedGeometries": {
+                "draft_transaction_panel": embedded_panel,
             },
         }
 
@@ -300,7 +391,16 @@ class ProcessFlowApiTests(unittest.TestCase):
             response.json()["processFlowTemplate"]["stepRefs"][0]["stepLabel"],
             "molding",
         )
-        self.assertEqual(response.json()["processFlowInstance"]["id"], instance["id"])
+        created_instance = response.json()["processFlowInstance"]
+        self.assertEqual(created_instance["id"], instance["id"])
+        created_binding = created_instance["inputBindings"]["incoming_panel"]
+        self.assertEqual(created_binding["kind"], "catalog")
+        self.assertNotIn("embeddedGeometries", created_instance)
+        saved_geometry = self.client.get(
+            f"/api/geometries/{created_binding['geometryId']}"
+        )
+        self.assertEqual(saved_geometry.status_code, 200, saved_geometry.text)
+        self.assertEqual(saved_geometry.json()["generation"], embedded_panel["generation"])
 
     def test_execute_saved_instance(self):
         self.reset_poc_data()

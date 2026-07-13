@@ -3,18 +3,19 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Boxes,
   Filter,
   GitBranch,
   ListChecks,
-  MemoryStick,
   RotateCcw,
   Table2,
   Workflow,
 } from "lucide-react";
 
-import { DramGeneratorDialog } from "@/components/dram-generator/dram-generator-dialog";
-import { HbmGeneratorDialog } from "@/components/hbm-generator/hbm-generator-dialog";
+import {
+  GEOMETRY_GENERATORS,
+  GeometryGeneratorCatalogDialogLauncher,
+  type GeometryGeneratorId,
+} from "@/components/geometry-generator/geometry-generator-registry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type {
@@ -64,8 +65,8 @@ export default function Home() {
     React.useState(ALL_TEMPLATE_TYPES);
   const [hydrated, setHydrated] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [hbmGeneratorOpen, setHbmGeneratorOpen] = React.useState(false);
-  const [dramGeneratorOpen, setDramGeneratorOpen] = React.useState(false);
+  const [openGeneratorId, setOpenGeneratorId] =
+    React.useState<GeometryGeneratorId | null>(null);
 
   React.useEffect(() => {
     let active = true;
@@ -150,24 +151,18 @@ export default function Home() {
           </div>
 
           <nav aria-label="Process flow tools" className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setHbmGeneratorOpen(true)}
-            >
-              <Boxes />
-              HBM Generator
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setDramGeneratorOpen(true)}
-            >
-              <MemoryStick />
-              DRAM Generator
-            </Button>
+            {GEOMETRY_GENERATORS.map((generator) => (
+              <Button
+                key={generator.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setOpenGeneratorId(generator.id)}
+              >
+                <generator.Icon />
+                {generator.label}
+              </Button>
+            ))}
             <Button asChild variant="outline" size="sm">
               <Link href="/flow-template-editor" prefetch={false}>
                 <Workflow />
@@ -341,11 +336,11 @@ export default function Home() {
         cmd: reset-poc-data
       </button>
 
-      {hbmGeneratorOpen ? (
-        <HbmGeneratorDialog onClose={() => setHbmGeneratorOpen(false)} />
-      ) : null}
-      {dramGeneratorOpen ? (
-        <DramGeneratorDialog onClose={() => setDramGeneratorOpen(false)} />
+      {openGeneratorId ? (
+        <GeometryGeneratorCatalogDialogLauncher
+          generatorId={openGeneratorId}
+          onClose={() => setOpenGeneratorId(null)}
+        />
       ) : null}
     </main>
   );

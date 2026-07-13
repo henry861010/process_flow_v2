@@ -17,10 +17,11 @@ from process_flow_kernel import (
 
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
+from .configuration_materialization import materialize_embedded_bindings
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,
-    ProcessFlowInstance,
+    ProcessFlowInstanceCreate,
     ProcessFlowTemplate,
     TemplateInstanceCreateRequest,
 )
@@ -113,7 +114,13 @@ def create_template_instance(
     step_templates = load_step_templates_for_template(store, template)
     validate_flow_graph(template, step_templates)
     _compiler(store).compile(template, instance, step_templates)
-    created_template, created_instance = store.insert_template_and_instance(template, instance)
+    geometries, catalog_bindings = materialize_embedded_bindings(instance)
+    persisted_instance = _persisted_instance(instance, catalog_bindings)
+    created_template, created_instance = store.insert_template_and_instance(
+        template,
+        persisted_instance,
+        geometries=geometries,
+    )
     return {
         "processFlowTemplate": created_template,
         "processFlowInstance": created_instance,
@@ -122,7 +129,7 @@ def create_template_instance(
 
 def create_flow_instance(
     store: SQLiteStore,
-    body: ProcessFlowInstance,
+    body: ProcessFlowInstanceCreate,
 ) -> JsonObject:
     payload = body.payload()
     template = require_item(
@@ -131,7 +138,23 @@ def create_flow_instance(
     )
     step_templates = load_step_templates_for_template(store, template)
     _compiler(store).compile(template, payload, step_templates)
-    return store.insert_process_flow_instance(payload)
+    geometries, catalog_bindings = materialize_embedded_bindings(payload)
+    instance = _persisted_instance(payload, catalog_bindings)
+    return store.insert_instance_with_geometries(instance, geometries=geometries)
+
+
+def _persisted_instance(
+    create_payload: JsonObject,
+    catalog_bindings: dict[str, JsonObject],
+) -> JsonObject:
+    return {
+        "schemaVersion": 2,
+        "id": create_payload["id"],
+        "name": create_payload["name"],
+        "processFlowTemplateId": create_payload["processFlowTemplateId"],
+        "inputBindings": catalog_bindings,
+        "stepConfigurations": create_payload.get("stepConfigurations", {}),
+    }
 
 
 def execute_instance(store: SQLiteStore, instance_id: str) -> JsonObject:

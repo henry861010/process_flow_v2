@@ -34,6 +34,12 @@ import { CategoryLibraryBrowser } from "@/components/category-library/category-l
 import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
 import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
 import {
+  GEOMETRY_GENERATORS,
+  GeometryGeneratorDialogLauncher,
+  type GeometryGeneratorId,
+} from "@/components/geometry-generator/geometry-generator-registry";
+import type { GeometryGeneratorDefineResult } from "@/components/geometry-generator/geometry-generator-types";
+import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
 } from "@/components/geometry-preview/geometry-preview-panel";
@@ -45,6 +51,7 @@ import {
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import {
   SaveInformationDialog,
+  type EmbeddedGeometrySaveInformation,
   type InstanceSaveInformation,
   type SaveInformationMode,
   type TemplateSaveInformation,
@@ -74,11 +81,12 @@ import {
 } from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import type {
-  CatalogGeometryBinding,
+  EmbeddedGeometry,
   FlowConfiguration,
   FlowInputDefinition,
   GeometryEntity,
   ProcessFlowInstance,
+  ProcessFlowInstanceCreate,
   ProcessFlowTemplate,
   ProcessStepTemplate,
   SavedFlowEdge,
@@ -138,6 +146,12 @@ type PreviewAvailability =
   | { ok: true }
   | { ok: false; reason: string };
 
+type GeometryGeneratorSession = {
+  generatorId: GeometryGeneratorId;
+  target: { kind: "create" } | { kind: "flowInput"; nodeId: string };
+  initialParameters?: Record<string, unknown>;
+};
+
 export function ProcessFlowTemplateEditor() {
   return (
     <ReactFlowProvider>
@@ -161,6 +175,8 @@ function ProcessFlowTemplateEditorInner() {
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
   const [pickerNodeId, setPickerNodeId] = React.useState<string | null>(null);
+  const [generatorSession, setGeneratorSession] =
+    React.useState<GeometryGeneratorSession | null>(null);
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
   const [savedTemplate, setSavedTemplate] = React.useState<ProcessFlowTemplate | null>(null);
   const [busyAction, setBusyAction] = React.useState<"template" | "instance" | null>(null);
@@ -239,6 +255,10 @@ function ProcessFlowTemplateEditorInner() {
         )
       : null;
   const pickerNode = nodes.find((node): node is FlowInputNode => node.id === pickerNodeId && isFlowInputNode(node)) ?? null;
+  const embeddedGeometrySaveInformation = React.useMemo(
+    () => referencedEmbeddedGeometrySaveInformation(configuration),
+    [configuration],
+  );
 
   const displayNodes: FlowNode[] = nodes.map((node) => {
         if (isFlowInputNode(node)) {
@@ -392,6 +412,32 @@ function ProcessFlowTemplateEditorInner() {
     setMessage(null);
   }
 
+  function updateEmbeddedGeometryMetadata(
+    localId: string,
+    patch: Partial<Omit<EmbeddedGeometrySaveInformation, "localId">>,
+  ) {
+    setConfiguration((current) => {
+      const geometry = current.embeddedGeometries[localId];
+      if (!geometry) return current;
+      return {
+        ...current,
+        embeddedGeometries: {
+          ...current.embeddedGeometries,
+          [localId]: {
+            ...geometry,
+            ...patch,
+            description:
+              patch.description === undefined
+                ? geometry.description
+                : patch.description || null,
+          },
+        },
+      };
+    });
+    setSaveDialogError(null);
+    setMessage(null);
+  }
+
   function openSaveDialog(
     mode: Extract<SaveInformationMode, "template" | "template-and-instance" | "instance">,
   ) {
@@ -432,7 +478,13 @@ function ProcessFlowTemplateEditorInner() {
 
   function addFlowInput(
     position = defaultDropPosition(nodes),
-    geometry?: GeometryEntity,
+    source?:
+      | { kind: "catalog"; geometry: GeometryEntity }
+      | {
+          kind: "embedded";
+          geometry: EmbeddedGeometry;
+          flowInputName: string;
+        },
   ) {
     if (topologyLocked) return;
     const usedIds = new Set(
@@ -447,7 +499,10 @@ function ProcessFlowTemplateEditorInner() {
         nodeKind: "flowInput",
         definition: {
           flowInputId,
-          name: "Geometry input",
+          name:
+            source?.kind === "embedded"
+              ? source.flowInputName
+              : "Geometry input",
           description: "",
           dataType: "geometry",
           required: true,
@@ -456,15 +511,111 @@ function ProcessFlowTemplateEditorInner() {
     };
     setNodes((current) => [...current, node]);
     setSelectedNodeId(node.id);
-    if (geometry) {
+    if (source?.kind === "catalog") {
       setConfiguration((current) => ({
         ...current,
         inputBindings: {
           ...current.inputBindings,
-          [flowInputId]: { kind: "catalog", geometryId: geometry.id },
+          [flowInputId]: { kind: "catalog", geometryId: source.geometry.id },
+        },
+      }));
+    } else if (source?.kind === "embedded") {
+      const localId = draftGeometryId();
+      setConfiguration((current) => ({
+        ...current,
+        inputBindings: {
+          ...current.inputBindings,
+          [flowInputId]: { kind: "embedded", localId },
+        },
+        embeddedGeometries: {
+          ...current.embeddedGeometries,
+          [localId]: clone(source.geometry),
         },
       }));
     }
+  }
+
+  function openFlowInputGenerator(
+    node: FlowInputNode,
+    generatorId: GeometryGeneratorId,
+  ) {
+    const geometry = geometryForFlowInput(
+      configuration,
+      node.data.definition.flowInputId,
+      geometries,
+    );
+    const initialParameters =
+      geometry?.generation?.generatorId === generatorId
+        ? geometry.generation.parameters
+        : undefined;
+    setGeneratorSession({
+      generatorId,
+      target: { kind: "flowInput", nodeId: node.id },
+      initialParameters,
+    });
+  }
+
+  function applyGeneratedGeometry(result: GeometryGeneratorDefineResult) {
+    if (!generatorSession) return;
+    const target = generatorSession.target;
+    if (target.kind === "create") {
+      addFlowInput(defaultDropPosition(nodes), {
+        kind: "embedded",
+        geometry: result.geometry,
+        flowInputName: result.suggestedFlowInputName,
+      });
+      setMessage(null);
+      setGeneratorSession(null);
+      return;
+    }
+
+    const node = nodes.find(
+      (candidate): candidate is FlowInputNode =>
+        candidate.id === target.nodeId &&
+        isFlowInputNode(candidate),
+    );
+    if (!node) {
+      setGeneratorSession(null);
+      return;
+    }
+
+    const flowInputId = node.data.definition.flowInputId;
+    setConfiguration((current) => {
+      const previousBinding = current.inputBindings[flowInputId];
+      const reusableLocalId =
+        previousBinding?.kind === "embedded" &&
+        Object.values(current.inputBindings).filter(
+          (binding) =>
+            binding.kind === "embedded" &&
+            binding.localId === previousBinding.localId,
+        ).length === 1
+          ? previousBinding.localId
+          : null;
+      const localId = reusableLocalId ?? draftGeometryId();
+      const inputBindings = {
+        ...current.inputBindings,
+        [flowInputId]: { kind: "embedded" as const, localId },
+      };
+      const embeddedGeometries = {
+        ...current.embeddedGeometries,
+        [localId]: clone(result.geometry),
+      };
+      if (
+        previousBinding?.kind === "embedded" &&
+        previousBinding.localId !== localId &&
+        !Object.values(inputBindings).some(
+          (binding) =>
+            binding.kind === "embedded" &&
+            binding.localId === previousBinding.localId,
+        )
+      ) {
+        delete embeddedGeometries[previousBinding.localId];
+      }
+      return { ...current, inputBindings, embeddedGeometries };
+    });
+    setMessage(null);
+    setPickerNodeId(null);
+    setGeneratorSession(null);
   }
 
   function addStepTemplate(
@@ -523,8 +674,19 @@ function ProcessFlowTemplateEditorInner() {
     setConfiguration((current) => {
       if (isFlowInputNode(node)) {
         const nextBindings = { ...current.inputBindings };
+        const deletedBinding = nextBindings[node.data.definition.flowInputId];
         delete nextBindings[node.data.definition.flowInputId];
-        return { ...current, inputBindings: nextBindings };
+        if (deletedBinding?.kind !== "embedded") {
+          return { ...current, inputBindings: nextBindings };
+        }
+        const embeddedGeometries = { ...current.embeddedGeometries };
+        const stillReferenced = Object.values(nextBindings).some(
+          (binding) =>
+            binding.kind === "embedded" &&
+            binding.localId === deletedBinding.localId,
+        );
+        if (!stillReferenced) delete embeddedGeometries[deletedBinding.localId];
+        return { ...current, inputBindings: nextBindings, embeddedGeometries };
       }
       const nextStepConfigurations = { ...current.stepConfigurations };
       delete nextStepConfigurations[node.data.stepRef.stepRefId];
@@ -611,7 +773,7 @@ function ProcessFlowTemplateEditorInner() {
     const geometryId = event.dataTransfer.getData(GEOMETRY_DRAG_TYPE);
     if (geometryId) {
       const geometry = geometries.find((item) => item.id === geometryId);
-      if (geometry) addFlowInput(position, geometry);
+      if (geometry) addFlowInput(position, { kind: "catalog", geometry });
     }
   }
 
@@ -724,14 +886,15 @@ function ProcessFlowTemplateEditorInner() {
     });
   }
 
-  function buildInstance(templateId: string): ProcessFlowInstance {
+  function buildInstance(templateId: string): ProcessFlowInstanceCreate {
     return {
       schemaVersion: 2,
       id: instanceIdentity.id.trim(),
       name: instanceIdentity.name.trim(),
       processFlowTemplateId: templateId,
-      inputBindings: configuration.inputBindings as Record<string, CatalogGeometryBinding>,
-      stepConfigurations: configuration.stepConfigurations,
+      inputBindings: clone(configuration.inputBindings),
+      stepConfigurations: clone(configuration.stepConfigurations),
+      embeddedGeometries: clone(configuration.embeddedGeometries),
     };
   }
 
@@ -780,26 +943,39 @@ function ProcessFlowTemplateEditorInner() {
       setSaveDialogError(instanceValidationError);
       return;
     }
+    const geometryValidationError = validateEmbeddedGeometrySaveInformation(configuration);
+    if (geometryValidationError) {
+      setSaveDialogError(geometryValidationError);
+      return;
+    }
     setBusyAction("instance");
     setSaveDialogError(null);
     setMessage(null);
     try {
       if (savedTemplate) {
-        const instance = await createProcessFlowInstance<ProcessFlowInstance>(
+        const configurationToSave = clone(configuration);
+        const instance = await createProcessFlowInstance<
+          ProcessFlowInstanceCreate,
+          ProcessFlowInstance
+        >(
           buildInstance(savedTemplate.id),
         );
+        applyMaterializedInstance(instance, configurationToSave);
         setFlowInstances((current) => [...current, instance]);
         setSaveDialogMode(null);
         setMessage({ kind: "success", text: `Instance ${instance.id} saved.` });
       } else {
+        const configurationToSave = clone(configuration);
         const result = await createProcessFlowTemplateInstance<
           ProcessFlowTemplate,
+          ProcessFlowInstanceCreate,
           ProcessFlowInstance
         >({
           processFlowTemplate: draftTemplate,
           processFlowInstance: buildInstance(draftTemplate.id),
         });
         setSavedTemplate(result.processFlowTemplate);
+        applyMaterializedInstance(result.processFlowInstance, configurationToSave);
         setFlowTemplates((current) => [...current, result.processFlowTemplate]);
         setFlowInstances((current) => [...current, result.processFlowInstance]);
         setSaveDialogMode(null);
@@ -815,6 +991,43 @@ function ProcessFlowTemplateEditorInner() {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  function applyMaterializedInstance(
+    instance: ProcessFlowInstance,
+    submittedConfiguration: FlowConfiguration,
+  ) {
+    const materializedGeometries: GeometryEntity[] = [];
+    const materializedGeometryIds = new Set<string>();
+    Object.entries(submittedConfiguration.inputBindings).forEach(
+      ([flowInputId, submittedBinding]) => {
+        if (submittedBinding.kind !== "embedded") return;
+        const savedBinding = instance.inputBindings[flowInputId];
+        const embedded = submittedConfiguration.embeddedGeometries[submittedBinding.localId];
+        if (
+          !savedBinding ||
+          !embedded ||
+          materializedGeometryIds.has(savedBinding.geometryId)
+        ) {
+          return;
+        }
+        materializedGeometryIds.add(savedBinding.geometryId);
+        materializedGeometries.push(
+          geometryEntityFromEmbedded(savedBinding.geometryId, embedded),
+        );
+      },
+    );
+    setGeometries((current) => [
+      ...current,
+      ...materializedGeometries.filter(
+        (geometry) => !current.some((candidate) => candidate.id === geometry.id),
+      ),
+    ]);
+    setConfiguration({
+      inputBindings: clone(instance.inputBindings),
+      stepConfigurations: clone(instance.stepConfigurations),
+      embeddedGeometries: {},
+    });
   }
 
   function handleFileExportJobCreated(job: FileExportJob) {
@@ -901,9 +1114,29 @@ function ProcessFlowTemplateEditorInner() {
       </div>
 
       <section className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(540px,1fr)_320px] lg:overflow-hidden">
-        <aside className="min-h-[240px] border-r bg-white lg:min-h-0">
+        <aside className="flex min-h-[240px] flex-col border-r bg-white lg:min-h-0">
           <PaletteHeader icon={<Boxes className="h-4 w-4" />} title="Geometry library" />
-          <div className="h-[240px] overflow-y-auto p-3 lg:h-[calc(100%-49px)]">
+          <div className="grid shrink-0 grid-cols-2 gap-2 border-b p-3">
+            {GEOMETRY_GENERATORS.map((generator) => (
+              <Button
+                key={generator.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={topologyLocked}
+                onClick={() =>
+                  setGeneratorSession({
+                    generatorId: generator.id,
+                    target: { kind: "create" },
+                  })
+                }
+              >
+                <generator.Icon />
+                {generator.label}
+              </Button>
+            ))}
+          </div>
+          <div className="h-[240px] min-h-0 overflow-y-auto p-3 lg:h-auto lg:flex-1">
             <CategoryLibraryBrowser
               items={geometries}
               path={geometryCategoryPath}
@@ -1000,10 +1233,12 @@ function ProcessFlowTemplateEditorInner() {
           mode={saveDialogMode}
           template={metadata}
           instance={instanceIdentity}
+          embeddedGeometries={embeddedGeometrySaveInformation}
           error={saveDialogError}
           submitting={busyAction !== null}
           onTemplateChange={updateMetadata}
           onInstanceChange={updateInstanceIdentity}
+          onEmbeddedGeometryChange={updateEmbeddedGeometryMetadata}
           onClose={closeSaveDialog}
           onSubmit={
             saveDialogMode === "template" ? saveTemplateOnly : saveInstance
@@ -1049,6 +1284,18 @@ function ProcessFlowTemplateEditorInner() {
           geometries={geometries}
           onClose={() => setPickerNodeId(null)}
           onSelect={(geometryId) => setInputGeometry(pickerNode, geometryId)}
+          onOpenGenerator={(generatorId) =>
+            openFlowInputGenerator(pickerNode, generatorId)
+          }
+        />
+      ) : null}
+
+      {generatorSession ? (
+        <GeometryGeneratorDialogLauncher
+          generatorId={generatorSession.generatorId}
+          initialParameters={generatorSession.initialParameters}
+          onClose={() => setGeneratorSession(null)}
+          onDefine={applyGeneratedGeometry}
         />
       ) : null}
 
@@ -1506,12 +1753,14 @@ function GeometryPickerDialog({
   geometries,
   onClose,
   onSelect,
+  onOpenGenerator,
 }: {
   flowInput: FlowInputDefinition;
   selectedBinding: FlowConfiguration["inputBindings"][string] | undefined;
   geometries: GeometryEntity[];
   onClose: () => void;
   onSelect: (geometryId: string) => void;
+  onOpenGenerator: (generatorId: GeometryGeneratorId) => void;
 }) {
   const [query, setQuery] = React.useState("");
   const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
@@ -1540,6 +1789,24 @@ function GeometryPickerDialog({
             <X />
           </Button>
         </header>
+        <div className="shrink-0 border-b bg-muted/10 px-4 py-4">
+          <div className="mb-2 text-xs font-medium text-muted-foreground">
+            Generate geometry
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {GEOMETRY_GENERATORS.map((generator) => (
+              <Button
+                key={generator.id}
+                type="button"
+                variant="outline"
+                onClick={() => onOpenGenerator(generator.id)}
+              >
+                <generator.Icon />
+                {generator.label}
+              </Button>
+            ))}
+          </div>
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <CategoryLibraryBrowser
             items={matchingGeometries}
@@ -2008,6 +2275,63 @@ function validateInstanceSaveInformation(
   return null;
 }
 
+function referencedEmbeddedGeometrySaveInformation(
+  configuration: FlowConfiguration,
+): EmbeddedGeometrySaveInformation[] {
+  const referencedLocalIds = new Set(
+    Object.values(configuration.inputBindings).flatMap((binding) =>
+      binding.kind === "embedded" ? [binding.localId] : [],
+    ),
+  );
+  return Array.from(referencedLocalIds).flatMap((localId) => {
+    const geometry = configuration.embeddedGeometries[localId];
+    if (!geometry) return [];
+    return [
+      {
+        localId,
+        name: geometry.name,
+        version: geometry.version ?? "",
+        owner: geometry.owner ?? "",
+        description: geometry.description ?? "",
+      },
+    ];
+  });
+}
+
+function validateEmbeddedGeometrySaveInformation(
+  configuration: FlowConfiguration,
+) {
+  const missing = referencedEmbeddedGeometrySaveInformation(configuration).find(
+    (geometry) =>
+      !geometry.name.trim() ||
+      !geometry.version.trim() ||
+      !geometry.owner.trim(),
+  );
+  return missing
+    ? `Generated geometry ${missing.localId} requires name, version, and owner.`
+    : null;
+}
+
+function geometryEntityFromEmbedded(
+  id: string,
+  geometry: EmbeddedGeometry,
+): GeometryEntity {
+  return {
+    id,
+    name: geometry.name,
+    version: geometry.version ?? "",
+    owner: geometry.owner ?? "",
+    description: geometry.description ?? "",
+    entityType: geometry.entityType,
+    category: geometry.category ?? "",
+    icon: geometry.icon,
+    iconScale: geometry.iconScale,
+    structureFormat: geometry.structureFormat,
+    structure: clone(geometry.structure),
+    generation: geometry.generation ? clone(geometry.generation) : undefined,
+  };
+}
+
 function slugId(value: string) {
   return value
     .trim()
@@ -2026,6 +2350,10 @@ function nextId(base: string, used: Set<string>) {
 
 function internalId(prefix: string) {
   return `${prefix}:${globalThis.crypto.randomUUID()}`;
+}
+
+function draftGeometryId() {
+  return `draft_geometry_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
 }
 
 function defaultDropPosition(nodes: FlowNode[]) {

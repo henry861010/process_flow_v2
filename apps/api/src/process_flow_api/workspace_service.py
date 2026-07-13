@@ -5,7 +5,8 @@ from typing import Any
 from process_flow_kernel import FlowCompiler
 
 from .geometry_resolver import StoreGeometryCatalog
-from .identifiers import generated_geometry_id, generated_workspace_id
+from .configuration_materialization import materialize_embedded_bindings
+from .identifiers import generated_workspace_id
 from .models import (
     ProcessFlowWorkspaceCreate,
     ProcessFlowWorkspaceUpdate,
@@ -98,7 +99,7 @@ def commit_workspace(
     compiler = _compiler(store)
     compiler.compile(template, workspace, step_templates)
 
-    geometries, catalog_bindings = _materialize_embedded_bindings(workspace)
+    geometries, catalog_bindings = materialize_embedded_bindings(workspace)
     instance = {
         "schemaVersion": 2,
         "id": body.instanceId,
@@ -126,27 +127,6 @@ def commit_workspace(
         "workspace": saved_workspace,
         "processFlowInstance": saved_instance,
     }
-
-
-def _materialize_embedded_bindings(workspace):
-    embedded = workspace.get("embeddedGeometries", {})
-    generated_by_local_id = {}
-    catalog_bindings = {}
-    for flow_input_id, binding in workspace.get("inputBindings", {}).items():
-        if binding.get("kind") == "catalog":
-            catalog_bindings[flow_input_id] = binding
-            continue
-        local_id = binding["localId"]
-        geometry = embedded[local_id]
-        if local_id not in generated_by_local_id:
-            payload = {**geometry}
-            payload["id"] = generated_geometry_id(payload)
-            generated_by_local_id[local_id] = payload
-        catalog_bindings[flow_input_id] = {
-            "kind": "catalog",
-            "geometryId": generated_by_local_id[local_id]["id"],
-        }
-    return list(generated_by_local_id.values()), catalog_bindings
 
 
 def _compiler(store):

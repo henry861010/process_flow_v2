@@ -193,6 +193,12 @@ class StepConfiguration(StrictModel):
     parameterValues: dict[str, Any] = Field(default_factory=dict)
 
 
+class GeometryGeneration(StrictModel):
+    generatorId: str = Field(min_length=1)
+    schemaVersion: int = Field(ge=1)
+    parameters: JsonObject
+
+
 class EmbeddedGeometry(StrictModel):
     name: str
     entityType: str
@@ -204,6 +210,7 @@ class EmbeddedGeometry(StrictModel):
     iconScale: float | None = None
     structureFormat: str = "standard"
     structure: JsonObject
+    generation: GeometryGeneration | None = None
 
 
 class FlowConfiguration(StrictModel):
@@ -219,6 +226,13 @@ class ProcessFlowInstance(StrictModel):
     processFlowTemplateId: str = Field(min_length=1)
     inputBindings: dict[str, CatalogGeometryBinding]
     stepConfigurations: dict[str, StepConfiguration]
+
+
+class ProcessFlowInstanceCreate(FlowConfiguration):
+    schemaVersion: Literal[2] = 2
+    id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    processFlowTemplateId: str = Field(min_length=1)
 
 
 class ProcessFlowWorkspace(FlowConfiguration):
@@ -261,11 +275,12 @@ class GeometryEntity(StrictModel):
     iconScale: float | None = None
     structureFormat: str = "standard"
     structure: JsonObject
+    generation: GeometryGeneration | None = None
 
 
 class TemplateInstanceCreateRequest(StrictModel):
     processFlowTemplate: ProcessFlowTemplate
-    processFlowInstance: ProcessFlowInstance
+    processFlowInstance: ProcessFlowInstanceCreate
 
 
 class FlowInputPreviewTarget(StrictModel):

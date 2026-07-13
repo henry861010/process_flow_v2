@@ -165,6 +165,12 @@ export type StepConfiguration = {
   parameterValues: Record<string, unknown>;
 };
 
+export type GeometryGeneration = {
+  generatorId: string;
+  schemaVersion: number;
+  parameters: Record<string, unknown>;
+};
+
 export type EmbeddedGeometry = {
   name: string;
   entityType: string;
@@ -176,6 +182,7 @@ export type EmbeddedGeometry = {
   iconScale?: number;
   structureFormat: string;
   structure: unknown;
+  generation?: GeometryGeneration;
 };
 
 export type FlowConfiguration = {
@@ -205,6 +212,12 @@ export type ProcessFlowInstance = {
   stepConfigurations: Record<string, StepConfiguration>;
 };
 
+export type ProcessFlowInstanceCreate = Omit<
+  ProcessFlowInstance,
+  "inputBindings"
+> &
+  FlowConfiguration;
+
 export type GeometryEntity = {
   id: string;
   category: string;
@@ -217,6 +230,7 @@ export type GeometryEntity = {
   iconScale?: number;
   structureFormat: string;
   structure?: unknown;
+  generation?: GeometryGeneration;
 };
 
 export type StepCompletion = {

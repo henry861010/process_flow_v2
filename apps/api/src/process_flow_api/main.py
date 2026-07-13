@@ -25,7 +25,7 @@ from .models import (
     GeometryPreviewStepResponse,
     PreviewSectionResponse,
     PreviewSessionResponse,
-    ProcessFlowInstance,
+    ProcessFlowInstanceCreate,
     ProcessFlowTemplate,
     ProcessFlowWorkspaceCreate,
     ProcessFlowWorkspaceUpdate,
@@ -176,7 +176,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         return require_item(get_store(request).get_process_flow_instance(instance_id), instance_id)
 
     @app.post("/api/process-flow-instances", status_code=status.HTTP_201_CREATED)
-    async def create_process_flow_instance(request: Request, body: ProcessFlowInstance):
+    async def create_process_flow_instance(request: Request, body: ProcessFlowInstanceCreate):
         return create_flow_instance(get_store(request), body)
 
     @app.post("/api/process-flow-instances/{instance_id}/execute", response_model=ExecuteInstanceResponse)

@@ -351,14 +351,37 @@ class SQLiteStore:
             raise DuplicateItemError(str(error)) from error
         return workspace, instance
 
-    def insert_template_and_instance(self, template: JsonObject, instance: JsonObject) -> tuple[JsonObject, JsonObject]:
+    def insert_template_and_instance(
+        self,
+        template: JsonObject,
+        instance: JsonObject,
+        *,
+        geometries: Iterable[JsonObject] = (),
+    ) -> tuple[JsonObject, JsonObject]:
         try:
             with self._connection:
                 self._insert_process_flow_template_in_transaction(template)
+                for geometry in geometries:
+                    self._insert_geometry_in_transaction(geometry)
                 self._insert_process_flow_instance_in_transaction(instance)
         except sqlite3.IntegrityError as error:
             raise DuplicateItemError(str(error)) from error
         return template, instance
+
+    def insert_instance_with_geometries(
+        self,
+        instance: JsonObject,
+        *,
+        geometries: Iterable[JsonObject] = (),
+    ) -> JsonObject:
+        try:
+            with self._connection:
+                for geometry in geometries:
+                    self._insert_geometry_in_transaction(geometry)
+                self._insert_process_flow_instance_in_transaction(instance)
+        except sqlite3.IntegrityError as error:
+            raise DuplicateItemError(str(error)) from error
+        return instance
 
     def seed(self, fixtures: dict[str, Iterable[JsonObject]], *, reset: bool = False) -> None:
         if reset:

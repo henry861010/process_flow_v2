@@ -32,7 +32,7 @@ HBM Geometry Generator 將一組 package、base die、core die stack 與 molding
 - core die XY offset、rotation 或非置中排列；
 - TSV、bump、circuit、underfill 與其他 density feature；
 - bottom molding 或 base die 小於 package footprint；
-- 從 Process Flow editor 直接建立或綁定 HBM geometry。
+- 從非generator legacy GeometryStructure反推 HBM authoring parameters。
 
 ## 座標與結構契約
 
@@ -146,6 +146,17 @@ Save 必須用同一份 GeometryStructure 建立 `GeometryEntity`：
 | `structureFormat` | `standard` |
 | `structure` | Generator 產生的完整 GeometryStructure。 |
 
+Catalog record MUST 同時保存通用`generation` metadata：`generatorId = "hbm"`、parameter
+schema version與建立structure所用的完整parameters。此metadata供authoring UI重新載入參數；
+GeometryStructure仍是compiler與kernel使用的authoritative geometry。
+
+### Define Flow Input
+
+Flow Template Editor使用同一generator的flow-input mode。此模式不得顯示Generate JSON或
+Save to DB；`Define`回傳draft-local EmbeddedGeometry，使用暫存metadata
+`name = "hbm_generator"`、`version = "v0.0.0"`、`owner = null`，並附完整generation
+metadata。Define本身不得寫DB；只有後續instance save materialization可以建立catalog record。
+
 Catalog persistence 與 server-generated geometry id 的一般規則見
 [Persistence](./persistence.md) 與 [Geometry structure](./geometry-structure.md#2-geometryentity-外層結構)。
 
@@ -159,4 +170,3 @@ Catalog persistence 與 server-generated geometry id 的一般規則見
 
 UI 版面、field placement、diagram 與 accessibility 規格見
 [HBM Generator UI](../ui/components/hbm-generator.md)。
-

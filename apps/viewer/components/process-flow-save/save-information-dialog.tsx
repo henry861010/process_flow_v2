@@ -23,6 +23,14 @@ export type InstanceSaveInformation = {
   name: string;
 };
 
+export type EmbeddedGeometrySaveInformation = {
+  localId: string;
+  name: string;
+  version: string;
+  owner: string;
+  description: string;
+};
+
 export type SaveInformationMode =
   | "template"
   | "template-and-instance"
@@ -34,11 +42,13 @@ export function SaveInformationDialog({
   template,
   instance,
   workspaceName,
+  embeddedGeometries = [],
   error,
   submitting,
   onTemplateChange,
   onInstanceChange,
   onWorkspaceNameChange,
+  onEmbeddedGeometryChange,
   onClose,
   onSubmit,
 }: {
@@ -46,11 +56,16 @@ export function SaveInformationDialog({
   template?: TemplateSaveInformation;
   instance?: InstanceSaveInformation;
   workspaceName?: string;
+  embeddedGeometries?: EmbeddedGeometrySaveInformation[];
   error?: string | null;
   submitting: boolean;
   onTemplateChange?: (patch: Partial<TemplateSaveInformation>) => void;
   onInstanceChange?: (patch: Partial<InstanceSaveInformation>) => void;
   onWorkspaceNameChange?: (name: string) => void;
+  onEmbeddedGeometryChange?: (
+    localId: string,
+    patch: Partial<Omit<EmbeddedGeometrySaveInformation, "localId">>,
+  ) => void;
   onClose: () => void;
   onSubmit: () => void | Promise<void>;
 }) {
@@ -229,6 +244,83 @@ export function SaveInformationDialog({
                     onChange={(event) => onInstanceChange({ id: event.target.value })}
                   />
                 </FormField>
+              </div>
+            </section>
+          ) : null}
+
+          {(mode === "instance" || mode === "template-and-instance") &&
+          embeddedGeometries.length > 0 &&
+          onEmbeddedGeometryChange ? (
+            <section className="space-y-4 border-t pt-5">
+              <div>
+                <h3 className="text-sm font-semibold">Generated geometry information</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Confirm the catalog metadata used when generated draft geometries are materialized.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {embeddedGeometries.map((geometry) => (
+                  <div key={geometry.localId} className="space-y-4 rounded-md border bg-muted/10 p-4">
+                    <div className="font-mono text-[10px] text-muted-foreground">
+                      {geometry.localId}
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField label="Geometry name" required>
+                        <input
+                          className={inputClass}
+                          value={geometry.name}
+                          disabled={submitting}
+                          required
+                          onChange={(event) =>
+                            onEmbeddedGeometryChange(geometry.localId, {
+                              name: event.target.value,
+                            })
+                          }
+                        />
+                      </FormField>
+                      <FormField label="Geometry version" required>
+                        <input
+                          className={inputClass}
+                          value={geometry.version}
+                          disabled={submitting}
+                          required
+                          onChange={(event) =>
+                            onEmbeddedGeometryChange(geometry.localId, {
+                              version: event.target.value,
+                            })
+                          }
+                        />
+                      </FormField>
+                      <div className="sm:col-span-2">
+                        <FormField label="Geometry owner" required>
+                          <input
+                            className={inputClass}
+                            value={geometry.owner}
+                            disabled={submitting}
+                            required
+                            onChange={(event) =>
+                              onEmbeddedGeometryChange(geometry.localId, {
+                                owner: event.target.value,
+                              })
+                            }
+                          />
+                        </FormField>
+                      </div>
+                    </div>
+                    <FormField label="Geometry description">
+                      <textarea
+                        className={textareaClass}
+                        value={geometry.description}
+                        disabled={submitting}
+                        onChange={(event) =>
+                          onEmbeddedGeometryChange(geometry.localId, {
+                            description: event.target.value,
+                          })
+                        }
+                      />
+                    </FormField>
+                  </div>
+                ))}
               </div>
             </section>
           ) : null}

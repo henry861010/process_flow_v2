@@ -24,11 +24,12 @@ verified_against:
 
 ## 目的與入口
 
-HBM Generator 是 Home route 上的 modal authoring tool。使用者不離開 `/` 即可調整 HBM
-package、base die、core stack 與材料，下載 GeometryStructure，或把 geometry snapshot 存入
-catalog。
+HBM Generator 是共用geometry generator registry中的modal authoring tool。Home使用catalog
+mode，讓使用者下載GeometryStructure或把snapshot存入catalog；Flow Template Editor使用
+flow-input mode，以`Define`建立或替換embedded flow input geometry。
 
-本 component 不負責列出、更新或刪除既有 geometry，也不在本版直接建立 FlowInput binding。
+本 component 不負責列出、更新或刪除既有catalog geometry。FlowInput binding由呼叫端依
+Define result建立，generator本身不直接持有flow graph state。
 Geometry 產生與座標契約由 [HBM Geometry Generator](../../reference/hbm-generator.md) 定義。
 
 入口是 Home header nav 第一個 32px outline button：`Boxes + HBM Generator`。Click 後開啟
@@ -62,6 +63,7 @@ Define a centered core-die stack inside a full molding package. All dimensions u
 
 Footer 左側顯示 root molding / child priority 說明或 invalid summary；右側依序是
 `Download + Generate JSON` outline button與`Database + Save to DB` primary button。
+flow-input mode則以單一primary `Define`取代這兩個action。
 
 ## Engineering drawings
 
@@ -133,6 +135,7 @@ Base Die card底部顯示唯讀 `Inherited footprint` 與目前
 | Saving | 下層保留 | 不可操作 | submitting disabled | spinner + controls disabled |
 | Save failed | 下層保留 | 不可操作 | 可retry | destructive API message，metadata保留 |
 | Save succeeded | 保留目前參數 | enabled | enabled | 顯示saved name與server id |
+| Flow-input mode | 即時反映 | hidden | hidden | 合法時`Define`enabled |
 
 ## Save dialog
 
@@ -193,4 +196,3 @@ focus restore、Escape guard或ARIA attributes。
 | `UI-HBM-007` | complete metadata，server save success | request建立`die.hbm` GeometryEntity，Generator顯示saved name與id。 |
 | `UI-HBM-008` | Save dialog open，press Escape | 只關閉Save dialog，Generator保持開啟。 |
 | `UI-HBM-009` | 390px viewport | cards單欄、中央可捲動、document無horizontal overflow。 |
-

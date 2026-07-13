@@ -162,6 +162,12 @@ Generated ids MUST match Process Flow identifier grammar。Geometry generation i
 content-addressed；identical payloads MAY produce different ids and are independent immutable
 snapshots。
 
+Workspace commit、direct ProcessFlowInstance create與combined template-instance create MUST共用
+同一embedded materialization service。Direct create的request MAY包含embedded bindings與
+embeddedGeometries，但response與stored instance仍只有catalog bindings。Direct create transaction
+必須先insert referenced geometries再insert instance；combined create則在同一transaction依序
+insert template、geometries與instance。任一duplicate或write failure MUST rollback全部writes。
+
 ## 6. Canonical payload serialization
 
 - JSON field names MUST 使用 API contract 的 camelCase；SQLite columns MAY snake_case。
