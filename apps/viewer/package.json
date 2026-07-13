@@ -7,8 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "python3 -m http.server 3001 -d out",
-    "lint": "next lint",
-    "test": "vitest run"
+    "lint": "next lint"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.0",
@@ -39,7 +38,6 @@
     "eslint-config-next": "^14.2.23",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2",
-    "vitest": "^3.2.4"
+    "typescript": "^5.7.2"
   }
 }
