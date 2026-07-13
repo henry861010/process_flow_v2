@@ -2,604 +2,753 @@
   {
     "id": "wafer_v1_0_1",
     "category": "carrier.wafer",
-    "name": "Wafer 1",
+    "name": "150 mm Silicon Wafer",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
+    "description": "150000 x 150000 x 675 um — Standard 150 mm silicon wafer envelope.",
     "entityType": "wafer",
     "icon": "carrier.wafer",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-wafer",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "CylinderGeometry",
-              "center": [
-                0,
-                0,
-                -250
-              ],
-              "bottom_radius": 300000,
-              "thk": 500
-            },
-            "material": "Si"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "wafer-150mm", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -337.5], "bottom_radius": 75000, "thk": 675}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "wafer_v1_0_2",
     "category": "carrier.wafer",
-    "name": "Wafer 2",
+    "name": "200 mm Silicon Wafer",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
+    "description": "200000 x 200000 x 725 um — Standard 200 mm silicon wafer envelope.",
     "entityType": "wafer",
     "icon": "carrier.wafer",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-wafer",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "CylinderGeometry",
-              "center": [
-                0,
-                0,
-                -250
-              ],
-              "bottom_radius": 300000,
-              "thk": 500
-            },
-            "material": "Si"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "wafer-200mm", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -362.5], "bottom_radius": 100000, "thk": 725}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "wafer_v1_0_3",
     "category": "carrier.wafer",
-    "name": "Wafer 3",
+    "name": "300 mm Silicon Wafer",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Centered circular wafer geometry for demo flow roots. 300000 x 500 um wafer, center at 0,0,0.",
+    "description": "300000 x 300000 x 775 um — Standard 300 mm silicon wafer envelope.",
     "entityType": "wafer",
     "icon": "carrier.wafer",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-wafer",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "CylinderGeometry",
-              "center": [
-                0,
-                0,
-                -250
-              ],
-              "bottom_radius": 300000,
-              "thk": 500
-            },
-            "material": "Si"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "wafer-300mm", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -387.5], "bottom_radius": 150000, "thk": 775}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "panel_v1_0_0",
     "category": "carrier.panel",
-    "name": "Panel1",
+    "name": "310 x 310 mm PLP Glass Panel",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
+    "description": "310000 x 310000 x 700 um — Compact panel-level packaging glass carrier.",
     "entityType": "panel",
     "icon": "carrier.panel",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-panel",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -155000,
-                -155000,
-                -250
-              ],
-              "top_right": [
-                155000,
-                155000,
-                -250
-              ],
-              "thk": 500
-            },
-            "material": "glass"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "panel-310x310mm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-155000, -155000, -350], "top_right": [155000, 155000, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "panel_v1_0_1",
     "category": "carrier.panel",
-    "name": "Panel 1",
+    "name": "510 x 515 mm PLP Glass Panel",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
+    "description": "510000 x 515000 x 700 um — Industry panel-level packaging glass carrier.",
     "entityType": "panel",
     "icon": "carrier.panel",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-panel",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -155000,
-                -155000,
-                -250
-              ],
-              "top_right": [
-                155000,
-                155000,
-                -250
-              ],
-              "thk": 500
-            },
-            "material": "glass"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "panel-510x515mm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-255000, -257500, -350], "top_right": [255000, 257500, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "panel_v1_0_2",
     "category": "carrier.panel",
-    "name": "Panel 2",
+    "name": "600 x 600 mm PLP Glass Panel",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
+    "description": "600000 x 600000 x 1000 um — Large-format panel-level packaging glass carrier.",
     "entityType": "panel",
     "icon": "carrier.panel",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-panel",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -155000,
-                -155000,
-                -250
-              ],
-              "top_right": [
-                155000,
-                155000,
-                -250
-              ],
-              "thk": 500
-            },
-            "material": "glass"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
-    }
-  },
-  {
-    "id": "panel_v1_0_3",
-    "category": "carrier.panel",
-    "name": "Panel 3",
-    "version": "v1.0.0",
-    "owner": "demo.example",
-    "description": "Centered square panel geometry for demo flow roots. 310000 x 310000 x 500 um panel, center at 0,0,0.",
-    "entityType": "panel",
-    "icon": "carrier.panel",
-    "structureFormat": "standard",
-    "structure": {
-      "schemaVersion": "1.0.0",
-      "unitSystem": "um",
-      "root": {
-        "key": "example-panel",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -155000,
-                -155000,
-                -250
-              ],
-              "top_right": [
-                155000,
-                155000,
-                -250
-              ],
-              "thk": 500
-            },
-            "material": "glass"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
-    }
-  },
-  {
-    "id": "hbm_v1_3_1",
-    "category": "die.hbm",
-    "name": "HBM3",
-    "version": "v1.0.0",
-    "owner": "demo.example",
-    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
-    "entityType": "die",
-    "icon": "die.stack",
-    "structureFormat": "standard",
-    "structure": {
-      "schemaVersion": "1.0.0",
-      "unitSystem": "um",
-      "root": {
-        "key": "example-hbm",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -700,
-                -500,
-                -25
-              ],
-              "top_right": [
-                700,
-                500,
-                -25
-              ],
-              "thk": 50
-            },
-            "material": "Si-HBM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
-    }
-  },
-  {
-    "id": "hbm_v1_3.5_1",
-    "category": "die.hbm",
-    "name": "HBM3E",
-    "version": "v1.0.0",
-    "owner": "demo.example",
-    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
-    "entityType": "die",
-    "icon": "die.stack",
-    "structureFormat": "standard",
-    "structure": {
-      "schemaVersion": "1.0.0",
-      "unitSystem": "um",
-      "root": {
-        "key": "example-hbm",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -700,
-                -500,
-                -25
-              ],
-              "top_right": [
-                700,
-                500,
-                -25
-              ],
-              "thk": 50
-            },
-            "material": "Si-HBM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "panel-600x600mm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-300000, -300000, -500], "top_right": [300000, 300000, -500], "thk": 1000}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "hbm_v1_2_1",
     "category": "die.hbm",
-    "name": "HBM2",
+    "name": "HBM2 4-Hi",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "description": "7750 x 11870 x 720 um — Representative HBM2 4-Hi package envelope.",
     "entityType": "die",
     "icon": "die.stack",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-hbm",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -700,
-                -500,
-                -25
-              ],
-              "top_right": [
-                700,
-                500,
-                -25
-              ],
-              "thk": 50
-            },
-            "material": "Si-HBM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "hbm2-4hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm_v1_2e_1",
+    "category": "die.hbm",
+    "name": "HBM2E 8-Hi",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "7750 x 11870 x 720 um — Representative HBM2E 8-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm2e-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm_v1_3_1",
+    "category": "die.hbm",
+    "name": "HBM3 8-Hi",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "10975 x 10975 x 720 um — JEDEC-scale HBM3 8-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm3-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5487.5, -5487.5, -360], "top_right": [5487.5, 5487.5, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm_v1_3e_1",
+    "category": "die.hbm",
+    "name": "HBM3E 12-Hi",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "10980 x 10980 x 780 um — Production-scale HBM3E 12-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm3e-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -390], "top_right": [5490, 5490, -390], "thk": 780}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "hbm_v1_4_1",
     "category": "die.hbm",
-    "name": "HBM4",
+    "name": "HBM4 12-Hi",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "description": "10980 x 10980 x 775 um — Representative HBM4 12-Hi package envelope.",
     "entityType": "die",
     "icon": "die.stack",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-hbm",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -700,
-                -500,
-                -25
-              ],
-              "top_right": [
-                700,
-                500,
-                -25
-              ],
-              "thk": 50
-            },
-            "material": "Si-HBM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "hbm4-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -387.5], "top_right": [5490, 5490, -387.5], "thk": 775}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
-    "id": "hbm_v1_7_1",
-    "category": "die.hbm",
-    "name": "HBM7",
-    "version": "v1.0.0",
-    "owner": "demo.example",
-    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
-    "entityType": "die",
-    "icon": "die.stack",
-    "structureFormat": "standard",
-    "structure": {
-      "schemaVersion": "1.0.0",
-      "unitSystem": "um",
-      "root": {
-        "key": "example-hbm",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -700,
-                -500,
-                -25
-              ],
-              "top_right": [
-                700,
-                500,
-                -25
-              ],
-              "thk": 50
-            },
-            "material": "Si-HBM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
-    }
-  },
-  {
-    "id": "dram_v1_0_1",
+    "id": "dram_ddr3_x8_v1_0_0",
     "category": "die.dram",
-    "name": "DRAM1",
+    "name": "DDR3 x8 FBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "description": "7500 x 11000 x 1100 um — Representative DDR3 x8 FBGA component envelope.",
     "entityType": "die",
     "icon": "die.stack",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-hbm",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -700,
-                -500,
-                -25
-              ],
-              "top_right": [
-                700,
-                500,
-                -25
-              ],
-              "thk": 50
-            },
-            "material": "Si-HBM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "dram-ddr3-x8", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
-    "id": "dram_v1_0_2",
+    "id": "dram_ddr4_x8_v1_0_0",
     "category": "die.dram",
-    "name": "DRAM2",
+    "name": "DDR4 x8 FBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Simple block placeholder for HBM die. 1400 x 1000 x 50 um HBM block, center at 0,0,0.",
+    "description": "7500 x 11000 x 1100 um — Representative DDR4 x8 FBGA component envelope.",
     "entityType": "die",
     "icon": "die.stack",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-hbm",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -700,
-                -500,
-                -25
-              ],
-              "top_right": [
-                700,
-                500,
-                -25
-              ],
-              "thk": 50
-            },
-            "material": "Si-HBM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "dram-ddr4-x8", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_ddr5_x8_v1_0_0",
+    "category": "die.dram",
+    "name": "DDR5 x8 VFBGA",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "7500 x 11000 x 1000 um — Production-scale DDR5 78-ball VFBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram-ddr5-x8", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -500], "top_right": [3750, 5500, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_lpddr4x_v1_0_0",
+    "category": "die.dram",
+    "name": "LPDDR4X FBGA",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "12000 x 14500 x 1000 um — Representative LPDDR4X FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram-lpddr4x", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7250, -500], "top_right": [6000, 7250, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_lpddr5_v1_0_0",
+    "category": "die.dram",
+    "name": "LPDDR5 TFBGA",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "12400 x 15000 x 1100 um — Production-scale LPDDR5 315-ball TFBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram-lpddr5", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6200, -7500, -550], "top_right": [6200, 7500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_gddr6_v1_0_0",
+    "category": "die.dram",
+    "name": "GDDR6 FBGA",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "14000 x 12000 x 1100 um — Representative GDDR6 FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram-gddr6", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_gddr7_v1_0_0",
+    "category": "die.dram",
+    "name": "GDDR7 FBGA",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "14000 x 12000 x 1100 um — Representative GDDR7 FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram-gddr7", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
     "id": "soc_v1_0_0",
     "category": "die.soc",
-    "name": "SoC",
+    "name": "Mobile SoC Die",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Simple block placeholder for SoC die. 2000 x 1600 x 70 um SoC block, center at 0,0,0.",
+    "description": "8000 x 10000 x 150 um — Representative thinned mobile SoC bare-die envelope.",
     "entityType": "die",
     "icon": "die.piece",
     "structureFormat": "standard",
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {
-        "key": "example-soc",
-        "bodies": [
-          {
-            "geometry": {
-              "type": "BoxGeometry",
-              "bottom_left": [
-                -1000,
-                -800,
-                -35
-              ],
-              "top_right": [
-                1000,
-                800,
-                -35
-              ],
-              "thk": 70
-            },
-            "material": "Si-SoC"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
+      "root": {"key": "soc-mobile", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -75], "top_right": [4000, 5000, -75], "thk": 150}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soc_edge_v1_0_0",
+    "category": "die.soc",
+    "name": "Edge SoC Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "10000 x 12000 x 200 um — Representative edge-compute SoC bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soc-edge", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -6000, -100], "top_right": [5000, 6000, -100], "thk": 200}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soc_automotive_v1_0_0",
+    "category": "die.soc",
+    "name": "Automotive SoC Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "12000 x 15000 x 250 um — Representative automotive SoC bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soc-automotive", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7500, -125], "top_right": [6000, 7500, -125], "thk": 250}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soc_network_v1_0_0",
+    "category": "die.soc",
+    "name": "Networking SoC Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "16000 x 18000 x 250 um — Representative networking SoC bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soc-network", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-8000, -9000, -125], "top_right": [8000, 9000, -125], "thk": 250}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soc_server_v1_0_0",
+    "category": "die.soc",
+    "name": "Server SoC Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "20000 x 25000 x 300 um — Representative server-class SoC bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soc-server", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-10000, -12500, -150], "top_right": [10000, 12500, -150], "thk": 300}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soc_ai_accelerator_v1_0_0",
+    "category": "die.soc",
+    "name": "Large AI SoC Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "26000 x 32000 x 300 um — Representative near-reticle-limit AI SoC bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soc-ai-accelerator", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-13000, -16000, -150], "top_right": [13000, 16000, -150], "thk": 300}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_x_mobile_v1_0_0",
+    "category": "die.soic",
+    "name": "Compact SoIC-X Stack",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "8000 x 8000 x 300 um — Representative compact bumpless SoIC-X two-die stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-x-compact", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -4000, -150], "top_right": [4000, 4000, -150], "thk": 300}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_x_cache_v1_0_0",
+    "category": "die.soic",
+    "name": "Cache-on-Logic SoIC-X Stack",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "10000 x 10000 x 400 um — Representative cache-on-logic bumpless SoIC-X stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-x-cache", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -5000, -200], "top_right": [5000, 5000, -200], "thk": 400}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_x_logic_v1_0_0",
+    "category": "die.soic",
+    "name": "Logic-on-Logic SoIC-X Stack",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "15000 x 15000 x 500 um — Representative large bumpless SoIC-X logic stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-x-logic", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7500, -7500, -250], "top_right": [7500, 7500, -250], "thk": 500}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_p_chiplet_v1_0_0",
+    "category": "die.soic",
+    "name": "Chiplet SoIC-P Stack",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "12000 x 12000 x 600 um — Representative microbump SoIC-P chiplet stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-p-chiplet", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -6000, -300], "top_right": [6000, 6000, -300], "thk": 600}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_p_hpc_v1_0_0",
+    "category": "die.soic",
+    "name": "HPC SoIC-P Stack",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "20000 x 20000 x 800 um — Representative large microbump SoIC-P HPC stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-p-hpc", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-10000, -10000, -400], "top_right": [10000, 10000, -400], "thk": 800}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_8n_v1_0_0",
+    "category": "package.soic",
+    "name": "SOIC-8 Narrow Body",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "4900 x 3900 x 1750 um — Nominal narrow-body SOIC-8 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-8n", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-2450, -1950, -875], "top_right": [2450, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_14n_v1_0_0",
+    "category": "package.soic",
+    "name": "SOIC-14 Narrow Body",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "8650 x 3900 x 1750 um — Nominal narrow-body SOIC-14 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-14n", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4325, -1950, -875], "top_right": [4325, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_16n_v1_0_0",
+    "category": "package.soic",
+    "name": "SOIC-16 Narrow Body",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "9900 x 3900 x 1750 um — Nominal narrow-body SOIC-16 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-16n", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4950, -1950, -875], "top_right": [4950, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_16w_v1_0_0",
+    "category": "package.soic",
+    "name": "SOIC-16 Wide Body",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "10300 x 7500 x 2650 um — Nominal wide-body SOIC-16 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-16w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5150, -3750, -1325], "top_right": [5150, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_20w_v1_0_0",
+    "category": "package.soic",
+    "name": "SOIC-20 Wide Body",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "12800 x 7500 x 2650 um — Nominal wide-body SOIC-20 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-20w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6400, -3750, -1325], "top_right": [6400, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_24w_v1_0_0",
+    "category": "package.soic",
+    "name": "SOIC-24 Wide Body",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "15400 x 7500 x 2650 um — Nominal wide-body SOIC-24 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-24w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7700, -3750, -1325], "top_right": [7700, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_28w_v1_0_0",
+    "category": "package.soic",
+    "name": "SOIC-28 Wide Body",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "17900 x 7500 x 2650 um — Nominal wide-body SOIC-28 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic-28w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-8950, -3750, -1325], "top_right": [8950, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "lsi_mixed_signal_v1_0_0",
+    "category": "die.lsi",
+    "name": "Small Mixed-Signal LSI Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "3000 x 3000 x 150 um — Representative small mixed-signal LSI bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "lsi-mixed-signal", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-1500, -1500, -75], "top_right": [1500, 1500, -75], "thk": 150}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "lsi_mcu_v1_0_0",
+    "category": "die.lsi",
+    "name": "MCU-Class LSI Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "5000 x 5000 x 150 um — Representative MCU-class LSI bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "lsi-mcu", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-2500, -2500, -75], "top_right": [2500, 2500, -75], "thk": 150}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "lsi_consumer_asic_v1_0_0",
+    "category": "die.lsi",
+    "name": "Consumer ASIC LSI Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "8000 x 10000 x 200 um — Representative consumer ASIC LSI bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "lsi-consumer-asic", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -100], "top_right": [4000, 5000, -100], "thk": 200}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "lsi_network_asic_v1_0_0",
+    "category": "die.lsi",
+    "name": "Networking ASIC LSI Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "12000 x 15000 x 200 um — Representative networking ASIC LSI bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "lsi-network-asic", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7500, -100], "top_right": [6000, 7500, -100], "thk": 200}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "lsi_hpc_v1_0_0",
+    "category": "die.lsi",
+    "name": "HPC LSI Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "18000 x 22000 x 250 um — Representative high-performance LSI bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "lsi-hpc", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-9000, -11000, -125], "top_right": [9000, 11000, -125], "thk": 250}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "lsi_reticle_v1_0_0",
+    "category": "die.lsi",
+    "name": "Large Reticle-Class LSI Die",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "26000 x 32000 x 300 um — Representative near-reticle-limit LSI bare-die envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "lsi-reticle", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-13000, -16000, -150], "top_right": [13000, 16000, -150], "thk": 300}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_optical_io_4ch_v1_0_0",
+    "category": "die.cpo",
+    "name": "4-Channel CPO Optical I/O Chiplet",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "4000 x 6000 x 200 um — Representative compact co-packaged-optics chiplet envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo-optical-io-4ch", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-2000, -3000, -100], "top_right": [2000, 3000, -100], "thk": 200}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_optical_engine_8ch_v1_0_0",
+    "category": "die.cpo",
+    "name": "8-Channel CPO Optical Engine",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "6000 x 8000 x 250 um — Representative co-packaged-optics engine envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo-optical-engine-8ch", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3000, -4000, -125], "top_right": [3000, 4000, -125], "thk": 250}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_optical_engine_16ch_v1_0_0",
+    "category": "die.cpo",
+    "name": "16-Channel CPO Optical Engine",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "8000 x 10000 x 300 um — Representative high-channel-count co-packaged-optics engine envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo-optical-engine-16ch", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -150], "top_right": [4000, 5000, -150], "thk": 300}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_dual_engine_v1_0_0",
+    "category": "die.cpo",
+    "name": "Dual CPO Optical Engine",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "10000 x 12000 x 350 um — Representative dual-engine co-packaged-optics chiplet envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo-dual-engine", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -6000, -175], "top_right": [5000, 6000, -175], "thk": 350}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_engine_array_v1_0_0",
+    "category": "die.cpo",
+    "name": "CPO Optical Engine Array",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "12000 x 16000 x 500 um — Representative large co-packaged-optics engine-array envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo-engine-array", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -8000, -250], "top_right": [6000, 8000, -250], "thk": 500}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -608,7 +757,7 @@
     "name": "carrier",
     "version": "v1.0.0",
     "owner": "demo.example",
-    "description": "Simple block placeholder for carrier. 5000 x 5000 x 70 um carrier block, center at 0,0,0.",
+    "description": "5000 x 5000 x 70 um — Simple block placeholder for carrier, centered at 0,0,0.",
     "entityType": "carrier",
     "icon": "carrier.foopod",
     "structureFormat": "standard",
@@ -621,16 +770,8 @@
           {
             "geometry": {
               "type": "BoxGeometry",
-              "bottom_left": [
-                -2500,
-                -2500,
-                -35
-              ],
-              "top_right": [
-                2500,
-                2500,
-                -35
-              ],
+              "bottom_left": [-2500, -2500, -35],
+              "top_right": [2500, 2500, -35],
               "thk": 70
             },
             "material": "carrier"
