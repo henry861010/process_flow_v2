@@ -39,7 +39,7 @@ source_of_truth:
 | --- | --- | --- | --- |
 | `/` | Home ready | reset 後完整 bootstrap | instance rows 與 template-only rows 同時存在 |
 | `/flow-template-editor` | fresh template draft | reset 後直接開 route，不選 template | header、雙 palette、空 graph 與 disabled save |
-| `/flow-instance-editor` | selected CoWoS-L configuration | 開 route 後選 `CoWoS-L Demo`，不儲存 workspace | graph、default configuration、dirty status、無draft controls/status box |
+| `/flow-instance-editor` | selected AAA configuration | 開 route 後選 `AAA Demo`，不儲存 workspace | graph、default configuration、dirty status、無draft controls/status box |
 | `/admin/processstepeditor` | fresh step draft | reset 後直接開 route，不 clone template | library、empty identity、Geometry Ports、No parameters |
 | `/cad-viewer` | demo workbench | 直接開 route，不 import file | demo model、Section XZ、Grid/Axes on、ISO |
 | Geometry Preview | ready preview | Instance Editor 綁定 `panel_v1_0_0` 後開 Preview | Loading → Ready、viewport、right controls、footer |
@@ -75,7 +75,7 @@ fresh draft
 
 ```text
 no selected template
-  -> select CoWoS-L Demo
+  -> select AAA Demo
   -> default configuration created
   -> bind geometry / edit parameters
   -> Preview a ready target

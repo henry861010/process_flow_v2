@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "3"
+DATABASE_SCHEMA_VERSION = "4"
 
 
 class DuplicateItemError(ValueError):

@@ -405,7 +405,7 @@ class ProcessFlowApiTests(unittest.TestCase):
     def test_execute_saved_instance(self):
         self.reset_poc_data()
 
-        response = self.client.post("/api/process-flow-instances/flow_inst_cowosl_demo_hbm4_alpha/execute")
+        response = self.client.post("/api/process-flow-instances/flow_inst_aaa_demo_hbm4_alpha/execute")
 
         self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()

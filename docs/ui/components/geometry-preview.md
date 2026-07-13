@@ -242,7 +242,7 @@ WebGL2/context建立失敗或runtime落入不可操作quality時，panel MUST提
 
 ## 測試 fixture 與 reference 圖片
 
-Fixture target：CoWoS-L ready step output，包含至少一種bump/via/circuit與nonzero density。預留asset
+Fixture target：AAA ready step output，包含至少一種bump/via/circuit與nonzero density。預留asset
 路徑為`../assets/reference/geometry-preview-<width>x<height>.png`；目前沒有 committed reference，
 不得建立壞link或用其他畫面代替。
 

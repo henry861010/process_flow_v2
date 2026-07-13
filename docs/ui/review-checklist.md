@@ -52,7 +52,7 @@ source_of_truth:
 
 ### Flow Instance Editor
 
-- [ ] 選擇 CoWoS-L 後default configuration與dirty status正確。
+- [ ] 選擇 AAA 後default configuration與dirty status正確。
 - [ ] Header不render `Save Draft`、`Reload`、draft/committed badge或workspace ID/status box。
 - [ ] graph 是 view-only；single-click node 開啟 inspector。
 - [ ] ready target 可 Preview；unrelated incomplete branch 不阻擋。

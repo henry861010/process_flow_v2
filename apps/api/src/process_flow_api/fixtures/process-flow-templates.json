@@ -1,10 +1,10 @@
 [
   {
     "schemaVersion": 2,
-    "id": "flow_tpl_cowosl_demo_3_0_0",
-    "name": "CoWoS-L Demo",
+    "id": "flow_tpl_aaa_demo_3_0_0",
+    "name": "AAA Demo",
     "version": "V3.0.0",
-    "description": "Demo CoWoS-L style package flow with die placement, molding, RDL, and C4 bump formation.",
+    "description": "Demo AAA style package flow with die placement, molding, RDL, and C4 bump formation.",
     "owner": "demo.example",
     "flowInputs": [
       {
@@ -68,7 +68,7 @@
     ],
     "flowEdges": [
       {
-        "edgeId": "edge_cowosl_panel_to_pnp_main",
+        "edgeId": "edge_aaa_panel_to_pnp_main",
         "source": {
           "kind": "flowInput",
           "flowInputId": "incoming_panel"
@@ -79,7 +79,7 @@
         }
       },
       {
-        "edgeId": "edge_cowosl_hbm_to_pnp_die",
+        "edgeId": "edge_aaa_hbm_to_pnp_die",
         "source": {
           "kind": "flowInput",
           "flowInputId": "incoming_hbm"
@@ -90,7 +90,7 @@
         }
       },
       {
-        "edgeId": "edge_cowosl_pnp_to_mold",
+        "edgeId": "edge_aaa_pnp_to_mold",
         "source": {
           "kind": "stepOutput",
           "stepRefId": "pnp_hbm",
@@ -102,7 +102,7 @@
         }
       },
       {
-        "edgeId": "edge_cowosl_mold_to_rdl",
+        "edgeId": "edge_aaa_mold_to_rdl",
         "source": {
           "kind": "stepOutput",
           "stepRefId": "mold_cap",
@@ -114,7 +114,7 @@
         }
       },
       {
-        "edgeId": "edge_cowosl_rdl_to_c4",
+        "edgeId": "edge_aaa_rdl_to_c4",
         "source": {
           "kind": "stepOutput",
           "stepRefId": "rdl_build",

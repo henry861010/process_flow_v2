@@ -1,9 +1,9 @@
 [
   {
     "schemaVersion": 2,
-    "id": "flow_inst_cowosl_demo_hbm4_alpha",
+    "id": "flow_inst_aaa_demo_hbm4_alpha",
     "name": "HBM4 Alpha Build",
-    "processFlowTemplateId": "flow_tpl_cowosl_demo_3_0_0",
+    "processFlowTemplateId": "flow_tpl_aaa_demo_3_0_0",
     "inputBindings": {
       "incoming_panel": {
         "kind": "catalog",
@@ -87,9 +87,9 @@
   },
   {
     "schemaVersion": 2,
-    "id": "flow_inst_cowosl_demo_hbm4_beta",
+    "id": "flow_inst_aaa_demo_hbm4_beta",
     "name": "HBM4 Beta Reliability",
-    "processFlowTemplateId": "flow_tpl_cowosl_demo_3_0_0",
+    "processFlowTemplateId": "flow_tpl_aaa_demo_3_0_0",
     "inputBindings": {
       "incoming_panel": {
         "kind": "catalog",

@@ -143,7 +143,7 @@ Fixture：`ui-golden` reset 後的完整 bootstrap。Reference capture必須等 
 | ID | Given / When | Then |
 | --- | --- | --- |
 | `UI-HOME-001` | reset後開 `/` | instance rows與 template-only rows都可見，counts等於 bootstrap。 |
-| `UI-HOME-002` | 選擇 `CoWoS-L Demo` | 只顯示該 template rows，`shown`同步。 |
+| `UI-HOME-002` | 選擇 `AAA Demo` | 只顯示該 template rows，`shown`同步。 |
 | `UI-HOME-003` | instance指向不存在 template | row保留並顯示 `Missing template`。 |
 | `UI-HOME-004` | 390px寬 | document無 horizontal overflow，table wrapper可水平捲動。 |
 | `UI-HOME-005` | click reset | filter回 All，資料回 canonical fixture。 |

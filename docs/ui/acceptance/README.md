@@ -54,7 +54,7 @@ assertion為主。
 | Home ready | `home-1440x900.png` pending | `home-1024x768.png` pending | `home-390x844.png` pending |
 | HBM Generator default | `hbm-generator-1440x900.png` pending | `hbm-generator-1024x768.png` pending | `hbm-generator-390x844.png` pending |
 | Flow Template fresh | `flow-template-editor-1440x900.png` pending | `flow-template-editor-1024x768.png` pending | `flow-template-editor-390x844.png` pending |
-| Flow Instance / CoWoS-L selected | `flow-instance-editor-1440x900.png` pending | `flow-instance-editor-1024x768.png` pending | `flow-instance-editor-390x844.png` pending |
+| Flow Instance / AAA selected | `flow-instance-editor-1440x900.png` pending | `flow-instance-editor-1024x768.png` pending | `flow-instance-editor-390x844.png` pending |
 | Step Template fresh | `step-template-editor-1440x900.png` pending | `step-template-editor-1024x768.png` pending | `step-template-editor-390x844.png` pending |
 | CAD demo | [cad-viewer-1440x900.png](../assets/reference/cad-viewer-1440x900.png) | `cad-viewer-1024x768.png` pending | `cad-viewer-390x844.png` pending |
 | Geometry Preview ready | `geometry-preview-1440x900.png` pending | `geometry-preview-1024x768.png` pending | `geometry-preview-390x844.png` pending |
@@ -89,7 +89,7 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | `UI-HBM-007` | valid HBM parameters與metadata | click Save to DB | catalog建立`die.hbm` immutable geometry並回報server id。 |
 | `UI-FTE-001` | fresh Template draft | add step by click | step出現在 graph，Node Editor以單擊可開啟。 |
 | `UI-FTE-002` | topology valid、configuration incomplete | Save Template → complete save dialog | metadata不在editor常駐顯示；template保存、topology locked、configuration仍可編輯。 |
-| `UI-FIE-001` | no selected template | select CoWoS-L | read-only topology出現、default configuration建立。 |
+| `UI-FIE-001` | no selected template | select AAA | read-only topology出現、default configuration建立。 |
 | `UI-FIE-002` | fresh或known workspace URL | inspect header | `Save Draft`、`Reload`與workspace badge/status box都不render。 |
 | `UI-FIE-003` | known saved clean complete workspace | Commit Instance → enter identity | workspace成為committed，configuration controls locked。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
@@ -114,7 +114,7 @@ Review 不只驗證單一 component，還 MUST 依下列順序走完跨 screen j
 | Journey | Entry | Required transition | Completion evidence |
 | --- | --- | --- | --- |
 | Template topology | fresh `/flow-template-editor` | Step add → Geometry add → valid connect → Save Template → save dialog | metadata只在dialog顯示、topology locked、configuration仍可編 |
-| Instance configuration | `/flow-instance-editor` + CoWoS-L；另備known clean workspace URL | bind → edit → Preview；known workspace → Commit dialog | draft UI保持隱藏、dirty與committed state正確 |
+| Instance configuration | `/flow-instance-editor` + AAA；另備known clean workspace URL | bind → edit → Preview；known workspace → Commit dialog | draft UI保持隱藏、dirty與committed state正確 |
 | Preview/export | ready input/step target | Loading → Ready → Export form → job terminal | Preview不被下層 overlay close path 誤關 |
 | CAD workbench | `/cad-viewer` demo | import/section/camera → Reset | model/error清理且 camera view保留 |
 

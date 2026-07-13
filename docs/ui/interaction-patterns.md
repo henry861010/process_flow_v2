@@ -190,7 +190,7 @@ API error 顯示 server message；只有無法取得 message 時才使用 compon
 cross-screen contract：
 
 1. Template topology：click-add Step → drag Geometry → connect → single-click editor → Save Template → Preview。
-2. Instance configuration：select CoWoS-L → bind geometry → edit parameters → Preview；另以known
+2. Instance configuration：select AAA → bind geometry → edit parameters → Preview；另以known
    clean workspace URL驗證Commit，並確認draft controls/status box不顯示。
 3. Preview/export：open ready target → Loading/Ready → Export form → jobs drawer → terminal state。
 4. CAD workbench：demo/import → section/camera → error or imported state → Reset preserving camera view。
