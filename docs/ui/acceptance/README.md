@@ -6,8 +6,8 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-07-12
-last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
+last_verified: 2026-07-13
+last_verified_commit: 7a94eded086c7a18bd082cf315e413cf97fc698c
 source_of_truth:
   - docs/ui/screens
   - docs/ui/components
@@ -25,7 +25,7 @@ UI-<AREA>-<三位數>
 ```
 
 `AREA` 只使用 `HOME`、`FTE`、`FIE`、`PSTE`、`CAD`、`GRAPH`、`LIB`、`PARAM`、
-`COORD`、`PREVIEW`、`EXPORT`。Case ID 不因 test framework 或檔名改變。
+`COORD`、`PREVIEW`、`EXPORT`、`HBM`。Case ID 不因 test framework 或檔名改變。
 
 ## 環境契約
 
@@ -52,6 +52,7 @@ assertion為主。
 | Screen/state | 1440×900 | 1024×768 | 390×844 |
 | --- | --- | --- | --- |
 | Home ready | `home-1440x900.png` pending | `home-1024x768.png` pending | `home-390x844.png` pending |
+| HBM Generator default | `hbm-generator-1440x900.png` pending | `hbm-generator-1024x768.png` pending | `hbm-generator-390x844.png` pending |
 | Flow Template fresh | `flow-template-editor-1440x900.png` pending | `flow-template-editor-1024x768.png` pending | `flow-template-editor-390x844.png` pending |
 | Flow Instance / CoWoS-L selected | `flow-instance-editor-1440x900.png` pending | `flow-instance-editor-1024x768.png` pending | `flow-instance-editor-390x844.png` pending |
 | Step Template fresh | `step-template-editor-1440x900.png` pending | `step-template-editor-1024x768.png` pending | `step-template-editor-390x844.png` pending |
@@ -83,6 +84,9 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | ID | Given | When | Then |
 | --- | --- | --- | --- |
 | `UI-HOME-001` | reset fixtures loaded | open `/` | table同時顯示 instances與 template-only rows，header counts正確。 |
+| `UI-HBM-001` | Home ready | click `HBM Generator` | 不navigate，Generator dialog顯示Top View、Cross Section與三組parameters。 |
+| `UI-HBM-004` | valid HBM parameters | click Generate JSON | 下載合法純GeometryStructure，root molding與child dies符合HBM mapping。 |
+| `UI-HBM-007` | valid HBM parameters與metadata | click Save to DB | catalog建立`die.hbm` immutable geometry並回報server id。 |
 | `UI-FTE-001` | fresh Template draft | add step by click | step出現在 graph，Node Editor以單擊可開啟。 |
 | `UI-FTE-002` | topology valid、configuration incomplete | Save Template → complete save dialog | metadata不在editor常駐顯示；template保存、topology locked、configuration仍可編輯。 |
 | `UI-FIE-001` | no selected template | select CoWoS-L | read-only topology出現、default configuration建立。 |

@@ -7,11 +7,13 @@ import {
   Filter,
   GitBranch,
   ListChecks,
+  MemoryStick,
   RotateCcw,
   Table2,
   Workflow,
 } from "lucide-react";
 
+import { DramGeneratorDialog } from "@/components/dram-generator/dram-generator-dialog";
 import { HbmGeneratorDialog } from "@/components/hbm-generator/hbm-generator-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +65,7 @@ export default function Home() {
   const [hydrated, setHydrated] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [hbmGeneratorOpen, setHbmGeneratorOpen] = React.useState(false);
+  const [dramGeneratorOpen, setDramGeneratorOpen] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
@@ -155,6 +158,15 @@ export default function Home() {
             >
               <Boxes />
               HBM Generator
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDramGeneratorOpen(true)}
+            >
+              <MemoryStick />
+              DRAM Generator
             </Button>
             <Button asChild variant="outline" size="sm">
               <Link href="/flow-template-editor" prefetch={false}>
@@ -331,6 +343,9 @@ export default function Home() {
 
       {hbmGeneratorOpen ? (
         <HbmGeneratorDialog onClose={() => setHbmGeneratorOpen(false)} />
+      ) : null}
+      {dramGeneratorOpen ? (
+        <DramGeneratorDialog onClose={() => setDramGeneratorOpen(false)} />
       ) : null}
     </main>
   );

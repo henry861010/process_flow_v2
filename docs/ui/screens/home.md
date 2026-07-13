@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-07-13
+last_verified_commit: 7a94eded086c7a18bd082cf315e413cf97fc698c
 source_of_truth:
   - apps/viewer/app/page.tsx
   - apps/viewer/lib/process-flow-api.ts
@@ -62,11 +62,14 @@ Header 左側是 `Table2` 20px、title `Process Flows`，下一列兩個 outline
 `<n> flow instances` 與 `<n> flow templates`。右側 `nav[aria-label="Process flow tools"]`
 依序顯示：
 
-1. `Workflow` + `Flow Template`
-2. `GitBranch` + `Flow Instance`
-3. `ListChecks` + `Process Step`
+1. `Boxes` + `HBM Generator`
+2. `Workflow` + `Flow Template`
+3. `GitBranch` + `Flow Instance`
+4. `ListChecks` + `Process Step`
 
-三者都是 32px outline button，分別連到 Template、Instance、Process Step editors。
+四者都是 32px outline button。後三者分別連到 Template、Instance、Process Step editors；
+`HBM Generator` 不navigate，而是在Home上方開啟
+[HBM Geometry Generator](../components/hbm-generator.md) modal。
 
 ## Filter 與 table 規格
 
@@ -105,6 +108,7 @@ Bootstrapping 使用 false empty、Reset 沒有 busy/error boundary 是現行限
 | --- | --- | --- |
 | Change Template type | hydrated且至少一個 option | exact template name filter；失效選項自動回 `All template types`。 |
 | `Create instance` | empty state | navigate `/flow-instance-editor`。 |
+| `HBM Generator` | always visible | 不navigate；開啟獨立HBM geometry authoring modal。 |
 | `cmd: reset-poc-data` | always visible | `POST /api/reset`，換成 response payload並清 filter。 |
 
 Reset control exact attributes：visible text `cmd: reset-poc-data`、`RotateCcw` 12px、
@@ -143,3 +147,4 @@ Fixture：`ui-golden` reset 後的完整 bootstrap。Reference capture必須等 
 | `UI-HOME-003` | instance指向不存在 template | row保留並顯示 `Missing template`。 |
 | `UI-HOME-004` | 390px寬 | document無 horizontal overflow，table wrapper可水平捲動。 |
 | `UI-HOME-005` | click reset | filter回 All，資料回 canonical fixture。 |
+| `UI-HOME-006` | click `HBM Generator` | URL保持`/`，HBM Generator dialog開啟。 |

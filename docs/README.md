@@ -7,8 +7,8 @@ audience:
   - 前端與後端開發者
   - process-step 與 geometry 開發者
   - QA 與自動化 agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e70
+last_verified: 2026-07-13
+last_verified_commit: 7a94eded086c7a18bd082cf315e413cf97fc698c
 source_of_truth:
   - docs/data-model.md
   - docs/architecture/decisions/
@@ -59,8 +59,9 @@ stale description 提升成 current authority。
 1. [核心資料模型](./data-model.md)
 2. [Parameter schema](./reference/parameter-schema.md)
 3. [Geometry structure](./reference/geometry-structure.md)
-4. [Persistence](./reference/persistence.md)
-5. [API README](../apps/api/README.md) 與執行中的 OpenAPI
+4. [HBM Geometry Generator](./reference/hbm-generator.md)
+5. [Persistence](./reference/persistence.md)
+6. [API README](../apps/api/README.md) 與執行中的 OpenAPI
 
 ### Geometry 與 process-step 開發
 
