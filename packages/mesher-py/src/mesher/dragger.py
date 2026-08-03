@@ -73,6 +73,7 @@ class Dragger:
         self.element_2D_volume = np.empty((0), dtype=np.float64)
         self.element_2D_comp = np.empty((0), dtype=np.int32)
         self.element_2D_priority = np.empty((0), dtype=np.float64)
+        self.element_2D_density_occupy = np.empty((0), dtype=np.int32)
         
         self.node_2D = np.empty((0, 2), dtype=np.float64)
         self.node_2D_to_3D = np.zeros((0), dtype=np.int32)
@@ -90,6 +91,7 @@ class Dragger:
         self.element_2D_comp = np.zeros(len(elements), dtype=np.int32)
         self.element_2D_volume = np.empty(len(elements), dtype=np.float64)
         self.element_2D_priority = np.zeros(len(elements), dtype=np.float64)
+        self.element_2D_density_occupy = np.zeros(len(elements), dtype=np.float64)
         self.node_2D = nodes[:,:2]
         self.node_2D_to_3D = np.zeros(len(nodes), dtype=np.int32) - 1
         
@@ -184,7 +186,7 @@ class Dragger:
         corner_xy = self.node_2D[self.element_2D[indices]]
         return corner_xy
     
-    def _search_faces(self, face, indices=None, tolerance=0.01):   
+    def _search_faces(self, face, koz=0, indices=None, tolerance=0.01):   
         indices = self._normalize_element_indices(indices)
         
         if face is None:
@@ -199,10 +201,10 @@ class Dragger:
         face_dim = face["dim"]
         
         if face_type == "BOX":
-            mask_bl_x = (face_dim[0]-tolerance < element_coordinates[:,:,0])
-            mask_bl_y = (face_dim[1]-tolerance < element_coordinates[:,:,1])
-            mask_tr_x = (element_coordinates[:,:,0] < face_dim[2]+tolerance)
-            mask_tr_y = (element_coordinates[:,:,1] < face_dim[3]+tolerance)
+            mask_bl_x = (face_dim[0]+koz-tolerance < element_coordinates[:,:,0])
+            mask_bl_y = (face_dim[1]+koz-tolerance < element_coordinates[:,:,1])
+            mask_tr_x = (element_coordinates[:,:,0] < face_dim[2]-koz+tolerance)
+            mask_tr_y = (element_coordinates[:,:,1] < face_dim[3]-koz+tolerance)
             mask = np.all(mask_bl_x & mask_bl_y & mask_tr_x & mask_tr_y, axis=1)
             return mask
         elif face_type == "POLYGON":
@@ -226,7 +228,7 @@ class Dragger:
             dx = element_coordinates[:, :, 0] - center_x
             dy = element_coordinates[:, :, 1] - center_y
             distance_squared = dx * dx + dy * dy
-            return np.all(distance_squared <= (radius + tolerance) ** 2, axis=1)
+            return np.all(distance_squared <= (radius - koz + tolerance) ** 2, axis=1)
         else:
             raise ValueError(f"The face type {face_type} is not supported by Dragger")
         
@@ -265,11 +267,14 @@ class Dragger:
             return np.empty((0), dtype=np.int32)
         
     def _organize(self, assignments, layer=1):
+        # sort the assignment (high priority first)
+        assignments = sorted(assignments, key=lambda item: (item['type'], -item['areas'][0]['priority']))
+        
         for index, assignment in enumerate(assignments):
             face = assignment["face"]
             areas = assignment["areas"]
             assign_type = assignment["type"]
-            
+        
             ### Select the area once (mask -> indices)
             mask  = self._search_faces(face)
             potential_indices = np.where(mask)[0]
@@ -283,7 +288,7 @@ class Dragger:
                 material = area["material"]
                 priority = area["priority"]
                 
-                ### fill the lower priority
+                ### filter the lower priority
                 mask = (self.element_2D_priority[potential_indices] <= priority)
                 target_indices = potential_indices[mask]
                     
@@ -298,7 +303,12 @@ class Dragger:
             elif assign_type == END:
                 priority_o = areas[0]["priority_o"]
                 areas = sorted(areas, key=lambda item: item['priority'], reverse=True)
+
+                # relesae density lock
+                mask = (self.element_2D_density_occupy[potential_indices] == priority_o)
+                self.element_2D_density_occupy[potential_indices[mask]] = 0
                 
+                # release normal material
                 potential_indices = potential_indices[self.element_2D_priority[potential_indices] == priority_o]
                 for area in areas:
                     face = area["face"]
@@ -326,14 +336,24 @@ class Dragger:
                 material = area["material"]
                 priority = area["priority"]
                 density = area["density"]
+                koz = area["koz"]
                 
-                ### fill the lower priority
+                ### filter the lower priority
                 mask = (self.element_2D_priority[potential_indices] <= priority)
-                sub_indices = potential_indices[mask]
+                target_indices = potential_indices[mask]
+                
+                ### filter the density opccupied & set to occupy
+                mask = (self.element_2D_density_occupy[target_indices] == 0)
+                target_indices = target_indices[mask]
+                self.element_2D_density_occupy[target_indices] = priority
+                
+                ### koz
+                mask = self._search_faces(face, koz=koz, indices=target_indices)
+                target_indices = target_indices[mask]
                 
                 ### total volume
-                total_volume = np.sum(self.element_2D_volume[sub_indices])
-                target_indices = self._assign_metal(sub_indices, density, total_volume, randomSeed=layer*100000+index)
+                total_volume = np.sum(self.element_2D_volume[target_indices])
+                target_indices = self._assign_metal(target_indices, density, total_volume, randomSeed=layer*100000+index)
                     
                 ### get (new) material
                 comp_id = self._comp(material)

@@ -1,0 +1,97 @@
+{
+    "schemaVersion": "1.0.0",
+    "unitSystem": "um",
+    "root": {
+        "bodies": [
+            {
+                "geometry": {
+                    "type": "BoxGeometry",
+                    "bottom_left": [
+                        0,
+                        0,
+                        0
+                    ],
+                    "top_right": [
+                        100,
+                        100,
+                        0
+                    ],
+                    "thk": 60
+                },
+                "material": "carrier"
+            }
+        ],
+        "vias": [
+            {
+                "geometry": {
+                    "type": "BoxGeometry",
+                    "bottom_left": [
+                        0,
+                        0,
+                        60
+                    ],
+                    "top_right": [
+                        100,
+                        100,
+                        60
+                    ],
+                    "thk": 60
+                },
+                "material": "cc",
+                "density": 30,
+                "direction": "+z",
+                "koz": 10
+            }
+        ],
+        "circuits": [],
+        "bumps": [],
+        "children": [
+            {
+                "bodies": [
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [
+                                40,
+                                40,
+                                70
+                            ],
+                            "top_right": [
+                                60,
+                                60,
+                                70
+                            ],
+                            "thk": 10
+                        },
+                        "material": "body2"
+                    }
+                ],
+                "vias": [
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [
+                                40,
+                                40,
+                                60
+                            ],
+                            "top_right": [
+                                60,
+                                60,
+                                60
+                            ],
+                            "thk": 10
+                        },
+                        "material": "aaaa",
+                        "density": 55,
+                        "direction": "+z",
+                        "koz": 2
+                    }
+                ],
+                "circuits": [],
+                "bumps": [],
+                "children": []
+            }
+        ]
+    }
+}

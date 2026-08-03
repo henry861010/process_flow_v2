@@ -68,6 +68,7 @@ class Translater:
                 
         return layer_infos
 
+
 def _get_assignments(container, ancestors=[]):
     '''
         assignment {
@@ -168,6 +169,7 @@ def _get_assignments(container, ancestors=[]):
             elif key in ["bumps", "vias", "circuits"]:
                 geometry = term["geometry"]
                 material = term["material"]
+                koz = term["koz"]
                 priority = container["priority"] + 0.5
                 face = _geometry_to_face(geometry)
             
@@ -180,7 +182,8 @@ def _get_assignments(container, ancestors=[]):
                         "face": None,
                         "priority": priority,
                         "material": material,
-                        "density": term["density"]
+                        "density": term["density"],
+                        "koz": koz
                     }]
                 })
             
@@ -219,6 +222,7 @@ def _get_assignments(container, ancestors=[]):
         assignments = assignments + assignment_child
         
     return assignments
+    
     
 def _assign_priority(container, priority=1):
     container["priority"] = priority
