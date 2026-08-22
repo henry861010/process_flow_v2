@@ -14,10 +14,25 @@ source_of_truth:
 
 # process-flow-mesher
 
-將 standard geometry structure 轉成 2.5D hexahedral mesh，並輸出 repository-defined text
-CDB format；不宣稱完整支援通用 ANSYS CDB format。
+將 standard geometry structure 轉成 2.5D mixed hexahedral／wedge-like mesh，並輸出
+repository-defined text CDB format；不宣稱完整支援通用 ANSYS CDB format。
 
 ## 安裝
+
+先 checkout 外部 `mesher` repository 的相容 `v0.1.0` tag，並從 local path 安裝：
+
+```bash
+venv/bin/pip install /absolute/path/to/mesher
+```
+
+同時開發兩個 repository 時可使用 editable install：
+
+```bash
+venv/bin/pip install -e /absolute/path/to/mesher
+```
+
+不可使用沒有 local path 的 `pip install mesher`；PyPI 上的同名 distribution 是另一個
+project。完成外部 dependency 安裝後，再安裝本 package：
 
 ```bash
 venv/bin/pip install -e packages/mesher-py
@@ -29,7 +44,8 @@ venv/bin/pip install -e packages/mesher-py
 venv/bin/pip install -e 'packages/mesher-py[visualization]'
 ```
 
-Core runtime dependencies 是 NumPy 與 Matplotlib；PyVista 透過 `visualization` extra 安裝，不會被 API CDB worker path 載入。
+Core runtime dependencies 是外部 `mesher==0.1.0`、NumPy 與 Matplotlib；PyVista 透過
+`visualization` extra 安裝，不會被 API CDB worker path 載入。
 
 ## Python API
 
@@ -60,7 +76,10 @@ Success 時 stdout最後一行是 JSON metadata（node/element/component counts�
 
 ## 現有限制
 
-- 2.5D：先建立全域 XY checkerboard，再依 Z assignments extrusion。
+- 2.5D：先建立全域 XY rectilinear mesh、imprint 所有唯一 circle pattern，再依 Z
+  assignments extrusion。Circle bands 相交、相切或底層 topology 無法重建時會整體失敗。
+- 2D circle band 可能包含 padded Tri3；extrusion 以固定八欄、重複節點的 wedge-like
+  connectivity 表示對應 3D solid。
 - `ConeGeometry` 不支援。
 - Feature density以 deterministic cell selection materialize。
 - `direction` 與 `koz` 目前忽略。
@@ -71,6 +90,7 @@ Success 時 stdout最後一行是 JSON metadata（node/element/component counts�
 ## 測試
 
 ```bash
+venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest discover packages/mesher-py/tests -v
 ```
 

@@ -98,6 +98,58 @@ class Mesh3DTests(unittest.TestCase):
         self.assertEqual(mesh.nodes[0, 0], 0.0)
         self.assertFalse(np.any(mesh.nodes == 99.0))
 
+    def test_dragger_extrudes_a_padded_triangle_as_fixed_width_wedge(self):
+        dragger = Dragger()
+        dragger.set_2D(
+            np.array(
+                [
+                    [0.0, 0.0],
+                    [0.0, 1.0],
+                    [1.0, 0.0],
+                ]
+            ),
+            np.array([[0, 1, 2, 2]], dtype=np.int32),
+        )
+        layer_infos = [
+            {
+                "z": 0.0,
+                "assignments": [
+                    {
+                        "type": 3,
+                        "face": None,
+                        "areas": [
+                            {
+                                "priority": 1.0,
+                                "material": "Cu",
+                            }
+                        ],
+                    }
+                ],
+            },
+            {"z": 1.0, "assignments": []},
+        ]
+
+        mesh = dragger.build(layer_infos, 1.0)
+
+        self.assertEqual(mesh.element_count, 1)
+        np.testing.assert_array_equal(
+            mesh.elements[0],
+            [0, 1, 2, 2, 3, 4, 5, 5],
+        )
+        np.testing.assert_array_equal(mesh.element_comps, [1])
+        self.assertEqual(mesh.comps, {"EMPTY": 0, "Cu": 1})
+        self.assertAlmostEqual(dragger.element_2D_volume[0], 0.5)
+
+    def test_dragger_rejects_malformed_mixed_connectivity(self):
+        dragger = Dragger()
+        nodes = np.zeros((4, 2), dtype=np.float64)
+
+        with self.assertRaisesRegex(ValueError, "Quad4 rows or padded Tri3"):
+            dragger.set_2D(nodes, [[0, 1, 1, 2]])
+
+        with self.assertRaisesRegex(ValueError, "out-of-range node index"):
+            dragger.set_2D(nodes, [[0, 1, 2, 4]])
+
 
 if __name__ == "__main__":
     unittest.main()

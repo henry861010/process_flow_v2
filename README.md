@@ -30,11 +30,14 @@ topology、研究中的 workspace、immutable product instance 與 geometry cata
 
 ## 最短啟動流程
 
-Python 3.11+ 與 Node.js 18.17+ 是最低基線。完整 dependency 與平台注意事項請依
+Python 3.11+ 與 Node.js 18.17+ 是最低基線。2D grid 與 circle imprint 來自獨立的
+[`mesher`](https://github.com/henry861010/mesher) repository；先取得相容的
+`v0.1.0` checkout。完整 dependency 與平台注意事項請依
 [本機開發手冊](docs/operations/local-development.md)；以下命令從 repository root 執行：
 
 ```bash
 python3 -m venv venv
+venv/bin/pip install /absolute/path/to/mesher
 venv/bin/pip install \
   -e packages/kernel-py \
   -e packages/process-step-py \
@@ -42,6 +45,10 @@ venv/bin/pip install \
   -e packages/mesher-py \
   -e 'apps/api[test]'
 ```
+
+開發 `mesher` 本身時可將第一個 install 改成
+`venv/bin/pip install -e /absolute/path/to/mesher`。不要使用沒有 local path 的
+`pip install mesher`；PyPI 上的同名 distribution 是另一個專案。
 
 啟動只供受信任本機使用的 API：
 
@@ -62,6 +69,7 @@ NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://localhost:8000 npm run dev -- -p 30
 ## 驗證
 
 ```bash
+venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
 venv/bin/python -m unittest discover apps/api/tests
 venv/bin/python -m unittest discover packages/mesher-py/tests

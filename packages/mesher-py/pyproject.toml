@@ -9,6 +9,7 @@ description = "Mesh and text CDB export utilities for process-flow geometry."
 requires-python = ">=3.11"
 dependencies = [
   "matplotlib>=3.8",
+  "mesher==0.1.0",
   "numpy>=1.26",
 ]
 

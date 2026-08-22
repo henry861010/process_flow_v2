@@ -24,6 +24,7 @@ source_of_truth:
 - Python 3.11+
 - Node.js `>=18.17.0`（目前驗證環境為 Node `24.3.0`、npm `11.4.2`）
 - macOS/Linux environment capable of installing CadQuery/OCP
+- `mesher` repository 的 `v0.1.0` checkout；它提供 2D grid 與 circle imprint
 
 Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm ci`。Python
 目前只有 `pyproject.toml` version ranges，沒有 committed lock/constraints file，因此安裝
@@ -36,6 +37,7 @@ Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm
 ```bash
 python3 -m venv venv
 venv/bin/pip install --upgrade pip
+venv/bin/pip install /absolute/path/to/mesher
 venv/bin/pip install \
   -e packages/kernel-py \
   -e packages/process-step-py \
@@ -43,6 +45,10 @@ venv/bin/pip install \
   -e packages/mesher-py \
   -e 'apps/api[test]'
 ```
+
+需要同步修改 `mesher` 時，使用
+`venv/bin/pip install -e /absolute/path/to/mesher`。必須先安裝 local checkout，
+不可執行沒有 path 的 `pip install mesher`，因為 PyPI 上的同名 package 與本專案無關。
 
 所有 local packages 必須安裝在啟動 API 的同一 Python environment。Kernel 會在 execution time import `process_flow_steps`；CAD/CDB workers也使用 `sys.executable` 啟動。
 
@@ -107,6 +113,7 @@ marker 不是 `2` 時，目前 implementation 會清空 resource tables；這個
 從 root 執行：
 
 ```bash
+venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
 venv/bin/python -m unittest discover apps/api/tests
 venv/bin/python -m unittest discover packages/mesher-py/tests -v

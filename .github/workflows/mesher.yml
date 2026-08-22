@@ -1,0 +1,56 @@
+name: Mesher integration
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/mesher.yml"
+      - "README.md"
+      - "docs/**"
+      - "packages/mesher-py/**"
+      - "script/test1.py"
+      - "script/test2.py"
+  push:
+    paths:
+      - ".github/workflows/mesher.yml"
+      - "README.md"
+      - "docs/**"
+      - "packages/mesher-py/**"
+      - "script/test1.py"
+      - "script/test2.py"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out process-flow
+        uses: actions/checkout@v4
+
+      - name: Check out mesher v0.1.0
+        uses: actions/checkout@v4
+        with:
+          repository: henry861010/mesher
+          ref: v0.1.0
+          path: _external/mesher
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ./_external/mesher
+          python -m pip install -e 'packages/mesher-py[visualization]'
+
+      - name: Test external mesher
+        run: python -m unittest discover -s _external/mesher/tests -v
+
+      - name: Test process-flow mesher
+        run: python -m unittest discover -s packages/mesher-py/tests -v
+
+      - name: Validate documentation
+        run: python scripts/check_docs.py

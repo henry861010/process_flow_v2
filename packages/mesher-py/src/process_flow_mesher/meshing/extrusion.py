@@ -1,7 +1,9 @@
-"""2.5D extrusion engine for quadrilateral process meshes.
+"""2.5D extrusion engine for mixed quadrilateral/triangle process meshes.
 
-This module assigns materials to a 2D quadrilateral mesh and extrudes the
-selected elements along the z axis into 8-node hexahedral elements.
+This module assigns materials to a 2D mesh and extrudes the selected elements
+along the z axis into fixed-width 8-node connectivity. Quad4 elements become
+hexahedra; padded Tri3 rows become wedge-like degenerate solids by repeating
+the third node on the bottom and top faces.
 
 Design notes:
     * A face is selected only when all four element corners are inside the
@@ -27,10 +29,10 @@ START_CONVERT = 1
 END = 0
 
 class Dragger:
-    """Build a 3D hexahedral mesh from a 2D quadrilateral process layout.
+    """Build a 3D solid mesh from a mixed 2D process layout.
 
     The workflow is:
-        1. Load a 2D quad mesh with :meth:`set_2D`.
+        1. Load a 2D Quad4/padded-Tri3 mesh with :meth:`set_2D`.
         2. For each process layer, label 2D elements with :meth:`_organize`.
         3. Extrude the labeled elements along z with :meth:`_drag`.
 
@@ -41,7 +43,8 @@ class Dragger:
         element_comps (numpy.ndarray): Component ids for valid 3D elements.
         nodes (numpy.ndarray): 3D node coordinates. Valid rows are
             ``nodes[:node_num]`` and each row is ``[x, y, z]``.
-        element_2D (numpy.ndarray): Source 2D quad connectivity.
+        element_2D (numpy.ndarray): Source 2D connectivity. Tri3 rows use
+            ``[n0, n1, n2, n2]`` padding.
         element_2D_volume (numpy.ndarray): XY area for each 2D element.
         element_2D_comp (numpy.ndarray): Temporary per-layer component id for
             each 2D element. ``0`` means ``EMPTY`` and is not extruded.
@@ -76,12 +79,30 @@ class Dragger:
         
     ### initial
     def set_2D(self, nodes, elements):
+        """Load clockwise Quad4 and padded-Tri3 planar connectivity."""
         nodes = np.asarray(nodes, dtype=np.float64)
         elements = np.asarray(elements, dtype=np.int32)
         if nodes.ndim != 2 or nodes.shape[1] < 2:
             raise ValueError("mesh2D.nodes must have shape (n, 2+)") 
         if elements.ndim != 2 or elements.shape[1] != 4:
             raise ValueError("mesh2D.elements must have shape (m, 4)")
+        if np.any(elements < 0) or np.any(elements >= len(nodes)):
+            raise ValueError("mesh2D.elements contains an out-of-range node index")
+
+        triangle_mask = elements[:, 2] == elements[:, 3]
+        triangle_nodes = elements[triangle_mask, :3]
+        invalid_triangles = (
+            (triangle_nodes[:, 0] == triangle_nodes[:, 1])
+            | (triangle_nodes[:, 0] == triangle_nodes[:, 2])
+            | (triangle_nodes[:, 1] == triangle_nodes[:, 2])
+        )
+        quad_nodes = np.sort(elements[~triangle_mask], axis=1)
+        invalid_quads = np.any(np.diff(quad_nodes, axis=1) == 0, axis=1)
+        if np.any(invalid_triangles) or np.any(invalid_quads):
+            raise ValueError(
+                "mesh2D.elements must contain Quad4 rows or padded Tri3 rows "
+                "formatted as [n0, n1, n2, n2]"
+            )
         
         self.element_2D = elements
         self.element_2D_comp = np.zeros(len(elements), dtype=np.int32)
@@ -133,7 +154,7 @@ class Dragger:
         
     ### core
     def _cal_volumes(self):
-        """Calculate XY area for every source 2D quadrilateral element.
+        """Calculate XY area for every source Quad4 or padded-Tri3 element.
 
         Returns:
             None: Results are written to ``self.element_2D_volume``.
@@ -146,7 +167,7 @@ class Dragger:
         x3, y3 = corner_xy[:, 2, 0], corner_xy[:, 2, 1]
         x4, y4 = corner_xy[:, 3, 0], corner_xy[:, 3, 1]
 
-        # Shoelace formula for quadrilateral
+        # Shoelace formula also handles a padded triangle's repeated vertex.
         volume = 0.5 * np.abs(
             x1*y2 + x2*y3 + x3*y4 + x4*y1 -
             (y1*x2 + y2*x3 + y3*x4 + y4*x1)

@@ -115,8 +115,23 @@ class WorkerIntegrationTests(unittest.TestCase):
             result = self._run_worker(input_path, output_path)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(json.loads(result.stdout)["elementCount"], 8)
-            self.assertIn("element_count=8", output_path.read_text(encoding="utf-8"))
+            self.assertEqual(json.loads(result.stdout)["elementCount"], 66)
+            self.assertIn("element_count=66", output_path.read_text(encoding="utf-8"))
+
+    def test_worker_does_not_write_partial_output_for_incompatible_circles(self):
+        structure = _multi_circle_structure()
+        structure["root"]["bodies"][1]["geometry"]["center"][0] = 1.0
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "geometry.json"
+            output_path = Path(temp_dir) / "mesh.cdb"
+            input_path.write_text(json.dumps(structure), encoding="utf-8")
+
+            result = self._run_worker(input_path, output_path)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("overlapping imprint bands", result.stderr)
+            self.assertFalse(output_path.exists())
 
     def test_worker_returns_nonzero_for_invalid_input(self):
         with tempfile.TemporaryDirectory() as temp_dir:

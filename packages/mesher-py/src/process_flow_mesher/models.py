@@ -9,6 +9,13 @@ import numpy as np
 
 @dataclass(frozen=True)
 class Mesh3D:
+    """Owned 3D mesh arrays with fixed-width solid connectivity.
+
+    Hexahedra use eight distinct node slots. Wedge-like elements extruded from
+    padded Tri3 faces retain eight slots by repeating the third bottom and top
+    nodes.
+    """
+
     nodes: np.ndarray
     elements: np.ndarray
     element_comps: np.ndarray
