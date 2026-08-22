@@ -5,6 +5,7 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 import random
+from vtkmodules.vtkRenderingCore import vtkCellPicker, vtkPointPicker
 
 random.seed(1)
 
@@ -132,8 +133,9 @@ class Vision:
             render=False,
         )
 
+        label_actors = {}
         if not rows:
-            return
+            return label_actors
 
         plotter.add_text(
             "Components",
@@ -149,12 +151,12 @@ class Vision:
             label = f"{row['name']}: {row['count']} elems"
             actor = actors[row["id"]]
 
-            def toggle_component(is_visible, actor=actor):
+            def toggle_component(is_visible, actor=actor, comp_id=row["id"]):
                 is_visible = bool(is_visible)
                 actor.SetVisibility(is_visible)
                 actor.SetPickable(is_visible)
                 if on_visibility_change is not None:
-                    on_visibility_change(render=False)
+                    on_visibility_change(comp_id, is_visible, render=False)
                 plotter.render()
 
             plotter.add_checkbox_button_widget(
@@ -167,7 +169,7 @@ class Vision:
                 color_off="lightgrey",
                 background_color="white",
             )
-            plotter.add_text(
+            label_actors[row["id"]] = plotter.add_text(
                 label,
                 position=(text_x, y + 3),
                 font_size=9,
@@ -175,6 +177,8 @@ class Vision:
                 name=f"component_panel_label_{row['id']}",
                 render=False,
             )
+
+        return label_actors
 
     def _visible_node_ids(self, actors, component_node_indices):
         visible_node_ids = [
@@ -209,56 +213,66 @@ class Vision:
         except TypeError:
             plotter.remove_actor(name)
 
-    def _add_distance_measure_tool(self, plotter, actors, component_node_indices):
-        picked_nodes = []
-        actor_names = (
-            "distance_measure_point_0",
-            "distance_measure_point_1",
-            "distance_measure_line",
-            "distance_measure_label",
+    def _add_selection_tool(
+        self,
+        plotter,
+        actors,
+        component_label_actors,
+        component_node_indices,
+    ):
+        point_actor_names = (
+            "selected_node_marker",
+            "selected_node_label",
         )
+        selected_component_id = None
 
-        def clear_measurement(render=True):
-            picked_nodes.clear()
-            for name in actor_names:
+        cell_picker = vtkCellPicker()
+        point_picker = vtkPointPicker()
+        point_picker.SetTolerance(0.03)
+
+        def component_id_for_actor(picked_actor):
+            if picked_actor is None:
+                return None
+            for comp_id, actor in actors.items():
+                if picked_actor is actor or picked_actor == actor:
+                    return comp_id
+            return None
+
+        def clear_point_selection():
+            for name in point_actor_names:
                 self._remove_actor(plotter, name, render=False)
+
+        def select_component(comp_id):
+            nonlocal selected_component_id
+            selected_component_id = comp_id
+            for current_comp_id, label_actor in component_label_actors.items():
+                label_actor.prop.bold = current_comp_id == comp_id
+
+        def clear_selection(render=True):
+            clear_point_selection()
+            select_component(None)
             if render:
                 plotter.render()
 
-        def add_point_marker(node, index):
-            colors = ("red", "blue")
-            point_mesh = pv.PolyData(np.asarray([node["point"]]))
+        def add_point_annotation(node):
+            point = node["point"]
+            label = (
+                f"X: {point[0]:.6g}\n"
+                f"Y: {point[1]:.6g}\n"
+                f"Z: {point[2]:.6g}"
+            )
+
             plotter.add_mesh(
-                point_mesh,
-                color=colors[index],
+                pv.PolyData(np.asarray([point])),
+                color="red",
                 point_size=14,
                 render_points_as_spheres=True,
-                name=f"distance_measure_point_{index}",
-                render=False,
-            )
-
-        def add_distance_annotation():
-            start = picked_nodes[0]["point"]
-            end = picked_nodes[1]["point"]
-            delta = np.abs(end - start)
-            distance = float(np.linalg.norm(end - start))
-            midpoint = (start + end) / 2.0
-            label = (
-                f"X: {delta[0]:.6g}\n"
-                f"Y: {delta[1]:.6g}\n"
-                f"Z: {delta[2]:.6g}\n"
-                f"Total: {distance:.6g}"
-            )
-
-            plotter.add_mesh(
-                pv.Line(start, end),
-                color="black",
-                line_width=4,
-                name="distance_measure_line",
+                pickable=False,
+                name="selected_node_marker",
                 render=False,
             )
             plotter.add_point_labels(
-                np.asarray([midpoint]),
+                np.asarray([point]),
                 [label],
                 font_size=12,
                 text_color="black",
@@ -266,58 +280,56 @@ class Vision:
                 shape_opacity=0.75,
                 show_points=False,
                 always_visible=True,
-                name="distance_measure_label",
+                pickable=False,
+                name="selected_node_label",
                 render=False,
             )
 
-        def on_pick(point, picker=None):
-            node = self._nearest_visible_node(point, actors, component_node_indices)
-            if node is None:
+        def on_click(position):
+            if position is None or len(position) != 2:
+                clear_selection()
                 return
 
-            if len(picked_nodes) >= 2:
-                clear_measurement(render=False)
+            x, y = position
+            cell_picker.Pick(x, y, 0, plotter.renderer)
+            comp_id = component_id_for_actor(cell_picker.GetActor())
+            if comp_id is None:
+                clear_selection()
+                return
 
-            picked_nodes.append(node)
-            add_point_marker(node, len(picked_nodes) - 1)
+            select_component(comp_id)
+            clear_point_selection()
 
-            if len(picked_nodes) == 2:
-                add_distance_annotation()
+            point_picker.Pick(x, y, 0, plotter.renderer)
+            point_comp_id = component_id_for_actor(point_picker.GetActor())
+            if point_comp_id is not None:
+                node = self._nearest_visible_node(
+                    point_picker.GetPickPosition(),
+                    actors,
+                    component_node_indices,
+                )
+                if node is not None:
+                    add_point_annotation(node)
 
             plotter.render()
 
-        picking_options = {
-            "callback": on_pick,
-            "tolerance": 0.03,
-            "left_clicking": True,
-            "picker": "point",
-            "show_message": "Distance: left-click two visible nodes; press C to clear",
-            "font_size": 10,
-            "show_point": False,
-            "use_picker": True,
-            "pickable_window": False,
-            "clear_on_no_selection": False,
-        }
-        optional_keys = (
-            "clear_on_no_selection",
-            "use_picker",
-            "pickable_window",
-            "picker",
-            "left_clicking",
-        )
-        for key_count in range(len(optional_keys) + 1):
-            current_options = picking_options.copy()
-            for key in optional_keys[:key_count]:
-                current_options.pop(key, None)
-            try:
-                plotter.enable_point_picking(**current_options)
-                break
-            except TypeError:
-                if key_count == len(optional_keys):
-                    raise
+        def on_visibility_change(comp_id, is_visible, render=True):
+            if not is_visible and selected_component_id == comp_id:
+                clear_selection(render=render)
 
-        plotter.add_key_event("c", clear_measurement)
-        return clear_measurement
+        plotter.track_click_position(
+            on_click,
+            side="left",
+            double=False,
+            viewport=True,
+        )
+        plotter.track_click_position(
+            on_click,
+            side="left",
+            double=True,
+            viewport=True,
+        )
+        return on_visibility_change
 
     def show(self, isRandomColor=False, component_names=None):
         grid = self._build_grid()
@@ -348,18 +360,25 @@ class Vision:
                 name=f"component_{row['id']}",
             )
         
-        clear_measurement = self._add_distance_measure_tool(
-            plotter,
-            actors,
-            component_node_indices,
-        )
-        self._add_component_panel(
+        on_visibility_change = None
+
+        def handle_visibility_change(comp_id, is_visible, render=True):
+            if on_visibility_change is not None:
+                on_visibility_change(comp_id, is_visible, render=render)
+
+        component_label_actors = self._add_component_panel(
             plotter,
             rows,
             actors,
             len(self.elements),
             len(self.nodes),
-            on_visibility_change=clear_measurement,
+            on_visibility_change=handle_visibility_change,
+        )
+        on_visibility_change = self._add_selection_tool(
+            plotter,
+            actors,
+            component_label_actors,
+            component_node_indices,
         )
         plotter.add_axes()
         plotter.show()

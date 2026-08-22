@@ -469,6 +469,39 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(len(geometry["root"]["vias"]), 1)
         self.assertEqual(len(geometry["root"]["circuits"]), 1)
 
+    def test_real_flip_then_bump_uses_root_direct_sbt_surface(self):
+        plan = FlowCompiler(
+            InMemoryGeometryCatalog(
+                [geometry_entity("geom_dram", dram_geometry())]
+            )
+        ).compile(
+            flip_bump_template(),
+            flip_bump_configuration(),
+            {
+                "step_flip": flip_step_template(),
+                "step_bga_bump": bga_bump_step_template(),
+            },
+        )
+
+        result = GeometryKernel().execute(plan)
+        flipped_root = result.step_output("flip")["root"]
+        output_root = result.geometry()["root"]
+
+        molding_top = (
+            flipped_root["bodies"][0]["geometry"]["bottom_left"][2]
+            + flipped_root["bodies"][0]["geometry"]["thk"]
+        )
+        self.assertEqual(molding_top, 200)
+        self.assertEqual(
+            max(
+                body["geometry"]["bottom_left"][2] + body["geometry"]["thk"]
+                for body in flipped_root["bodies"]
+            ),
+            300,
+        )
+        self.assertEqual(output_root["bumps"][0]["geometry"]["bottom_left"][2], 300)
+        self.assertEqual(output_root["bumps"][0]["geometry"]["thk"], 25)
+
 
 class FixedModuleResolver:
     def __init__(self, module):
@@ -593,6 +626,31 @@ def rdl_step_template():
                     ],
                 },
             }
+        ],
+    }
+
+
+def flip_step_template():
+    return {
+        "id": "step_flip",
+        "program": "flip/flip",
+        "inputPorts": [geometry_input()],
+        "outputPorts": [output_port()],
+        "parameterDefinitions": [],
+    }
+
+
+def bga_bump_step_template():
+    return {
+        "id": "step_bga_bump",
+        "program": "bump/bga_bump_formation",
+        "inputPorts": [geometry_input()],
+        "outputPorts": [output_port()],
+        "parameterDefinitions": [
+            parameter("material", "materialRef"),
+            parameter("thk", "float"),
+            parameter("density", "float"),
+            parameter("koz", "float"),
         ],
     }
 
@@ -749,6 +807,41 @@ def rdl_configuration():
     }
 
 
+def flip_bump_template():
+    return {
+        "id": "flow_flip_bump",
+        "flowInputs": [flow_input("incoming_dram")],
+        "stepRefs": [
+            {"stepRefId": "flip", "processStepTemplateId": "step_flip"},
+            {"stepRefId": "bga_bump", "processStepTemplateId": "step_bga_bump"},
+        ],
+        "flowEdges": [
+            edge_from_input("incoming_dram", "flip"),
+            edge_from_step("flip", "bga_bump", "edge_flip_bga_bump"),
+        ],
+    }
+
+
+def flip_bump_configuration():
+    return {
+        "inputBindings": {
+            "incoming_dram": {"kind": "catalog", "geometryId": "geom_dram"}
+        },
+        "stepConfigurations": {
+            "flip": {"parameterValues": {}},
+            "bga_bump": {
+                "parameterValues": {
+                    "material": "SnAg",
+                    "thk": 25,
+                    "density": 60,
+                    "koz": 0,
+                }
+            },
+        },
+        "embeddedGeometries": {},
+    }
+
+
 def main_geometry(material="carrier"):
     return {
         "schemaVersion": "1.0.0",
@@ -808,6 +901,56 @@ def die_geometry():
                 }
             ],
             "children": [],
+        },
+    }
+
+
+def dram_geometry():
+    def body(material, bottom_z, thickness):
+        return {
+            "geometry": {
+                "type": "BoxGeometry",
+                "bottom_left": [-60, -40, bottom_z],
+                "top_right": [60, 40, bottom_z],
+                "thk": thickness,
+            },
+            "material": material,
+        }
+
+    return {
+        "schemaVersion": "1.0.0",
+        "unitSystem": "um",
+        "root": {
+            "key": "dram-package",
+            "bodies": [
+                body("EMC", 100, 200),
+                body("Solder-Mask", 0, 20),
+                body("BT-Core", 20, 60),
+                body("Solder-Mask", 80, 20),
+            ],
+            "vias": [],
+            "circuits": [],
+            "bumps": [],
+            "children": [
+                {
+                    "key": "core-die-01",
+                    "bodies": [
+                        {
+                            "geometry": {
+                                "type": "BoxGeometry",
+                                "bottom_left": [-40, -30, 120],
+                                "top_right": [40, 30, 120],
+                                "thk": 50,
+                            },
+                            "material": "Si-DRAM",
+                        }
+                    ],
+                    "vias": [],
+                    "circuits": [],
+                    "bumps": [],
+                    "children": [],
+                }
+            ],
         },
     }
 

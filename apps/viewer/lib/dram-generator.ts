@@ -276,10 +276,10 @@ export function buildDramGeometry(
   const dimensions = deriveDramDimensions(parameters);
   const packageBounds = makeBounds(parameters.packageX, parameters.packageY);
   const coreBounds = makeBounds(parameters.coreDieX, parameters.coreDieY);
-  const sbtChildren: DramContainer[] = [];
+  const sbtLayers: DramContainer[] = [];
   let cursorZ = 0;
 
-  sbtChildren.push(
+  sbtLayers.push(
     makeBodyContainer(
       "bottom-solder-mask",
       packageBounds,
@@ -296,7 +296,7 @@ export function buildDramGeometry(
     cursorZ += parameters.bottomBuildupLayers[index].thickness;
   }
   parameters.bottomBuildupLayers.forEach((layer, index) => {
-    sbtChildren.push(
+    sbtLayers.push(
       makeBuildupLayerContainer(
         "bottom",
         index,
@@ -309,7 +309,7 @@ export function buildDramGeometry(
     );
   });
 
-  sbtChildren.push(
+  sbtLayers.push(
     makeBodyContainer(
       "sbt-core-layer",
       packageBounds,
@@ -321,7 +321,7 @@ export function buildDramGeometry(
   cursorZ += parameters.sbtCoreLayerThickness;
 
   parameters.topBuildupLayers.forEach((layer, index) => {
-    sbtChildren.push(
+    sbtLayers.push(
       makeBuildupLayerContainer(
         "top",
         index,
@@ -335,7 +335,7 @@ export function buildDramGeometry(
     cursorZ += layer.thickness;
   });
 
-  sbtChildren.push(
+  sbtLayers.push(
     makeBodyContainer(
       "top-solder-mask",
       packageBounds,
@@ -345,17 +345,11 @@ export function buildDramGeometry(
     ),
   );
 
-  const children: DramContainer[] = [
-    {
-      id: "container:dram-sbt",
-      key: "sbt",
-      bodies: [],
-      vias: [],
-      circuits: [],
-      bumps: [],
-      children: sbtChildren,
-    },
-  ];
+  // SBT spans the package process footprint, so its materialized layers belong to
+  // the root process stack. Flip derives cursorZ from these direct root bodies.
+  const sbtBodies = sbtLayers.flatMap((layer) => layer.bodies);
+  const sbtCircuits = sbtLayers.flatMap((layer) => layer.circuits);
+  const children: DramContainer[] = [];
 
   for (let index = 0; index < parameters.coreDieCount; index += 1) {
     const sequence = String(index + 1).padStart(2, "0");
@@ -390,9 +384,10 @@ export function buildDramGeometry(
           ),
           material: parameters.moldingMaterial.trim(),
         },
+        ...sbtBodies,
       ],
       vias: [],
-      circuits: [],
+      circuits: sbtCircuits,
       bumps: [],
       children,
     },
