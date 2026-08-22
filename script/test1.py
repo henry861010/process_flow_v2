@@ -1,11 +1,8 @@
-import sys
 import json
-sys.path.append("/Users/henry/Desktop/code/process_flow_v2/packages/mesher-py/src/translater/")
-from translater_standard_v1 import Translater
-sys.path.append("/Users/henry/Desktop/code/process_flow_v2/packages/mesher-py/src/mesher/")
-from dragger import Dragger
-from checkerboard import checkerboard_box
-from vision import Vision
+from process_flow_mesher.meshing.extrusion import Dragger
+from process_flow_mesher.meshing.grid import build_rectilinear_grid
+from process_flow_mesher.translation.standard_v1 import StandardV1Translator
+from process_flow_mesher.visualization import MeshViewer
 
 # ---------------------------------------
 
@@ -79,10 +76,10 @@ root = {
 
 # ---------------------------------------
 
-translater = Translater()
+translator = StandardV1Translator()
 container = root
 
-base_face, faces = translater.get_2D_pattern(container)
+base_face, faces = translator.get_2D_pattern(container)
 x_list = [base_face["dim"][0], base_face["dim"][2]]
 y_list = [base_face["dim"][1], base_face["dim"][3]]
 for face in faces:
@@ -90,15 +87,14 @@ for face in faces:
     x_list.append(face["dim"][2])
     y_list.append(face["dim"][1])
     y_list.append(face["dim"][3])
-nodes, elements = checkerboard_box(5, x_list, y_list)
+nodes, elements = build_rectilinear_grid(5, x_list, y_list)
 
-layer_infos = translater.get_3D_pattern(container)
+layer_infos = translator.get_3D_pattern(container)
 #print(json.dumps(layer_infos, indent=4))
 
 dragger = Dragger()
 dragger.set_2D(nodes, elements)
-dragger.build(layer_infos, 5)
+mesh = dragger.build(layer_infos, 5)
 
-vision = Vision()
-vision.set(dragger.comps, dragger.elements, dragger.element_comps, dragger.nodes)
-vision.show()
+viewer = MeshViewer(mesh)
+viewer.show()

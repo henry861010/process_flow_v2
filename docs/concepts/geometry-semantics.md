@@ -15,7 +15,7 @@ source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/serialization
   - packages/cad-py/src/process_flow_cad/exporter.py
   - packages/cad-py/src/process_flow_cad/section.py
-  - packages/mesher-py/src/translater/translater_standard_v1.py
+  - packages/mesher-py/src/process_flow_mesher/translation/standard_v1.py
 ---
 
 # Geometry 解讀語意
@@ -68,7 +68,7 @@ Geometry structure 本身不為不同 sibling branches 定義通用 ownership pr
 | Session binary display mesh（current） | 以geometryHash/version cache的binary GLB顯示resolved bodies | 仍不輸出feature bodies；manifest/viewer只顯示estimated overlay | metadata可讀，不改變body mesh | metadata可讀，不預先inset | Box、Polygon、Cylinder、Cone |
 | OCC exact body section（current） | 對resolved CadBody shape產生X/Y vertical body/material regions；viewer由contours產生caps | Exact response排除density feature；viewer可另疊加estimated envelope section pattern | 不改變body section | pattern metadata保留但不套KOZ | 跟隨CadBody resolver支援範圍 |
 | STEP AP242 | 輸出 materialized bodies | 以完整 feature envelope 輸出獨立 solid，名稱包含 feature/material/density | 不改變 solid 形狀 | 目前未做 XY inset | Box、Polygon、Cylinder、Cone |
-| Text CDB | 2.5D extrusion | 在 envelope 內以 deterministic density cell selection materialize | 目前忽略 | 目前忽略 | Cone 不支援；Cylinder 只支援單一 distinct circular base face |
+| Text CDB | 2.5D extrusion | 在 envelope 內以 deterministic density cell selection materialize | 目前忽略 | 目前忽略 | Box、Polygon、Cylinder；Cone 不支援 |
 
 因此「所有 downstream consumer 都已套用 `koz`」不是現況。若 workflow 依賴 `koz` 或 direction-aware mesh，必須先補 consumer implementation 與 tests，不能只更新此文件。
 

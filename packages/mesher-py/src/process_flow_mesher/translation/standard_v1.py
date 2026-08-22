@@ -9,12 +9,11 @@ START_DENSITY = 2
 START_CONVERT = 1
 END = 0
 
-class Translater:
+class StandardV1Translator:
     """Translates standard geometry containers into 2D print faces.
 
     This version does not support ``ConeGeometry``. ``CylinderGeometry`` is
-    converted to a ``CIRCLE`` face and is only supported when it is the selected
-    ``base_face``.
+    converted to a ``CIRCLE`` face.
     """
 
     def get_2D_pattern(self, container, tolerance=DEFAULT_TOLERANCE):
@@ -33,14 +32,12 @@ class Translater:
 
         Raises:
             ValueError: If the container contains unsupported geometry, invalid
-                payload shape, invalid tolerance, or a circle that is not the
-                base face.
+                payload shape, or invalid tolerance.
         """
         normalized_tolerance = _normalize_tolerance(tolerance)
         all_faces = _collect_faces(container)
         unique_faces = _dedupe_faces(all_faces, normalized_tolerance)
         base_face = _select_base_face(unique_faces)
-        _validate_circle_base_rule(base_face, unique_faces)
         faces = _remove_base_face(unique_faces, base_face, normalized_tolerance)
 
         return base_face, faces
@@ -330,7 +327,7 @@ def _geometry_to_face(geometry):
         return {"type": "CIRCLE", "dim": [x, y, radius]}
 
     if geometry_type == "ConeGeometry":
-        raise ValueError("ConeGeometry is not supported by translater_standard_v1")
+        raise ValueError("ConeGeometry is not supported by StandardV1Translator")
 
     raise ValueError(f"Geometry type {geometry_type} is not supported")
 
@@ -355,7 +352,7 @@ def _geometry_to_z(geometry, isStart=True):
         return z
     
     if geometry["type"] == "ConeGeometry":
-        raise ValueError("ConeGeometry is not supported by translater_standard_v1") 
+        raise ValueError("ConeGeometry is not supported by StandardV1Translator")
 
 
 def _polygon_dim(geometry):
@@ -407,28 +404,6 @@ def _select_base_face(faces):
         if base_face is None or _face_area(base_face) < _face_area(face):
             base_face = face
     return base_face
-
-
-def _validate_circle_base_rule(base_face, faces):
-    """Validates that every remaining circle is the base face.
-
-    Args:
-        base_face (dict | None): The selected base face.
-        faces (list): Deduplicated 2D faces.
-
-    Raises:
-        ValueError: If any distinct circle is present but is not the base face.
-    """
-    circle_faces = [face for face in faces if face["type"] == "CIRCLE"]
-    if not circle_faces:
-        return
-    if base_face is None or base_face["type"] != "CIRCLE":
-        raise ValueError("CylinderGeometry/CIRCLE is only supported as the base face")
-    for circle_face in circle_faces:
-        if circle_face is not base_face:
-            raise ValueError(
-                "Only one distinct CylinderGeometry/CIRCLE is supported as the base face"
-            )
 
 
 def _dedupe_faces(faces, tolerance):

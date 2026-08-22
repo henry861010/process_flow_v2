@@ -4,7 +4,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-from mesher.vision import Vision
+from process_flow_mesher import Mesh3D
+from process_flow_mesher.visualization import MeshViewer
 
 
 class FakeActor:
@@ -75,16 +76,21 @@ class FakePlotter:
         self.render_count += 1
 
 
-class VisionSelectionTests(unittest.TestCase):
+class MeshViewerSelectionTests(unittest.TestCase):
     def setUp(self):
-        self.vision = Vision()
-        self.vision.nodes = np.array(
-            [
-                [1.0, 2.0, 3.0],
-                [5.0, 5.0, 5.0],
-            ],
-            dtype=np.float32,
+        self.mesh = Mesh3D(
+            nodes=np.array(
+                [
+                    [1.0, 2.0, 3.0],
+                    [5.0, 5.0, 5.0],
+                ],
+                dtype=np.float32,
+            ),
+            elements=np.empty((0, 8), dtype=np.int32),
+            element_comps=np.empty((0,), dtype=np.int32),
+            comps={"EMPTY": 0},
         )
+        self.vision = MeshViewer(self.mesh)
         self.component_1 = FakeActor()
         self.component_2 = FakeActor()
         self.actors = {1: self.component_1, 2: self.component_2}
@@ -101,8 +107,14 @@ class VisionSelectionTests(unittest.TestCase):
         self.point_picker = FakePicker()
 
         patches = (
-            patch("mesher.vision.vtkCellPicker", return_value=self.cell_picker),
-            patch("mesher.vision.vtkPointPicker", return_value=self.point_picker),
+            patch(
+                "process_flow_mesher.visualization.viewer.vtkCellPicker",
+                return_value=self.cell_picker,
+            ),
+            patch(
+                "process_flow_mesher.visualization.viewer.vtkPointPicker",
+                return_value=self.point_picker,
+            ),
         )
         self.patchers = patches
         for current_patch in self.patchers:
@@ -188,6 +200,39 @@ class VisionSelectionTests(unittest.TestCase):
         self.assertFalse(actor.visible)
         self.assertFalse(actor.pickable)
         self.assertEqual(visibility_changes, [(1, False, False)])
+
+
+class MeshViewerDataTests(unittest.TestCase):
+    def test_builds_grid_and_component_names_from_mesh_3d(self):
+        mesh = Mesh3D(
+            nodes=np.array(
+                [
+                    [0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [0.0, 1.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                    [1.0, 0.0, 1.0],
+                ]
+            ),
+            elements=np.array([[0, 1, 2, 3, 4, 5, 6, 7]]),
+            element_comps=np.array([1]),
+            comps={"EMPTY": 0, "body": 1},
+        )
+        viewer = MeshViewer(mesh, component_names={1: "Display Body"})
+
+        grid = viewer._build_grid()
+
+        self.assertIs(viewer.mesh, mesh)
+        self.assertEqual(grid.n_points, 8)
+        self.assertEqual(grid.n_cells, 1)
+        np.testing.assert_array_equal(grid.cell_data["comp"], [1])
+        self.assertEqual(
+            viewer._component_name_map(),
+            {0: "EMPTY", 1: "Display Body"},
+        )
 
 
 if __name__ == "__main__":

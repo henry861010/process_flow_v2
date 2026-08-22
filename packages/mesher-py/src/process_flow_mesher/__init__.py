@@ -1,7 +1,7 @@
-from .builder import MeshResult, build_dragger_from_structure, build_mesh_from_structure
+from .builder import build_mesh_from_structure
+from .models import Mesh3D
 
 __all__ = [
-    "MeshResult",
-    "build_dragger_from_structure",
+    "Mesh3D",
     "build_mesh_from_structure",
 ]

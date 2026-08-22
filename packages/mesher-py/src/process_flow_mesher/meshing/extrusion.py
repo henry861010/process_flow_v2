@@ -13,7 +13,7 @@ Design notes:
 import numpy as np
 from matplotlib.path import Path
 
-from .cdb_writer import write_cdb_text
+from ..models import Mesh3D
 
 ELEMENT_2D_LEN = 4
 NODE_2D_LEN = 2
@@ -38,11 +38,9 @@ class Dragger:
         comps (dict[str, int]): Material/component name to numeric component id.
         elements (numpy.ndarray): 3D element connectivity. Valid rows are
             ``elements[:element_num]`` and each row contains 8 node indices.
-        element_ids (numpy.ndarray): External ids for valid 3D elements.
         element_comps (numpy.ndarray): Component ids for valid 3D elements.
         nodes (numpy.ndarray): 3D node coordinates. Valid rows are
             ``nodes[:node_num]`` and each row is ``[x, y, z]``.
-        node_ids (numpy.ndarray): External ids for valid 3D nodes.
         element_2D (numpy.ndarray): Source 2D quad connectivity.
         element_2D_volume (numpy.ndarray): XY area for each 2D element.
         element_2D_comp (numpy.ndarray): Temporary per-layer component id for
@@ -60,13 +58,11 @@ class Dragger:
         ### 3D elements
         self.element_num = 0
         self.elements = np.empty((0, ELEMENT_LEN), dtype=np.int32)
-        self.element_ids = np.empty((0), dtype=np.int32)
         self.element_comps = np.empty((0), dtype=np.int32)
         
         ### nodes
         self.node_num = 0
         self.nodes = np.empty((0, NODE_LEN), dtype=np.float64)
-        self.node_ids = np.empty((0), dtype=np.float64)
         
         ### process
         self.element_2D = np.zeros((0, 4), dtype=np.int32)
@@ -115,7 +111,6 @@ class Dragger:
             extra = new_capacity - current_capacity
             
             self.nodes = np.vstack([self.nodes, np.empty((extra, 3), dtype=np.float64)])
-            self.node_ids = np.concatenate([self.node_ids, np.empty(extra, dtype=np.int32)])
 
     def _pre_allocate_elements(self, size: int = 1):
         """Ensure the internal 3D element buffers can hold additional rows.
@@ -124,7 +119,7 @@ class Dragger:
             size (int): Number of new element rows that will be appended.
 
         Notes:
-            This method grows connectivity, id, and component arrays together.
+            This method grows connectivity and component arrays together.
             ``element_num`` still controls how many rows are valid.
         """
         required = self.element_num + size
@@ -134,7 +129,6 @@ class Dragger:
             extra = new_capacity - current_capacity
             
             self.elements = np.vstack([self.elements, np.empty((extra, 8), dtype=np.int32)])
-            self.element_ids = np.concatenate([self.element_ids, np.empty(extra, dtype=np.int32)])
             self.element_comps = np.concatenate([self.element_comps, np.empty(extra, dtype=np.int32)])
         
     ### core
@@ -450,10 +444,6 @@ class Dragger:
         ### assign nodes to each element
         self.elements[elem_start : elem_start + drag_num * E] = elems.astype(np.int32, copy=False)
         
-        ### assign ids to each element
-        last_id = int(np.max(self.element_ids[:self.element_num])) if self.element_num else 0
-        self.element_ids[elem_start : elem_start + drag_num * E] = 1 + last_id + np.arange(drag_num * E)
-
         ### assign comps to each element
         layer_comps = self.element_2D_comp[elem2D_idx]
         dest = self.element_comps[elem_start : elem_start + drag_num * E].reshape(drag_num, E)
@@ -465,14 +455,17 @@ class Dragger:
         self.node_2D_to_3D[:] = -1
         self.node_2D_to_3D[node2D_idx] = layer_nodes[-1]
         
-    def build(self, layer_infos, element_size, *, verbose=False):
+    def build(self, layer_infos, element_size, *, verbose=False) -> Mesh3D:
         """Build 3D mesh data from process object definitions.
 
         Args:
-            object_list (Sequence[Sequence[dict]]): Process objects. Each
-                object is an ordered list of z-level dictionaries. Every entry
-                except the last must include ``areas`` and ``element_size``;
-                every entry used as a boundary must include ``z``.
+            layer_infos (Sequence[dict]): Ordered z-level dictionaries. Every
+                entry except the last must include ``assignments``; every entry
+                used as a boundary must include ``z``.
+            element_size (float): Requested maximum extrusion height.
+
+        Returns:
+            Mesh3D: An owned snapshot containing only valid 3D mesh rows.
 
         Notes:
             The method appends to existing 3D buffers. It resets temporary 2D
@@ -491,25 +484,11 @@ class Dragger:
             self._drag(element_size, z_now, z_next)
             
 
-        self.elements = self.elements[:self.element_num]
-        self.element_ids = self.element_ids[:self.element_num]
-        self.element_comps = self.element_comps[:self.element_num]
-        self.nodes = self.nodes[:self.node_num]
-        self.node_ids = self.node_ids[:self.node_num]
-        
         if verbose:
             print(f"element_num: {self.element_num}")
             print(f"node_num: {self.node_num}")
 
-    def write(self, path):
-        """Write the generated 3D mesh to a text CDB artifact.
-
-        Only valid rows are exported. Internal buffers may have extra capacity
-        while a mesh is being built, so callers should use this method instead
-        of writing ``self.nodes`` or ``self.elements`` directly.
-        """
-        return write_cdb_text(
-            path,
+        return Mesh3D(
             nodes=self.nodes[: self.node_num],
             elements=self.elements[: self.element_num],
             element_comps=self.element_comps[: self.element_num],

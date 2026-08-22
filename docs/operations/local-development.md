@@ -109,7 +109,7 @@ marker 不是 `2` 時，目前 implementation 會清空 resource tables；這個
 ```bash
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
 venv/bin/python -m unittest discover apps/api/tests
-venv/bin/python -m unittest packages/mesher-py/tests/test_dragger_write.py
+venv/bin/python -m unittest discover packages/mesher-py/tests -v
 cd apps/viewer && npm run build
 ```
 
@@ -125,7 +125,7 @@ Background export output path 是 API host 的 absolute path，不是 browser do
 
 ## 開發者 scripts
 
-`script/geometry_viewer.py` 是 optional desktop mesh visualization utility，需要 `pyvista`，但 `pyvista` 目前不是 `process-flow-mesher` dependency。`script/test1.py` 與 `script/test2.py` 含 developer-specific absolute import paths，屬 legacy experiments，不是 supported verification commands。
+`script/geometry_viewer.py` 是 optional desktop mesh visualization utility；先以 `pip install -e 'packages/mesher-py[visualization]'` 安裝 PyVista extra。`script/test1.py` 與 `script/test2.py` 是 legacy experiments，不是 supported verification commands，但已改用 installed package imports，不再依賴 developer-specific absolute paths。
 
 ## 疑難排解
 

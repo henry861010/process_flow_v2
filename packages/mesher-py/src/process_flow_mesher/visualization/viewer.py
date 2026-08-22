@@ -7,37 +7,28 @@ from matplotlib.colors import to_hex
 import random
 from vtkmodules.vtkRenderingCore import vtkCellPicker, vtkPointPicker
 
+from ..models import Mesh3D
+
 random.seed(1)
 
-class Vision:
-    def __init__(self):
-        ### 3D elements
-        self.comps = {}
-        self.component_names = {}
-        self.elements = np.empty((0, 8), dtype=np.int32)
-        self.element_comps = np.empty((0), dtype=np.int32)
-        self.nodes = np.empty((0, 3), dtype=np.float32)
-    
-    def set(self, comps, elements, element_comps, nodes, component_names=None):
-        self.elements = elements
-        self.element_comps = element_comps
-        self.nodes = nodes
-        self.comps = comps
+class MeshViewer:
+    def __init__(self, mesh: Mesh3D, *, component_names=None):
+        self.mesh = mesh
         self.component_names = component_names or {}
 
     def _build_grid(self):
         ### Build the cell
-        n = self.elements.shape[0]
-        cells = np.hstack([np.column_stack([np.full((n,1), 8, dtype=self.elements.dtype), self.elements]).ravel()])
+        n = self.mesh.element_count
+        cells = np.hstack([np.column_stack([np.full((n,1), 8, dtype=self.mesh.elements.dtype), self.mesh.elements]).ravel()])
 
         ### Cell types
         celltypes = np.full(n, pv.CellType.HEXAHEDRON, dtype=np.uint8)
 
         ### Create grid
-        grid = pv.UnstructuredGrid(cells, celltypes, self.nodes)
+        grid = pv.UnstructuredGrid(cells, celltypes, self.mesh.nodes)
 
         ### Attach component ids as cell data for coloring
-        grid.cell_data['comp'] = self.element_comps.astype(np.int32)
+        grid.cell_data['comp'] = self.mesh.element_comps.astype(np.int32)
         return grid
 
     def _to_int(self, value):
@@ -63,8 +54,8 @@ class Vision:
             elif value_id is not None:
                 comp_id = value_id
                 name = str(key)
-            elif key in self.comps and self._to_int(self.comps[key]) is not None:
-                comp_id = int(self.comps[key])
+            elif key in self.mesh.comps and self._to_int(self.mesh.comps[key]) is not None:
+                comp_id = int(self.mesh.comps[key])
                 name = str(value)
             else:
                 continue
@@ -74,7 +65,7 @@ class Vision:
 
     def _component_name_map(self, component_names=None):
         comp_names = {}
-        self._update_component_name_map(comp_names, self.comps)
+        self._update_component_name_map(comp_names, self.mesh.comps)
         self._update_component_name_map(comp_names, self.component_names, overwrite=True)
         self._update_component_name_map(comp_names, component_names, overwrite=True)
         return comp_names
@@ -199,12 +190,12 @@ class Vision:
         if node_ids.size == 0:
             return None
 
-        node_points = self.nodes[node_ids]
+        node_points = self.mesh.nodes[node_ids]
         nearest_index = int(np.argmin(np.sum((node_points - point) ** 2, axis=1)))
         node_id = int(node_ids[nearest_index])
         return {
             "id": node_id,
-            "point": self.nodes[node_id].astype(float),
+            "point": self.mesh.nodes[node_id].astype(float),
         }
 
     def _remove_actor(self, plotter, name, render=False):
@@ -348,7 +339,7 @@ class Vision:
             cell_indices = np.where(comp == row["id"])[0]
             component_grid = grid.extract_cells(cell_indices)
             component_node_indices[row["id"]] = np.unique(
-                self.elements[cell_indices].ravel()
+                self.mesh.elements[cell_indices].ravel()
             ).astype(np.int32)
             actors[row["id"]] = plotter.add_mesh(
                 component_grid,
@@ -370,8 +361,8 @@ class Vision:
             plotter,
             rows,
             actors,
-            len(self.elements),
-            len(self.nodes),
+            self.mesh.element_count,
+            self.mesh.node_count,
             on_visibility_change=handle_visibility_change,
         )
         on_visibility_change = self._add_selection_tool(

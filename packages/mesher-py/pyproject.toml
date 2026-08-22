@@ -12,8 +12,14 @@ dependencies = [
   "numpy>=1.26",
 ]
 
+[project.optional-dependencies]
+visualization = [
+  "pyvista>=0.48",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["process_flow_mesher*"]
 
 [tool.setuptools.package-data]
 process_flow_mesher = ["py.typed"]

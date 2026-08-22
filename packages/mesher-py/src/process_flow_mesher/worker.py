@@ -5,7 +5,8 @@ import sys
 import traceback
 from pathlib import Path
 
-from .builder import build_dragger_from_structure
+from .builder import build_mesh_from_structure
+from .exporters.cdb import write_cdb_text
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,11 +22,11 @@ def main(argv: list[str] | None = None) -> int:
     input_path, element_size, output_path = args
     try:
         geometry_structure = json.loads(Path(input_path).read_text(encoding="utf-8"))
-        dragger = build_dragger_from_structure(
+        mesh = build_mesh_from_structure(
             geometry_structure,
             element_size=float(element_size),
         )
-        metadata = dragger.write(output_path)
+        metadata = write_cdb_text(output_path, mesh=mesh)
         print(json.dumps(metadata, separators=(",", ":")), flush=True)
     except Exception:
         print(traceback.format_exc(), file=sys.stderr)

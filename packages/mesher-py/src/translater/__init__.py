@@ -1,2 +1,0 @@
-"""Prototype geometry translator internals."""
-

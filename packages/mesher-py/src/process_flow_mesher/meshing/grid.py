@@ -35,7 +35,7 @@ def _densify(element_size, arr):
     return np.asarray(out, dtype=np.float32)
 
 
-def checkerboard_box(element_size, x_list, y_list):
+def build_rectilinear_grid(element_size, x_list, y_list):
     x_list = _sort(x_list)
     y_list = _sort(y_list)
 

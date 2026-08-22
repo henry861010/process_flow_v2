@@ -2,74 +2,30 @@ from __future__ import annotations
 
 import copy
 import math
-from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-
-from mesher.checkerboard import checkerboard_box
-from mesher.dragger import Dragger
-from translater.translater_standard_v1 import Translater
+from .meshing.extrusion import Dragger
+from .meshing.grid import build_rectilinear_grid
+from .models import Mesh3D
+from .translation.standard_v1 import StandardV1Translator
 
 JsonObject = dict[str, Any]
-
-
-@dataclass(frozen=True)
-class MeshResult:
-    nodes: np.ndarray
-    elements: np.ndarray
-    element_comps: np.ndarray
-    comps: dict[str, int]
-
-    @property
-    def node_count(self) -> int:
-        return int(self.nodes.shape[0])
-
-    @property
-    def element_count(self) -> int:
-        return int(self.elements.shape[0])
-
-    @property
-    def component_count(self) -> int:
-        return len(self.comps)
 
 
 def build_mesh_from_structure(
     geometry_structure: JsonObject,
     *,
     element_size: float,
-) -> MeshResult:
+) -> Mesh3D:
     """Build a 2.5D hexahedral mesh from a standard geometry structure."""
-    dragger = build_dragger_from_structure(
-        geometry_structure,
-        element_size=element_size,
-    )
-
-    return MeshResult(
-        nodes=np.asarray(dragger.nodes[: dragger.node_num], dtype=np.float64),
-        elements=np.asarray(dragger.elements[: dragger.element_num], dtype=np.int32),
-        element_comps=np.asarray(
-            dragger.element_comps[: dragger.element_num],
-            dtype=np.int32,
-        ),
-        comps=dict(dragger.comps),
-    )
-
-
-def build_dragger_from_structure(
-    geometry_structure: JsonObject,
-    *,
-    element_size: float,
-) -> Dragger:
-    """Build and return a Dragger containing 3D mesh output buffers."""
     normalized_element_size = _positive_finite_number(element_size, "elementSize")
     root = _root_container(geometry_structure)
 
     # The translator annotates containers with priority during 3D pattern
     # extraction, so keep the caller's preview snapshot immutable.
     container = copy.deepcopy(root)
-    translater = Translater()
-    base_face, faces = translater.get_2D_pattern(container)
+    translator = StandardV1Translator()
+    base_face, faces = translator.get_2D_pattern(container)
     if base_face is None:
         raise ValueError("CDB export requires at least one geometry body or feature.")
 
@@ -80,17 +36,16 @@ def build_dragger_from_structure(
         x_lines.extend(xs)
         y_lines.extend(ys)
 
-    nodes_2d, elements_2d = checkerboard_box(
+    nodes_2d, elements_2d = build_rectilinear_grid(
         normalized_element_size,
         x_lines,
         y_lines,
     )
-    layer_infos = translater.get_3D_pattern(container)
+    layer_infos = translator.get_3D_pattern(container)
 
     dragger = Dragger()
     dragger.set_2D(nodes_2d, elements_2d)
-    dragger.build(layer_infos, normalized_element_size)
-    return dragger
+    return dragger.build(layer_infos, normalized_element_size)
 
 
 def _root_container(geometry_structure: JsonObject) -> JsonObject:

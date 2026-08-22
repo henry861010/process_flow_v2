@@ -1,15 +1,8 @@
-import sys
 import json
 import argparse
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-MESHER_SRC = REPO_ROOT / "packages" / "mesher-py" / "src"
-if str(MESHER_SRC) not in sys.path:
-    sys.path.append(str(MESHER_SRC))
-
-from mesher.vision import Vision
 from process_flow_mesher import build_mesh_from_structure
+from process_flow_mesher.visualization import MeshViewer
 
 parser = argparse.ArgumentParser(description="The geoemtry strcuture viewer")
 parser.add_argument("-json", '--json', type=str, help="The path to the input json.")
@@ -22,6 +15,5 @@ with open(args.json, 'r') as file:
 
 mesh = build_mesh_from_structure(structure, element_size=args.element_size)
 
-vision = Vision()
-vision.set(mesh.comps, mesh.elements, mesh.element_comps, mesh.nodes)
-vision.show()
+viewer = MeshViewer(mesh)
+viewer.show()
