@@ -11,6 +11,7 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
         material=daf_material,
         thickness=daf_thk,
         z=state.geometry_z_max(),
+        key="daf",
     )
-    state.bond_carrier_geometry(carrier)
+    state.bond_carrier_geometry(carrier, key="carrier")
     return state

@@ -6,5 +6,5 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
     material = context.require_string("material", "Under Fill.material")
     thk = context.require_positive_number("thk", "Under Fill.thk")
     gap = context.require_non_negative_number("gap", "Under Fill.gap")
-    state.apply_under_fill(material=material, thk=thk, gap=gap)
+    state.apply_under_fill(material=material, thk=thk, gap=gap, key="underfill")
     return state

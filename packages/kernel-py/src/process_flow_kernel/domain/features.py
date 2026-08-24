@@ -2,9 +2,12 @@ from __future__ import annotations
 
 
 class Body:
-    def __init__(self, geometry, material):
+    def __init__(self, geometry, material, key=""):
+        if not isinstance(key, str):
+            raise ValueError("Body key must be a string")
         self._geometry = geometry
         self._material = material
+        self._key = key
 
     def z_min(self):
         return self._geometry.z_min()
@@ -21,11 +24,17 @@ class Body:
     def material(self):
         return self._material
 
+    def key(self):
+        return self._key
+
     def copy(self):
-        return Body(self._geometry.copy(), self._material)
+        return Body(self._geometry.copy(), self._material, self._key)
 
     def copy_with_thk(self, thk):
-        return Body(self._geometry.copy_with_thk(thk), self._material)
+        return Body(self._geometry.copy_with_thk(thk), self._material, self._key)
+
+    def copy_with_key(self, key):
+        return Body(self._geometry.copy(), self._material, key)
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -44,6 +53,7 @@ class Body:
 
     def json(self):
         return {
+            "key": self._key,
             "geometry": self._geometry.json(),
             "material": self._material,
         }

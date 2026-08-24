@@ -137,23 +137,34 @@ class ProcessGeometryState:
         *,
         material,
         geometry,
-        key=None,
+        key="",
         set_footprint=True,
         cursor_z="top",
         scope=ROOT_SCOPE,
     ):
         primitive = _geometry_from_spec(geometry)
-        handle = self._add_body_object(Body(primitive, _require_string(material, "material")), scope=scope)
+        handle = self._add_body_object(
+            Body(primitive, _require_string(material, "material"), _require_body_key(key)),
+            scope=scope,
+        )
         if set_footprint:
             self._process_footprint = _footprint_from_geometry(primitive)
         if cursor_z == "top":
             self._cursor_z = primitive.z_max()
         else:
             self.set_cursor_z(cursor_z)
-        _ = key
         return handle
 
-    def initialize_box_layer(self, *, material, bottom_left, top_right, thickness, set_footprint=True):
+    def initialize_box_layer(
+        self,
+        *,
+        material,
+        bottom_left,
+        top_right,
+        thickness,
+        set_footprint=True,
+        key="",
+    ):
         return self.initialize_layer(
             material=material,
             geometry={
@@ -163,20 +174,40 @@ class ProcessGeometryState:
                 "thickness": thickness,
             },
             set_footprint=set_footprint,
+            key=key,
         )
 
-    def initialize_cylinder_layer(self, *, material, center, radius, thickness, set_footprint=True):
+    def initialize_cylinder_layer(
+        self,
+        *,
+        material,
+        center,
+        radius,
+        thickness,
+        set_footprint=True,
+        key="",
+    ):
         return self.initialize_layer(
             material=material,
             geometry={"type": "cylinder", "center": center, "radius": radius, "thickness": thickness},
             set_footprint=set_footprint,
+            key=key,
         )
 
-    def initialize_polygon_layer(self, *, material, polygons, thickness, set_footprint=True):
+    def initialize_polygon_layer(
+        self,
+        *,
+        material,
+        polygons,
+        thickness,
+        set_footprint=True,
+        key="",
+    ):
         return self.initialize_layer(
             material=material,
             geometry={"type": "polygon", "polygons": polygons, "thickness": thickness},
             set_footprint=set_footprint,
+            key=key,
         )
 
     def initialize_cone_layer(
@@ -188,6 +219,7 @@ class ProcessGeometryState:
         top_radius,
         thickness,
         set_footprint=False,
+        key="",
     ):
         return self.initialize_layer(
             material=material,
@@ -199,6 +231,7 @@ class ProcessGeometryState:
                 "thickness": thickness,
             },
             set_footprint=set_footprint,
+            key=key,
         )
 
     def deposit_layer(
@@ -210,6 +243,7 @@ class ProcessGeometryState:
         advance_cursor=True,
         scope=ROOT_SCOPE,
         xy_inset=0,
+        key="",
     ):
         layer_thickness = _positive_number(thickness, "thickness")
         bottom_z = _finite_number(self._cursor_z if z is None else z, "z")
@@ -219,14 +253,18 @@ class ProcessGeometryState:
             layer_thickness,
         ).copy_with_xy_inset(_finite_number(xy_inset, "xyInset"))
         handle = self._add_body_object(
-            Body(geometry, _require_string(material, "material")),
+            Body(
+                geometry,
+                _require_string(material, "material"),
+                _require_body_key(key),
+            ),
             scope=scope,
         )
         if advance_cursor:
             self._cursor_z = bottom_z + layer_thickness
         return handle
 
-    def fill_to(self, *, material, z, scope=ROOT_SCOPE):
+    def fill_to(self, *, material, z, scope=ROOT_SCOPE, key=""):
         target_z = _finite_number(z, "z")
         if target_z <= self._cursor_z:
             raise ValueError("fill_to requires z to be above cursor_z")
@@ -236,16 +274,38 @@ class ProcessGeometryState:
             z=self._cursor_z,
             advance_cursor=True,
             scope=scope,
+            key=key,
         )
 
-    def deposit_geometry(self, *, material, geometry, advance_cursor=False, scope=ROOT_SCOPE):
+    def deposit_geometry(
+        self,
+        *,
+        material,
+        geometry,
+        advance_cursor=False,
+        scope=ROOT_SCOPE,
+        key="",
+    ):
         primitive = _geometry_from_spec(geometry)
-        handle = self._add_body_object(Body(primitive, _require_string(material, "material")), scope=scope)
+        handle = self._add_body_object(
+            Body(primitive, _require_string(material, "material"), _require_body_key(key)),
+            scope=scope,
+        )
         if advance_cursor:
             self._cursor_z = primitive.z_max()
         return handle
 
-    def deposit_box_layer(self, *, material, bottom_left, top_right, thickness, advance_cursor=False, scope=ROOT_SCOPE):
+    def deposit_box_layer(
+        self,
+        *,
+        material,
+        bottom_left,
+        top_right,
+        thickness,
+        advance_cursor=False,
+        scope=ROOT_SCOPE,
+        key="",
+    ):
         return self.deposit_geometry(
             material=material,
             geometry={
@@ -256,22 +316,44 @@ class ProcessGeometryState:
             },
             advance_cursor=advance_cursor,
             scope=scope,
+            key=key,
         )
 
-    def deposit_cylinder_layer(self, *, material, center, radius, thickness, advance_cursor=False, scope=ROOT_SCOPE):
+    def deposit_cylinder_layer(
+        self,
+        *,
+        material,
+        center,
+        radius,
+        thickness,
+        advance_cursor=False,
+        scope=ROOT_SCOPE,
+        key="",
+    ):
         return self.deposit_geometry(
             material=material,
             geometry={"type": "cylinder", "center": center, "radius": radius, "thickness": thickness},
             advance_cursor=advance_cursor,
             scope=scope,
+            key=key,
         )
 
-    def deposit_polygon_layer(self, *, material, polygons, thickness, advance_cursor=False, scope=ROOT_SCOPE):
+    def deposit_polygon_layer(
+        self,
+        *,
+        material,
+        polygons,
+        thickness,
+        advance_cursor=False,
+        scope=ROOT_SCOPE,
+        key="",
+    ):
         return self.deposit_geometry(
             material=material,
             geometry={"type": "polygon", "polygons": polygons, "thickness": thickness},
             advance_cursor=advance_cursor,
             scope=scope,
+            key=key,
         )
 
     def deposit_cone_layer(
@@ -284,6 +366,7 @@ class ProcessGeometryState:
         thickness,
         advance_cursor=False,
         scope=ROOT_SCOPE,
+        key="",
     ):
         return self.deposit_geometry(
             material=material,
@@ -296,6 +379,7 @@ class ProcessGeometryState:
             },
             advance_cursor=advance_cursor,
             scope=scope,
+            key=key,
         )
 
     def add_via(self, *, material, density, direction, geometry, scope=ROOT_SCOPE, koz=0):
@@ -419,10 +503,20 @@ class ProcessGeometryState:
             scope,
         )
 
-    def apply_under_fill(self, *, material, thickness=None, thk=None, gap, scope=ROOT_SCOPE):
+    def apply_under_fill(
+        self,
+        *,
+        material,
+        thickness=None,
+        thk=None,
+        gap,
+        scope=ROOT_SCOPE,
+        key="",
+    ):
         underfill_material = _require_string(material, "material")
         underfill_thickness = _positive_number(thickness if thickness is not None else thk, "thickness")
         max_gap = _non_negative_number(gap, "gap")
+        underfill_key = _require_body_key(key)
         target_scope = self._resolve_scope(scope)
         cursor_z = self._cursor_z
         child_scopes = [
@@ -451,6 +545,7 @@ class ProcessGeometryState:
                         bump_range["zMax"] - bump_range["zMin"],
                     ),
                     underfill_material,
+                    underfill_key,
                 )
             )
             child_fill_body_count += 1
@@ -485,6 +580,7 @@ class ProcessGeometryState:
                         underfill_thickness,
                     ),
                     underfill_material,
+                    underfill_key,
                 )
             )
             target_scope.attach_child(gap_scope)
@@ -557,12 +653,70 @@ class ProcessGeometryState:
             self._cursor_z = self.root_body_z_max()
         return {"removedCount": removed_count}
 
-    def bond_carrier_geometry(self, source, *, update_cursor=True):
+    def remove_bonded_carrier_stack(
+        self,
+        *,
+        carrier_key="carrier",
+        daf_key="daf",
+        update_cursor=True,
+    ):
+        carrier_key = _require_string(carrier_key, "carrier key")
+        daf_key = _require_string(daf_key, "DAF key")
+        if carrier_key == daf_key:
+            raise ValueError(
+                "Invalid debond process flow: carrier and DAF keys must be different"
+            )
+
+        semantic_bodies = []
+
+        def collect(container):
+            for body in container.bodies():
+                if body.key() in (carrier_key, daf_key):
+                    semantic_bodies.append((container, body))
+
+        _walk_container(self._root, collect)
+        if any(container is not self._root for container, _ in semantic_bodies):
+            raise ValueError(
+                "Invalid debond process flow: carrier and DAF bodies must be direct root bodies"
+            )
+
+        daf_bodies = [body for _, body in semantic_bodies if body.key() == daf_key]
+        carrier_bodies = [body for _, body in semantic_bodies if body.key() == carrier_key]
+        if len(daf_bodies) != 1 or len(carrier_bodies) == 0:
+            raise ValueError(
+                "Invalid debond process flow: expected exactly one DAF body and at least one carrier body"
+            )
+
+        daf_body = daf_bodies[0]
+        carrier_bottom_z = min(body.z_min() for body in carrier_bodies)
+        if not math.f_eq(daf_body.z_max(), carrier_bottom_z):
+            raise ValueError(
+                "Invalid debond process flow: DAF top must touch the carrier stack bottom"
+            )
+
+        targets = {daf_body, *carrier_bodies}
+        remaining_top_z = _geometry_z_max_excluding_bodies(self._root, targets)
+        if not math.f_eq(remaining_top_z, daf_body.z_min()):
+            raise ValueError(
+                "Invalid debond process flow: DAF and carrier must form the top geometry stack"
+            )
+
+        removed_count = self._root.remove_bodies(targets)
+        if update_cursor:
+            self._cursor_z = self.geometry_z_max()
+        return {
+            "removedCount": removed_count,
+            "removedDafCount": 1,
+            "removedCarrierCount": len(carrier_bodies),
+        }
+
+    def bond_carrier_geometry(self, source, *, key="carrier", update_cursor=True):
         if not isinstance(source, ProcessGeometryState):
             raise ValueError("bond_carrier_geometry requires a ProcessGeometryState source")
         source_bodies = source._root.bodies()
         if len(source_bodies) == 0:
             raise ValueError("bond_carrier_geometry requires carrier source with at least one root direct body")
+        carrier_key = _require_body_key(key)
 
         source_bottom_z = min(body.z_min() for body in source_bodies)
         source_top_z = max(body.z_max() for body in source_bodies)
@@ -570,7 +724,7 @@ class ProcessGeometryState:
         z_offset = target_bottom_z - source_bottom_z
 
         for source_body in source_bodies:
-            body = source_body.copy()
+            body = source_body.copy_with_key(carrier_key)
             body.move(z=z_offset)
             self._add_body_object(body)
 
@@ -757,7 +911,13 @@ class ProcessGeometryState:
 def _container_from_payload(container):
     result = Container(key=container.get("key", ""))
     for body in container.get("bodies", []):
-        result.add_body(Body(_geometry_from_payload(body["geometry"]), body["material"]))
+        result.add_body(
+            Body(
+                _geometry_from_payload(body["geometry"]),
+                body["material"],
+                body.get("key", ""),
+            )
+        )
     for via in container.get("vias", []):
         result.add_via(
             Via(
@@ -1064,6 +1224,22 @@ def _recursive_bodies(container):
     return bodies
 
 
+def _geometry_z_max_excluding_bodies(container, excluded_bodies):
+    values = [
+        body.z_max()
+        for body in container.bodies()
+        if body not in excluded_bodies
+    ]
+    values.extend(feature.z_max() for feature in container.vias())
+    values.extend(feature.z_max() for feature in container.circuits())
+    values.extend(feature.z_max() for feature in container.bumps())
+    values.extend(
+        _geometry_z_max_excluding_bodies(child, excluded_bodies)
+        for child in container.children()
+    )
+    return 0 if len(values) == 0 else max(values)
+
+
 def _feature_range(features):
     result = {
         "xMin": float("inf"),
@@ -1206,6 +1382,12 @@ def _non_negative_number(value, label):
 def _require_string(value, label):
     if not isinstance(value, str) or value.strip() == "":
         raise ValueError(f"{label} must be a non-empty string")
+    return value
+
+
+def _require_body_key(value):
+    if not isinstance(value, str):
+        raise ValueError("body key must be a string")
     return value
 
 

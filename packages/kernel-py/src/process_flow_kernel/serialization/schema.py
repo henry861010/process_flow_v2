@@ -70,13 +70,23 @@ def assign_container_ids(container, path):
 
 def _assign_feature_ids(features, kind, container_path):
     for index, feature in enumerate(features):
-        if "id" in feature:
-            continue
-        feature["id"] = stable_id(
-            kind,
-            [*container_path, f"{kind}:{index}"],
-            _without_id(feature),
-        )
+        if kind == "body":
+            feature.setdefault("key", "")
+            if not isinstance(feature["key"], str):
+                raise ValueError("body.key must be a string")
+        if "id" not in feature:
+            feature["id"] = stable_id(
+                kind,
+                [*container_path, f"{kind}:{index}"],
+                _feature_identity_payload(feature, kind),
+            )
+
+
+def _feature_identity_payload(feature, kind):
+    copied = _without_id(feature)
+    if kind == "body" and copied.get("key") == "":
+        copied.pop("key")
+    return copied
 
 
 def _without_id(value):

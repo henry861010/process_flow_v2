@@ -321,13 +321,13 @@
     "name": "Debond",
     "category": "carrier",
     "program": "carrier/debond",
-    "description": "Removes the highest direct root body or bodies from the main geometry, leaving child scopes and non-body features unchanged.",
+    "description": "Validates and removes the single topmost DAF and carrier body stack identified by semantic body keys. Invalid or covered stacks are rejected without changing geometry.",
     "owner": "integration.platform",
     "inputPorts": [
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Complete geometry state consumed by debond. The operation removes only direct root bodies at the highest direct root body top.",
+        "description": "Complete geometry state consumed by debond. Exactly one direct root daf body and one or more direct root carrier bodies must form the top geometry stack.",
         "dataType": "geometry",
         "role": "primary",
         "required": true
@@ -350,7 +350,7 @@
     "name": "Carrier Bond",
     "category": "carrier",
     "program": "carrier/bond",
-    "description": "Deposits a DAF layer on the full geometry top, then copies carrier geometry root direct bodies onto the DAF as direct root bodies and updates cursorZ to the carrier stack top.",
+    "description": "Deposits a body keyed daf on the full geometry top, then copies carrier geometry root direct bodies with key carrier onto the DAF and updates cursorZ to the carrier stack top.",
     "owner": "integration.platform",
     "inputPorts": [
       {

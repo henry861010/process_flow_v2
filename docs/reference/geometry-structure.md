@@ -142,6 +142,7 @@ Via/Circuit/Bump 是 owner container 內的 density features。Feature 不因 sp
 | Field | Body | Via | Circuit | Bump |
 | --- | --- | --- | --- | --- |
 | `id` | required normalized | required normalized | required normalized | required normalized |
+| `key` | required normalized string | not allowed | not allowed | not allowed |
 | `geometry` | required | required | required | required |
 | `material` | non-empty string | non-empty string | non-empty string | non-empty string |
 | `density` | not allowed | `0..100` | `0..100` | `0..100` |
@@ -168,6 +169,9 @@ Canonical feature examples：
 
 Rules：
 
+- Body `key` 是可重複的 human-readable process role；structure-local unique identity 仍是
+  `id`。Imported/authoring body MAY omit `key`，normalization 會補成 `""`；process-created
+  bodies SHOULD 使用非空的 stable semantic key。
 - Via/Bump `direction` MUST always be present；不得從 geometry Z location 推論。
 - Z-axis flip MUST reverse `+z <-> -z` for every via/bump in flipped scope。
 - `koz` 不預先改寫 geometry envelope。Downstream materialization MAY 對 XY footprint
@@ -294,6 +298,7 @@ Compiler resolve `FlowInputDefinition.geometryConstraints` 時：
       "bodies": [
         {
           "id": "body:panel-root:example",
+          "key": "panel",
           "geometry": {
             "type": "BoxGeometry",
             "bottom_left": [-10, -10, 0],

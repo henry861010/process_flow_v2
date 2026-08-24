@@ -74,11 +74,11 @@ Cursor 是 process operation reference，不是 geometry bounds 的 alias。
 ### 初始化與 deposition
 
 - `initialize_layer(...)` 及 box/cylinder/polygon/cone convenience variants
-- `deposit_layer(material, thickness, z=None, advance_cursor=True, scope="root", xy_inset=0)`
-- `fill_to(material, z, scope="root")`
+- `deposit_layer(material, thickness, z=None, advance_cursor=True, scope="root", xy_inset=0, key="")`
+- `fill_to(material, z, scope="root", key="")`
 - `deposit_geometry(...)` 及 box/cylinder/polygon/cone variants
 
-Initialization 建立第一層並可設定 footprint；deposit 預設使用 current process footprint。Positive thickness 與 non-empty footprint 由 runtime validation enforce。
+Initialization 建立第一層並可設定 footprint；所有 body-producing APIs 接受 string `key`，copy、clip、resize 與 serialization 會保留。Deposit 預設使用 current process footprint。Positive thickness 與 non-empty footprint 由 runtime validation enforce。
 
 ### Feature
 
@@ -90,13 +90,14 @@ Via/bump require direction；feature methods保存 0–100 density 與 non-negat
 
 ### Process operation
 
-- `apply_under_fill(material, thickness=None, thk=None, gap, scope="root")`
+- `apply_under_fill(material, thickness=None, thk=None, gap, scope="root", key="")`
 - `move(...)`
 - `flip_around_z(...)`
 - `grind_to(...)`
 - `saw_to_box(...)`
 - `remove_top_root_bodies(...)`
-- `bond_carrier_geometry(source, ...)`
+- `remove_bonded_carrier_stack(carrier_key="carrier", daf_key="daf", ...)`
+- `bond_carrier_geometry(source, key="carrier", ...)`
 - `place_geometry_state(source, ...)` / `place_geometry_states(source, placements)`
 
 `place_geometry_state` 可同時提供 `top_right_x` / `top_right_y`。提供時 runtime 以 source
@@ -115,7 +116,7 @@ Scope argument 接受 root marker 或 kernel scope ref。Process-step author不�
 
 ## Geometry/domain types
 
-Package export `Container`、`Body`、`Via`、`Circuit`、`Bump` 以及 `BoxGeometry`、`PolygonGeometry`、`CylinderGeometry`、`ConeGeometry`。它們主要支援 hydration 與 kernel implementation；step authoring 的首選 surface 是 `ProcessGeometryState`。
+Package export `Container`、`Body`、`Via`、`Circuit`、`Bump` 以及 `BoxGeometry`、`PolygonGeometry`、`CylinderGeometry`、`ConeGeometry`。`Body(geometry, material, key="")` 的 key 是可重複 semantic role，`key()` 可讀取且 copy family 會保留。這些 domain types 主要支援 hydration 與 kernel implementation；step authoring 的首選 surface 是 `ProcessGeometryState`。
 
 ## Serialization helper
 

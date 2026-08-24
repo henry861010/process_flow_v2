@@ -108,7 +108,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm2-4hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm-2-4hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -124,7 +124,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm2e-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm-2e-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -140,7 +140,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm3-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5487.5, -5487.5, -360], "top_right": [5487.5, 5487.5, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm-3-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5487.5, -5487.5, -360], "top_right": [5487.5, 5487.5, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -156,7 +156,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm3e-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -390], "top_right": [5490, 5490, -390], "thk": 780}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm-3e-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -390], "top_right": [5490, 5490, -390], "thk": 780}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -172,7 +172,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm4-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -387.5], "top_right": [5490, 5490, -387.5], "thk": 775}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm-4-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -387.5], "top_right": [5490, 5490, -387.5], "thk": 775}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {

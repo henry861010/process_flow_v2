@@ -28,7 +28,7 @@ Canonical structure 包含 `schemaVersion`、`unitSystem` 與 `root` container�
 
 所有 geometry primitive 都使用 global coordinates；container 不提供 local transform。Move、flip、placement 等 operation 會直接產生更新後的 global coordinates。Thickness 必須為正值，flip 不以負 thickness 表達。
 
-Normalization 會補齊 container collections 與 deterministic ids。呼叫者提供的 id 會保留；缺少 id 時，id 由 item kind、tree path 與 canonical payload 產生。Array reorder 可能改變自動產生的 id，因此需要跨 reorder 穩定 identity 的 producer 應自行提供 id。
+Normalization 會補齊 container collections、Body `key` 與 deterministic ids。呼叫者提供的 id 會保留；缺少 id 時，id 由 item kind、tree path 與 canonical payload 產生。Legacy body 省略 key 時會補成空字串且不改變原本的 derived id；非空 explicit key 會參與 id derivation。Array reorder 可能改變自動產生的 id，因此需要跨 reorder 穩定 identity 的 producer 應自行提供 id。
 
 Semantic preview session的mesh reuse以完整normalized GeometryStructure `geometryHash`與cache version
 為key，不使用GLB node order或body array index。Auto-generated id因reorder改變時會使geometryHash改變，
@@ -37,7 +37,7 @@ identity；producer若需要跨reorder追蹤單一body，仍必須提供explicit
 
 ## Container、Body 與 Feature
 
-Container 是 hierarchy 與 scope，不是 material。Body 宣告 solid volume 與 material ownership。Via、circuit、bump 是 density-based feature，scope 由它們所在的 container collection 決定，不會因空間 overlap 自動傳播到 parent、child 或 sibling container。
+Container 是 hierarchy 與 scope，不是 material。Body 宣告 solid volume、material ownership 與可重複的 semantic process-role `key`；唯一識別仍使用 `id`。Via、circuit、bump 是 density-based feature，scope 由它們所在的 container collection 決定，不會因空間 overlap 自動傳播到 parent、child 或 sibling container。
 
 Via 與 bump 必須有 global-Z `direction`（`+z` 或 `-z`）；circuit 沒有 direction。XY-plane flip 會反轉被 flip scope 內 via 與 bump 的 direction。
 

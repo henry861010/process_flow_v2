@@ -55,17 +55,23 @@ class Container:
         self._bumps.append(bump)
         return bump
 
-    def add_body_box(self, material, node1, node2, thk):
-        return self.add_body(Body(BoxGeometry(node1, node2, thk), material))
+    def add_body_box(self, material, node1, node2, thk, key=""):
+        return self.add_body(Body(BoxGeometry(node1, node2, thk), material, key))
 
-    def add_body_polygon(self, material, polys, thk):
-        return self.add_body(Body(PolygonGeometry(polys, thk), material))
+    def add_body_polygon(self, material, polys, thk, key=""):
+        return self.add_body(Body(PolygonGeometry(polys, thk), material, key))
 
-    def add_body_cylinder(self, material, center, bottom_radius, thk):
-        return self.add_body(Body(CylinderGeometry(center, bottom_radius, thk), material))
+    def add_body_cylinder(self, material, center, bottom_radius, thk, key=""):
+        return self.add_body(Body(CylinderGeometry(center, bottom_radius, thk), material, key))
 
-    def add_body_cone(self, material, center, bottom_radius, top_radius, thk):
-        return self.add_body(Body(ConeGeometry(center, bottom_radius, top_radius, thk), material))
+    def add_body_cone(self, material, center, bottom_radius, top_radius, thk, key=""):
+        return self.add_body(Body(ConeGeometry(center, bottom_radius, top_radius, thk), material, key))
+
+    def remove_bodies(self, bodies):
+        targets = set(bodies)
+        original_length = len(self._bodies)
+        self._bodies = [body for body in self._bodies if body not in targets]
+        return original_length - len(self._bodies)
 
     def remove_top_bodies(self):
         if len(self._bodies) == 0:
