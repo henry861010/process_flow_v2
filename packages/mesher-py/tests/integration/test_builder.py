@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from mesher.imprinting import imprint_circle
+from mesher.circular import imprint_circle
 
 from process_flow_mesher import Mesh3D, build_mesh_from_structure
 
