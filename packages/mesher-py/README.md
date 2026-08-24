@@ -19,13 +19,8 @@ repository-defined text CDB format；不宣稱完整支援通用 ANSYS CDB forma
 
 ## 安裝
 
-先 checkout 外部 `mesher` repository 的相容 `v0.1.0` tag，並從 local path 安裝：
-
-```bash
-venv/bin/pip install /absolute/path/to/mesher
-```
-
-同時開發兩個 repository 時可使用 editable install：
+先 checkout 外部 `mesher` repository 包含 `extend_circular_mesh` 的 `main`，並以
+editable local path 安裝：
 
 ```bash
 venv/bin/pip install -e /absolute/path/to/mesher
@@ -44,8 +39,10 @@ venv/bin/pip install -e packages/mesher-py
 venv/bin/pip install -e 'packages/mesher-py[visualization]'
 ```
 
-Core runtime dependencies 是外部 `mesher==0.1.0`、NumPy 與 Matplotlib；PyVista 透過
-`visualization` extra 安裝，不會被 API CDB worker path 載入。
+Core runtime dependencies 是外部 `mesher`、NumPy 與 Matplotlib；目前 mesher 的
+distribution metadata 仍是 `0.1.0`，但舊 tag 不包含所需 extension API，因此必須使用上述
+local `main` checkout。PyVista 透過 `visualization` extra 安裝，不會被 API CDB worker
+path 載入。
 
 ## Python API
 
@@ -76,8 +73,10 @@ Success 時 stdout最後一行是 JSON metadata（node/element/component counts�
 
 ## 現有限制
 
-- 2.5D：先建立全域 XY rectilinear mesh、imprint 所有唯一 circle pattern，再依 Z
-  assignments extrusion。Circle bands 相交、相切或底層 topology 無法重建時會整體失敗。
+- 2.5D：先建立全域 XY rectilinear mesh；一般 circle 使用 imprint。若 circular base 的
+  最外層同心 circles 之間沒有 BOX/POLYGON boundary，則從最後一個需要 imprint 的 circle
+  向外逐層 extension，再依 Z assignments extrusion。Circle imprint bands 相交、相切或
+  底層 topology 無法重建時會整體失敗。
 - 2D circle band 可能包含 padded Tri3；extrusion 以固定八欄、重複節點的 wedge-like
   connectivity 表示對應 3D solid。
 - `ConeGeometry` 不支援。

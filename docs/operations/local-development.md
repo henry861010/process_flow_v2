@@ -24,7 +24,8 @@ source_of_truth:
 - Python 3.11+
 - Node.js `>=18.17.0`（目前驗證環境為 Node `24.3.0`、npm `11.4.2`）
 - macOS/Linux environment capable of installing CadQuery/OCP
-- `mesher` repository 的 `v0.1.0` checkout；它提供 2D grid 與 circle imprint
+- `mesher` repository 包含 `extend_circular_mesh` 的 local `main` checkout；它提供 2D
+  grid、circle imprint 與 concentric circle extension
 
 Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm ci`。Python
 目前只有 `pyproject.toml` version ranges，沒有 committed lock/constraints file，因此安裝

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import traceback
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from .builder import build_mesh_from_structure
@@ -22,10 +23,13 @@ def main(argv: list[str] | None = None) -> int:
     input_path, element_size, output_path = args
     try:
         geometry_structure = json.loads(Path(input_path).read_text(encoding="utf-8"))
-        mesh = build_mesh_from_structure(
-            geometry_structure,
-            element_size=float(element_size),
-        )
+        # Keep stdout machine-readable even when the external mesher emits
+        # timing or topology diagnostics during a build.
+        with redirect_stdout(sys.stderr):
+            mesh = build_mesh_from_structure(
+                geometry_structure,
+                element_size=float(element_size),
+            )
         metadata = write_cdb_text(output_path, mesh=mesh)
         print(json.dumps(metadata, separators=(",", ":")), flush=True)
     except Exception:
