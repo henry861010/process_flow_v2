@@ -374,6 +374,30 @@ class KernelExecutionTests(unittest.TestCase):
         )
         self.assertEqual(len(ecl_result.geometry()["root"]["bodies"]), 2)
 
+    def test_real_carrier_bond_adds_daf_before_carrier(self):
+        catalog = InMemoryGeometryCatalog(
+            [
+                geometry_entity("geom_main", main_geometry(material="substrate")),
+                geometry_entity("geom_carrier", carrier_geometry()),
+            ]
+        )
+        plan = FlowCompiler(catalog).compile(
+            carrier_bond_template(),
+            carrier_bond_configuration(),
+            {"step_carrier_bond": carrier_bond_step_template()},
+        )
+
+        bodies = GeometryKernel().execute(plan).geometry()["root"]["bodies"]
+
+        self.assertEqual(
+            [body["material"] for body in bodies],
+            ["substrate", "DAF-A", "glass"],
+        )
+        self.assertEqual(bodies[1]["geometry"]["bottom_left"][2], 10)
+        self.assertEqual(bodies[1]["geometry"]["thk"], 3)
+        self.assertEqual(bodies[2]["geometry"]["bottom_left"][2], 13)
+        self.assertEqual(bodies[2]["geometry"]["thk"], 20)
+
     def test_material_instances_strip_external_suffix_and_allocate_next_name(self):
         configuration = single_step_configuration()
         configuration["stepConfigurations"]["molding"]["parameterValues"]["material"] = "Poly"
@@ -640,6 +664,22 @@ def flip_step_template():
     }
 
 
+def carrier_bond_step_template():
+    return {
+        "id": "step_carrier_bond",
+        "program": "carrier/bond",
+        "inputPorts": [
+            geometry_input(),
+            geometry_input("carrier_geometry", role="auxiliary"),
+        ],
+        "outputPorts": [output_port()],
+        "parameterDefinitions": [
+            parameter("material", "materialRef"),
+            parameter("thk", "float"),
+        ],
+    }
+
+
 def bga_bump_step_template():
     return {
         "id": "step_bga_bump",
@@ -724,6 +764,45 @@ def ecl_molding_configuration():
         "stepConfigurations": {
             "ecl": {"parameterValues": {"material": "ECL-A", "thk": 4, "koz": 5}},
             "molding": {"parameterValues": {"material": "EMC-A", "thickness": 2}},
+        },
+        "embeddedGeometries": {},
+    }
+
+
+def carrier_bond_template():
+    return {
+        "id": "flow_carrier_bond",
+        "flowInputs": [flow_input("incoming_main"), flow_input("incoming_carrier")],
+        "stepRefs": [
+            {
+                "stepRefId": "carrier_bond",
+                "processStepTemplateId": "step_carrier_bond",
+            }
+        ],
+        "flowEdges": [
+            edge_from_input("incoming_main", "carrier_bond"),
+            edge_from_input(
+                "incoming_carrier",
+                "carrier_bond",
+                "carrier_geometry",
+            ),
+        ],
+    }
+
+
+def carrier_bond_configuration():
+    return {
+        "inputBindings": {
+            "incoming_main": {"kind": "catalog", "geometryId": "geom_main"},
+            "incoming_carrier": {
+                "kind": "catalog",
+                "geometryId": "geom_carrier",
+            },
+        },
+        "stepConfigurations": {
+            "carrier_bond": {
+                "parameterValues": {"material": "DAF-A", "thk": 3}
+            }
         },
         "embeddedGeometries": {},
     }
@@ -900,6 +979,31 @@ def die_geometry():
                     "koz": 0,
                 }
             ],
+            "children": [],
+        },
+    }
+
+
+def carrier_geometry():
+    return {
+        "schemaVersion": "1.0.0",
+        "unitSystem": "um",
+        "root": {
+            "key": "carrier",
+            "bodies": [
+                {
+                    "geometry": {
+                        "type": "BoxGeometry",
+                        "bottom_left": [-60, -60, -4],
+                        "top_right": [60, 60, -4],
+                        "thk": 20,
+                    },
+                    "material": "glass",
+                }
+            ],
+            "vias": [],
+            "circuits": [],
+            "bumps": [],
             "children": [],
         },
     }

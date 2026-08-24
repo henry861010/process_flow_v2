@@ -59,6 +59,29 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assert_seed_payload_counts(response.json())
 
+    def test_carrier_bond_fixture_exposes_daf_parameters(self):
+        payload = self.client.get("/api/bootstrap").json()
+        carrier_bond = next(
+            template
+            for template in payload["processStepTemplates"]
+            if template["id"] == "step_tpl_carrier_bond_2_0_0"
+        )
+
+        self.assertEqual(
+            [
+                (definition["id"], definition["name"], definition["valueType"])
+                for definition in carrier_bond["parameterDefinitions"]
+            ],
+            [
+                ("material", "DAF material", "materialRef"),
+                ("thk", "DAF thk", "float"),
+            ],
+        )
+        self.assertEqual(
+            carrier_bond["parameterDefinitions"][1]["validation"],
+            {"min": 0, "exclusiveMin": True},
+        )
+
     def test_existing_empty_database_is_seeded_on_startup(self):
         with tempfile.TemporaryDirectory() as tmp_name:
             db_path = Path(tmp_name) / "existing-empty.sqlite3"
