@@ -34,6 +34,7 @@ class Geometry:
         raise NotImplementedError
 
     def clip_xy_to_box(self, bounds):
+        """Return the retained geometry, or None when the crop removes it."""
         raise NotImplementedError
 
     def flip(self, around_z=0):
@@ -116,11 +117,11 @@ class BoxGeometry(Geometry):
         y_min = max(min(self._bottom_left[1], self._top_right[1]), crop["yMin"])
         y_max = min(max(self._bottom_left[1], self._top_right[1]), crop["yMax"])
         if math.f_le(x_max, x_min) or math.f_le(y_max, y_min):
-            return False
+            return None
         z = self.z_min()
         self._bottom_left = [x_min, y_min, z]
         self._top_right = [x_max, y_max, z]
-        return True
+        return self
 
     def flip(self, around_z=0):
         flipped_z = 2 * around_z - self.z_max()
@@ -194,10 +195,10 @@ class PolygonGeometry(Geometry):
             if len(loop) >= 3:
                 clipped.append(loop)
         if len(clipped) == 0:
-            return False
+            return None
         validate_polygon_loops(clipped)
         self._polys = clipped
-        return True
+        return self
 
     def flip(self, around_z=0):
         flipped_z = 2 * around_z - self.z_max()
@@ -265,12 +266,21 @@ class CylinderGeometry(Geometry):
         return True
 
     def clip_xy_to_box(self, bounds):
-        return _clip_circular_footprint_to_box(
-            bounds=bounds,
-            center=self._center,
-            radius=self._bottom_radius,
-            type_name="CylinderGeometry",
+        crop = _normalize_crop_box(bounds)
+        relation = _circular_footprint_box_relation(
+            crop=crop, center=self._center, radius=self._bottom_radius
         )
+        if relation == "circleInsideBox":
+            return self
+        if relation == "disjoint":
+            return None
+        if _box_is_inside_circle(crop=crop, center=self._center, radius=self._bottom_radius):
+            return BoxGeometry(
+                [crop["xMin"], crop["yMin"], self.z_min()],
+                [crop["xMax"], crop["yMax"], self.z_min()],
+                self._thk,
+            )
+        raise ValueError("CylinderGeometry does not support partial XY saw clipping")
 
     def flip(self, around_z=0):
         self._center[2] = 2 * around_z - self.z_max()
@@ -342,12 +352,16 @@ class ConeGeometry(Geometry):
         return True
 
     def clip_xy_to_box(self, bounds):
-        return _clip_circular_footprint_to_box(
-            bounds=bounds,
+        relation = _circular_footprint_box_relation(
+            crop=_normalize_crop_box(bounds),
             center=self._center,
             radius=max(self._bottom_radius, self._top_radius),
-            type_name="ConeGeometry",
         )
+        if relation == "circleInsideBox":
+            return self
+        if relation == "disjoint":
+            return None
+        raise ValueError("ConeGeometry does not support partial XY saw clipping")
 
     def flip(self, around_z=0):
         self._center[2] = 2 * around_z - self.z_max()
@@ -383,8 +397,7 @@ def _normalize_crop_box(bounds):
     return {"xMin": x_min, "xMax": x_max, "yMin": y_min, "yMax": y_max}
 
 
-def _clip_circular_footprint_to_box(*, bounds, center, radius, type_name):
-    crop = _normalize_crop_box(bounds)
+def _circular_footprint_box_relation(*, crop, center, radius):
     r = _finite_number(radius, "radius")
     x = center[0]
     y = center[1]
@@ -394,16 +407,31 @@ def _clip_circular_footprint_to_box(*, bounds, center, radius, type_name):
         and math.f_ge(y - r, crop["yMin"])
         and math.f_le(y + r, crop["yMax"])
     ):
-        return True
+        return "circleInsideBox"
 
     closest_x = min(max(x, crop["xMin"]), crop["xMax"])
     closest_y = min(max(y, crop["yMin"]), crop["yMax"])
     dx = x - closest_x
     dy = y - closest_y
     if math.f_ge(dx * dx + dy * dy, r * r):
-        return False
+        return "disjoint"
 
-    raise ValueError(f"{type_name} does not support partial XY saw clipping")
+    return "partial"
+
+
+def _box_is_inside_circle(*, crop, center, radius):
+    r_squared = _finite_number(radius, "radius") ** 2
+    x = center[0]
+    y = center[1]
+    return all(
+        math.f_le((corner_x - x) ** 2 + (corner_y - y) ** 2, r_squared)
+        for corner_x, corner_y in (
+            (crop["xMin"], crop["yMin"]),
+            (crop["xMin"], crop["yMax"]),
+            (crop["xMax"], crop["yMin"]),
+            (crop["xMax"], crop["yMax"]),
+        )
+    )
 
 
 def _clip_loop_to_box(loop, bounds):

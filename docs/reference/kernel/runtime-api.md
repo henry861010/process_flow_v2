@@ -100,6 +100,8 @@ Via/bump require direction；feature methods保存 0–100 density 與 non-negat
 - `bond_carrier_geometry(source, key="carrier", ...)`
 - `place_geometry_state(source, ...)` / `place_geometry_states(source, placements)`
 
+`saw_to_box` recursively保留指定 XY rectangle 並把 process footprint 更新成 box。Cylinder 完整落在保留框內時維持 Cylinder；保留框四角都在圓內時會精確轉成 Box。其他穿越圓周的部分 Cylinder 裁切，以及 Cone 的部分裁切，仍會 reject。
+
 `place_geometry_state` 可同時提供 `top_right_x` / `top_right_y`。提供時 runtime 以 source
 subtree aggregate XY bounds 計算 target/source size delta，對 clone 中每個 BoxGeometry 固定
 lower-left 並將 upper-right 加上 delta，再執行 anchor placement。Resize 允許縮小，但任何

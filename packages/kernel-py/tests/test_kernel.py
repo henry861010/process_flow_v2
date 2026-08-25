@@ -7,6 +7,7 @@ from process_flow_kernel import (
     Bump,
     Circuit,
     Container,
+    CylinderGeometry,
     ExecuteOptions,
     FlowCompiler,
     GeometryKernel,
@@ -25,6 +26,114 @@ from process_flow_kernel import (
 
 
 class GeometryDomainTests(unittest.TestCase):
+    def test_cylinder_xy_clip_returns_exact_supported_geometry(self):
+        crop_inside_circle = {"xMin": -3, "xMax": 3, "yMin": -4, "yMax": 4}
+        clipped = CylinderGeometry([0, 0, 3], 5, 4).clip_xy_to_box(crop_inside_circle)
+
+        self.assertIsInstance(clipped, BoxGeometry)
+        self.assertEqual(
+            clipped.json(),
+            {
+                "type": "BoxGeometry",
+                "bottom_left": [-3, -4, 3],
+                "top_right": [3, 4, 3],
+                "thk": 4,
+            },
+        )
+
+        cylinder = CylinderGeometry([0, 0, 3], 10, 4)
+        retained = cylinder.clip_xy_to_box(
+            {"xMin": -10, "xMax": 10, "yMin": -10, "yMax": 10}
+        )
+        self.assertIs(retained, cylinder)
+        self.assertEqual(retained.json()["type"], "CylinderGeometry")
+
+        self.assertIsNone(
+            CylinderGeometry([0, 0, 3], 10, 4).clip_xy_to_box(
+                {"xMin": 10, "xMax": 12, "yMin": -1, "yMax": 1}
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "partial XY saw clipping"):
+            CylinderGeometry([0, 0, 3], 10, 4).clip_xy_to_box(
+                {"xMin": 0, "xMax": 12, "yMin": -1, "yMax": 1}
+            )
+
+    def test_container_saw_replaces_cylinder_features_and_preserves_metadata(self):
+        root = Container(key="wafer")
+        root.add_body(Body(CylinderGeometry([0, 0, 0], 10, 1), "Si", "wafer-body"))
+        root.add_via(Via(CylinderGeometry([0, 0, 1], 10, 1), 0.5, "Cu", "+z", 2))
+        root.add_circuit(Circuit(CylinderGeometry([0, 0, 2], 10, 1), 0.4, "Cu", 3))
+        root.add_bump(Bump(CylinderGeometry([0, 0, 3], 10, 1), 0.8, "SnAg", "-z", 4))
+        child = Container(key="nested")
+        child.add_body(Body(CylinderGeometry([0, 0, 4], 10, 1), "Si", "nested-body"))
+        root.attach_child(child)
+
+        self.assertTrue(
+            root.clip_xy_to_box({"xMin": -6, "xMax": 6, "yMin": -6, "yMax": 6})
+        )
+        output = root.tree_json()
+
+        for collection in ("bodies", "vias", "circuits", "bumps"):
+            self.assertEqual(output[collection][0]["geometry"]["type"], "BoxGeometry")
+        self.assertEqual(output["bodies"][0]["key"], "wafer-body")
+        self.assertEqual(output["bodies"][0]["material"], "Si")
+        self.assertEqual(output["vias"][0]["density"], 0.5)
+        self.assertEqual(output["vias"][0]["direction"], "+z")
+        self.assertEqual(output["vias"][0]["koz"], 2)
+        self.assertEqual(output["circuits"][0]["density"], 0.4)
+        self.assertEqual(output["circuits"][0]["koz"], 3)
+        self.assertEqual(output["bumps"][0]["density"], 0.8)
+        self.assertEqual(output["bumps"][0]["direction"], "-z")
+        self.assertEqual(output["bumps"][0]["koz"], 4)
+        self.assertEqual(output["children"][0]["key"], "nested")
+        self.assertEqual(
+            output["children"][0]["bodies"][0]["geometry"],
+            {
+                "type": "BoxGeometry",
+                "bottom_left": [-6, -6, 4],
+                "top_right": [6, 6, 4],
+                "thk": 1,
+            },
+        )
+        self.assertEqual(output["children"][0]["bodies"][0]["key"], "nested-body")
+
+    def test_saw_to_box_converts_cylinder_and_updates_process_footprint(self):
+        state = ProcessGeometryState.create()
+        state.initialize_cylinder_layer(
+            material="Si",
+            center=[0, 0, 2],
+            radius=10,
+            thickness=5,
+            key="wafer",
+        )
+
+        state.saw_to_box(
+            bottom_left_x=-6,
+            bottom_left_y=-6,
+            top_right_x=6,
+            top_right_y=6,
+        )
+
+        self.assertEqual(
+            state.process_footprint(),
+            {
+                "type": "box",
+                "bottomLeft": [-6.0, -6.0],
+                "topRight": [6.0, 6.0],
+            },
+        )
+        self.assertEqual(state.cursor_z(), 7)
+        self.assertEqual(
+            state.to_geometry_structure()["root"]["bodies"][0]["geometry"],
+            {
+                "type": "BoxGeometry",
+                "bottom_left": [-6.0, -6.0, 2.0],
+                "top_right": [6.0, 6.0, 2.0],
+                "thk": 5.0,
+            },
+        )
+
     def test_container_json_has_schema_unit_and_stable_ids(self):
         root = Container(key="package-root")
         root.add_body_box("mold", [0, 0, 0], [10, 10, 0], 1)

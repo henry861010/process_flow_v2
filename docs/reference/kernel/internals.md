@@ -78,6 +78,8 @@ Clone 必須重建 parent/cache，不共享 mutable geometry objects。若新增
 
 Domain geometry classes負責 primitive-level move/clip/flip/copy。`Container` 負責 subtree traversal。`ProcessGeometryState` 提供 process-oriented facade、cursor、footprint 與 scope resolution。
 
+`clip_xy_to_box` 回傳 retained geometry，允許 clipping 將 primitive 轉成另一種 geometry；沒有正面積交集時回傳 `None`。Cylinder saw 支援兩種 exact 結果：保留框包含整圓時維持 Cylinder，保留框四角都位於圓內時轉成 Box。其他穿越圓周的部分裁切仍不支援，Cone 也維持既有限制。
+
 Process module不應直接依賴 `Container` internal arrays；否則 cursor/footprint/cache invariant 可能失效。
 
 ## 已知內部限制

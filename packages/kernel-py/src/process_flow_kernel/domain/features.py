@@ -46,7 +46,11 @@ class Body:
         return self._geometry.clip_top_to(to_z)
 
     def clip_xy_to_box(self, bounds):
-        return self._geometry.clip_xy_to_box(bounds)
+        geometry = self._geometry.clip_xy_to_box(bounds)
+        if geometry is None:
+            return False
+        self._geometry = geometry
+        return True
 
     def flip(self, around_z=0):
         self._geometry.flip(around_z)
@@ -108,7 +112,11 @@ class Via:
         return self._geometry.clip_top_to(to_z)
 
     def clip_xy_to_box(self, bounds):
-        return self._geometry.clip_xy_to_box(bounds)
+        geometry = self._geometry.clip_xy_to_box(bounds)
+        if geometry is None:
+            return False
+        self._geometry = geometry
+        return True
 
     def flip(self, around_z=0):
         self._geometry.flip(around_z)
@@ -168,7 +176,11 @@ class Circuit:
         return self._geometry.clip_top_to(to_z)
 
     def clip_xy_to_box(self, bounds):
-        return self._geometry.clip_xy_to_box(bounds)
+        geometry = self._geometry.clip_xy_to_box(bounds)
+        if geometry is None:
+            return False
+        self._geometry = geometry
+        return True
 
     def flip(self, around_z=0):
         self._geometry.flip(around_z)
@@ -231,7 +243,11 @@ class Bump:
         return self._geometry.clip_top_to(to_z)
 
     def clip_xy_to_box(self, bounds):
-        return self._geometry.clip_xy_to_box(bounds)
+        geometry = self._geometry.clip_xy_to_box(bounds)
+        if geometry is None:
+            return False
+        self._geometry = geometry
+        return True
 
     def flip(self, around_z=0):
         self._geometry.flip(around_z)
