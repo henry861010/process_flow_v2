@@ -358,7 +358,7 @@ class Dragger:
                 target_indices = potential_indices[mask]
                 
                 ### filter the density opccupied & set to occupy
-                mask = (self.element_2D_density_occupy[target_indices] == 0)
+                mask = (self.element_2D_density_occupy[target_indices] <= priority)
                 target_indices = target_indices[mask]
                 self.element_2D_density_occupy[target_indices] = priority
                 
