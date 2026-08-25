@@ -49,10 +49,27 @@ path 載入。
 ```python
 from process_flow_mesher import build_mesh_from_structure
 
-mesh = build_mesh_from_structure(structure, element_size=100)
+mesh = build_mesh_from_structure(
+    structure,
+    element_size=100,
+    model_type="Quarter_Model",
+)
 ```
 
 `build_mesh_from_structure` 回傳 `Mesh3D`，提供 `nodes`、`elements`、`element_comps`、`comps` 與 count properties。完成態 3D mesh 在 builder、exporter 與 viewer 之間都以這個 dataclass 傳遞。
+
+`model_type` 預設為 `Full_Model`。其餘模式先以完整 geometry structure 的 XY
+bounding box 中心為對稱中心，再只建立指定範圍：
+
+| `model_type` | 2D/3D mesh 範圍 |
+| --- | --- |
+| `Full_Model` | 完整模型 |
+| `Quarter_Model` | 右上四分之一，`x >= center_x` 且 `y >= center_y` |
+| `Half_Model_X` | 沿 x-axis 中心線切割的上半部，`y >= center_y` |
+| `Half_Model_Y` | 沿 y-axis 中心線切割的右半部，`x >= center_x` |
+
+完全位於保留範圍外的 geometry patterns 會在 translation 前移除；跨越中心線的
+patterns 會保留。Circle 的 open imprint/extension 要求相交的中心線通過圓心。
 
 Optional visualization API：
 
@@ -66,14 +83,17 @@ viewer.show()
 Worker interface：
 
 ```bash
-python -m process_flow_mesher.worker <geometry-structure-json> <element-size> <output-cdb>
+python -m process_flow_mesher.worker \
+  <geometry-structure-json> <element-size> <output-cdb> [model-type]
 ```
 
-Success 時 stdout最後一行是 JSON metadata（node/element/component counts）；error寫 stderr並以 non-zero exit。
+`model-type` 省略時使用 `Full_Model`。Success 時 stdout最後一行是 JSON metadata
+（node/element/component counts）；error寫 stderr並以 non-zero exit。
 
 ## 現有限制
 
-- 2.5D：先建立全域 XY rectilinear mesh；一般 circle 使用 imprint。若 circular base 的
+- 2.5D：Full Model 建立全域 XY rectilinear mesh；對稱模型只建立 bounding-box 中心線
+  右側／上側需要的 grid。一般 circle 使用 imprint。若 circular base 的
   最外層同心 circles 之間沒有 BOX/POLYGON boundary，則從最後一個需要 imprint 的 circle
   向外逐層 extension，再依 Z assignments extrusion。Circle imprint bands 相交、相切或
   底層 topology 無法重建時會整體失敗。

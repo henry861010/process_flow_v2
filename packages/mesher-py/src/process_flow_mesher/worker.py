@@ -12,15 +12,17 @@ from .exporters.cdb import write_cdb_text
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) != 3:
+    if len(args) not in {3, 4}:
         print(
             "Usage: python -m process_flow_mesher.worker "
-            "<geometry-structure-json> <element-size> <output-cdb>",
+            "<geometry-structure-json> <element-size> <output-cdb> "
+            "[model-type]",
             file=sys.stderr,
         )
         return 2
 
-    input_path, element_size, output_path = args
+    input_path, element_size, output_path = args[:3]
+    model_type = args[3] if len(args) == 4 else "Full_Model"
     try:
         geometry_structure = json.loads(Path(input_path).read_text(encoding="utf-8"))
         # Keep stdout machine-readable even when the external mesher emits
@@ -29,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
             mesh = build_mesh_from_structure(
                 geometry_structure,
                 element_size=float(element_size),
+                model_type=model_type,
             )
         metadata = write_cdb_text(output_path, mesh=mesh)
         print(json.dumps(metadata, separators=(",", ":")), flush=True)

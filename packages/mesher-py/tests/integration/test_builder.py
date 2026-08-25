@@ -1,3 +1,4 @@
+import copy
 import unittest
 from unittest.mock import patch
 
@@ -101,6 +102,28 @@ def _append_box(structure, *, x1, y1, x2, y2):
     return structure
 
 
+def _offset_box_structure():
+    structure = _box_structure()
+    geometry = structure["root"]["bodies"][0]["geometry"]
+    geometry["bottom_left"] = [10.0, 20.0, 0.0]
+    geometry["top_right"] = [14.0, 24.0, 0.0]
+    return structure
+
+
+def _append_polygon(structure, *, points, material):
+    structure["root"]["bodies"].append(
+        {
+            "geometry": {
+                "type": "PolygonGeometry",
+                "polys": [[[x, y, 0.0] for x, y in points]],
+                "thk": 1.0,
+            },
+            "material": material,
+        }
+    )
+    return structure
+
+
 class BuilderIntegrationTests(unittest.TestCase):
     def test_public_builder_matches_known_mesh_contract(self):
         mesh = build_mesh_from_structure(_box_structure(), element_size=1.0)
@@ -116,6 +139,221 @@ class BuilderIntegrationTests(unittest.TestCase):
             [0, 3, 4, 1, 9, 12, 13, 10],
         )
         np.testing.assert_array_equal(mesh.nodes[-1], [2.0, 2.0, 1.0])
+
+    def test_model_types_use_the_full_boundary_box_center(self):
+        structure = _offset_box_structure()
+        cases = (
+            ("Full_Model", 16, [10.0, 20.0], [14.0, 24.0]),
+            ("Quarter_Model", 4, [12.0, 22.0], [14.0, 24.0]),
+            ("Half_Model_X", 8, [10.0, 22.0], [14.0, 24.0]),
+            ("Half_Model_Y", 8, [12.0, 20.0], [14.0, 24.0]),
+        )
+
+        for model_type, element_count, xy_min, xy_max in cases:
+            with self.subTest(model_type=model_type):
+                mesh = build_mesh_from_structure(
+                    structure,
+                    element_size=1.0,
+                    model_type=model_type,
+                )
+
+                self.assertEqual(mesh.element_count, element_count)
+                np.testing.assert_array_equal(mesh.nodes[:, :2].min(axis=0), xy_min)
+                np.testing.assert_array_equal(mesh.nodes[:, :2].max(axis=0), xy_max)
+
+    def test_quarter_model_filters_outside_patterns_and_keeps_crossing_patterns(self):
+        structure = {
+            "root": {
+                "key": "root",
+                "bodies": [
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [-4.0, -4.0, 0.0],
+                            "top_right": [4.0, 4.0, 0.0],
+                            "thk": 1.0,
+                        },
+                        "material": "base",
+                    },
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [-3.0, -3.0, 0.0],
+                            "top_right": [-2.0, -2.0, 0.0],
+                            "thk": 1.0,
+                        },
+                        "material": "outside",
+                    },
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [-1.0, 1.0, 0.0],
+                            "top_right": [1.0, 2.0, 0.0],
+                            "thk": 1.0,
+                        },
+                        "material": "crossing",
+                    },
+                ],
+                "vias": [],
+                "circuits": [],
+                "bumps": [],
+                "children": [],
+            }
+        }
+        snapshot = copy.deepcopy(structure)
+
+        mesh = build_mesh_from_structure(
+            structure,
+            element_size=1.0,
+            model_type="Quarter_Model",
+        )
+
+        self.assertEqual(structure, snapshot)
+        self.assertNotIn("outside", mesh.comps)
+        self.assertIn("crossing", mesh.comps)
+        self.assertTrue(np.all(mesh.nodes[:, 0] >= 0.0))
+        self.assertTrue(np.all(mesh.nodes[:, 1] >= 0.0))
+
+    def test_quarter_model_uses_actual_polygon_footprint_not_its_bounds(self):
+        structure = {
+            "root": {
+                "key": "root",
+                "bodies": [
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [-4.0, -4.0, 0.0],
+                            "top_right": [4.0, 4.0, 0.0],
+                            "thk": 1.0,
+                        },
+                        "material": "base",
+                    }
+                ],
+                "vias": [],
+                "circuits": [],
+                "bumps": [],
+                "children": [],
+            }
+        }
+        _append_polygon(
+            structure,
+            points=[(-3.0, 1.0), (1.0, -3.0), (-3.0, -3.0)],
+            material="diagonal-outside",
+        )
+
+        mesh = build_mesh_from_structure(
+            structure,
+            element_size=1.0,
+            model_type="Quarter_Model",
+        )
+
+        self.assertNotIn("diagonal-outside", mesh.comps)
+
+    def test_rejects_a_selected_quarter_without_positive_area_geometry(self):
+        structure = {
+            "root": {
+                "key": "root",
+                "bodies": [
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [-4.0, 2.0, 0.0],
+                            "top_right": [-2.0, 4.0, 0.0],
+                            "thk": 1.0,
+                        },
+                        "material": "upper-left",
+                    },
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [2.0, -4.0, 0.0],
+                            "top_right": [4.0, -2.0, 0.0],
+                            "thk": 1.0,
+                        },
+                        "material": "lower-right",
+                    },
+                ],
+                "vias": [],
+                "circuits": [],
+                "bumps": [],
+                "children": [],
+            }
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"no geometry with positive XY area in Quarter_Model",
+        ):
+            build_mesh_from_structure(
+                structure,
+                element_size=1.0,
+                model_type="Quarter_Model",
+            )
+
+    def test_quarter_model_imprints_an_offset_open_circle(self):
+        mesh = build_mesh_from_structure(
+            _circle_structure((10.0, 20.0, 3.0, 0.0, 1.0, "Cu")),
+            element_size=1.0,
+            model_type="Quarter_Model",
+        )
+
+        self.assertGreater(mesh.element_count, 0)
+        self.assertTrue(np.all(mesh.nodes[:, 0] >= 10.0 - 1.0e-12))
+        self.assertTrue(np.all(mesh.nodes[:, 1] >= 20.0 - 1.0e-12))
+        self.assertTrue(np.any(np.isclose(mesh.nodes[:, 0], 10.0)))
+        self.assertTrue(np.any(np.isclose(mesh.nodes[:, 1], 20.0)))
+
+    def test_rejects_a_non_radial_open_circle(self):
+        structure = {
+            "root": {
+                "key": "root",
+                "bodies": [
+                    {
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [-5.0, -5.0, 0.0],
+                            "top_right": [5.0, 5.0, 0.0],
+                            "thk": 1.0,
+                        },
+                        "material": "base",
+                    },
+                    {
+                        "geometry": {
+                            "type": "CylinderGeometry",
+                            "center": [1.0, 0.0, 0.0],
+                            "bottom_radius": 2.0,
+                            "thk": 1.0,
+                        },
+                        "material": "Cu",
+                    },
+                ],
+                "vias": [],
+                "circuits": [],
+                "bumps": [],
+                "children": [],
+            }
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"requires each intersecting symmetry boundary.*boundary x=0",
+        ):
+            build_mesh_from_structure(
+                structure,
+                element_size=1.0,
+                model_type="Quarter_Model",
+            )
+
+    def test_rejects_an_unknown_model_type(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Full_Model, Quarter_Model, Half_Model_X, Half_Model_Y",
+        ):
+            build_mesh_from_structure(
+                _box_structure(),
+                element_size=1.0,
+                model_type="Upper_Model",
+            )
 
     def test_builds_disjoint_cylinders_in_one_mesh(self):
         mesh = build_mesh_from_structure(_multi_circle_structure(), element_size=1.0)

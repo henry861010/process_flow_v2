@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, cast
 
 import numpy as np
 from mesher.generators import generate_rectilinear_mesh
@@ -11,9 +11,21 @@ from mesher.circular import extend_circular_mesh, imprint_circle
 
 from .meshing.extrusion import Dragger
 from .models import Mesh3D
-from .translation.standard_v1 import StandardV1Translator
+from .translation.standard_v1 import StandardV1Translator, _geometry_to_face
 
 JsonObject = dict[str, Any]
+ModelType = Literal[
+    "Full_Model",
+    "Quarter_Model",
+    "Half_Model_X",
+    "Half_Model_Y",
+]
+MODEL_TYPES: tuple[ModelType, ...] = (
+    "Full_Model",
+    "Quarter_Model",
+    "Half_Model_X",
+    "Half_Model_Y",
+)
 CIRCLE_CLEARANCE_TOLERANCE = 1e-6
 CIRCLE_CENTER_TOLERANCE = 1e-6
 CIRCLE_MINIMUM_QUAD_SCALED_JACOBIAN = 0.3
@@ -47,13 +59,36 @@ class _CircleMeshingPlan:
         return frozenset(extension.outer for extension in self.extensions)
 
 
+@dataclass(frozen=True)
+class _ModelDomain:
+    model_type: ModelType
+    center_x: float | None = None
+    center_y: float | None = None
+
+    @property
+    def restrict_x(self) -> bool:
+        return self.model_type in {"Quarter_Model", "Half_Model_Y"}
+
+    @property
+    def restrict_y(self) -> bool:
+        return self.model_type in {"Quarter_Model", "Half_Model_X"}
+
+
 def build_mesh_from_structure(
     geometry_structure: JsonObject,
     *,
     element_size: float,
+    model_type: ModelType = "Full_Model",
 ) -> Mesh3D:
-    """Build a 2.5D fixed-connectivity mesh from a geometry structure."""
+    """Build a full or symmetry-reduced 2.5D mesh from a geometry structure.
+
+    Reduced models use the center of the complete XY footprint bounds as
+    their symmetry origin. ``Half_Model_X`` retains the upper half,
+    ``Half_Model_Y`` retains the right half, and ``Quarter_Model`` retains the
+    upper-right quarter.
+    """
     normalized_element_size = _positive_finite_number(element_size, "elementSize")
+    normalized_model_type = _normalize_model_type(model_type)
     root = _root_container(geometry_structure)
 
     # The translator annotates containers with priority during 3D pattern
@@ -64,6 +99,19 @@ def build_mesh_from_structure(
     if base_face is None:
         raise ValueError("CDB export requires at least one geometry body or feature.")
 
+    domain = _model_domain(
+        normalized_model_type,
+        [base_face, *faces],
+    )
+    if normalized_model_type != "Full_Model":
+        _filter_container_to_domain(container, domain)
+        base_face, faces = translator.get_2D_pattern(container)
+        if base_face is None:
+            raise ValueError(
+                f"CDB export has no geometry with positive XY area in "
+                f"{normalized_model_type}."
+            )
+
     all_faces = [base_face, *faces]
     circle_patterns = _collect_circle_patterns(all_faces)
     planar_element_size = _planar_element_size(
@@ -71,6 +119,11 @@ def build_mesh_from_structure(
         circle_patterns,
     )
     circle_band_width = 2.0 * planar_element_size
+    _validate_circle_domain_topology(
+        circle_patterns,
+        domain,
+        band_width=circle_band_width,
+    )
     circle_plan = _build_circle_meshing_plan(
         base_face,
         all_faces,
@@ -101,13 +154,18 @@ def build_mesh_from_structure(
         x_lines,
         y_lines,
     )
+    x_lines, y_lines = _restrict_grid_lines_to_domain(
+        x_lines,
+        y_lines,
+        domain,
+    )
 
     mesh_2d = generate_rectilinear_mesh(
         planar_element_size,
         x_lines,
         y_lines,
     )
-    
+
     _imprint_circle_patterns(
         mesh_2d,
         list(circle_plan.imprint_patterns),
@@ -125,6 +183,317 @@ def build_mesh_from_structure(
     dragger = Dragger()
     dragger.set_2D(mesh_2d.nodes, elements_2d)
     return dragger.build(layer_infos, normalized_element_size)
+
+
+def _normalize_model_type(value: Any) -> ModelType:
+    if not isinstance(value, str) or value not in MODEL_TYPES:
+        allowed = ", ".join(MODEL_TYPES)
+        raise ValueError(f"model_type must be one of: {allowed}.")
+    return cast(ModelType, value)
+
+
+def _model_domain(
+    model_type: ModelType,
+    faces: list[JsonObject],
+) -> _ModelDomain:
+    if model_type == "Full_Model":
+        return _ModelDomain(model_type=model_type)
+
+    bounds = [_face_bounds(face) for face in faces]
+    x_min = min(bound[0] for bound in bounds)
+    y_min = min(bound[1] for bound in bounds)
+    x_max = max(bound[2] for bound in bounds)
+    y_max = max(bound[3] for bound in bounds)
+    return _ModelDomain(
+        model_type=model_type,
+        center_x=(x_min + x_max) / 2.0,
+        center_y=(y_min + y_max) / 2.0,
+    )
+
+
+def _filter_container_to_domain(
+    container: JsonObject,
+    domain: _ModelDomain,
+) -> None:
+    for field in ("bodies", "vias", "circuits", "bumps"):
+        items = container.get(field, [])
+        if items is None:
+            items = []
+        if not isinstance(items, list):
+            raise ValueError(f"container.{field} must be a list")
+        retained = []
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise ValueError(f"container.{field}[{index}] must be an object")
+            geometry = item.get("geometry")
+            if not isinstance(geometry, dict):
+                raise ValueError(
+                    f"container.{field}[{index}].geometry must be an object"
+                )
+            face = _geometry_to_face(geometry)
+            if _face_intersects_domain(face, domain):
+                retained.append(item)
+        container[field] = retained
+
+    children = container.get("children", [])
+    if children is None:
+        children = []
+    if not isinstance(children, list):
+        raise ValueError("container.children must be a list")
+    for child_index, child in enumerate(children):
+        if not isinstance(child, dict):
+            raise ValueError(f"container.children[{child_index}] must be an object")
+        _filter_container_to_domain(child, domain)
+
+
+def _face_bounds(face: JsonObject) -> tuple[float, float, float, float]:
+    face_type = face.get("type")
+    dim = face.get("dim")
+    if face_type == "BOX":
+        if not isinstance(dim, list) or len(dim) != 4:
+            raise ValueError("BOX face dim must be [xMin, yMin, xMax, yMax].")
+        x1, y1, x2, y2 = (
+            _finite_number(value, "BOX face dim") for value in dim
+        )
+        return min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+
+    if face_type == "CIRCLE":
+        pattern = _circle_pattern_from_face(face)
+        return (
+            pattern.center_x - pattern.radius,
+            pattern.center_y - pattern.radius,
+            pattern.center_x + pattern.radius,
+            pattern.center_y + pattern.radius,
+        )
+
+    if face_type == "POLYGON":
+        loops = _polygon_loops(face)
+        xs = [point[0] for loop in loops for point in loop]
+        ys = [point[1] for loop in loops for point in loop]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    raise ValueError(f"Face type {face_type} is not supported by CDB export.")
+
+
+def _face_intersects_domain(
+    face: JsonObject,
+    domain: _ModelDomain,
+) -> bool:
+    if domain.model_type == "Full_Model":
+        return True
+
+    face_type = face.get("type")
+    if face_type == "BOX":
+        x_min, y_min, x_max, y_max = _face_bounds(face)
+        if domain.restrict_x and x_max <= _domain_center_x(domain):
+            return False
+        if domain.restrict_y and y_max <= _domain_center_y(domain):
+            return False
+        return x_max > x_min and y_max > y_min
+
+    if face_type == "CIRCLE":
+        pattern = _circle_pattern_from_face(face)
+        dx = (
+            max(_domain_center_x(domain) - pattern.center_x, 0.0)
+            if domain.restrict_x
+            else 0.0
+        )
+        dy = (
+            max(_domain_center_y(domain) - pattern.center_y, 0.0)
+            if domain.restrict_y
+            else 0.0
+        )
+        return math.hypot(dx, dy) < pattern.radius
+
+    if face_type == "POLYGON":
+        return _polygon_intersection_area(face, domain) > _polygon_area_tolerance(face)
+
+    raise ValueError(f"Face type {face_type} is not supported by CDB export.")
+
+
+def _polygon_loops(face: JsonObject) -> list[list[tuple[float, float]]]:
+    dim = face.get("dim")
+    if not isinstance(dim, list) or not dim:
+        raise ValueError("POLYGON face dim must be a non-empty list of polygon loops.")
+
+    loops: list[list[tuple[float, float]]] = []
+    for loop_index, polygon in enumerate(dim):
+        if not isinstance(polygon, list) or len(polygon) < 3:
+            raise ValueError(
+                f"POLYGON face loop {loop_index} must contain at least 3 points."
+            )
+        loop = []
+        for point in polygon:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                raise ValueError("POLYGON face point must be [x, y].")
+            loop.append(
+                (
+                    _finite_number(point[0], "POLYGON face point x"),
+                    _finite_number(point[1], "POLYGON face point y"),
+                )
+            )
+        loops.append(loop)
+    return loops
+
+
+def _polygon_intersection_area(
+    face: JsonObject,
+    domain: _ModelDomain,
+) -> float:
+    loops = _polygon_loops(face)
+    total_area = 0.0
+    for loop_index, loop in enumerate(loops):
+        depth = sum(
+            _point_in_polygon(loop[0], candidate)
+            for candidate_index, candidate in enumerate(loops)
+            if candidate_index != loop_index
+        )
+        clipped = loop
+        if domain.restrict_x:
+            clipped = _clip_polygon_to_lower_bound(
+                clipped,
+                axis=0,
+                bound=_domain_center_x(domain),
+            )
+        if domain.restrict_y:
+            clipped = _clip_polygon_to_lower_bound(
+                clipped,
+                axis=1,
+                bound=_domain_center_y(domain),
+            )
+        clipped_area = _polygon_area(clipped)
+        total_area += clipped_area if depth % 2 == 0 else -clipped_area
+    return max(0.0, total_area)
+
+
+def _clip_polygon_to_lower_bound(
+    polygon: list[tuple[float, float]],
+    *,
+    axis: int,
+    bound: float,
+) -> list[tuple[float, float]]:
+    if not polygon:
+        return []
+
+    clipped: list[tuple[float, float]] = []
+    start = polygon[-1]
+    start_inside = start[axis] >= bound
+    for end in polygon:
+        end_inside = end[axis] >= bound
+        if start_inside != end_inside:
+            ratio = (bound - start[axis]) / (end[axis] - start[axis])
+            intersection = [
+                start[coordinate]
+                + ratio * (end[coordinate] - start[coordinate])
+                for coordinate in (0, 1)
+            ]
+            intersection[axis] = bound
+            clipped.append((intersection[0], intersection[1]))
+        if end_inside:
+            clipped.append(end)
+        start = end
+        start_inside = end_inside
+    return clipped
+
+
+def _point_in_polygon(
+    point: tuple[float, float],
+    polygon: list[tuple[float, float]],
+) -> bool:
+    x, y = point
+    inside = False
+    previous = polygon[-1]
+    for current in polygon:
+        x1, y1 = previous
+        x2, y2 = current
+        if (y1 > y) != (y2 > y):
+            x_intersection = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+            if x < x_intersection:
+                inside = not inside
+        previous = current
+    return inside
+
+
+def _polygon_area(polygon: list[tuple[float, float]]) -> float:
+    if len(polygon) < 3:
+        return 0.0
+    return 0.5 * abs(
+        sum(
+            start[0] * end[1] - start[1] * end[0]
+            for start, end in zip(polygon, [*polygon[1:], polygon[0]])
+        )
+    )
+
+
+def _polygon_area_tolerance(face: JsonObject) -> float:
+    loops = _polygon_loops(face)
+    coordinate_scale = max(
+        1.0,
+        *(abs(value) for loop in loops for point in loop for value in point),
+    )
+    return 64.0 * np.finfo(np.float64).eps * coordinate_scale**2
+
+
+def _validate_circle_domain_topology(
+    circle_patterns: list[_CirclePattern],
+    domain: _ModelDomain,
+    *,
+    band_width: float,
+) -> None:
+    if domain.model_type == "Full_Model":
+        return
+
+    # The external open-circle mesher supports sectors bounded by rays from
+    # the circle center. Include its outer search margin so near-axis bands
+    # fail here with a model-specific error instead of a topology error later.
+    open_radius_margin = 0.6 * band_width
+    for pattern in circle_patterns:
+        selection_radius = pattern.radius + open_radius_margin
+        boundaries = []
+        if domain.restrict_x:
+            boundaries.append(("x", pattern.center_x, _domain_center_x(domain)))
+        if domain.restrict_y:
+            boundaries.append(("y", pattern.center_y, _domain_center_y(domain)))
+        for axis, circle_center, boundary in boundaries:
+            offset = abs(circle_center - boundary)
+            if (
+                CIRCLE_CENTER_TOLERANCE < offset
+                < selection_radius - CIRCLE_CENTER_TOLERANCE
+            ):
+                raise ValueError(
+                    "Open circle meshing requires each intersecting symmetry "
+                    f"boundary to pass through the circle center: modelType="
+                    f"{domain.model_type}, circle {_circle_label(pattern)}, "
+                    f"boundary {axis}={boundary:.12g}."
+                )
+
+
+def _restrict_grid_lines_to_domain(
+    x_lines: list[float],
+    y_lines: list[float],
+    domain: _ModelDomain,
+) -> tuple[list[float], list[float]]:
+    if domain.restrict_x:
+        center_x = _domain_center_x(domain)
+        x_lines = [value for value in x_lines if value > center_x]
+        x_lines.append(center_x)
+    if domain.restrict_y:
+        center_y = _domain_center_y(domain)
+        y_lines = [value for value in y_lines if value > center_y]
+        y_lines.append(center_y)
+    return x_lines, y_lines
+
+
+def _domain_center_x(domain: _ModelDomain) -> float:
+    if domain.center_x is None:
+        raise ValueError("The selected model domain does not define center_x.")
+    return domain.center_x
+
+
+def _domain_center_y(domain: _ModelDomain) -> float:
+    if domain.center_y is None:
+        raise ValueError("The selected model domain does not define center_y.")
+    return domain.center_y
 
 
 def _collect_circle_patterns(faces: list[JsonObject]) -> list[_CirclePattern]:

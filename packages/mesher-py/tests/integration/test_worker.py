@@ -63,7 +63,13 @@ def _multi_circle_structure():
 
 
 class WorkerIntegrationTests(unittest.TestCase):
-    def _run_worker(self, input_path: Path, output_path: Path):
+    def _run_worker(
+        self,
+        input_path: Path,
+        output_path: Path,
+        *,
+        model_type: str | None = None,
+    ):
         env = os.environ.copy()
         source_dir = Path(__file__).resolve().parents[2] / "src"
         existing_pythonpath = env.get("PYTHONPATH")
@@ -71,15 +77,18 @@ class WorkerIntegrationTests(unittest.TestCase):
             part for part in (str(source_dir), existing_pythonpath) if part
         )
         env.setdefault("MPLCONFIGDIR", tempfile.gettempdir())
+        command = [
+            sys.executable,
+            "-m",
+            "process_flow_mesher.worker",
+            str(input_path),
+            "1.0",
+            str(output_path),
+        ]
+        if model_type is not None:
+            command.append(model_type)
         return subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "process_flow_mesher.worker",
-                str(input_path),
-                "1.0",
-                str(output_path),
-            ],
+            command,
             check=False,
             capture_output=True,
             text=True,
@@ -117,6 +126,53 @@ class WorkerIntegrationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["elementCount"], 66)
             self.assertIn("element_count=66", output_path.read_text(encoding="utf-8"))
+
+    def test_worker_accepts_an_optional_quarter_model(self):
+        structure = _box_structure()
+        geometry = structure["root"]["bodies"][0]["geometry"]
+        geometry["bottom_left"] = [10.0, 20.0, 0.0]
+        geometry["top_right"] = [14.0, 24.0, 0.0]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "geometry.json"
+            output_path = Path(temp_dir) / "quarter.cdb"
+            input_path.write_text(json.dumps(structure), encoding="utf-8")
+
+            result = self._run_worker(
+                input_path,
+                output_path,
+                model_type="Quarter_Model",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            metadata = json.loads(result.stdout)
+            self.assertEqual(metadata["elementCount"], 4)
+            node_lines = output_path.read_text(encoding="utf-8").split(
+                "\n*ELEMENTS",
+                maxsplit=1,
+            )[0].split("\n*NODES,index,x,y,z\n", maxsplit=1)[1]
+            coordinates = [
+                [float(value) for value in line.split(",")[1:3]]
+                for line in node_lines.splitlines()
+                if line
+            ]
+            self.assertTrue(all(x >= 12.0 and y >= 22.0 for x, y in coordinates))
+
+    def test_worker_rejects_an_unknown_model_type_without_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "geometry.json"
+            output_path = Path(temp_dir) / "mesh.cdb"
+            input_path.write_text(json.dumps(_box_structure()), encoding="utf-8")
+
+            result = self._run_worker(
+                input_path,
+                output_path,
+                model_type="Upper_Model",
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("model_type must be one of", result.stderr)
+            self.assertFalse(output_path.exists())
 
     def test_worker_does_not_write_partial_output_for_incompatible_circles(self):
         structure = _multi_circle_structure()
