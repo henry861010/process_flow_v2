@@ -729,6 +729,71 @@
   },
   {
     "schemaVersion": 2,
+    "id": "step_tpl_tiv_1_0_0",
+    "version": "V1.0.0",
+    "name": "tiv",
+    "category": "tiv",
+    "program": "tiv/tiv",
+    "description": "Forms an upward TIV via feature above cursorZ using the current process footprint without advancing the cursor.",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Geometry state consumed by TIV formation. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive TIV thickness. The via bottom is aligned to cursorZ and extends upward without advancing the cursor.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "TIV material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "TIV density recorded as a 0 to 100 percentage value.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
     "id": "step_tpl_pnp_3_0_0",
     "version": "V3.0.0",
     "name": "PnP",

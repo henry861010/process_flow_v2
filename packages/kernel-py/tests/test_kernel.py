@@ -23,6 +23,7 @@ from process_flow_kernel import (
     stable_id,
     validate_flow_graph,
 )
+from process_flow_steps.tiv.tiv import execute as execute_tiv
 
 
 class GeometryDomainTests(unittest.TestCase):
@@ -682,6 +683,105 @@ class KernelExecutionTests(unittest.TestCase):
         )
         self.assertEqual(len(ecl_result.geometry()["root"]["bodies"]), 2)
 
+    def test_tiv_accepts_density_boundaries_and_round_trips_via_payload(self):
+        for density in (0, 100):
+            with self.subTest(density=density):
+                state = process_state_with_derived_footprint(main_geometry())
+                cursor_before = state.cursor_z()
+                footprint_before = state.process_footprint()
+
+                execute_tiv_with_values(
+                    state,
+                    {"thk": 4, "material": "Cu", "density": density},
+                )
+
+                self.assertEqual(state.cursor_z(), cursor_before)
+                self.assertEqual(state.process_footprint(), footprint_before)
+                via = state.to_geometry_structure()["root"]["vias"][0]
+                self.assertEqual(via["geometry"]["bottom_left"], [-50.0, -50.0, 10.0])
+                self.assertEqual(via["geometry"]["top_right"], [50.0, 50.0, 10.0])
+                self.assertEqual(via["geometry"]["thk"], 4.0)
+                self.assertEqual(via["material"], "Cu")
+                self.assertEqual(via["density"], density)
+                self.assertEqual(via["direction"], "+z")
+                self.assertEqual(via["koz"], 0.0)
+
+                restored = ProcessGeometryState.from_structure(
+                    state.to_geometry_structure(),
+                    {"footprint": {"derive": "largestRootBody"}},
+                )
+                self.assertEqual(
+                    restored.to_geometry_structure()["root"]["vias"][0],
+                    via,
+                )
+
+    def test_tiv_rejects_invalid_parameters_and_missing_footprint(self):
+        invalid_cases = [
+            (
+                {"thk": 0, "material": "Cu", "density": 50},
+                "tiv.thk must be a positive number",
+            ),
+            (
+                {"thk": -1, "material": "Cu", "density": 50},
+                "tiv.thk must be a positive number",
+            ),
+            (
+                {"thk": 4, "material": "", "density": 50},
+                "tiv.material must be a non-empty string",
+            ),
+            (
+                {"thk": 4, "material": "Cu", "density": -1},
+                "tiv.density must be a finite number from 0 to 100",
+            ),
+            (
+                {"thk": 4, "material": "Cu", "density": 101},
+                "tiv.density must be a finite number from 0 to 100",
+            ),
+            (
+                {"thk": 4, "material": "Cu", "density": "invalid"},
+                "tiv.density must be a finite number",
+            ),
+        ]
+
+        for values, message in invalid_cases:
+            with self.subTest(values=values):
+                state = process_state_with_derived_footprint(main_geometry())
+                before = state.to_geometry_structure()
+                with self.assertRaisesRegex(ValueError, message):
+                    execute_tiv_with_values(state, values)
+                self.assertEqual(state.to_geometry_structure(), before)
+
+        with self.assertRaisesRegex(ValueError, "process footprint is required"):
+            execute_tiv_with_values(
+                ProcessGeometryState.create(),
+                {"thk": 4, "material": "Cu", "density": 50},
+            )
+
+    def test_real_tiv_then_molding_keeps_cursor_at_original_surface(self):
+        plan = compiler().compile(
+            tiv_molding_template(),
+            tiv_molding_configuration(),
+            {
+                "step_tiv": tiv_step_template(),
+                "step_molding": molding_step_template(),
+            },
+        )
+
+        result = GeometryKernel(
+            module_resolver=ProcessStepModuleResolver()
+        ).execute(plan)
+        root = result.geometry()["root"]
+        tiv_output = result.step_output("tiv")["root"]["vias"][0]
+
+        self.assertEqual(tiv_output["geometry"]["bottom_left"][2], 10)
+        self.assertEqual(tiv_output["geometry"]["thk"], 4)
+        self.assertEqual(tiv_output["material"], "Cu")
+        self.assertEqual(tiv_output["density"], 60)
+        self.assertEqual(tiv_output["direction"], "+z")
+        self.assertEqual(tiv_output["koz"], 0)
+        self.assertEqual(root["bodies"][1]["geometry"]["bottom_left"][2], 10)
+        self.assertEqual(root["bodies"][1]["geometry"]["thk"], 2)
+
     def test_real_carrier_bond_adds_daf_before_carrier(self):
         catalog = InMemoryGeometryCatalog(
             [
@@ -1046,6 +1146,20 @@ def bga_bump_step_template():
     }
 
 
+def tiv_step_template():
+    return {
+        "id": "step_tiv",
+        "program": "tiv/tiv",
+        "inputPorts": [geometry_input()],
+        "outputPorts": [output_port()],
+        "parameterDefinitions": [
+            parameter("thk", "float"),
+            parameter("material", "materialRef"),
+            parameter("density", "float"),
+        ],
+    }
+
+
 def flow_input(flow_input_id):
     return {
         "flowInputId": flow_input_id,
@@ -1118,6 +1232,56 @@ def ecl_molding_configuration():
         },
         "embeddedGeometries": {},
     }
+
+
+def tiv_molding_template():
+    return {
+        "id": "flow_tiv_molding",
+        "flowInputs": [flow_input("incoming_main")],
+        "stepRefs": [
+            {"stepRefId": "tiv", "processStepTemplateId": "step_tiv"},
+            {"stepRefId": "molding", "processStepTemplateId": "step_molding"},
+        ],
+        "flowEdges": [
+            edge_from_input("incoming_main", "tiv"),
+            edge_from_step("tiv", "molding", "edge_tiv_molding"),
+        ],
+    }
+
+
+def tiv_molding_configuration():
+    return {
+        "inputBindings": {
+            "incoming_main": {"kind": "catalog", "geometryId": "geom_main"}
+        },
+        "stepConfigurations": {
+            "tiv": {
+                "parameterValues": {"thk": 4, "material": "Cu", "density": 60}
+            },
+            "molding": {
+                "parameterValues": {"material": "EMC-A", "thickness": 2}
+            },
+        },
+        "embeddedGeometries": {},
+    }
+
+
+def execute_tiv_with_values(state, values):
+    structure = state.to_geometry_structure()
+    context = ProcessStepContext(
+        state=state,
+        values=values,
+        raw_parameter_values=values,
+        step_ref={"stepRefId": "tiv", "processStepTemplateId": "step_tiv"},
+        step_template=tiv_step_template(),
+        step_configuration={"parameterValues": values},
+        geometry_inputs={"main_geometry": structure},
+        input_geometry=structure,
+        geometry_resolver=lambda port_id: (
+            state.clone() if port_id == "main_geometry" else None
+        ),
+    )
+    return execute_tiv(context)
 
 
 def carrier_bond_template():

@@ -82,6 +82,35 @@ class ProcessFlowApiTests(unittest.TestCase):
             {"min": 0, "exclusiveMin": True},
         )
 
+    def test_tiv_fixture_exposes_via_contract(self):
+        payload = self.client.get("/api/bootstrap").json()
+        tiv = next(
+            template
+            for template in payload["processStepTemplates"]
+            if template["id"] == "step_tpl_tiv_1_0_0"
+        )
+
+        self.assertEqual(tiv["version"], "V1.0.0")
+        self.assertEqual(tiv["name"], "tiv")
+        self.assertEqual(tiv["category"], "tiv")
+        self.assertEqual(tiv["program"], "tiv/tiv")
+        api_services.validate_process_step_template(tiv)
+        self.assertEqual(
+            [
+                (definition["id"], definition["valueType"])
+                for definition in tiv["parameterDefinitions"]
+            ],
+            [("thk", "float"), ("material", "materialRef"), ("density", "float")],
+        )
+        self.assertEqual(
+            tiv["parameterDefinitions"][0]["validation"],
+            {"min": 0, "exclusiveMin": True},
+        )
+        self.assertEqual(
+            tiv["parameterDefinitions"][2]["validation"],
+            {"min": 0, "max": 100},
+        )
+
     def test_existing_empty_database_is_seeded_on_startup(self):
         with tempfile.TemporaryDirectory() as tmp_name:
             db_path = Path(tmp_name) / "existing-empty.sqlite3"
