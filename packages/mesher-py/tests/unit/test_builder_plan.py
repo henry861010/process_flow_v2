@@ -3,6 +3,7 @@ import unittest
 from process_flow_mesher.builder import (
     _CirclePattern,
     _build_circle_meshing_plan,
+    _collect_pattern_segments,
     _segment_intersects_annulus,
 )
 
@@ -12,6 +13,34 @@ def _circle(x, y, radius):
 
 
 class CircleMeshingPlanTests(unittest.TestCase):
+    def test_collects_box_and_polygon_segments_but_not_circles(self):
+        faces = [
+            _circle(0.0, 0.0, 10.0),
+            {"type": "BOX", "dim": [-2.0, -1.0, 2.0, 1.0]},
+            {
+                "type": "POLYGON",
+                "dim": [
+                    [[3.0, -1.0], [5.0, -1.0], [5.0, 1.0], [3.0, 1.0]],
+                ],
+            },
+        ]
+
+        segments = _collect_pattern_segments(faces)
+
+        self.assertEqual(
+            segments,
+            [
+                ((-2.0, -1.0), (2.0, -1.0)),
+                ((2.0, -1.0), (2.0, 1.0)),
+                ((2.0, 1.0), (-2.0, 1.0)),
+                ((-2.0, 1.0), (-2.0, -1.0)),
+                ((3.0, -1.0), (5.0, -1.0)),
+                ((5.0, -1.0), (5.0, 1.0)),
+                ((5.0, 1.0), (3.0, 1.0)),
+                ((3.0, 1.0), (3.0, -1.0)),
+            ],
+        )
+
     def test_box_base_keeps_all_circles_as_imprints(self):
         base = {"type": "BOX", "dim": [-20.0, -20.0, 20.0, 20.0]}
         faces = [base, _circle(0.0, 0.0, 10.0), _circle(0.0, 0.0, 13.0)]

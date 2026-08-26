@@ -130,6 +130,7 @@ def build_mesh_from_structure(
         circle_patterns,
         band_width=circle_band_width,
     )
+    pattern_segments = _collect_pattern_segments(all_faces)
     _validate_circle_clearances(
         list(circle_plan.imprint_patterns),
         circle_band_width,
@@ -169,6 +170,7 @@ def build_mesh_from_structure(
     _imprint_circle_patterns(
         mesh_2d,
         list(circle_plan.imprint_patterns),
+        guide_segments=pattern_segments,
         band_width=circle_band_width,
         target_edge_size=planar_element_size,
     )
@@ -651,6 +653,17 @@ def _line_pattern_crosses_annulus(
     return False
 
 
+def _collect_pattern_segments(
+    faces: list[JsonObject],
+) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    segments = []
+    for face in faces:
+        if face.get("type") == "CIRCLE":
+            continue
+        segments.extend(_face_boundary_segments(face))
+    return segments
+
+
 def _face_boundary_segments(
     face: JsonObject,
 ) -> list[tuple[tuple[float, float], tuple[float, float]]]:
@@ -804,6 +817,9 @@ def _imprint_circle_patterns(
     mesh_2d: Any,
     circle_patterns: list[_CirclePattern],
     *,
+    guide_segments: list[
+        tuple[tuple[float, float], tuple[float, float]]
+    ],
     band_width: float,
     target_edge_size: float,
 ) -> None:
@@ -814,6 +830,7 @@ def _imprint_circle_patterns(
                 center=pattern.center,
                 radius=pattern.radius,
                 band_width=band_width,
+                guide_segments=guide_segments,
                 target_edge_size=target_edge_size,
                 min_quad_scaled_jacobian=(
                     CIRCLE_MINIMUM_QUAD_SCALED_JACOBIAN

@@ -125,6 +125,76 @@ def _append_polygon(structure, *, points, material):
 
 
 class BuilderIntegrationTests(unittest.TestCase):
+    def test_preserves_a_box_pattern_crossing_a_circle_boundary(self):
+        structure = {
+            "root": {
+                "key": "wafer",
+                "bodies": [
+                    {
+                        "geometry": {
+                            "type": "CylinderGeometry",
+                            "center": [0.0, 0.0, 0.0],
+                            "bottom_radius": 100.0,
+                            "thk": 1.0,
+                        },
+                        "material": "wafer",
+                    }
+                ],
+                "vias": [],
+                "circuits": [],
+                "bumps": [],
+                "children": [
+                    {
+                        "key": "soc",
+                        "bodies": [
+                            {
+                                "geometry": {
+                                    "type": "BoxGeometry",
+                                    "bottom_left": [85.0, -15.0, 1.0],
+                                    "top_right": [115.0, 15.0, 1.0],
+                                    "thk": 1.0,
+                                },
+                                "material": "soc",
+                            }
+                        ],
+                        "vias": [],
+                        "circuits": [],
+                        "bumps": [],
+                        "children": [],
+                    }
+                ],
+            }
+        }
+
+        with patch(
+            "process_flow_mesher.builder.imprint_circle",
+            wraps=imprint_circle,
+        ) as mocked_imprint:
+            mesh = build_mesh_from_structure(structure, element_size=5.0)
+
+        self.assertEqual(
+            mocked_imprint.call_args.kwargs["guide_segments"],
+            [
+                ((85.0, -15.0), (115.0, -15.0)),
+                ((115.0, -15.0), (115.0, 15.0)),
+                ((115.0, 15.0), (85.0, 15.0)),
+                ((85.0, 15.0), (85.0, -15.0)),
+            ],
+        )
+
+        soc_elements = mesh.elements[mesh.element_comps == mesh.comps["soc"]]
+        soc_xy = mesh.nodes[soc_elements[:, :4], :2]
+        x = soc_xy[:, :, 0]
+        y = soc_xy[:, :, 1]
+        element_areas = 0.5 * np.abs(
+            np.sum(
+                x * np.roll(y, -1, axis=1)
+                - y * np.roll(x, -1, axis=1),
+                axis=1,
+            )
+        )
+        self.assertAlmostEqual(float(np.sum(element_areas)), 900.0)
+
     def test_public_builder_matches_known_mesh_contract(self):
         mesh = build_mesh_from_structure(_box_structure(), element_size=1.0)
 
