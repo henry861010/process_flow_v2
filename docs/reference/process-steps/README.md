@@ -28,7 +28,8 @@ step 必須同步 module、target contract、fixture 與 tests。
 | RDL layer | `layer/rdl` | `main_geometry` | `layers` | 逐層建立 dielectric body；奇數層建立 via、偶數層建立 circuit |
 | Grinding | `grinding/grinding` | `main_geometry` | `thk` | 以整體 geometry top 減去厚度計算 target Z 並 grind |
 | saw | `saw/saw` | `main_geometry` | `bottomLeftX/Y`, `topRightX/Y` | XY clip 到指定 box |
-| Carrier Bond | `carrier/bond` | `main_geometry`, `carrier_geometry` | `material`, `thk` | 建立 keyed DAF，再將 keyed carrier root direct bodies 疊到其上方 |
+| DAF | `layer/daf` | `main_geometry` | `material`, `thk` | 在整體 geometry top 建立 keyed DAF body |
+| Carrier Bond | `carrier/bond` | `main_geometry`, `carrier_geometry` | — | 將 keyed carrier root direct bodies 疊到整體 geometry top |
 | Debond | `carrier/debond` | `main_geometry` | — | 驗證並移除最上方的單一 keyed DAF/carrier stack |
 | Flip | `flip/flip` | `main_geometry` | — | 以 XY plane flip、normalize Z min，反轉 via/bump direction |
 | Under Fill | `uf/under_fill` | `main_geometry` | `material`, `thk`, `gap` | 填充 child bump cavities 與符合 gap 的 root regions |
@@ -44,7 +45,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 
 Material instance suffix 由 kernel 配置，module 不自行產生。所有 step output serialize 為 standard geometry structure。
 只有需要 semantic interaction 的 body-producing steps 指定 registered key：molding=`molding`、
-Carrier Bond DAF=`daf`、bonded carrier=`carrier`。ECL、RDL dielectric 與 underfill 不指定
+DAF=`daf`、Carrier Bond bonded carrier=`carrier`。ECL、RDL dielectric 與 underfill 不指定
 body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transforms 保留來源 key。
 
 ### State transition matrix
@@ -55,7 +56,8 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | RDL layer | 依 `items[]` order 前進各層 `thk` | 不變 | 新增 dielectric bodies 與交錯的 via/circuit features。 |
 | Grinding | Clamp 到 grind target Z | 不變 | Grind target scope；可能移除或截短 primitives。 |
 | saw | 不變 | 改成指定 box | 對 target scope subtree 做 XY clip。 |
-| Carrier Bond | 先前進 DAF 厚度，再設為 bonded direct bodies 的 top Z | 不變 | 在 overall geometry top 新增 DAF body，再 copy source root direct bodies 到 main root；不複製 children/features。 |
+| DAF | 前進新增 DAF 厚度 | 不變 | 在 overall geometry top 使用 current footprint 新增 keyed DAF body。 |
+| Carrier Bond | 設為 bonded direct bodies 的 top Z | 不變 | 在 overall geometry top copy source root direct bodies 到 main root；不複製 children/features。 |
 | Debond | 設為移除 bonded stack 後的 overall geometry top Z | 不變 | 驗證成功後原子性移除一個 DAF 與所有 bonded carrier direct root bodies。 |
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
@@ -73,9 +75,10 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - Saw 對 Box/Polygon 支援 partial clip；Cylinder/Cone 只有全包含或完全分離，partial XY
   intersection 會 reject。
 - ECL 的 non-zero `koz` 會作為 XY inset；Polygon process footprint 目前不支援此 inset。
-- Carrier Bond 要求正的 DAF `thk` 與非空 `material`，先用 current process footprint 在 target
-  overall geometry maximum Z 建立 DAF body，再以 source direct-body minimum Z 對齊 DAF top。
-  Carrier source 至少要有一個 root direct body；child containers、via/circuit/bump 都不複製。
+- DAF 要求正的 `thk` 與非空 `material`，使用 current process footprint 在 target overall
+  geometry maximum Z 建立 key=`daf` 的 body。
+- Carrier Bond 將 source direct-body minimum Z 對齊 target overall geometry maximum Z。Carrier
+  source 至少要有一個 root direct body；child containers、via/circuit/bump 都不複製。
 - Debond 依 semantic body key 搜尋 exactly one direct-root `daf` 與 one-or-more direct-root
   `carrier`。DAF top 必須接觸 carrier bottom；排除這組 bodies 後，整棵剩餘 geometry 的 top
   必須接觸 DAF bottom。Matching key 出現在 child、缺少任一 role、多個 DAF，或後續 body／

@@ -117,6 +117,58 @@
   },
   {
     "schemaVersion": 2,
+    "id": "step_tpl_daf_1_0_0",
+    "version": "V1.0.0",
+    "name": "DAF",
+    "category": "layer",
+    "program": "layer/daf",
+    "description": "Deposits a body keyed daf on the full geometry top using the current process footprint and advances cursorZ by the DAF thickness.",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state that receives the DAF layer. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "DAF material",
+        "description": "DAF material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "DAF thk",
+        "description": "Positive DAF thickness deposited on the full geometry top.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
     "id": "step_tpl_rdl_2_0_0",
     "version": "V2.0.0",
     "name": "RDL layer",
@@ -350,13 +402,13 @@
     "name": "Carrier Bond",
     "category": "carrier",
     "program": "carrier/bond",
-    "description": "Deposits a body keyed daf on the full geometry top, then copies carrier geometry root direct bodies with key carrier onto the DAF and updates cursorZ to the carrier stack top.",
+    "description": "Copies carrier geometry root direct bodies with key carrier onto the full geometry top and updates cursorZ to the carrier stack top.",
     "owner": "integration.platform",
     "inputPorts": [
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Main geometry state that receives the DAF layer and bonded carrier direct root bodies.",
+        "description": "Main geometry state that receives bonded carrier direct root bodies.",
         "dataType": "geometry",
         "role": "primary",
         "required": true
@@ -378,30 +430,7 @@
         "dataType": "geometry"
       }
     ],
-    "parameterDefinitions": [
-      {
-        "id": "material",
-        "name": "DAF material",
-        "description": "DAF material name or material entity id.",
-        "valueType": "materialRef",
-        "controlType": "text",
-        "selectionMode": null,
-        "unit": null
-      },
-      {
-        "id": "thk",
-        "name": "DAF thk",
-        "description": "Positive DAF thickness deposited on the full geometry top before the carrier is bonded.",
-        "valueType": "float",
-        "controlType": "number",
-        "selectionMode": null,
-        "unit": "um",
-        "validation": {
-          "min": 0,
-          "exclusiveMin": true
-        }
-      }
-    ]
+    "parameterDefinitions": []
   },
   {
     "schemaVersion": 2,

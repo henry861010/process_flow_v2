@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 from fastapi.testclient import TestClient
+from process_flow_kernel import ProcessStepModuleResolver
 
 import process_flow_api.main as api_main
 from process_flow_api.main import create_app
@@ -59,7 +60,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assert_seed_payload_counts(response.json())
 
-    def test_carrier_bond_fixture_exposes_daf_parameters(self):
+    def test_carrier_bond_fixture_has_no_daf_parameters(self):
         payload = self.client.get("/api/bootstrap").json()
         carrier_bond = next(
             template
@@ -67,10 +68,25 @@ class ProcessFlowApiTests(unittest.TestCase):
             if template["id"] == "step_tpl_carrier_bond_2_0_0"
         )
 
+        self.assertEqual(carrier_bond["program"], "carrier/bond")
+        self.assertEqual(carrier_bond["parameterDefinitions"], [])
+
+    def test_daf_fixture_exposes_standalone_contract(self):
+        payload = self.client.get("/api/bootstrap").json()
+        daf = next(
+            template
+            for template in payload["processStepTemplates"]
+            if template["id"] == "step_tpl_daf_1_0_0"
+        )
+
+        self.assertEqual(daf["version"], "V1.0.0")
+        self.assertEqual(daf["name"], "DAF")
+        self.assertEqual(daf["category"], "layer")
+        self.assertEqual(daf["program"], "layer/daf")
         self.assertEqual(
             [
                 (definition["id"], definition["name"], definition["valueType"])
-                for definition in carrier_bond["parameterDefinitions"]
+                for definition in daf["parameterDefinitions"]
             ],
             [
                 ("material", "DAF material", "materialRef"),
@@ -78,9 +94,11 @@ class ProcessFlowApiTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            carrier_bond["parameterDefinitions"][1]["validation"],
+            daf["parameterDefinitions"][1]["validation"],
             {"min": 0, "exclusiveMin": True},
         )
+        api_services.validate_process_step_template(daf)
+        self.assertTrue(callable(ProcessStepModuleResolver().resolve(daf).execute))
 
     def test_tiv_fixture_exposes_via_contract(self):
         payload = self.client.get("/api/bootstrap").json()

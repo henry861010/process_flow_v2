@@ -6,6 +6,8 @@ audience:
   - geometry producers
   - process-step authors
   - kernel、CAD、viewer 與 API 開發者
+last_verified: 2026-08-26
+last_verified_commit: 754a4e03
 source_of_truth:
   - docs/reference/geometry-structure.md
 verified_against:
@@ -49,7 +51,7 @@ MUST NOT 放入 key。
 - `carrier`：製程中的 carrier solid。
 - `envelope`：代表所屬 Container／Entity 整體外形或幾何近似的 Body。
 - `molding`：molding process 建立的實體。
-- `daf`：carrier bond 建立的 DAF 實體。
+- `daf`：DAF process step 建立的 DAF 實體。
 
 `envelope` 在本版仍是一般 material-owning physical Body；CAD、mesh 與 section consumer 不得
 只因 key 是 `envelope` 就忽略、改變 priority 或改變 materialization。未來 operation 可以明確以
@@ -60,7 +62,7 @@ MUST NOT 放入 key。
 - Catalog fixture、DB import 與 generator MAY 明確提供 container/body key。
 - HBM 與 DRAM generator 只標記 root container 為 `hbm`／`dram`；內部 containers 與 bodies
   不提供 key。
-- Molding、Carrier Bond 與 Debond 使用 `molding`、`daf`、`carrier` body roles。
+- Molding、DAF、Carrier Bond 與 Debond 使用 `molding`、`daf`、`carrier` body roles。
 - Copy、PnP、move、flip、grind 與 saw MUST 保留既有 key，不得從 material、geometry、位置或
   id 自動推論。
 - 新增 vocabulary 必須同步本文件、kernel validation、fixtures/producers 與 contract tests。

@@ -23,6 +23,7 @@ from process_flow_kernel import (
     stable_id,
     validate_flow_graph,
 )
+from process_flow_steps.layer.daf import execute as execute_daf
 from process_flow_steps.tiv.tiv import execute as execute_tiv
 
 
@@ -826,7 +827,7 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(root["bodies"][1]["geometry"]["bottom_left"][2], 10)
         self.assertEqual(root["bodies"][1]["geometry"]["thk"], 2)
 
-    def test_real_carrier_bond_adds_daf_before_carrier(self):
+    def test_real_carrier_bond_bonds_carrier_without_daf(self):
         catalog = InMemoryGeometryCatalog(
             [
                 geometry_entity("geom_main", main_geometry(material="substrate")),
@@ -843,6 +844,51 @@ class KernelExecutionTests(unittest.TestCase):
 
         self.assertEqual(
             [body["material"] for body in bodies],
+            ["substrate", "glass"],
+        )
+        self.assertEqual([body.get("key") for body in bodies], [None, "carrier"])
+        self.assertEqual(bodies[1]["geometry"]["bottom_left"][2], 10)
+        self.assertEqual(bodies[1]["geometry"]["thk"], 20)
+
+    def test_real_daf_deposits_keyed_body_at_geometry_top_and_serializes(self):
+        plan = compiler().compile(
+            daf_template(),
+            daf_configuration(),
+            {"step_daf": daf_step_template()},
+        )
+
+        output = GeometryKernel().execute(plan).geometry()
+        bodies = output["root"]["bodies"]
+
+        self.assertEqual([body["material"] for body in bodies], ["carrier", "DAF-A"])
+        self.assertEqual([body.get("key") for body in bodies], [None, "daf"])
+        self.assertEqual(bodies[1]["geometry"]["bottom_left"][2], 10)
+        self.assertEqual(bodies[1]["geometry"]["thk"], 3)
+        self.assertEqual(
+            ProcessGeometryState.from_structure(output).to_geometry_structure(),
+            output,
+        )
+
+    def test_real_daf_then_carrier_bond_reproduces_daf_carrier_stack(self):
+        catalog = InMemoryGeometryCatalog(
+            [
+                geometry_entity("geom_main", main_geometry(material="substrate")),
+                geometry_entity("geom_carrier", carrier_geometry()),
+            ]
+        )
+        plan = FlowCompiler(catalog).compile(
+            daf_carrier_bond_template(),
+            daf_carrier_bond_configuration(),
+            {
+                "step_daf": daf_step_template(),
+                "step_carrier_bond": carrier_bond_step_template(),
+            },
+        )
+
+        bodies = GeometryKernel().execute(plan).geometry()["root"]["bodies"]
+
+        self.assertEqual(
+            [body["material"] for body in bodies],
             ["substrate", "DAF-A", "glass"],
         )
         self.assertEqual([body.get("key") for body in bodies], [None, "daf", "carrier"])
@@ -851,7 +897,24 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertEqual(bodies[2]["geometry"]["bottom_left"][2], 13)
         self.assertEqual(bodies[2]["geometry"]["thk"], 20)
 
-    def test_real_carrier_bond_then_debond_restores_main_geometry(self):
+    def test_real_daf_rejects_invalid_material_or_thickness(self):
+        cases = [
+            ("non-empty string", {"material": "", "thk": 3}),
+            ("positive number", {"material": "DAF-A", "thk": 0}),
+            ("positive number", {"material": "DAF-A", "thk": -1}),
+            ("finite number", {"material": "DAF-A", "thk": float("inf")}),
+            ("finite number", {"material": "DAF-A", "thk": float("nan")}),
+        ]
+
+        for expected_message, values in cases:
+            with self.subTest(values=values):
+                state = process_state_with_derived_footprint(main_geometry())
+                before = state.to_geometry_structure()
+                with self.assertRaisesRegex(ValueError, expected_message):
+                    execute_daf_with_values(state, values)
+                self.assertEqual(state.to_geometry_structure(), before)
+
+    def test_real_daf_then_carrier_bond_then_debond_restores_main_geometry(self):
         catalog = InMemoryGeometryCatalog(
             [
                 geometry_entity("geom_main", main_geometry(material="substrate")),
@@ -859,9 +922,10 @@ class KernelExecutionTests(unittest.TestCase):
             ]
         )
         plan = FlowCompiler(catalog).compile(
-            carrier_bond_debond_template(),
-            carrier_bond_debond_configuration(),
+            daf_carrier_bond_debond_template(),
+            daf_carrier_bond_debond_configuration(),
             {
+                "step_daf": daf_step_template(),
                 "step_carrier_bond": carrier_bond_step_template(),
                 "step_debond": debond_step_template(),
             },
@@ -1101,6 +1165,19 @@ def ecl_step_template():
     }
 
 
+def daf_step_template():
+    return {
+        "id": "step_daf",
+        "program": "layer/daf",
+        "inputPorts": [geometry_input()],
+        "outputPorts": [output_port()],
+        "parameterDefinitions": [
+            parameter("material", "materialRef"),
+            parameter("thk", "float"),
+        ],
+    }
+
+
 def pnp_step_template():
     return {
         "id": "step_pnp",
@@ -1158,10 +1235,7 @@ def carrier_bond_step_template():
             geometry_input("carrier_geometry", role="auxiliary"),
         ],
         "outputPorts": [output_port()],
-        "parameterDefinitions": [
-            parameter("material", "materialRef"),
-            parameter("thk", "float"),
-        ],
+        "parameterDefinitions": [],
     }
 
 
@@ -1328,6 +1402,45 @@ def execute_tiv_with_values(state, values):
     return execute_tiv(context)
 
 
+def execute_daf_with_values(state, values):
+    structure = state.to_geometry_structure()
+    context = ProcessStepContext(
+        state=state,
+        values=values,
+        raw_parameter_values=values,
+        step_ref={"stepRefId": "daf", "processStepTemplateId": "step_daf"},
+        step_template=daf_step_template(),
+        step_configuration={"parameterValues": values},
+        geometry_inputs={"main_geometry": structure},
+        input_geometry=structure,
+        geometry_resolver=lambda port_id: (
+            state.clone() if port_id == "main_geometry" else None
+        ),
+    )
+    return execute_daf(context)
+
+
+def daf_template():
+    return {
+        "id": "flow_daf",
+        "flowInputs": [flow_input("incoming_main")],
+        "stepRefs": [{"stepRefId": "daf", "processStepTemplateId": "step_daf"}],
+        "flowEdges": [edge_from_input("incoming_main", "daf")],
+    }
+
+
+def daf_configuration():
+    return {
+        "inputBindings": {
+            "incoming_main": {"kind": "catalog", "geometryId": "geom_main"}
+        },
+        "stepConfigurations": {
+            "daf": {"parameterValues": {"material": "DAF-A", "thk": 3}}
+        },
+        "embeddedGeometries": {},
+    }
+
+
 def carrier_bond_template():
     return {
         "id": "flow_carrier_bond",
@@ -1359,19 +1472,45 @@ def carrier_bond_configuration():
             },
         },
         "stepConfigurations": {
-            "carrier_bond": {
-                "parameterValues": {"material": "DAF-A", "thk": 3}
-            }
+            "carrier_bond": {"parameterValues": {}}
         },
         "embeddedGeometries": {},
     }
 
 
-def carrier_bond_debond_template():
+def daf_carrier_bond_template():
     return {
-        "id": "flow_carrier_bond_debond",
+        "id": "flow_daf_carrier_bond",
         "flowInputs": [flow_input("incoming_main"), flow_input("incoming_carrier")],
         "stepRefs": [
+            {"stepRefId": "daf", "processStepTemplateId": "step_daf"},
+            {
+                "stepRefId": "carrier_bond",
+                "processStepTemplateId": "step_carrier_bond",
+            },
+        ],
+        "flowEdges": [
+            edge_from_input("incoming_main", "daf"),
+            edge_from_step("daf", "carrier_bond", "edge_daf_carrier_bond"),
+            edge_from_input("incoming_carrier", "carrier_bond", "carrier_geometry"),
+        ],
+    }
+
+
+def daf_carrier_bond_configuration():
+    configuration = carrier_bond_configuration()
+    configuration["stepConfigurations"]["daf"] = {
+        "parameterValues": {"material": "DAF-A", "thk": 3}
+    }
+    return configuration
+
+
+def daf_carrier_bond_debond_template():
+    return {
+        "id": "flow_daf_carrier_bond_debond",
+        "flowInputs": [flow_input("incoming_main"), flow_input("incoming_carrier")],
+        "stepRefs": [
+            {"stepRefId": "daf", "processStepTemplateId": "step_daf"},
             {
                 "stepRefId": "carrier_bond",
                 "processStepTemplateId": "step_carrier_bond",
@@ -1382,15 +1521,16 @@ def carrier_bond_debond_template():
             },
         ],
         "flowEdges": [
-            edge_from_input("incoming_main", "carrier_bond"),
+            edge_from_input("incoming_main", "daf"),
+            edge_from_step("daf", "carrier_bond", "edge_daf_carrier_bond"),
             edge_from_input("incoming_carrier", "carrier_bond", "carrier_geometry"),
             edge_from_step("carrier_bond", "debond", "edge_carrier_bond_debond"),
         ],
     }
 
 
-def carrier_bond_debond_configuration():
-    configuration = carrier_bond_configuration()
+def daf_carrier_bond_debond_configuration():
+    configuration = daf_carrier_bond_configuration()
     configuration["stepConfigurations"]["debond"] = {"parameterValues": {}}
     return configuration
 
