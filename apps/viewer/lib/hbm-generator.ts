@@ -42,7 +42,7 @@ export type HbmBody = {
 
 export type HbmContainer = {
   id: string;
-  key: string;
+  key?: "hbm";
   bodies: HbmBody[];
   vias: [];
   circuits: [];
@@ -171,7 +171,6 @@ export function buildHbmGeometry(
   const children: HbmContainer[] = [
     makeBodyContainer(
       "container:hbm-base-die",
-      "base-die",
       "body:hbm-base-die",
       packageBottomLeft,
       packageTopRight,
@@ -189,7 +188,6 @@ export function buildHbmGeometry(
     children.push(
       makeBodyContainer(
         `container:hbm-core-die-${sequence}`,
-        `core-die-${sequence}`,
         `body:hbm-core-die-${sequence}`,
         [coreBottomLeftXY[0], coreBottomLeftXY[1], bottomZ],
         [coreTopRightXY[0], coreTopRightXY[1], bottomZ],
@@ -204,7 +202,7 @@ export function buildHbmGeometry(
     unitSystem: "um",
     root: {
       id: "container:hbm-root",
-      key: "hbm-package",
+      key: "hbm",
       bodies: [
         {
           id: "body:hbm-molding",
@@ -227,7 +225,6 @@ export function buildHbmGeometry(
 
 function makeBodyContainer(
   id: string,
-  key: string,
   bodyId: string,
   bottomLeft: Point3,
   topRight: Point3,
@@ -236,7 +233,6 @@ function makeBodyContainer(
 ): HbmContainer {
   return {
     id,
-    key,
     bodies: [
       {
         id: bodyId,

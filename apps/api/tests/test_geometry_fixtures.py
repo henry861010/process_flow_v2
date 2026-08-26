@@ -5,6 +5,12 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
+from process_flow_kernel import (
+    BODY_KEYS,
+    CONTAINER_KEYS,
+    validate_geometry_semantic_keys,
+)
+
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parents[1]
@@ -64,6 +70,65 @@ class GeometryFixtureTests(unittest.TestCase):
             {"panel_v1_0_0", "hbm_v1_3_1", "soc_v1_0_0", "test1"}
             <= fixture_ids
         )
+
+    def test_semantic_keys_follow_catalog_vocabulary_and_scope(self):
+        self.assertEqual(
+            CONTAINER_KEYS,
+            frozenset(
+                {
+                    "carrier",
+                    "carrier.panel",
+                    "carrier.wafer",
+                    "hbm",
+                    "dram",
+                    "soc",
+                    "soic",
+                    "lsi",
+                    "cpo",
+                }
+            ),
+        )
+        self.assertEqual(
+            BODY_KEYS,
+            frozenset({"carrier", "envelope", "molding", "daf"}),
+        )
+
+        expected_root_keys = {
+            "carrier.wafer": "carrier.wafer",
+            "carrier.panel": "carrier.panel",
+            "die.hbm": "hbm",
+            "die.dram": "dram",
+            "die.soc": "soc",
+            "die.soic": "soic",
+            "package.soic": "soic",
+            "die.lsi": "lsi",
+            "die.cpo": "cpo",
+            "test.carrier": "carrier",
+        }
+
+        for item in self.geometries:
+            with self.subTest(geometry_id=item["id"]):
+                structure = item["structure"]
+                validate_geometry_semantic_keys(structure)
+                root = structure["root"]
+                self.assertEqual(root.get("key"), expected_root_keys[item["category"]])
+
+                bodies = root["bodies"]
+                if item["category"] in {"die.hbm", "die.dram"}:
+                    self.assertTrue(all("key" not in body for body in bodies))
+                    self.assertTrue(
+                        all("key" not in child for child in root["children"])
+                    )
+                elif item["category"] in {
+                    "die.soc",
+                    "die.soic",
+                    "package.soic",
+                    "die.lsi",
+                    "die.cpo",
+                }:
+                    self.assertTrue(all(body.get("key") == "envelope" for body in bodies))
+                elif item["category"] in {"carrier.wafer", "carrier.panel"}:
+                    self.assertTrue(all("key" not in body for body in bodies))
 
     def test_descriptions_start_with_actual_xyz_dimensions(self):
         for item in self.geometries:

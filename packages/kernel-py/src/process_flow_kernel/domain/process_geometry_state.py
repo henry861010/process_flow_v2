@@ -4,6 +4,7 @@ from .container import Container
 from .features import Body, Bump, Circuit, Via
 from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
 from .region import Region, TYPE_DIE, TYPE_TARGET
+from .semantic_keys import container_key_matches, validate_body_key, validate_container_key
 from ..serialization.schema import DEFAULT_UNIT_SYSTEM, GEOMETRY_SCHEMA_VERSION, deep_copy, normalize_geometry_structure
 from ..utils.math_utils import math
 
@@ -20,7 +21,7 @@ class ProcessGeometryState:
         schema_version=GEOMETRY_SCHEMA_VERSION,
         unit_system=DEFAULT_UNIT_SYSTEM,
     ):
-        self._root = root or Container(key="main")
+        self._root = root or Container()
         self._cursor_z = _finite_number(cursor_z, "cursorZ")
         self._process_footprint = (
             None if process_footprint is None else _normalize_footprint_spec(process_footprint)
@@ -37,7 +38,7 @@ class ProcessGeometryState:
     def create(cls, options=None):
         options = options or {}
         return cls(
-            root=Container(key=options.get("key", "main")),
+            root=Container(key=options.get("key")),
             unit_system=options.get("unit_system", options.get("unitSystem", DEFAULT_UNIT_SYSTEM)),
             schema_version=options.get("schema_version", options.get("schemaVersion", GEOMETRY_SCHEMA_VERSION)),
         )
@@ -137,7 +138,7 @@ class ProcessGeometryState:
         *,
         material,
         geometry,
-        key="",
+        key=None,
         set_footprint=True,
         cursor_z="top",
         scope=ROOT_SCOPE,
@@ -163,7 +164,7 @@ class ProcessGeometryState:
         top_right,
         thickness,
         set_footprint=True,
-        key="",
+        key=None,
     ):
         return self.initialize_layer(
             material=material,
@@ -185,7 +186,7 @@ class ProcessGeometryState:
         radius,
         thickness,
         set_footprint=True,
-        key="",
+        key=None,
     ):
         return self.initialize_layer(
             material=material,
@@ -201,7 +202,7 @@ class ProcessGeometryState:
         polygons,
         thickness,
         set_footprint=True,
-        key="",
+        key=None,
     ):
         return self.initialize_layer(
             material=material,
@@ -219,7 +220,7 @@ class ProcessGeometryState:
         top_radius,
         thickness,
         set_footprint=False,
-        key="",
+        key=None,
     ):
         return self.initialize_layer(
             material=material,
@@ -243,7 +244,7 @@ class ProcessGeometryState:
         advance_cursor=True,
         scope=ROOT_SCOPE,
         xy_inset=0,
-        key="",
+        key=None,
     ):
         layer_thickness = _positive_number(thickness, "thickness")
         bottom_z = _finite_number(self._cursor_z if z is None else z, "z")
@@ -264,7 +265,7 @@ class ProcessGeometryState:
             self._cursor_z = bottom_z + layer_thickness
         return handle
 
-    def fill_to(self, *, material, z, scope=ROOT_SCOPE, key=""):
+    def fill_to(self, *, material, z, scope=ROOT_SCOPE, key=None):
         target_z = _finite_number(z, "z")
         if target_z <= self._cursor_z:
             raise ValueError("fill_to requires z to be above cursor_z")
@@ -284,7 +285,7 @@ class ProcessGeometryState:
         geometry,
         advance_cursor=False,
         scope=ROOT_SCOPE,
-        key="",
+        key=None,
     ):
         primitive = _geometry_from_spec(geometry)
         handle = self._add_body_object(
@@ -304,7 +305,7 @@ class ProcessGeometryState:
         thickness,
         advance_cursor=False,
         scope=ROOT_SCOPE,
-        key="",
+        key=None,
     ):
         return self.deposit_geometry(
             material=material,
@@ -328,7 +329,7 @@ class ProcessGeometryState:
         thickness,
         advance_cursor=False,
         scope=ROOT_SCOPE,
-        key="",
+        key=None,
     ):
         return self.deposit_geometry(
             material=material,
@@ -346,7 +347,7 @@ class ProcessGeometryState:
         thickness,
         advance_cursor=False,
         scope=ROOT_SCOPE,
-        key="",
+        key=None,
     ):
         return self.deposit_geometry(
             material=material,
@@ -366,7 +367,7 @@ class ProcessGeometryState:
         thickness,
         advance_cursor=False,
         scope=ROOT_SCOPE,
-        key="",
+        key=None,
     ):
         return self.deposit_geometry(
             material=material,
@@ -511,7 +512,7 @@ class ProcessGeometryState:
         thk=None,
         gap,
         scope=ROOT_SCOPE,
-        key="",
+        key=None,
     ):
         underfill_material = _require_string(material, "material")
         underfill_thickness = _positive_number(thickness if thickness is not None else thk, "thickness")
@@ -569,7 +570,7 @@ class ProcessGeometryState:
         gap_body_count = 0
         gap_scope = None
         if len(gap_polygons) > 0:
-            gap_scope = Container(key="underfill-gap")
+            gap_scope = Container()
             gap_scope.add_body(
                 Body(
                     PolygonGeometry(
@@ -755,7 +756,7 @@ class ProcessGeometryState:
             raise ValueError("place_geometry_state requires a ProcessGeometryState source")
         placed = source._root.copy() if clone else source._root
         if key is not None:
-            placed._key = key
+            placed._key = validate_container_key(key)
         source_bounds = _container_bounds(placed)
         if top_right_x is not None or top_right_y is not None:
             target_bounds = _normalize_placement_box(
@@ -792,12 +793,18 @@ class ProcessGeometryState:
     def root_scope_ref(self):
         return self._scope_ref(self._root)
 
-    def find_scopes(self, *, key=None, id=None, recursive=True):
+    def find_scopes(self, *, key=None, id=None, recursive=True, match="exact"):
+        if match not in ("exact", "family"):
+            raise ValueError('find_scopes match must be "exact" or "family"')
+        if key is not None:
+            validate_container_key(key)
         matches = []
 
         def visit(container):
             ref = self._scope_ref(container)
-            key_matches = key is None or container.key() == key
+            key_matches = key is None or container_key_matches(
+                container.key(), key, family=match == "family"
+            )
             id_matches = id is None or ref["id"] == id
             if key_matches and id_matches:
                 matches.append(ref)
@@ -909,13 +916,13 @@ class ProcessGeometryState:
 
 
 def _container_from_payload(container):
-    result = Container(key=container.get("key", ""))
+    result = Container(key=container.get("key"))
     for body in container.get("bodies", []):
         result.add_body(
             Body(
                 _geometry_from_payload(body["geometry"]),
                 body["material"],
-                body.get("key", ""),
+                body.get("key"),
             )
         )
     for via in container.get("vias", []):
@@ -1386,9 +1393,7 @@ def _require_string(value, label):
 
 
 def _require_body_key(value):
-    if not isinstance(value, str):
-        raise ValueError("body key must be a string")
-    return value
+    return validate_body_key(value)
 
 
 def _require_direction(value, label):

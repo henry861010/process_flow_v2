@@ -11,7 +11,6 @@ from process_flow_mesher import Mesh3D, build_mesh_from_structure
 def _box_structure():
     return {
         "root": {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {
@@ -34,7 +33,6 @@ def _box_structure():
 def _multi_circle_structure():
     return {
         "root": {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {
@@ -66,7 +64,6 @@ def _multi_circle_structure():
 def _circle_structure(*circles):
     return {
         "root": {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {
@@ -125,10 +122,17 @@ def _append_polygon(structure, *, points, material):
 
 
 class BuilderIntegrationTests(unittest.TestCase):
+    def test_rejects_unknown_semantic_keys(self):
+        structure = _box_structure()
+        structure["root"]["key"] = "mesh-root"
+
+        with self.assertRaisesRegex(ValueError, "Unsupported container.key"):
+            build_mesh_from_structure(structure, element_size=1.0)
+
     def test_preserves_a_box_pattern_crossing_a_circle_boundary(self):
         structure = {
             "root": {
-                "key": "wafer",
+                "key": "carrier.wafer",
                 "bodies": [
                     {
                         "geometry": {
@@ -234,7 +238,6 @@ class BuilderIntegrationTests(unittest.TestCase):
     def test_quarter_model_filters_outside_patterns_and_keeps_crossing_patterns(self):
         structure = {
             "root": {
-                "key": "root",
                 "bodies": [
                     {
                         "geometry": {
@@ -287,7 +290,6 @@ class BuilderIntegrationTests(unittest.TestCase):
     def test_quarter_model_uses_actual_polygon_footprint_not_its_bounds(self):
         structure = {
             "root": {
-                "key": "root",
                 "bodies": [
                     {
                         "geometry": {
@@ -322,7 +324,6 @@ class BuilderIntegrationTests(unittest.TestCase):
     def test_rejects_a_selected_quarter_without_positive_area_geometry(self):
         structure = {
             "root": {
-                "key": "root",
                 "bodies": [
                     {
                         "geometry": {
@@ -376,7 +377,6 @@ class BuilderIntegrationTests(unittest.TestCase):
     def test_rejects_a_non_radial_open_circle(self):
         structure = {
             "root": {
-                "key": "root",
                 "bodies": [
                     {
                         "geometry": {

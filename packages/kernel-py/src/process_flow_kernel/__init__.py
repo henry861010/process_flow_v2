@@ -12,6 +12,14 @@ from .domain.features import Body, Bump, Circuit, Via
 from .domain.geometry import BoxGeometry, ConeGeometry, CylinderGeometry, Geometry, PolygonGeometry
 from .domain.process_geometry_state import ProcessGeometryState
 from .domain.region import Region, TYPE_DIE, TYPE_EMPTY, TYPE_TARGET
+from .domain.semantic_keys import (
+    BODY_KEYS,
+    CONTAINER_KEYS,
+    container_key_matches,
+    validate_body_key,
+    validate_container_key,
+    validate_geometry_semantic_keys,
+)
 from .infrastructure.module_resolver import ProcessStepModuleResolver
 from .serialization.geometry_hydration import (
     geometry_structure_to_process_geometry_state,
@@ -27,11 +35,13 @@ from .utils.polygon import classify_polygon_loops, validate_polygon_loops
 
 __all__ = [
     "Body",
+    "BODY_KEYS",
     "BoxGeometry",
     "Bump",
     "Circuit",
     "ConeGeometry",
     "Container",
+    "CONTAINER_KEYS",
     "CylinderGeometry",
     "DEFAULT_UNIT_SYSTEM",
     "ExecuteOptions",
@@ -58,11 +68,15 @@ __all__ = [
     "Via",
     "analyze_flow_graph",
     "classify_polygon_loops",
+    "container_key_matches",
     "geometry_structure_to_process_geometry_state",
     "normalize_geometry_structure",
     "process_geometry_state_to_geometry_structure",
     "stable_id",
     "validate_flow_graph",
+    "validate_body_key",
+    "validate_container_key",
+    "validate_geometry_semantic_keys",
     "validate_process_step_template",
     "validate_polygon_loops",
 ]

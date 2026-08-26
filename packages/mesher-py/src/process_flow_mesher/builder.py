@@ -8,6 +8,7 @@ from typing import Any, Literal, cast
 import numpy as np
 from mesher.generators import generate_rectilinear_mesh
 from mesher.circular import extend_circular_mesh, imprint_circle
+from process_flow_kernel import validate_geometry_semantic_keys
 
 from .meshing.extrusion import Dragger
 from .models import Mesh3D
@@ -89,6 +90,7 @@ def build_mesh_from_structure(
     """
     normalized_element_size = _positive_finite_number(element_size, "elementSize")
     normalized_model_type = _normalize_model_type(model_type)
+    validate_geometry_semantic_keys(geometry_structure)
     root = _root_container(geometry_structure)
 
     # The translator annotates containers with priority during 3D pattern

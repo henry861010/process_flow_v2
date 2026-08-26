@@ -5,6 +5,8 @@ import hashlib
 import json
 import re
 
+from ..domain.semantic_keys import validate_body_key, validate_container_key
+
 GEOMETRY_SCHEMA_VERSION = "1.0.0"
 DEFAULT_UNIT_SYSTEM = "um"
 
@@ -53,9 +55,15 @@ def assign_container_ids(container, path):
     container.setdefault("bumps", [])
     container.setdefault("children", [])
 
-    container_key = container.get("key", "")
-    container_path = [*path, f"container:{container_key}"]
-    container.setdefault("id", stable_id("container", container_path, {"key": container_key}))
+    container_key = None
+    if "key" in container:
+        if container["key"] is None:
+            raise ValueError("container.key must be omitted instead of null")
+        container_key = validate_container_key(container["key"])
+    container_label = "container" if container_key is None else f"container:{container_key}"
+    container_path = [*path, container_label]
+    identity_payload = None if container_key is None else {"key": container_key}
+    container.setdefault("id", stable_id("container", container_path, identity_payload))
 
     _assign_feature_ids(container["bodies"], "body", container_path)
     _assign_feature_ids(container["vias"], "via", container_path)
@@ -63,17 +71,23 @@ def assign_container_ids(container, path):
     _assign_feature_ids(container["bumps"], "bump", container_path)
 
     for index, child in enumerate(container["children"]):
-        child_key = child.get("key", "")
-        child_path = [*container_path, f"child:{index}:{child_key}"]
+        child_key = child.get("key")
+        child_label = f"child:{index}" if child_key is None else f"child:{index}:{child_key}"
+        child_path = [*container_path, child_label]
         assign_container_ids(child, child_path)
 
 
 def _assign_feature_ids(features, kind, container_path):
     for index, feature in enumerate(features):
-        if kind == "body":
-            feature.setdefault("key", "")
-            if not isinstance(feature["key"], str):
-                raise ValueError("body.key must be a string")
+        if kind == "body" and "key" in feature:
+            if feature["key"] is None:
+                raise ValueError("body.key must be omitted instead of null")
+            validate_body_key(feature["key"])
+        elif kind != "body" and "key" in feature:
+            raise ValueError(
+                f"{kind}.key is not supported; semantic keys belong only to "
+                "containers and bodies"
+            )
         if "id" not in feature:
             feature["id"] = stable_id(
                 kind,
@@ -83,10 +97,7 @@ def _assign_feature_ids(features, kind, container_path):
 
 
 def _feature_identity_payload(feature, kind):
-    copied = _without_id(feature)
-    if kind == "body" and copied.get("key") == "":
-        copied.pop("key")
-    return copied
+    return _without_id(feature)
 
 
 def _without_id(value):

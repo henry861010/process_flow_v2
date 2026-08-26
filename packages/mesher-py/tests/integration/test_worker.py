@@ -10,7 +10,6 @@ from pathlib import Path
 def _box_structure():
     return {
         "root": {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {
@@ -33,7 +32,6 @@ def _box_structure():
 def _multi_circle_structure():
     return {
         "root": {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {

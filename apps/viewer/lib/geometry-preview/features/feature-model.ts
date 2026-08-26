@@ -40,7 +40,7 @@ export type PreviewFeature = {
   geometry: PreviewGeometry;
   bounds: BoundsTuple;
   containerId: string;
-  containerKey: string;
+  containerKey: string | null;
   containerPath: string;
 };
 
@@ -55,7 +55,7 @@ export type FeatureSummary = {
 
 type FeatureContainerContext = {
   id: string;
-  key: string;
+  key: string | null;
   path: string;
 };
 
@@ -70,10 +70,12 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
   if (!isRecord(root)) return [];
 
   const features: PreviewFeature[] = [];
+  const rootId = stringValue(root.id, "root");
+  const rootKey = optionalString(root.key);
   visitContainer(root, {
-    id: stringValue(root.id, "root"),
-    key: stringValue(root.key, "root"),
-    path: stringValue(root.key, "root"),
+    id: rootId,
+    key: rootKey,
+    path: rootKey ?? rootId,
   });
   return features;
 
@@ -88,12 +90,12 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
     const children = Array.isArray(container.children) ? container.children : [];
     children.forEach((child, index) => {
       if (!isRecord(child)) return;
-      const childKey = stringValue(child.key, `child-${index + 1}`);
-      const childId = stringValue(child.id, `${context.id}/${childKey}`);
+      const childKey = optionalString(child.key);
+      const childId = stringValue(child.id, `${context.id}/child-${index + 1}`);
       visitContainer(child, {
         id: childId,
         key: childKey,
-        path: `${context.path}/${childKey}`,
+        path: `${context.path}/${childKey ?? childId}`,
       });
     });
   }
@@ -447,6 +449,10 @@ function finiteNumber(value: unknown, fallback: number) {
 
 function stringValue(value: unknown, fallback: string) {
   return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function optionalString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 function clamp(value: number, min: number, max: number) {

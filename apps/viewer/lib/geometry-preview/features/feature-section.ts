@@ -23,7 +23,7 @@ export type EstimatedFeatureSectionRegion = {
   direction: PreviewFeature["direction"];
   koz: number;
   containerId: string;
-  containerKey: string;
+  containerKey: string | null;
   contours: FeatureSectionContour[];
   pattern: FeaturePatternDescriptor;
 };

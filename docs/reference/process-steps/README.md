@@ -43,7 +43,9 @@ step 必須同步 module、target contract、fixture 與 tests。
 每個 step template 都有 required primary `main_geometry` 與 output `result_geometry`。Auxiliary geometry 不是 parameter。Parameter validation 先由 compiler 執行，module 再 enforce operation-specific rules。
 
 Material instance suffix 由 kernel 配置，module 不自行產生。所有 step output serialize 為 standard geometry structure。
-Body-producing steps 使用 stable process-role key：molding=`molding`、ECL=`ecl`、RDL dielectric=`rdl`、underfill=`underfill`、Carrier Bond DAF=`daf`、bonded carrier=`carrier`。這些 key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transforms 保留來源 key。
+只有需要 semantic interaction 的 body-producing steps 指定 registered key：molding=`molding`、
+Carrier Bond DAF=`daf`、bonded carrier=`carrier`。ECL、RDL dielectric 與 underfill 不指定
+body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transforms 保留來源 key。
 
 ### State transition matrix
 

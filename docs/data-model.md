@@ -56,6 +56,7 @@ kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語�
 
 - [Parameter Schema](./reference/parameter-schema.md)
 - [Geometry Entity and Structure](./reference/geometry-structure.md)
+- [Geometry semantic keys](./reference/geometry-semantic-keys.md)
 - [Persistence](./reference/persistence.md)
 - [ADR-0002：Single-terminal Flow](./architecture/decisions/0002-single-terminal-flow.md)
 - [ADR-0003：Geometry Units and Density](./architecture/decisions/0003-geometry-units-and-density.md)

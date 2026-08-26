@@ -6,7 +6,6 @@ from process_flow_mesher.translation.standard_v1 import StandardV1Translator
 class StandardV1TranslatorTests(unittest.TestCase):
     def test_translates_box_geometry_to_face_and_layers(self):
         container = {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {
@@ -34,7 +33,6 @@ class StandardV1TranslatorTests(unittest.TestCase):
 
     def test_accepts_multiple_circles_when_another_shape_is_the_base_face(self):
         container = {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {
@@ -93,7 +91,6 @@ class StandardV1TranslatorTests(unittest.TestCase):
             }
 
         container = {
-            "key": "root",
             "bodies": [
                 {
                     "geometry": {

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from process_flow_kernel import validate_geometry_semantic_keys
+
 from .identifiers import generated_geometry_id
 
 
@@ -49,3 +51,7 @@ def _validate_persisted_metadata(local_id: str, geometry: JsonObject) -> None:
             raise ValueError(
                 f"Embedded geometry {local_id} requires {field} before instance save"
             )
+    structure = geometry.get("structure")
+    if not isinstance(structure, dict):
+        raise ValueError(f"Embedded geometry {local_id} requires structure")
+    validate_geometry_semantic_keys(structure)

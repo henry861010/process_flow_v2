@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import FastAPI, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from process_flow_kernel import validate_geometry_semantic_keys
 
 from .file_export_jobs import FileExportJobManager
 from .identifiers import generated_geometry_id
@@ -147,6 +148,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     @app.post("/api/geometries", status_code=status.HTTP_201_CREATED)
     async def create_geometry(request: Request, body: GeometryEntity):
         payload = body.payload()
+        validate_geometry_semantic_keys(payload["structure"])
         if payload.get("id") in (None, ""):
             payload["id"] = generated_geometry_id(payload)
         return get_store(request).insert_geometry(payload)

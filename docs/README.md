@@ -59,16 +59,18 @@ stale description 提升成 current authority。
 1. [核心資料模型](./data-model.md)
 2. [Parameter schema](./reference/parameter-schema.md)
 3. [Geometry structure](./reference/geometry-structure.md)
-4. [HBM Geometry Generator](./reference/hbm-generator.md)
-5. [Persistence](./reference/persistence.md)
-6. [API README](../apps/api/README.md) 與執行中的 OpenAPI
+4. [Geometry semantic keys](./reference/geometry-semantic-keys.md)
+5. [HBM Geometry Generator](./reference/hbm-generator.md)
+6. [Persistence](./reference/persistence.md)
+7. [API README](../apps/api/README.md) 與執行中的 OpenAPI
 
 ### Geometry 與 process-step 開發
 
 1. [Geometry 語意](./concepts/geometry-semantics.md)
-2. [Process-step authoring](./reference/kernel/process-step-authoring.md)
-3. [Kernel runtime API](./reference/kernel/runtime-api.md)
-4. [Process-step reference](./reference/process-steps/README.md)
+2. [Geometry semantic keys](./reference/geometry-semantic-keys.md)
+3. [Process-step authoring](./reference/kernel/process-step-authoring.md)
+4. [Kernel runtime API](./reference/kernel/runtime-api.md)
+5. [Process-step reference](./reference/process-steps/README.md)
 
 ## 文件地圖
 

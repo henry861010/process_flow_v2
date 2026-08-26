@@ -373,7 +373,7 @@ class PreviewSectionRegion(StrictModel):
     bodyId: str = Field(min_length=1)
     sourceIds: list[str]
     containerId: str = Field(min_length=1)
-    containerKey: str
+    containerKey: str | None = None
     material: str = Field(min_length=1)
     bodyKind: Literal["body", "feature"]
     featureType: str | None = None

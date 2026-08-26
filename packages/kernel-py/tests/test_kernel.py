@@ -61,13 +61,13 @@ class GeometryDomainTests(unittest.TestCase):
             )
 
     def test_container_saw_replaces_cylinder_features_and_preserves_metadata(self):
-        root = Container(key="wafer")
-        root.add_body(Body(CylinderGeometry([0, 0, 0], 10, 1), "Si", "wafer-body"))
+        root = Container(key="carrier.wafer")
+        root.add_body(Body(CylinderGeometry([0, 0, 0], 10, 1), "Si", "carrier"))
         root.add_via(Via(CylinderGeometry([0, 0, 1], 10, 1), 0.5, "Cu", "+z", 2))
         root.add_circuit(Circuit(CylinderGeometry([0, 0, 2], 10, 1), 0.4, "Cu", 3))
         root.add_bump(Bump(CylinderGeometry([0, 0, 3], 10, 1), 0.8, "SnAg", "-z", 4))
-        child = Container(key="nested")
-        child.add_body(Body(CylinderGeometry([0, 0, 4], 10, 1), "Si", "nested-body"))
+        child = Container(key="soc")
+        child.add_body(Body(CylinderGeometry([0, 0, 4], 10, 1), "Si", "envelope"))
         root.attach_child(child)
 
         self.assertTrue(
@@ -77,7 +77,7 @@ class GeometryDomainTests(unittest.TestCase):
 
         for collection in ("bodies", "vias", "circuits", "bumps"):
             self.assertEqual(output[collection][0]["geometry"]["type"], "BoxGeometry")
-        self.assertEqual(output["bodies"][0]["key"], "wafer-body")
+        self.assertEqual(output["bodies"][0]["key"], "carrier")
         self.assertEqual(output["bodies"][0]["material"], "Si")
         self.assertEqual(output["vias"][0]["density"], 0.5)
         self.assertEqual(output["vias"][0]["direction"], "+z")
@@ -87,7 +87,7 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(output["bumps"][0]["density"], 0.8)
         self.assertEqual(output["bumps"][0]["direction"], "-z")
         self.assertEqual(output["bumps"][0]["koz"], 4)
-        self.assertEqual(output["children"][0]["key"], "nested")
+        self.assertEqual(output["children"][0]["key"], "soc")
         self.assertEqual(
             output["children"][0]["bodies"][0]["geometry"],
             {
@@ -97,7 +97,7 @@ class GeometryDomainTests(unittest.TestCase):
                 "thk": 1,
             },
         )
-        self.assertEqual(output["children"][0]["bodies"][0]["key"], "nested-body")
+        self.assertEqual(output["children"][0]["bodies"][0]["key"], "envelope")
 
     def test_saw_to_box_converts_cylinder_and_updates_process_footprint(self):
         state = ProcessGeometryState.create()
@@ -106,7 +106,7 @@ class GeometryDomainTests(unittest.TestCase):
             center=[0, 0, 2],
             radius=10,
             thickness=5,
-            key="wafer",
+            key="envelope",
         )
 
         state.saw_to_box(
@@ -136,9 +136,9 @@ class GeometryDomainTests(unittest.TestCase):
         )
 
     def test_container_json_has_schema_unit_and_stable_ids(self):
-        root = Container(key="package-root")
+        root = Container(key="hbm")
         root.add_body_box("mold", [0, 0, 0], [10, 10, 0], 1)
-        child = Container(key="die")
+        child = Container(key="dram")
         child.add_body_box("silicon", [2, 2, 0.2], [8, 8, 0.2], 0.2)
         root.attach_child(child)
 
@@ -149,8 +149,8 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertIn("id", first["root"])
         self.assertIn("id", first["root"]["bodies"][0])
 
-    def test_body_key_round_trips_and_preserves_legacy_stable_id(self):
-        legacy_body = {
+    def test_optional_body_key_round_trips_and_affects_derived_id(self):
+        unkeyed_body = {
             "geometry": {
                 "type": "BoxGeometry",
                 "bottom_left": [0, 0, 0],
@@ -159,51 +159,61 @@ class GeometryDomainTests(unittest.TestCase):
             },
             "material": "mold",
         }
-        legacy = {
-            "key": "package-root",
-            "bodies": [legacy_body],
+        unkeyed = {
+            "key": "hbm",
+            "bodies": [unkeyed_body],
             "vias": [],
             "circuits": [],
             "bumps": [],
             "children": [],
         }
-        expected_legacy_id = stable_id(
+        expected_unkeyed_id = stable_id(
             "body",
-            ["root", "container:package-root", "body:0"],
-            legacy_body,
+            ["root", "container:hbm", "body:0"],
+            unkeyed_body,
         )
 
-        normalized_legacy = normalize_geometry_structure(legacy)
-        normalized_body = normalized_legacy["root"]["bodies"][0]
-        self.assertEqual(normalized_body["key"], "")
-        self.assertEqual(normalized_body["id"], expected_legacy_id)
+        normalized_unkeyed = normalize_geometry_structure(unkeyed)
+        normalized_body = normalized_unkeyed["root"]["bodies"][0]
+        self.assertNotIn("key", normalized_body)
+        self.assertEqual(normalized_body["id"], expected_unkeyed_id)
 
-        keyed = copy.deepcopy(legacy)
+        keyed = copy.deepcopy(unkeyed)
         keyed["bodies"][0]["key"] = "molding"
         normalized_keyed = normalize_geometry_structure(keyed)
         self.assertNotEqual(
             normalized_keyed["root"]["bodies"][0]["id"],
-            expected_legacy_id,
+            expected_unkeyed_id,
         )
 
         restored = ProcessGeometryState.from_structure(normalized_keyed)
         restored_body = restored.to_geometry_structure()["root"]["bodies"][0]
         self.assertEqual(restored_body["key"], "molding")
 
-        body = Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si", "die")
-        self.assertEqual(body.copy().key(), "die")
-        self.assertEqual(body.copy_with_thk(0.5).key(), "die")
+        body = Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si", "envelope")
+        self.assertEqual(body.copy().key(), "envelope")
+        self.assertEqual(body.copy_with_thk(0.5).key(), "envelope")
         body.move(z=2)
         body.flip(0)
-        self.assertEqual(body.key(), "die")
+        self.assertEqual(body.key(), "envelope")
 
-    def test_body_key_must_be_a_string(self):
-        with self.assertRaisesRegex(ValueError, "Body key must be a string"):
-            Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si", None)
-        with self.assertRaisesRegex(ValueError, "body.key must be a string"):
+    def test_semantic_keys_are_optional_but_empty_unknown_and_null_are_invalid(self):
+        body = Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si")
+        self.assertIsNone(body.key())
+        self.assertNotIn("key", body.json())
+        self.assertNotIn("key", Container().tree_json())
+
+        with self.assertRaisesRegex(ValueError, "body.key must be omitted"):
+            Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si", "")
+        with self.assertRaisesRegex(ValueError, "Unsupported body.key"):
+            Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si", "die")
+        with self.assertRaisesRegex(ValueError, "Unsupported container.key"):
+            Container(key="root")
+        with self.assertRaisesRegex(ValueError, "via.key is not supported"):
+            normalize_geometry_structure({"vias": [{"key": "carrier"}]})
+        with self.assertRaisesRegex(ValueError, "body.key must be omitted instead of null"):
             normalize_geometry_structure(
                 {
-                    "key": "root",
                     "bodies": [
                         {
                             "key": None,
@@ -225,7 +235,7 @@ class GeometryDomainTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r'Bump direction must be "\+z" or "-z"'):
             Bump(BoxGeometry([0, 0, 0], [1, 1, 0], 1), 0.5, "SnAg", "z")
 
-        root = Container(key="direction-flip")
+        root = Container()
         root.add_via(Via(BoxGeometry([0, 0, 0], [1, 1, 0], 2), 0.5, "Cu", "+z"))
         root.add_bump(Bump(BoxGeometry([0, 0, -1], [1, 1, -1], 1), 0.8, "SnAg", "-z"))
         root.flip(0)
@@ -233,7 +243,7 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(root.bumps()[0].direction(), "+z")
 
     def test_density_features_serialize_koz(self):
-        root = Container(key="density-koz")
+        root = Container()
         root.add_via(Via(BoxGeometry([0, 0, 0], [10, 10, 0], 2), 0.5, "Cu", "+z", 3))
         root.add_circuit(Circuit(BoxGeometry([0, 0, 2], [10, 10, 2], 1), 0.4, "Cu", 4))
         root.add_bump(Bump(BoxGeometry([0, 0, 3], [10, 10, 3], 2), 0.8, "SnAg", "+z", 5))
@@ -274,7 +284,7 @@ class GeometryDomainTests(unittest.TestCase):
             top_right=[10, 10, 0],
             thickness=5,
         )
-        die = ProcessGeometryState.create({"key": "die"})
+        die = ProcessGeometryState.create({"key": "dram"})
         die.initialize_box_layer(
             material="silicon",
             bottom_left=[2, 2, 1],
@@ -290,6 +300,40 @@ class GeometryDomainTests(unittest.TestCase):
             [2, 2, 5],
         )
 
+    def test_find_scopes_supports_explicit_container_key_family_matching(self):
+        state = ProcessGeometryState.create({"key": "carrier.panel"})
+        carrier = ProcessGeometryState.create({"key": "carrier"})
+        dram = ProcessGeometryState.create({"key": "dram"})
+        for source in (carrier, dram):
+            source.initialize_box_layer(
+                material="test",
+                bottom_left=[0, 0, 0],
+                top_right=[1, 1, 0],
+                thickness=1,
+                set_footprint=False,
+            )
+        state.place_geometry_state(carrier, x=0, y=0)
+        state.place_geometry_state(dram, x=0, y=0)
+
+        self.assertEqual(
+            [
+                state.scope_summary(scope)["key"]
+                for scope in state.find_scopes(key="carrier")
+            ],
+            ["carrier"],
+        )
+        self.assertEqual(
+            [
+                state.scope_summary(scope)["key"]
+                for scope in state.find_scopes(key="carrier", match="family")
+            ],
+            ["carrier.panel", "carrier"],
+        )
+        with self.assertRaisesRegex(ValueError, "Unsupported container.key"):
+            state.find_scopes(key="carrier-panel", match="family")
+        with self.assertRaisesRegex(ValueError, 'match must be "exact" or "family"'):
+            state.find_scopes(key="carrier", match="prefix")
+
     def test_underfill_fills_child_bump_cavities_and_root_gap(self):
         state = ProcessGeometryState.create()
         state.initialize_box_layer(
@@ -299,7 +343,7 @@ class GeometryDomainTests(unittest.TestCase):
             thickness=4,
         )
         for x in (0, 14):
-            die = ProcessGeometryState.create({"key": f"die-{x}"})
+            die = ProcessGeometryState.create({"key": "dram"})
             die.initialize_box_layer(
                 material="Si",
                 bottom_left=[0, 0, 0],
@@ -308,10 +352,10 @@ class GeometryDomainTests(unittest.TestCase):
                 set_footprint=False,
             )
             state.place_geometry_state(die, x=x, y=0, bottom_z=4, anchor="bottomLeft")
-        state.apply_under_fill(material="UF-A", thk=6, gap=4, key="underfill")
+        state.apply_under_fill(material="UF-A", thk=6, gap=4)
         output = state.to_geometry_structure()
-        self.assertEqual(output["root"]["children"][2]["key"], "underfill-gap")
-        self.assertEqual(output["root"]["children"][2]["bodies"][0]["key"], "underfill")
+        self.assertNotIn("key", output["root"]["children"][2])
+        self.assertNotIn("key", output["root"]["children"][2]["bodies"][0])
 
     def test_debond_removes_valid_top_carrier_stack_atomically(self):
         state = bonded_state(carrier_body_count=2)
@@ -362,7 +406,7 @@ class GeometryDomainTests(unittest.TestCase):
         cases["exactly one DAF duplicate"] = duplicate_daf
 
         target_in_child = process_state_with_derived_footprint(main_geometry())
-        child = ProcessGeometryState.create({"key": "bad-child"})
+        child = ProcessGeometryState.create()
         child.initialize_box_layer(
             material="DAF",
             bottom_left=[0, 0, 0],
@@ -407,7 +451,7 @@ class GeometryDomainTests(unittest.TestCase):
         )
 
         covered_by_child = bonded_state()
-        child = ProcessGeometryState.create({"key": "late-child"})
+        child = ProcessGeometryState.create()
         child.initialize_box_layer(
             material="Si",
             bottom_left=[0, 0, 0],
@@ -453,7 +497,7 @@ class FlowCompilerTests(unittest.TestCase):
 
         self.assertEqual(set(plan.external_geometries), {"incoming_main", "incoming_die"})
         self.assertEqual(plan.steps[0].geometry_inputs["die_geometry"].kind, "external")
-        self.assertEqual(plan.external_geometries["incoming_die"]["root"]["key"], "die")
+        self.assertEqual(plan.external_geometries["incoming_die"]["root"]["key"], "hbm")
 
     def test_compiler_allows_unbound_optional_flow_input_for_optional_port(self):
         template = pnp_template()
@@ -660,7 +704,7 @@ class KernelExecutionTests(unittest.TestCase):
         self.assertIsInstance(module.context, ProcessStepContext)
         self.assertEqual(module.context.get_param("material"), "EMC-A")
         self.assertEqual(module.context.raw_parameter_values["material"], "EMC-A")
-        self.assertEqual(module.context.input_geometry["root"]["key"], "main")
+        self.assertEqual(module.context.input_geometry["root"]["key"], "carrier.panel")
         self.assertEqual(result.geometry()["root"]["bodies"][1]["material"], "EMC-A")
 
     def test_real_ecl_then_molding_and_non_terminal_selection(self):
@@ -678,8 +722,8 @@ class KernelExecutionTests(unittest.TestCase):
             ["carrier", "ECL-A", "EMC-A"],
         )
         self.assertEqual(
-            [body["key"] for body in result.geometry()["root"]["bodies"]],
-            ["", "ecl", "molding"],
+            [body.get("key") for body in result.geometry()["root"]["bodies"]],
+            [None, None, "molding"],
         )
         self.assertEqual(len(ecl_result.geometry()["root"]["bodies"]), 2)
 
@@ -801,7 +845,7 @@ class KernelExecutionTests(unittest.TestCase):
             [body["material"] for body in bodies],
             ["substrate", "DAF-A", "glass"],
         )
-        self.assertEqual([body["key"] for body in bodies], ["", "daf", "carrier"])
+        self.assertEqual([body.get("key") for body in bodies], [None, "daf", "carrier"])
         self.assertEqual(bodies[1]["geometry"]["bottom_left"][2], 10)
         self.assertEqual(bodies[1]["geometry"]["thk"], 3)
         self.assertEqual(bodies[2]["geometry"]["bottom_left"][2], 13)
@@ -826,8 +870,8 @@ class KernelExecutionTests(unittest.TestCase):
         result = GeometryKernel().execute(plan)
 
         self.assertEqual(
-            [body["key"] for body in result.step_output("carrier_bond")["root"]["bodies"]],
-            ["", "daf", "carrier"],
+            [body.get("key") for body in result.step_output("carrier_bond")["root"]["bodies"]],
+            [None, "daf", "carrier"],
         )
         self.assertEqual(
             [body["material"] for body in result.geometry()["root"]["bodies"]],
@@ -877,8 +921,8 @@ class KernelExecutionTests(unittest.TestCase):
             [[15, 24, 10], [-3, 1.5, 10]],
         )
         self.assertEqual(
-            [child["bodies"][0]["key"] for child in children],
-            ["die", "die"],
+            [child["bodies"][0].get("key") for child in children],
+            [None, None],
         )
 
     def test_real_pnp_rejects_resize_that_collapses_any_box_without_attaching_child(self):
@@ -930,7 +974,7 @@ class KernelExecutionTests(unittest.TestCase):
         )
         geometry = GeometryKernel().execute(plan).geometry()
         self.assertEqual([body["material"] for body in geometry["root"]["bodies"][1:]], ["PI-1", "PI-2"])
-        self.assertEqual([body["key"] for body in geometry["root"]["bodies"][1:]], ["rdl", "rdl"])
+        self.assertEqual([body.get("key") for body in geometry["root"]["bodies"][1:]], [None, None])
         self.assertEqual(len(geometry["root"]["vias"]), 1)
         self.assertEqual(len(geometry["root"]["circuits"]), 1)
 
@@ -1475,13 +1519,12 @@ def bonded_state(carrier_body_count=1):
     )
     state.deposit_layer(material="DAF", thickness=3, key="daf")
 
-    carrier = ProcessGeometryState.create({"key": "carrier-source"})
+    carrier = ProcessGeometryState.create({"key": "carrier"})
     carrier.initialize_box_layer(
         material="glass-1",
         bottom_left=[-60, -60, -4],
         top_right=[60, 60, -4],
         thickness=20,
-        key="source-carrier",
         set_footprint=False,
     )
     for index in range(1, carrier_body_count):
@@ -1490,7 +1533,6 @@ def bonded_state(carrier_body_count=1):
             bottom_left=[-40 + index, -40 + index, -4],
             top_right=[40 - index, 40 - index, -4],
             thickness=20,
-            key=f"source-carrier-{index + 1}",
         )
     state.bond_carrier_geometry(carrier, key="carrier")
     return state
@@ -1508,7 +1550,7 @@ def main_geometry(material="carrier"):
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "main",
+            "key": "carrier.panel",
             "bodies": [
                 {
                     "geometry": {
@@ -1533,10 +1575,9 @@ def die_geometry():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "die",
+            "key": "hbm",
             "bodies": [
                 {
-                    "key": "die",
                     "geometry": {
                         "type": "BoxGeometry",
                         "bottom_left": [0, 0, 2],
@@ -1575,7 +1616,7 @@ def carrier_geometry():
             "key": "carrier",
             "bodies": [
                 {
-                    "key": "source-carrier",
+                    "key": "carrier",
                     "geometry": {
                         "type": "BoxGeometry",
                         "bottom_left": [-60, -60, -4],
@@ -1609,7 +1650,7 @@ def dram_geometry():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "dram-package",
+            "key": "dram",
             "bodies": [
                 body("EMC", 100, 200),
                 body("Solder-Mask", 0, 20),
@@ -1621,7 +1662,6 @@ def dram_geometry():
             "bumps": [],
             "children": [
                 {
-                    "key": "core-die-01",
                     "bodies": [
                         {
                             "geometry": {

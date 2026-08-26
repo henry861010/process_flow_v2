@@ -238,7 +238,6 @@ def box_structure():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "box-root",
             "bodies": [
                 {
                     "geometry": {
@@ -263,7 +262,6 @@ def all_primitive_structure():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "all-primitives",
             "bodies": [
                 {
                     "geometry": {
@@ -317,7 +315,6 @@ def polygon_with_hole_structure():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "polygon-hole",
             "bodies": [
                 {
                     "geometry": {
@@ -379,7 +376,6 @@ def z_stack_structure():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "z-stack",
             "bodies": [
                 {
                     "geometry": {
@@ -413,7 +409,6 @@ def nested_material_structure():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "outer",
             "bodies": [
                 {
                     "geometry": {
@@ -430,7 +425,6 @@ def nested_material_structure():
             "bumps": [],
             "children": [
                 {
-                    "key": "inner",
                     "bodies": [
                         {
                             "geometry": {
@@ -457,7 +451,6 @@ def coplanar_sibling_material_structure():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "coplanar-siblings",
             "bodies": [
                 {
                     "id": "body-a",

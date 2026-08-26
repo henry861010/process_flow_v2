@@ -281,6 +281,28 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         self.assertTrue(response.json()["id"].startswith("geom_preview_artifact_"))
 
+    def test_geometry_import_rejects_invalid_explicit_semantic_keys(self):
+        invalid_cases = (
+            ("container null", "container", None),
+            ("container empty", "container", ""),
+            ("container unknown", "container", "hbm-03"),
+            ("body null", "body", None),
+            ("body unknown", "body", "die"),
+        )
+
+        for label, target, value in invalid_cases:
+            with self.subTest(label=label):
+                geometry = preview_geometry_entity()
+                root = geometry["structure"]["root"]
+                if target == "container":
+                    root["key"] = value
+                else:
+                    root["bodies"][0]["key"] = value
+
+                response = self.client.post("/api/geometries", json=geometry)
+
+                self.assertEqual(response.status_code, 400, response.text)
+
     def test_create_from_template_instance(self):
         bootstrap = self.reset_poc_data()
         source = bootstrap["processFlowInstances"][0]
@@ -678,7 +700,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                         "bodyId": "body-1",
                         "sourceIds": ["body-1"],
                         "containerId": "container-1",
-                        "containerKey": "",
+                        "containerKey": None,
                         "material": "Cu",
                         "bodyKind": "body",
                         "featureType": None,
@@ -702,7 +724,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(payload["axis"], "x")
         self.assertEqual(payload["position"], 5.0)
         self.assertEqual(len(payload["regions"]), 1)
-        self.assertEqual(payload["regions"][0]["containerKey"], "")
+        self.assertIsNone(payload["regions"][0]["containerKey"])
         self.assertEqual(
             set(payload["regions"][0]),
             {
@@ -1178,7 +1200,6 @@ def simple_structure():
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
         "root": {
-            "key": "test",
             "bodies": [
                 {
                     "geometry": {

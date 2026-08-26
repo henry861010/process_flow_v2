@@ -51,7 +51,7 @@ class CadBody:
     id: str
     source_ids: list[str]
     container_id: str
-    container_key: str
+    container_key: str | None
     material: str
     shape: Any
     # Container ids from the geometry root down to (but excluding) the
@@ -181,7 +181,7 @@ class CadQueryConverter:
             id=body["id"],
             source_ids=[body["id"]],
             container_id=container["id"],
-            container_key=container.get("key") or "",
+            container_key=container.get("key"),
             material=body.get("material") or "generic",
             shape=self._geometry_to_shape(body["geometry"]),
             container_ancestors=container_ancestors,
@@ -233,7 +233,7 @@ class CadQueryConverter:
             id=stable_id("feature-body", [container["id"], feature_type, feature["id"]]),
             source_ids=[feature["id"]],
             container_id=container["id"],
-            container_key=container.get("key") or "",
+            container_key=container.get("key"),
             material=feature_material_name(feature_type, feature.get("material"), feature.get("density")),
             shape=self._geometry_to_shape(feature["geometry"]),
             container_ancestors=container_ancestors,
@@ -266,7 +266,7 @@ class CadQueryConverter:
                     id=stable_id("body-union", [container["id"], material], {"sourceIds": source_ids}),
                     source_ids=source_ids,
                     container_id=container["id"],
-                    container_key=container.get("key") or "",
+                    container_key=container.get("key"),
                     material=material,
                     shape=fused_shape,
                     container_ancestors=component[0].container_ancestors,

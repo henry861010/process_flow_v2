@@ -73,7 +73,7 @@ export type DramCircuit = {
 
 export type DramContainer = {
   id: string;
-  key: string;
+  key?: "dram";
   bodies: DramBody[];
   vias: [];
   circuits: DramCircuit[];
@@ -373,7 +373,7 @@ export function buildDramGeometry(
     unitSystem: "um",
     root: {
       id: "container:dram-root",
-      key: "dram-package",
+      key: "dram",
       bodies: [
         {
           id: "body:dram-molding",
@@ -437,14 +437,13 @@ function makeBuildupLayerContainer(
 ): DramContainer {
   const layerNumber = index + 1;
   const sequence = String(layerNumber).padStart(2, "0");
-  const key = `${side}-buildup-layer-${sequence}`;
+  const idSegment = `${side}-buildup-layer-${sequence}`;
   const geometry = makeBoxGeometry(bounds, bottomZ, layer.thickness);
   return {
-    id: `container:dram-${key}`,
-    key,
+    id: `container:dram-${idSegment}`,
     bodies: [
       {
-        id: `body:dram-${key}-dielectric`,
+        id: `body:dram-${idSegment}-dielectric`,
         geometry,
         material: dielectricMaterial.trim(),
       },
@@ -454,7 +453,7 @@ function makeBuildupLayerContainer(
       layerNumber % 2 === 0
         ? [
             {
-              id: `circuit:dram-${key}`,
+              id: `circuit:dram-${idSegment}`,
               geometry: { ...geometry },
               material: conductiveMaterial.trim(),
               density: layer.density,
@@ -468,18 +467,17 @@ function makeBuildupLayerContainer(
 }
 
 function makeBodyContainer(
-  key: string,
+  idSegment: string,
   bounds: readonly [number, number, number, number],
   bottomZ: number,
   thickness: number,
   material: string,
 ): DramContainer {
   return {
-    id: `container:dram-${key}`,
-    key,
+    id: `container:dram-${idSegment}`,
     bodies: [
       {
-        id: `body:dram-${key}`,
+        id: `body:dram-${idSegment}`,
         geometry: makeBoxGeometry(bounds, bottomZ, thickness),
         material: material.trim(),
       },

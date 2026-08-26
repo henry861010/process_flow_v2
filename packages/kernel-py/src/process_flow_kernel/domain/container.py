@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from .features import Body, Bump, Circuit, Via
 from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
+from .semantic_keys import validate_container_key
 from ..serialization.schema import DEFAULT_UNIT_SYSTEM, GEOMETRY_SCHEMA_VERSION, normalize_geometry_structure
 
 
 class Container:
-    def __init__(self, key="", parent=None):
-        self._key = key
+    def __init__(self, key=None, parent=None):
+        self._key = validate_container_key(key)
         self._bodies = []
         self._vias = []
         self._circuits = []
@@ -55,16 +56,16 @@ class Container:
         self._bumps.append(bump)
         return bump
 
-    def add_body_box(self, material, node1, node2, thk, key=""):
+    def add_body_box(self, material, node1, node2, thk, key=None):
         return self.add_body(Body(BoxGeometry(node1, node2, thk), material, key))
 
-    def add_body_polygon(self, material, polys, thk, key=""):
+    def add_body_polygon(self, material, polys, thk, key=None):
         return self.add_body(Body(PolygonGeometry(polys, thk), material, key))
 
-    def add_body_cylinder(self, material, center, bottom_radius, thk, key=""):
+    def add_body_cylinder(self, material, center, bottom_radius, thk, key=None):
         return self.add_body(Body(CylinderGeometry(center, bottom_radius, thk), material, key))
 
-    def add_body_cone(self, material, center, bottom_radius, top_radius, thk, key=""):
+    def add_body_cone(self, material, center, bottom_radius, top_radius, thk, key=None):
         return self.add_body(Body(ConeGeometry(center, bottom_radius, top_radius, thk), material, key))
 
     def remove_bodies(self, bodies):
@@ -185,14 +186,16 @@ class Container:
         )
 
     def tree_json(self):
-        return {
-            "key": self._key,
+        payload = {
             "bodies": [body.json() for body in self._bodies],
             "vias": [via.json() for via in self._vias],
             "circuits": [circuit.json() for circuit in self._circuits],
             "bumps": [bump.json() for bump in self._bumps],
             "children": [child.tree_json() for child in self._children],
         }
+        if self._key is not None:
+            payload["key"] = self._key
+        return payload
 
     def json(self, schema_version=GEOMETRY_SCHEMA_VERSION, unit_system=DEFAULT_UNIT_SYSTEM):
         return normalize_geometry_structure(self.tree_json(), schema_version, unit_system)

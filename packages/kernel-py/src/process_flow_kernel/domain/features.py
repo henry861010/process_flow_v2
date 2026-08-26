@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from .semantic_keys import validate_body_key
+
 
 class Body:
-    def __init__(self, geometry, material, key=""):
-        if not isinstance(key, str):
-            raise ValueError("Body key must be a string")
+    def __init__(self, geometry, material, key=None):
         self._geometry = geometry
         self._material = material
-        self._key = key
+        self._key = validate_body_key(key)
 
     def z_min(self):
         return self._geometry.z_min()
@@ -56,11 +56,13 @@ class Body:
         self._geometry.flip(around_z)
 
     def json(self):
-        return {
-            "key": self._key,
+        payload = {
             "geometry": self._geometry.json(),
             "material": self._material,
         }
+        if self._key is not None:
+            payload["key"] = self._key
+        return payload
 
 
 class Via:

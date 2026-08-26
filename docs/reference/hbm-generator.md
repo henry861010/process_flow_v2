@@ -38,8 +38,10 @@ HBM Geometry Generator 將一組 package、base die、core die stack 與 molding
 
 - `unitSystem` 必須是 `um`。
 - Package 中心必須位於 XY 原點，底面必須位於 `Z = 0`。
-- Root container key 必須是 `hbm-package`，且 direct body 是佔滿完整 package envelope 的
+- Root container key 必須是 `hbm`，且 direct body 是佔滿完整 package envelope 的
   molding body。
+- 其餘 child containers 與所有 bodies 不提供 semantic key；它們以 structure-local id
+  區分。
 - Base die 與每一層 core die 必須各自是 root 的 direct child container。
 - Base die footprint 必須和 package footprint 完全相同。
 - 所有 core dies 必須在 XY 原點置中；`coreDieX` 與 `coreDieY` 彼此獨立，不要求相等。

@@ -12,7 +12,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "wafer-150mm", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -337.5], "bottom_radius": 75000, "thk": 675}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.wafer", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -337.5], "bottom_radius": 75000, "thk": 675}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -28,7 +28,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "wafer-200mm", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -362.5], "bottom_radius": 100000, "thk": 725}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.wafer", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -362.5], "bottom_radius": 100000, "thk": 725}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -44,7 +44,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "wafer-300mm", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -387.5], "bottom_radius": 150000, "thk": 775}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.wafer", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -387.5], "bottom_radius": 150000, "thk": 775}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -60,7 +60,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "panel-310x310mm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-155000, -155000, -350], "top_right": [155000, 155000, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.panel", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-155000, -155000, -350], "top_right": [155000, 155000, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -76,7 +76,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "panel-510x515mm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-255000, -257500, -350], "top_right": [255000, 257500, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.panel", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-255000, -257500, -350], "top_right": [255000, 257500, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -92,7 +92,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "panel-600x600mm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-300000, -300000, -500], "top_right": [300000, 300000, -500], "thk": 1000}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.panel", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-300000, -300000, -500], "top_right": [300000, 300000, -500], "thk": 1000}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -108,7 +108,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm-2-4hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -124,7 +124,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm-2e-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -140,7 +140,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm-3-8hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5487.5, -5487.5, -360], "top_right": [5487.5, 5487.5, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5487.5, -5487.5, -360], "top_right": [5487.5, 5487.5, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -156,7 +156,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm-3e-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -390], "top_right": [5490, 5490, -390], "thk": 780}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -390], "top_right": [5490, 5490, -390], "thk": 780}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -172,7 +172,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "hbm-4-12hi", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -387.5], "top_right": [5490, 5490, -387.5], "thk": 775}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -387.5], "top_right": [5490, 5490, -387.5], "thk": 775}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -188,7 +188,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "dram-ddr3-x8", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -204,7 +204,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "dram-ddr4-x8", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -220,7 +220,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "dram-ddr5-x8", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -500], "top_right": [3750, 5500, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -500], "top_right": [3750, 5500, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -236,7 +236,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "dram-lpddr4x", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7250, -500], "top_right": [6000, 7250, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7250, -500], "top_right": [6000, 7250, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -252,7 +252,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "dram-lpddr5", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6200, -7500, -550], "top_right": [6200, 7500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6200, -7500, -550], "top_right": [6200, 7500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -268,7 +268,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "dram-gddr6", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -284,7 +284,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "dram-gddr7", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -300,7 +300,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soc-mobile", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -75], "top_right": [4000, 5000, -75], "thk": 150}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soc", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -75], "top_right": [4000, 5000, -75], "thk": 150}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -316,7 +316,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soc-edge", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -6000, -100], "top_right": [5000, 6000, -100], "thk": 200}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soc", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -6000, -100], "top_right": [5000, 6000, -100], "thk": 200}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -332,7 +332,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soc-automotive", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7500, -125], "top_right": [6000, 7500, -125], "thk": 250}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soc", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7500, -125], "top_right": [6000, 7500, -125], "thk": 250}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -348,7 +348,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soc-network", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-8000, -9000, -125], "top_right": [8000, 9000, -125], "thk": 250}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soc", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-8000, -9000, -125], "top_right": [8000, 9000, -125], "thk": 250}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -364,7 +364,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soc-server", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-10000, -12500, -150], "top_right": [10000, 12500, -150], "thk": 300}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soc", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-10000, -12500, -150], "top_right": [10000, 12500, -150], "thk": 300}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -380,7 +380,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soc-ai-accelerator", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-13000, -16000, -150], "top_right": [13000, 16000, -150], "thk": 300}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soc", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-13000, -16000, -150], "top_right": [13000, 16000, -150], "thk": 300}, "material": "Si-SoC"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -396,7 +396,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-x-compact", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -4000, -150], "top_right": [4000, 4000, -150], "thk": 300}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -4000, -150], "top_right": [4000, 4000, -150], "thk": 300}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -412,7 +412,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-x-cache", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -5000, -200], "top_right": [5000, 5000, -200], "thk": 400}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -5000, -200], "top_right": [5000, 5000, -200], "thk": 400}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -428,7 +428,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-x-logic", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7500, -7500, -250], "top_right": [7500, 7500, -250], "thk": 500}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-7500, -7500, -250], "top_right": [7500, 7500, -250], "thk": 500}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -444,7 +444,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-p-chiplet", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -6000, -300], "top_right": [6000, 6000, -300], "thk": 600}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -6000, -300], "top_right": [6000, 6000, -300], "thk": 600}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -460,7 +460,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-p-hpc", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-10000, -10000, -400], "top_right": [10000, 10000, -400], "thk": 800}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-10000, -10000, -400], "top_right": [10000, 10000, -400], "thk": 800}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -476,7 +476,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-8n", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-2450, -1950, -875], "top_right": [2450, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-2450, -1950, -875], "top_right": [2450, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -492,7 +492,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-14n", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4325, -1950, -875], "top_right": [4325, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4325, -1950, -875], "top_right": [4325, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -508,7 +508,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-16n", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4950, -1950, -875], "top_right": [4950, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4950, -1950, -875], "top_right": [4950, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -524,7 +524,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-16w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5150, -3750, -1325], "top_right": [5150, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-5150, -3750, -1325], "top_right": [5150, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -540,7 +540,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-20w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6400, -3750, -1325], "top_right": [6400, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6400, -3750, -1325], "top_right": [6400, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -556,7 +556,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-24w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7700, -3750, -1325], "top_right": [7700, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-7700, -3750, -1325], "top_right": [7700, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -572,7 +572,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "soic-28w", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-8950, -3750, -1325], "top_right": [8950, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-8950, -3750, -1325], "top_right": [8950, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -588,7 +588,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "lsi-mixed-signal", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-1500, -1500, -75], "top_right": [1500, 1500, -75], "thk": 150}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "lsi", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-1500, -1500, -75], "top_right": [1500, 1500, -75], "thk": 150}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -604,7 +604,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "lsi-mcu", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-2500, -2500, -75], "top_right": [2500, 2500, -75], "thk": 150}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "lsi", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-2500, -2500, -75], "top_right": [2500, 2500, -75], "thk": 150}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -620,7 +620,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "lsi-consumer-asic", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -100], "top_right": [4000, 5000, -100], "thk": 200}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "lsi", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -100], "top_right": [4000, 5000, -100], "thk": 200}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -636,7 +636,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "lsi-network-asic", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7500, -100], "top_right": [6000, 7500, -100], "thk": 200}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "lsi", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7500, -100], "top_right": [6000, 7500, -100], "thk": 200}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -652,7 +652,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "lsi-hpc", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-9000, -11000, -125], "top_right": [9000, 11000, -125], "thk": 250}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "lsi", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-9000, -11000, -125], "top_right": [9000, 11000, -125], "thk": 250}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -668,7 +668,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "lsi-reticle", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-13000, -16000, -150], "top_right": [13000, 16000, -150], "thk": 300}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "lsi", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-13000, -16000, -150], "top_right": [13000, 16000, -150], "thk": 300}, "material": "Si-LSI"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -684,7 +684,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "cpo-optical-io-4ch", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-2000, -3000, -100], "top_right": [2000, 3000, -100], "thk": 200}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-2000, -3000, -100], "top_right": [2000, 3000, -100], "thk": 200}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -700,7 +700,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "cpo-optical-engine-8ch", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3000, -4000, -125], "top_right": [3000, 4000, -125], "thk": 250}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-3000, -4000, -125], "top_right": [3000, 4000, -125], "thk": 250}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -716,7 +716,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "cpo-optical-engine-16ch", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -150], "top_right": [4000, 5000, -150], "thk": 300}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -150], "top_right": [4000, 5000, -150], "thk": 300}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -732,7 +732,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "cpo-dual-engine", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -6000, -175], "top_right": [5000, 6000, -175], "thk": 350}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -6000, -175], "top_right": [5000, 6000, -175], "thk": 350}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -748,7 +748,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "cpo-engine-array", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -8000, -250], "top_right": [6000, 8000, -250], "thk": 500}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -8000, -250], "top_right": [6000, 8000, -250], "thk": 500}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -765,9 +765,10 @@
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
       "root": {
-        "key": "example-soc",
+        "key": "carrier",
         "bodies": [
           {
+            "key": "carrier",
             "geometry": {
               "type": "BoxGeometry",
               "bottom_left": [-2500, -2500, -35],

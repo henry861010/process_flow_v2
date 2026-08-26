@@ -33,7 +33,6 @@ Canonical structure wrapper：
   "unitSystem": "um",
   "root": {
     "id": "container:root:empty",
-    "key": "root",
     "bodies": [],
     "vias": [],
     "circuits": [],
@@ -63,7 +62,7 @@ Canonical structure wrapper：
 | --- | --- | --- | --- |
 | `id` | Process Flow identifier | required | Catalog identity。Create/import request MAY omit或使用 `null`，server then generates id。 |
 | `name` | non-empty string | required | Human-facing name。 |
-| `entityType` | non-empty string | required | Exact-match semantic type，例如 `panel`、`wafer`、`die`。 |
+| `entityType` | non-empty string | required | Exact-match external form/type，例如 `panel`、`wafer`、`die`；不承載 `hbm`／`dram` 等 process semantic role。 |
 | `category` | string or omitted | optional | Dot-delimited classification，例如 `die.hbm`。 |
 | `version` | non-empty string or omitted | optional | Opaque metadata label；未正式發行前若提供，MUST 是 `current`，不得 parse、sort 或驅動行為。 |
 | `owner` | string or omitted | optional | Owning team/domain。 |
@@ -109,7 +108,7 @@ NOT serialize into GeometryStructure。
 ```json
 {
   "id": "container:root:example",
-  "key": "package-root",
+  "key": "hbm",
   "bodies": [],
   "vias": [],
   "circuits": [],
@@ -121,15 +120,17 @@ NOT serialize into GeometryStructure。
 | Field | Type | Required in normalized output | Contract |
 | --- | --- | --- | --- |
 | `id` | opaque string | yes | Structure-local derived identity；MUST unique within structure。 |
-| `key` | string | yes | Human-readable scope key；不保證唯一。 |
+| `key` | registered semantic string | no | Optional industry semantic tag；不保證唯一。Vocabulary 見 [Geometry semantic keys](./geometry-semantic-keys.md)。 |
 | `bodies` | `Body[]` | yes | Direct physical-volume owners。 |
 | `vias` | `Via[]` | yes | Direct via features。 |
 | `circuits` | `Circuit[]` | yes | Direct routing features。 |
 | `bumps` | `Bump[]` | yes | Direct bump/contact features。 |
 | `children` | `Container[]` | yes | Child semantic scopes。 |
 
-Imported/authoring payload MAY omit `id` 或 empty arrays；normalization MUST deterministically
-fill them before compiler output、execution result、preview download 或 new catalog persistence。
+Imported/authoring payload MAY omit `id`、`key` 或 empty arrays；normalization MUST
+deterministically fill id/collections before compiler output、execution result、preview download
+或 new catalog persistence。Normalization MUST NOT 自動建立 semantic key。Explicit `null`、空字串
+與未登記 key 不合法。
 
 Container 是 scope，不直接擁有 material/physical volume。Body 才是完整 solid volume；
 Via/Circuit/Bump 是 owner container 內的 density features。Feature 不因 spatial overlap
@@ -142,7 +143,7 @@ Via/Circuit/Bump 是 owner container 內的 density features。Feature 不因 sp
 | Field | Body | Via | Circuit | Bump |
 | --- | --- | --- | --- | --- |
 | `id` | required normalized | required normalized | required normalized | required normalized |
-| `key` | required normalized string | not allowed | not allowed | not allowed |
+| `key` | optional registered semantic string | not allowed | not allowed | not allowed |
 | `geometry` | required | required | required | required |
 | `material` | non-empty string | non-empty string | non-empty string | non-empty string |
 | `density` | not allowed | `0..100` | `0..100` | `0..100` |
@@ -169,9 +170,9 @@ Canonical feature examples：
 
 Rules：
 
-- Body `key` 是可重複的 human-readable process role；structure-local unique identity 仍是
-  `id`。Imported/authoring body MAY omit `key`，normalization 會補成 `""`；process-created
-  bodies SHOULD 使用非空的 stable semantic key。
+- Body `key` 是 optional、可重複的 industry semantic role；structure-local unique identity
+  仍是 `id`。未指定時 MUST 省略，不得輸出 `null` 或空字串；合法 vocabulary 與 producer rules
+  見 [Geometry semantic keys](./geometry-semantic-keys.md)。
 - Via/Bump `direction` MUST always be present；不得從 geometry Z location 推論。
 - Z-axis flip MUST reverse `+z <-> -z` for every via/bump in flipped scope。
 - `koz` 不預先改寫 geometry envelope。Downstream materialization MAY 對 XY footprint
@@ -294,11 +295,10 @@ Compiler resolve `FlowInputDefinition.geometryConstraints` 時：
     "unitSystem": "um",
     "root": {
       "id": "container:panel-root:example",
-      "key": "panel-root",
+      "key": "carrier.panel",
       "bodies": [
         {
           "id": "body:panel-root:example",
-          "key": "panel",
           "geometry": {
             "type": "BoxGeometry",
             "bottom_left": [-10, -10, 0],

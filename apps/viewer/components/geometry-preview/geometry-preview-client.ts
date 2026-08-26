@@ -61,7 +61,7 @@ export type GeometrySectionRegion = {
   bodyId: string;
   sourceIds: string[];
   containerId: string;
-  containerKey: string;
+  containerKey: string | null;
   material: string;
   bodyKind: "body" | "feature";
   featureType: string | null;
