@@ -29,8 +29,8 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Grinding | `grinding/grinding` | `main_geometry` | `thk` | 以整體 geometry top 減去厚度計算 target Z 並 grind |
 | saw | `saw/saw` | `main_geometry` | `bottomLeftX/Y`, `topRightX/Y` | XY clip 到指定 box |
 | DAF | `layer/daf` | `main_geometry` | `material`, `thk` | 在整體 geometry top 建立 keyed DAF body |
-| Carrier Bond | `carrier/bond` | `main_geometry`, `carrier_geometry` | — | 將 keyed carrier root direct bodies 疊到整體 geometry top |
-| Debond | `carrier/debond` | `main_geometry` | — | 驗證並移除最上方的單一 keyed DAF/carrier stack |
+| Carrier Bond | `carrier/bond` | `main_geometry`, `carrier_geometry` | — | 保留 source body keys，將 carrier root direct bodies 疊到整體 geometry top |
+| Debond | `carrier/debond` | `main_geometry` | — | 遞迴移除唯一頂層 carrier 與可選的相連同 footprint DAF |
 | Flip | `flip/flip` | `main_geometry` | — | 以 XY plane flip、normalize Z min，反轉 via/bump direction |
 | Under Fill | `uf/under_fill` | `main_geometry` | `material`, `thk`, `gap` | 填充 child bump cavities 與符合 gap 的 root regions |
 | Micro Bump | `bump/uBump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
@@ -45,7 +45,8 @@ step 必須同步 module、target contract、fixture 與 tests。
 
 Material instance suffix 由 kernel 配置，module 不自行產生。所有 step output serialize 為 standard geometry structure。
 只有需要 semantic interaction 的 body-producing steps 指定 registered key：molding=`molding`、
-DAF=`daf`、Carrier Bond bonded carrier=`carrier`。ECL、RDL dielectric 與 underfill 不指定
+DAF=`daf`；carrier catalog geometry 自行提供 `carrier`。Carrier Bond 不建立或改寫 body key。
+ECL、RDL dielectric 與 underfill 不指定
 body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transforms 保留來源 key。
 
 ### State transition matrix
@@ -57,8 +58,8 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Grinding | Clamp 到 grind target Z | 不變 | Grind target scope；可能移除或截短 primitives。 |
 | saw | 不變 | 改成指定 box | 對 target scope subtree 做 XY clip。 |
 | DAF | 前進新增 DAF 厚度 | 不變 | 在 overall geometry top 使用 current footprint 新增 keyed DAF body。 |
-| Carrier Bond | 設為 bonded direct bodies 的 top Z | 不變 | 在 overall geometry top copy source root direct bodies 到 main root；不複製 children/features。 |
-| Debond | 設為移除 bonded stack 後的 overall geometry top Z | 不變 | 驗證成功後原子性移除一個 DAF 與所有 bonded carrier direct root bodies。 |
+| Carrier Bond | 設為 bonded direct bodies 的 top Z | 不變 | 在 overall geometry top copy source root direct bodies 並保留 keys；不複製 children/features。 |
+| Debond | 設為移除 carrier／DAF 後的 overall geometry top Z | 不變 | 驗證成功後原子性移除一個頂層 carrier 與零或一個相連 DAF；保留空 container。 |
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 bump envelope。 |
@@ -77,12 +78,14 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - ECL 的 non-zero `koz` 會作為 XY inset；Polygon process footprint 目前不支援此 inset。
 - DAF 要求正的 `thk` 與非空 `material`，使用 current process footprint 在 target overall
   geometry maximum Z 建立 key=`daf` 的 body。
-- Carrier Bond 將 source direct-body minimum Z 對齊 target overall geometry maximum Z。Carrier
-  source 至少要有一個 root direct body；child containers、via/circuit/bump 都不複製。
-- Debond 依 semantic body key 搜尋 exactly one direct-root `daf` 與 one-or-more direct-root
-  `carrier`。DAF top 必須接觸 carrier bottom；排除這組 bodies 後，整棵剩餘 geometry 的 top
-  必須接觸 DAF bottom。Matching key 出現在 child、缺少任一 role、多個 DAF，或後續 body／
-  feature／child 覆蓋 bonded stack 時都會以 invalid process flow 失敗，且 geometry/cursor 不變。
+- Carrier Bond 要求 source root direct bodies 中至少一個使用 key=`carrier`，但允許 DAF 等其他
+  registered body keys 並完整保留所有 source keys。它將 source direct-body minimum Z 對齊
+  target overall geometry maximum Z；child containers、via/circuit/bump 都不複製。
+- Debond 遞迴搜尋整棵 geometry tree，要求 exactly one key=`carrier` body 的 top Z 等於 overall
+  geometry top；較低 carrier 保留，其他 body／feature／child 可與 carrier 同高。它只配對 top Z
+  接觸 carrier bottom 的 key=`daf` body：沒有時只移除 carrier，恰好一個時還必須具有相同 primitive
+  type 與 XY footprint，多個相連 DAF 或 footprint 不同都會失敗。非相連 DAF 保留；carrier 與 DAF
+  可屬於不同 containers。任何 validation 失敗時 geometry、cursor 與 process footprint 都不變。
 - PnP coordinate item 是 `[[xMin,yMin],[xMax,yMax]]` target rectangle，必須 finite、
   positive-area，並以 `1e-6 um` tolerance unique。Source size 取完整 subtree aggregate bounds；
   每個 BoxGeometry 固定 lower-left、將 upper-right 加上 target/source size delta，再把 resized

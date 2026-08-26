@@ -128,7 +128,7 @@ class GeometryFixtureTests(unittest.TestCase):
                 }:
                     self.assertTrue(all(body.get("key") == "envelope" for body in bodies))
                 elif item["category"] in {"carrier.wafer", "carrier.panel"}:
-                    self.assertTrue(all("key" not in body for body in bodies))
+                    self.assertTrue(all(body.get("key") == "carrier" for body in bodies))
 
     def test_descriptions_start_with_actual_xyz_dimensions(self):
         for item in self.geometries:

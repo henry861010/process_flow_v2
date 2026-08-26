@@ -71,6 +71,22 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(carrier_bond["program"], "carrier/bond")
         self.assertEqual(carrier_bond["parameterDefinitions"], [])
 
+    def test_debond_fixture_exposes_recursive_optional_daf_contract(self):
+        payload = self.client.get("/api/bootstrap").json()
+        debond = next(
+            template
+            for template in payload["processStepTemplates"]
+            if template["id"] == "step_tpl_debond_2_0_0"
+        )
+
+        self.assertEqual(debond["version"], "V2.0.0")
+        self.assertEqual(debond["program"], "carrier/debond")
+        self.assertEqual(debond["parameterDefinitions"], [])
+        self.assertIn("full geometry top", debond["description"])
+        self.assertIn("touching DAF is optional", debond["inputPorts"][0]["description"])
+        api_services.validate_process_step_template(debond)
+        self.assertTrue(callable(ProcessStepModuleResolver().resolve(debond).execute))
+
     def test_daf_fixture_exposes_standalone_contract(self):
         payload = self.client.get("/api/bootstrap").json()
         daf = next(

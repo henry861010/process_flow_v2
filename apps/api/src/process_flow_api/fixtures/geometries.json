@@ -12,7 +12,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "carrier.wafer", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -337.5], "bottom_radius": 75000, "thk": 675}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.wafer", "bodies": [{"key": "carrier", "geometry": {"type": "CylinderGeometry", "center": [0, 0, -337.5], "bottom_radius": 75000, "thk": 675}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -28,7 +28,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "carrier.wafer", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -362.5], "bottom_radius": 100000, "thk": 725}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.wafer", "bodies": [{"key": "carrier", "geometry": {"type": "CylinderGeometry", "center": [0, 0, -362.5], "bottom_radius": 100000, "thk": 725}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -44,7 +44,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "carrier.wafer", "bodies": [{"geometry": {"type": "CylinderGeometry", "center": [0, 0, -387.5], "bottom_radius": 150000, "thk": 775}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.wafer", "bodies": [{"key": "carrier", "geometry": {"type": "CylinderGeometry", "center": [0, 0, -387.5], "bottom_radius": 150000, "thk": 775}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -60,7 +60,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "carrier.panel", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-155000, -155000, -350], "top_right": [155000, 155000, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.panel", "bodies": [{"key": "carrier", "geometry": {"type": "BoxGeometry", "bottom_left": [-155000, -155000, -350], "top_right": [155000, 155000, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -76,7 +76,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "carrier.panel", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-255000, -257500, -350], "top_right": [255000, 257500, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.panel", "bodies": [{"key": "carrier", "geometry": {"type": "BoxGeometry", "bottom_left": [-255000, -257500, -350], "top_right": [255000, 257500, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {
@@ -92,7 +92,7 @@
     "structure": {
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
-      "root": {"key": "carrier.panel", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-300000, -300000, -500], "top_right": [300000, 300000, -500], "thk": 1000}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+      "root": {"key": "carrier.panel", "bodies": [{"key": "carrier", "geometry": {"type": "BoxGeometry", "bottom_left": [-300000, -300000, -500], "top_right": [300000, 300000, -500], "thk": 1000}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
     }
   },
   {

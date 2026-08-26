@@ -358,127 +358,275 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertNotIn("key", output["root"]["children"][2])
         self.assertNotIn("key", output["root"]["children"][2]["bodies"][0])
 
-    def test_debond_removes_valid_top_carrier_stack_atomically(self):
-        state = bonded_state(carrier_body_count=2)
-        before = state.to_geometry_structure()
+    def test_carrier_bond_preserves_source_keys_after_daf_and_flip(self):
+        state = process_state_with_derived_footprint(main_geometry(material="substrate"))
+        carrier = process_state_with_derived_footprint(carrier_geometry())
+        execute_daf_with_values(
+            carrier,
+            {"material": "DAF-A", "thk": 3},
+        )
+        carrier.flip_around_z(z=0, normalize_z_min_to_zero=True, update_cursor=False)
+        carrier.set_cursor_z(carrier.root_body_z_max())
+
+        state.bond_carrier_geometry(carrier)
+        bodies = state.to_geometry_structure()["root"]["bodies"]
+
+        self.assertEqual([body.get("key") for body in bodies], [None, "carrier", "daf"])
         self.assertEqual(
-            [body["key"] for body in before["root"]["bodies"]],
-            ["molding", "daf", "carrier", "carrier"],
+            [body["material"] for body in bodies],
+            ["substrate", "glass", "DAF-A"],
+        )
+        self.assertEqual(bodies[1]["geometry"]["bottom_left"][2], 13)
+        self.assertEqual(bodies[2]["geometry"]["bottom_left"][2], 10)
+
+    def test_carrier_bond_rejects_source_without_carrier_body_atomically(self):
+        state = process_state_with_derived_footprint(main_geometry(material="substrate"))
+        source = ProcessGeometryState.create()
+        source.initialize_box_layer(
+            material="DAF-A",
+            bottom_left=[-60, -60, 0],
+            top_right=[60, 60, 0],
+            thickness=3,
+            key="daf",
+            set_footprint=False,
+        )
+        before = state.to_geometry_structure()
+        cursor_before = state.cursor_z()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "at least one root direct body keyed carrier",
+        ):
+            state.bond_carrier_geometry(source)
+
+        self.assertEqual(state.to_geometry_structure(), before)
+        self.assertEqual(state.cursor_z(), cursor_before)
+
+    def test_debond_removes_one_top_carrier_with_optional_matching_daf(self):
+        for include_daf, expected in {
+            True: {"removedCount": 2, "removedDafCount": 1, "removedCarrierCount": 1},
+            False: {"removedCount": 1, "removedDafCount": 0, "removedCarrierCount": 1},
+        }.items():
+            with self.subTest(include_daf=include_daf):
+                state = debond_state(include_daf=include_daf)
+                footprint_before = state.process_footprint()
+
+                self.assertEqual(state.remove_bonded_carrier_stack(), expected)
+
+                self.assertEqual(recursive_body_keys(state), ["molding"])
+                self.assertEqual(state.cursor_z(), 10)
+                self.assertEqual(state.process_footprint(), footprint_before)
+
+    def test_debond_removes_nested_carrier_and_daf_from_different_owners(self):
+        state = debond_state(include_daf=True, nested=True)
+        state.deposit_box_layer(
+            material="old carrier",
+            bottom_left=[-10, -10, 1],
+            top_right=[10, 10, 1],
+            thickness=2,
+            key="carrier",
+        )
+        state.deposit_box_layer(
+            material="unrelated DAF",
+            bottom_left=[-10, -10, 7],
+            top_right=[10, 10, 7],
+            thickness=1,
+            key="daf",
         )
 
         result = state.remove_bonded_carrier_stack()
 
         self.assertEqual(
             result,
-            {
-                "removedCount": 3,
-                "removedDafCount": 1,
-                "removedCarrierCount": 2,
-            },
+            {"removedCount": 2, "removedDafCount": 1, "removedCarrierCount": 1},
         )
-        self.assertEqual(
-            [body["key"] for body in state.to_geometry_structure()["root"]["bodies"]],
-            ["molding"],
-        )
+        self.assertEqual(recursive_body_keys(state), ["molding", "carrier", "daf"])
+        self.assertEqual(len(state.to_geometry_structure()["root"]["children"]), 2)
         self.assertEqual(state.cursor_z(), 10)
 
-    def test_debond_rejects_missing_or_ambiguous_semantic_bodies_atomically(self):
-        cases = {}
+    def test_debond_allows_other_geometry_at_the_carrier_top(self):
+        states = {}
 
-        missing_daf = process_state_with_derived_footprint(main_geometry())
-        missing_daf.deposit_layer(material="glass", thickness=20, key="carrier")
-        cases["exactly one DAF"] = missing_daf
+        body_at_top = debond_state()
+        body_at_top.deposit_box_layer(
+            material="side body",
+            bottom_left=[100, 100, 31],
+            top_right=[101, 101, 31],
+            thickness=2,
+        )
+        states["body"] = body_at_top
 
-        missing_carrier = process_state_with_derived_footprint(main_geometry())
-        missing_carrier.deposit_layer(material="DAF", thickness=3, key="daf")
-        cases["at least one carrier"] = missing_carrier
-
-        duplicate_daf = bonded_state()
-        duplicate_daf.deposit_geometry(
-            material="DAF-duplicate",
+        feature_at_top = debond_state()
+        feature_at_top.add_bump(
+            material="SnAg",
+            density=50,
+            direction="+z",
             geometry={
                 "type": "box",
-                "bottomLeft": [-50, -50, 10],
-                "topRight": [50, 50, 10],
-                "thickness": 1,
+                "bottomLeft": [100, 100, 31],
+                "topRight": [101, 101, 31],
+                "thickness": 2,
             },
-            key="daf",
         )
-        cases["exactly one DAF duplicate"] = duplicate_daf
+        states["feature"] = feature_at_top
 
-        target_in_child = process_state_with_derived_footprint(main_geometry())
+        child_at_top = debond_state()
         child = ProcessGeometryState.create()
         child.initialize_box_layer(
-            material="DAF",
+            material="side child",
             bottom_left=[0, 0, 0],
             top_right=[1, 1, 0],
-            thickness=1,
-            key="daf",
+            thickness=2,
         )
-        target_in_child.place_geometry_state(child, x=0, y=0, bottom_z=10)
-        cases["direct root bodies"] = target_in_child
+        child_at_top.place_geometry_state(child, x=100, y=100, bottom_z=31)
+        states["child"] = child_at_top
 
-        for label, invalid_state in cases.items():
+        for label, state in states.items():
             with self.subTest(label=label):
-                before = invalid_state.to_geometry_structure()
-                cursor_before = invalid_state.cursor_z()
-                with self.assertRaisesRegex(ValueError, "Invalid debond process flow"):
-                    invalid_state.remove_bonded_carrier_stack()
-                self.assertEqual(invalid_state.to_geometry_structure(), before)
-                self.assertEqual(invalid_state.cursor_z(), cursor_before)
+                self.assertEqual(state.remove_bonded_carrier_stack()["removedCount"], 2)
+                self.assertEqual(state.cursor_z(), 33)
 
-    def test_debond_rejects_noncontiguous_or_covered_stack_atomically(self):
-        noncontiguous = process_state_with_derived_footprint(main_geometry())
-        noncontiguous.deposit_layer(material="DAF", thickness=3, key="daf")
-        noncontiguous.deposit_geometry(
-            material="glass",
-            geometry={
-                "type": "box",
-                "bottomLeft": [-60, -60, 14],
-                "topRight": [60, 60, 14],
-                "thickness": 20,
-            },
+    def test_debond_matches_supported_footprints_with_polygon_normalization(self):
+        cases = {
+            "box": (
+                box_spec(-50, -50, 50, 50, 10, 3),
+                box_spec(-50, -50, 50, 50, 13, 20),
+            ),
+            "box within tolerance": (
+                box_spec(-49.999999, -50, 50, 50, 10, 3),
+                box_spec(-50, -50, 50, 50, 13, 20),
+            ),
+            "cylinder": (
+                cylinder_spec(0, 0, 50, 10, 3),
+                cylinder_spec(0, 0, 50, 13, 20),
+            ),
+            "cone": (
+                cone_spec(0, 0, 50, 40, 10, 3),
+                cone_spec(0, 0, 50, 40, 13, 20),
+            ),
+            "polygon": (
+                polygon_spec(
+                    [
+                        [[-50, -50, 10], [50, -50, 10], [50, 50, 10], [-50, 50, 10]],
+                        [[-10, -10, 10], [-10, 10, 10], [10, 10, 10], [10, -10, 10]],
+                    ],
+                    3,
+                ),
+                polygon_spec(
+                    [
+                        [[10, 10, 13], [10, -10, 13], [-10, -10, 13], [-10, 10, 13]],
+                        [[50, 50, 13], [50, -50, 13], [-50, -50, 13], [-50, 50, 13]],
+                    ],
+                    20,
+                ),
+            ),
+        }
+
+        for label, (daf_geometry, carrier_geometry) in cases.items():
+            with self.subTest(label=label):
+                state = debond_state(
+                    daf_geometry=daf_geometry,
+                    carrier_geometry=carrier_geometry,
+                )
+                self.assertEqual(state.remove_bonded_carrier_stack()["removedCount"], 2)
+
+    def test_debond_rejects_invalid_or_ambiguous_targets_atomically(self):
+        missing_carrier = process_state_with_derived_footprint(main_geometry())
+
+        covered_carrier = debond_state()
+        covered_carrier.deposit_box_layer(
+            material="late body",
+            bottom_left=[-1, -1, 33],
+            top_right=[1, 1, 33],
+            thickness=1,
+        )
+
+        duplicate_carrier = debond_state()
+        duplicate_carrier.deposit_box_layer(
+            material="second carrier",
+            bottom_left=[100, 100, 30],
+            top_right=[101, 101, 30],
+            thickness=3,
             key="carrier",
         )
 
-        covered_by_body = bonded_state()
-        covered_by_body.deposit_layer(material="late molding", thickness=2, key="molding")
-
-        covered_by_feature = bonded_state()
-        covered_by_feature.add_bump_above_cursor(
-            material="SnAg",
-            density=50,
-            thickness=2,
+        duplicate_daf = debond_state()
+        duplicate_daf.deposit_box_layer(
+            material="second DAF",
+            bottom_left=[-50, -50, 12],
+            top_right=[50, 50, 12],
+            thickness=1,
+            key="daf",
         )
 
-        covered_by_child = bonded_state()
-        child = ProcessGeometryState.create()
-        child.initialize_box_layer(
-            material="Si",
-            bottom_left=[0, 0, 0],
-            top_right=[2, 2, 0],
-            thickness=2,
+        footprint_mismatch = debond_state(
+            daf_geometry=box_spec(-49, -50, 50, 50, 10, 3)
         )
-        covered_by_child.place_geometry_state(
-            child,
-            x=0,
-            y=0,
-            bottom_z=covered_by_child.cursor_z(),
+        primitive_mismatch = debond_state(
+            daf_geometry=cylinder_spec(0, 0, 50, 10, 3)
+        )
+        cylinder_mismatch = debond_state(
+            daf_geometry=cylinder_spec(0, 1, 50, 10, 3),
+            carrier_geometry=cylinder_spec(0, 0, 50, 13, 20),
+        )
+        cone_mismatch = debond_state(
+            daf_geometry=cone_spec(0, 0, 50, 39, 10, 3),
+            carrier_geometry=cone_spec(0, 0, 50, 40, 13, 20),
+        )
+        polygon_mismatch = debond_state(
+            daf_geometry=polygon_spec(
+                [[[-50, -50, 10], [49, -50, 10], [50, 50, 10], [-50, 50, 10]]],
+                3,
+            ),
+            carrier_geometry=polygon_spec(
+                [[[-50, -50, 13], [50, -50, 13], [50, 50, 13], [-50, 50, 13]]],
+                20,
+            ),
         )
 
-        for label, invalid_state in {
-            "noncontiguous": noncontiguous,
-            "body above": covered_by_body,
-            "feature above": covered_by_feature,
-            "child above": covered_by_child,
-        }.items():
+        cases = {
+            "missing top carrier": (missing_carrier, "expected one carrier body"),
+            "covered carrier": (covered_carrier, "expected one carrier body"),
+            "duplicate top carrier": (
+                duplicate_carrier,
+                "expected exactly one carrier body",
+            ),
+            "duplicate touching DAF": (
+                duplicate_daf,
+                "expected at most one DAF body",
+            ),
+            "box mismatch": (footprint_mismatch, "DAF and carrier footprints must match"),
+            "primitive mismatch": (
+                primitive_mismatch,
+                "DAF and carrier footprints must match",
+            ),
+            "cylinder mismatch": (
+                cylinder_mismatch,
+                "DAF and carrier footprints must match",
+            ),
+            "cone mismatch": (
+                cone_mismatch,
+                "DAF and carrier footprints must match",
+            ),
+            "polygon mismatch": (
+                polygon_mismatch,
+                "DAF and carrier footprints must match",
+            ),
+        }
+
+        for label, (invalid_state, expected_message) in cases.items():
             with self.subTest(label=label):
                 before = invalid_state.to_geometry_structure()
                 cursor_before = invalid_state.cursor_z()
-                with self.assertRaisesRegex(ValueError, "Invalid debond process flow"):
+                footprint_before = invalid_state.process_footprint()
+                with self.assertRaisesRegex(
+                    ValueError,
+                    f"Invalid debond process flow: {expected_message}",
+                ):
                     invalid_state.remove_bonded_carrier_stack()
                 self.assertEqual(invalid_state.to_geometry_structure(), before)
                 self.assertEqual(invalid_state.cursor_z(), cursor_before)
+                self.assertEqual(invalid_state.process_footprint(), footprint_before)
 
 
 class FlowCompilerTests(unittest.TestCase):
@@ -918,7 +1066,7 @@ class KernelExecutionTests(unittest.TestCase):
         catalog = InMemoryGeometryCatalog(
             [
                 geometry_entity("geom_main", main_geometry(material="substrate")),
-                geometry_entity("geom_carrier", carrier_geometry()),
+                geometry_entity("geom_carrier", carrier_geometry(half_size=50)),
             ]
         )
         plan = FlowCompiler(catalog).compile(
@@ -1648,7 +1796,13 @@ def flip_bump_configuration():
     }
 
 
-def bonded_state(carrier_body_count=1):
+def debond_state(
+    *,
+    include_daf=True,
+    nested=False,
+    daf_geometry=None,
+    carrier_geometry=None,
+):
     state = ProcessGeometryState.create()
     state.initialize_box_layer(
         material="base",
@@ -1657,25 +1811,91 @@ def bonded_state(carrier_body_count=1):
         thickness=10,
         key="molding",
     )
-    state.deposit_layer(material="DAF", thickness=3, key="daf")
+    daf_geometry = daf_geometry or box_spec(-50, -50, 50, 50, 10, 3)
+    carrier_geometry = carrier_geometry or box_spec(-50, -50, 50, 50, 13, 20)
 
-    carrier = ProcessGeometryState.create({"key": "carrier"})
-    carrier.initialize_box_layer(
-        material="glass-1",
-        bottom_left=[-60, -60, -4],
-        top_right=[60, 60, -4],
-        thickness=20,
-        set_footprint=False,
-    )
-    for index in range(1, carrier_body_count):
-        carrier.deposit_box_layer(
-            material=f"glass-{index + 1}",
-            bottom_left=[-40 + index, -40 + index, -4],
-            top_right=[40 - index, 40 - index, -4],
-            thickness=20,
+    if nested:
+        if include_daf:
+            daf = ProcessGeometryState.create()
+            daf.deposit_geometry(material="DAF", geometry=daf_geometry, key="daf")
+            state.place_geometry_state(
+                daf,
+                x=0,
+                y=0,
+                bottom_z=10,
+                anchor="origin",
+            )
+        carrier = ProcessGeometryState.create()
+        carrier.deposit_geometry(
+            material="glass",
+            geometry=carrier_geometry,
+            key="carrier",
         )
-    state.bond_carrier_geometry(carrier, key="carrier")
+        state.place_geometry_state(
+            carrier,
+            x=0,
+            y=0,
+            bottom_z=13,
+            anchor="origin",
+        )
+    else:
+        if include_daf:
+            state.deposit_geometry(material="DAF", geometry=daf_geometry, key="daf")
+        state.deposit_geometry(
+            material="glass",
+            geometry=carrier_geometry,
+            key="carrier",
+        )
+    state.set_cursor_z(33)
     return state
+
+
+def box_spec(x_min, y_min, x_max, y_max, z, thickness):
+    return {
+        "type": "box",
+        "bottomLeft": [x_min, y_min, z],
+        "topRight": [x_max, y_max, z],
+        "thickness": thickness,
+    }
+
+
+def cylinder_spec(x, y, radius, z, thickness):
+    return {
+        "type": "cylinder",
+        "center": [x, y, z],
+        "radius": radius,
+        "thickness": thickness,
+    }
+
+
+def cone_spec(x, y, bottom_radius, top_radius, z, thickness):
+    return {
+        "type": "cone",
+        "center": [x, y, z],
+        "bottomRadius": bottom_radius,
+        "topRadius": top_radius,
+        "thickness": thickness,
+    }
+
+
+def polygon_spec(polygons, thickness):
+    return {
+        "type": "polygon",
+        "polygons": polygons,
+        "thickness": thickness,
+    }
+
+
+def recursive_body_keys(state):
+    keys = []
+
+    def collect(container):
+        keys.extend(body.get("key") for body in container["bodies"])
+        for child in container["children"]:
+            collect(child)
+
+    collect(state.to_geometry_structure()["root"])
+    return keys
 
 
 def process_state_with_derived_footprint(structure):
@@ -1748,7 +1968,7 @@ def die_geometry():
     }
 
 
-def carrier_geometry():
+def carrier_geometry(half_size=60):
     return {
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
@@ -1759,8 +1979,8 @@ def carrier_geometry():
                     "key": "carrier",
                     "geometry": {
                         "type": "BoxGeometry",
-                        "bottom_left": [-60, -60, -4],
-                        "top_right": [60, 60, -4],
+                        "bottom_left": [-half_size, -half_size, -4],
+                        "top_right": [half_size, half_size, -4],
                         "thk": 20,
                     },
                     "material": "glass",

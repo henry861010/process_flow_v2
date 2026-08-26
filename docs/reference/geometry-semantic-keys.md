@@ -60,9 +60,12 @@ MUST NOT 放入 key。
 ## Producer rules
 
 - Catalog fixture、DB import 與 generator MAY 明確提供 container/body key。
+- `carrier.wafer` 與 `carrier.panel` catalog geometry 的 carrier solid MUST 使用 body key=`carrier`。
 - HBM 與 DRAM generator 只標記 root container 為 `hbm`／`dram`；內部 containers 與 bodies
   不提供 key。
-- Molding、DAF、Carrier Bond 與 Debond 使用 `molding`、`daf`、`carrier` body roles。
+- Molding 與 DAF 分別建立 `molding`、`daf` body roles；Carrier Bond 保留 source body keys。
+  Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
+  `daf` role 視為可選的 bonded DAF。
 - Copy、PnP、move、flip、grind 與 saw MUST 保留既有 key，不得從 material、geometry、位置或
   id 自動推論。
 - 新增 vocabulary 必須同步本文件、kernel validation、fixtures/producers 與 contract tests。

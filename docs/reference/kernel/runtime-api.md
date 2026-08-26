@@ -100,8 +100,12 @@ Via/bump require direction；feature methods保存 0–100 density 與 non-negat
 - `saw_to_box(...)`
 - `remove_top_root_bodies(...)`
 - `remove_bonded_carrier_stack(carrier_key="carrier", daf_key="daf", ...)`
-- `bond_carrier_geometry(source, key="carrier", ...)`
+- `bond_carrier_geometry(source, ...)`
 - `place_geometry_state(source, ...)` / `place_geometry_states(source, placements)`
+
+`remove_bonded_carrier_stack` 遞迴要求唯一 key=`carrier` body 位於 full geometry top，並移除該
+carrier 與零或一個緊貼其底面、primitive type 和 XY footprint 相同的 key=`daf` body。非相連
+DAF 與較低 carrier 保留；matching bodies 可位於不同 containers。失敗時 state 與 cursor 不變。
 
 `saw_to_box` recursively保留指定 XY rectangle 並把 process footprint 更新成 box。Cylinder 完整落在保留框內時維持 Cylinder；保留框四角都在圓內時會精確轉成 Box。其他穿越圓周的部分 Cylinder 裁切，以及 Cone 的部分裁切，仍會 reject。
 

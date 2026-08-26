@@ -373,13 +373,13 @@
     "name": "Debond",
     "category": "carrier",
     "program": "carrier/debond",
-    "description": "Validates and removes the single topmost DAF and carrier body stack identified by semantic body keys. Invalid or covered stacks are rejected without changing geometry.",
+    "description": "Recursively finds and removes exactly one carrier body at the full geometry top and, when present, one DAF body touching its bottom with the same footprint. Invalid or ambiguous targets are rejected without changing geometry.",
     "owner": "integration.platform",
     "inputPorts": [
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Complete geometry state consumed by debond. Exactly one direct root daf body and one or more direct root carrier bodies must form the top geometry stack.",
+        "description": "Complete geometry state consumed by debond. Exactly one carrier body in the full tree must reach the geometry top; a touching DAF is optional and must have the same primitive type and XY footprint.",
         "dataType": "geometry",
         "role": "primary",
         "required": true
@@ -402,7 +402,7 @@
     "name": "Carrier Bond",
     "category": "carrier",
     "program": "carrier/bond",
-    "description": "Copies carrier geometry root direct bodies with key carrier onto the full geometry top and updates cursorZ to the carrier stack top.",
+    "description": "Copies carrier geometry root direct bodies onto the full geometry top while preserving each source body key, requires at least one body keyed carrier, and updates cursorZ to the bonded stack top.",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -416,7 +416,7 @@
       {
         "portId": "carrier_geometry",
         "name": "carrier_geometry",
-        "description": "Carrier geometry state. Only root direct bodies are copied; carrier geometry entities are expected to use entityType carrier.",
+        "description": "Carrier geometry state. Only root direct bodies are copied and their keys are preserved. At least one direct body must use key carrier; additional bodies may use other registered keys.",
         "dataType": "geometry",
         "role": "auxiliary",
         "required": true

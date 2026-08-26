@@ -668,56 +668,79 @@ class ProcessGeometryState:
                 "Invalid debond process flow: carrier and DAF keys must be different"
             )
 
-        semantic_bodies = []
+        carrier_bodies = []
+        daf_bodies = []
 
         def collect(container):
             for body in container.bodies():
-                if body.key() in (carrier_key, daf_key):
-                    semantic_bodies.append((container, body))
+                if body.key() == carrier_key:
+                    carrier_bodies.append((container, body))
+                elif body.key() == daf_key:
+                    daf_bodies.append((container, body))
 
         _walk_container(self._root, collect)
-        if any(container is not self._root for container, _ in semantic_bodies):
+        geometry_top_z = self.geometry_z_max()
+        top_carriers = [
+            (container, body)
+            for container, body in carrier_bodies
+            if math.f_eq(body.z_max(), geometry_top_z)
+        ]
+        if len(top_carriers) == 0:
             raise ValueError(
-                "Invalid debond process flow: carrier and DAF bodies must be direct root bodies"
+                "Invalid debond process flow: expected one carrier body at the geometry top"
+            )
+        if len(top_carriers) > 1:
+            raise ValueError(
+                "Invalid debond process flow: expected exactly one carrier body at the geometry top"
             )
 
-        daf_bodies = [body for _, body in semantic_bodies if body.key() == daf_key]
-        carrier_bodies = [body for _, body in semantic_bodies if body.key() == carrier_key]
-        if len(daf_bodies) != 1 or len(carrier_bodies) == 0:
+        carrier_container, carrier_body = top_carriers[0]
+        touching_dafs = [
+            (container, body)
+            for container, body in daf_bodies
+            if math.f_eq(body.z_max(), carrier_body.z_min())
+        ]
+        if len(touching_dafs) > 1:
             raise ValueError(
-                "Invalid debond process flow: expected exactly one DAF body and at least one carrier body"
+                "Invalid debond process flow: expected at most one DAF body touching the carrier bottom"
             )
 
-        daf_body = daf_bodies[0]
-        carrier_bottom_z = min(body.z_min() for body in carrier_bodies)
-        if not math.f_eq(daf_body.z_max(), carrier_bottom_z):
+        daf_target = None if len(touching_dafs) == 0 else touching_dafs[0]
+        if daf_target is not None and not _geometry_footprints_equal(
+            daf_target[1].geometry(), carrier_body.geometry()
+        ):
             raise ValueError(
-                "Invalid debond process flow: DAF top must touch the carrier stack bottom"
+                "Invalid debond process flow: DAF and carrier footprints must match"
             )
 
-        targets = {daf_body, *carrier_bodies}
-        remaining_top_z = _geometry_z_max_excluding_bodies(self._root, targets)
-        if not math.f_eq(remaining_top_z, daf_body.z_min()):
-            raise ValueError(
-                "Invalid debond process flow: DAF and carrier must form the top geometry stack"
-            )
+        targets_by_container = {carrier_container: {carrier_body}}
+        if daf_target is not None:
+            daf_container, daf_body = daf_target
+            targets_by_container.setdefault(daf_container, set()).add(daf_body)
 
-        removed_count = self._root.remove_bodies(targets)
+        removed_count = sum(
+            container.remove_bodies(targets)
+            for container, targets in targets_by_container.items()
+        )
+        removed_daf_count = 0 if daf_target is None else 1
         if update_cursor:
             self._cursor_z = self.geometry_z_max()
         return {
             "removedCount": removed_count,
-            "removedDafCount": 1,
-            "removedCarrierCount": len(carrier_bodies),
+            "removedDafCount": removed_daf_count,
+            "removedCarrierCount": 1,
         }
 
-    def bond_carrier_geometry(self, source, *, key="carrier", update_cursor=True):
+    def bond_carrier_geometry(self, source, *, update_cursor=True):
         if not isinstance(source, ProcessGeometryState):
             raise ValueError("bond_carrier_geometry requires a ProcessGeometryState source")
         source_bodies = source._root.bodies()
         if len(source_bodies) == 0:
             raise ValueError("bond_carrier_geometry requires carrier source with at least one root direct body")
-        carrier_key = _require_body_key(key)
+        if not any(body.key() == "carrier" for body in source_bodies):
+            raise ValueError(
+                "bond_carrier_geometry requires carrier source with at least one root direct body keyed carrier"
+            )
 
         source_bottom_z = min(body.z_min() for body in source_bodies)
         source_top_z = max(body.z_max() for body in source_bodies)
@@ -725,7 +748,7 @@ class ProcessGeometryState:
         z_offset = target_bottom_z - source_bottom_z
 
         for source_body in source_bodies:
-            body = source_body.copy_with_key(carrier_key)
+            body = source_body.copy()
             body.move(z=z_offset)
             self._add_body_object(body)
 
@@ -1231,20 +1254,89 @@ def _recursive_bodies(container):
     return bodies
 
 
-def _geometry_z_max_excluding_bodies(container, excluded_bodies):
-    values = [
-        body.z_max()
-        for body in container.bodies()
-        if body not in excluded_bodies
-    ]
-    values.extend(feature.z_max() for feature in container.vias())
-    values.extend(feature.z_max() for feature in container.circuits())
-    values.extend(feature.z_max() for feature in container.bumps())
-    values.extend(
-        _geometry_z_max_excluding_bodies(child, excluded_bodies)
-        for child in container.children()
-    )
-    return 0 if len(values) == 0 else max(values)
+def _geometry_footprints_equal(left, right):
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, BoxGeometry):
+        left_bottom = left.bottom_left()
+        left_top = left.top_right()
+        right_bottom = right.bottom_left()
+        right_top = right.top_right()
+        left_bounds = (
+            min(left_bottom[0], left_top[0]),
+            max(left_bottom[0], left_top[0]),
+            min(left_bottom[1], left_top[1]),
+            max(left_bottom[1], left_top[1]),
+        )
+        right_bounds = (
+            min(right_bottom[0], right_top[0]),
+            max(right_bottom[0], right_top[0]),
+            min(right_bottom[1], right_top[1]),
+            max(right_bottom[1], right_top[1]),
+        )
+        return all(math.f_eq(a, b) for a, b in zip(left_bounds, right_bounds))
+    if isinstance(left, CylinderGeometry):
+        return _xy_points_equal(left.center(), right.center()) and math.f_eq(
+            left.bottom_radius(), right.bottom_radius()
+        )
+    if isinstance(left, ConeGeometry):
+        return (
+            _xy_points_equal(left.center(), right.center())
+            and math.f_eq(left.bottom_radius(), right.bottom_radius())
+            and math.f_eq(left.top_radius(), right.top_radius())
+        )
+    if isinstance(left, PolygonGeometry):
+        return _polygon_footprints_equal(left.polygons(), right.polygons())
+    return False
+
+
+def _polygon_footprints_equal(left_polygons, right_polygons):
+    if len(left_polygons) != len(right_polygons):
+        return False
+    unmatched = [_normalize_polygon_loop_xy(loop) for loop in right_polygons]
+    for left_loop in left_polygons:
+        normalized_left = _normalize_polygon_loop_xy(left_loop)
+        match_index = next(
+            (
+                index
+                for index, right_loop in enumerate(unmatched)
+                if _polygon_loops_equal(normalized_left, right_loop)
+            ),
+            None,
+        )
+        if match_index is None:
+            return False
+        unmatched.pop(match_index)
+    return True
+
+
+def _normalize_polygon_loop_xy(loop):
+    points = [[point[0], point[1]] for point in loop]
+    if len(points) > 1 and _xy_points_equal(points[0], points[-1]):
+        points.pop()
+    return points
+
+
+def _polygon_loops_equal(left, right):
+    if len(left) != len(right):
+        return False
+    point_count = len(left)
+    for start in range(point_count):
+        if all(
+            _xy_points_equal(left[index], right[(start + index) % point_count])
+            for index in range(point_count)
+        ):
+            return True
+        if all(
+            _xy_points_equal(left[index], right[(start - index) % point_count])
+            for index in range(point_count)
+        ):
+            return True
+    return False
+
+
+def _xy_points_equal(left, right):
+    return math.f_eq(left[0], right[0]) and math.f_eq(left[1], right[1])
 
 
 def _feature_range(features):
