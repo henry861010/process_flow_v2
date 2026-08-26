@@ -79,6 +79,7 @@ class GeometryFixtureTests(unittest.TestCase):
                     "carrier",
                     "carrier.panel",
                     "carrier.wafer",
+                    "frame",
                     "hbm",
                     "dram",
                     "soc",
@@ -90,12 +91,13 @@ class GeometryFixtureTests(unittest.TestCase):
         )
         self.assertEqual(
             BODY_KEYS,
-            frozenset({"carrier", "envelope", "molding", "daf"}),
+            frozenset({"carrier", "frame", "envelope", "molding", "daf"}),
         )
 
         expected_root_keys = {
             "carrier.wafer": "carrier.wafer",
             "carrier.panel": "carrier.panel",
+            "frame": "frame",
             "die.hbm": "hbm",
             "die.dram": "dram",
             "die.soc": "soc",
@@ -129,6 +131,27 @@ class GeometryFixtureTests(unittest.TestCase):
                     self.assertTrue(all(body.get("key") == "envelope" for body in bodies))
                 elif item["category"] in {"carrier.wafer", "carrier.panel"}:
                     self.assertTrue(all(body.get("key") == "carrier" for body in bodies))
+                elif item["category"] == "frame":
+                    self.assertEqual(len(bodies), 1)
+                    self.assertEqual(bodies[0].get("key"), "frame")
+
+    def test_frame_tape_fixture_has_requested_circular_dimensions(self):
+        frame = next(item for item in self.geometries if item["id"] == "frame_tape_v1_0_0")
+        root = frame["structure"]["root"]
+        body = root["bodies"][0]
+
+        self.assertEqual(root["key"], "frame")
+        self.assertEqual(body["key"], "frame")
+        self.assertEqual(body["material"], "tape")
+        self.assertEqual(
+            body["geometry"],
+            {
+                "type": "CylinderGeometry",
+                "center": [0, 0, -40],
+                "bottom_radius": 175000,
+                "thk": 80,
+            },
+        )
 
     def test_descriptions_start_with_actual_xyz_dimensions(self):
         for item in self.geometries:

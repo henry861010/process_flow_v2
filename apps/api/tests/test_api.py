@@ -87,6 +87,35 @@ class ProcessFlowApiTests(unittest.TestCase):
         api_services.validate_process_step_template(debond)
         self.assertTrue(callable(ProcessStepModuleResolver().resolve(debond).execute))
 
+    def test_frame_step_fixtures_expose_mount_and_demount_contracts(self):
+        payload = self.client.get("/api/bootstrap").json()
+        templates = {
+            template["id"]: template for template in payload["processStepTemplates"]
+        }
+        mount = templates["step_tpl_frame_mount_1_0_0"]
+        demount = templates["step_tpl_frame_demount_1_0_0"]
+
+        self.assertEqual(mount["version"], "V1.0.0")
+        self.assertEqual(mount["program"], "frame/mount")
+        self.assertEqual(
+            [port["portId"] for port in mount["inputPorts"]],
+            ["main_geometry", "frame_geometry"],
+        )
+        self.assertEqual(mount["inputPorts"][1]["role"], "auxiliary")
+        self.assertEqual(mount["parameterDefinitions"], [])
+
+        self.assertEqual(demount["version"], "V1.0.0")
+        self.assertEqual(demount["program"], "frame/demount")
+        self.assertEqual(
+            [port["portId"] for port in demount["inputPorts"]],
+            ["main_geometry"],
+        )
+        self.assertEqual(demount["parameterDefinitions"], [])
+
+        for template in (mount, demount):
+            api_services.validate_process_step_template(template)
+            self.assertTrue(callable(ProcessStepModuleResolver().resolve(template).execute))
+
     def test_daf_fixture_exposes_standalone_contract(self):
         payload = self.client.get("/api/bootstrap").json()
         daf = next(

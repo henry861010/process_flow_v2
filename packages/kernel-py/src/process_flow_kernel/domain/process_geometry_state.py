@@ -761,6 +761,82 @@ class ProcessGeometryState:
             "topZ": target_top_z,
         }
 
+    def mount_frame_geometry(self, source, *, update_cursor=True):
+        if not isinstance(source, ProcessGeometryState):
+            raise ValueError("mount_frame_geometry requires a ProcessGeometryState source")
+
+        source_root = source._root
+        source_bodies = source_root.bodies()
+        has_extra_geometry = (
+            len(source_root.vias()) > 0
+            or len(source_root.circuits()) > 0
+            or len(source_root.bumps()) > 0
+            or len(source_root.children()) > 0
+        )
+        if len(source_bodies) != 1 or has_extra_geometry:
+            raise ValueError(
+                "mount_frame_geometry requires exactly one root direct body and no other geometry"
+            )
+
+        source_body = source_bodies[0]
+        if source_body.key() != "frame":
+            raise ValueError(
+                "mount_frame_geometry requires the root direct body to be keyed frame"
+            )
+
+        target_bottom_z = self.geometry_z_max()
+        source_bottom_z = source_body.z_min()
+        source_top_z = source_body.z_max()
+        body = source_body.copy()
+        body.move(z=target_bottom_z - source_bottom_z)
+        self._add_body_object(body)
+
+        target_top_z = target_bottom_z + (source_top_z - source_bottom_z)
+        if update_cursor:
+            self._cursor_z = target_top_z
+        return {
+            "mountedBodyCount": 1,
+            "bottomZ": target_bottom_z,
+            "topZ": target_top_z,
+        }
+
+    def remove_mounted_frame(self, *, update_cursor=True):
+        frame_bodies = []
+
+        def collect(container):
+            for body in container.bodies():
+                if body.key() == "frame":
+                    frame_bodies.append((container, body))
+
+        _walk_container(self._root, collect)
+        geometry_top_z = self.geometry_z_max()
+        top_frames = [
+            (container, body)
+            for container, body in frame_bodies
+            if math.f_eq(body.z_max(), geometry_top_z)
+        ]
+        if len(top_frames) == 0:
+            raise ValueError(
+                "Invalid frame demount process flow: expected one frame body at the geometry top"
+            )
+        if len(top_frames) > 1:
+            raise ValueError(
+                "Invalid frame demount process flow: expected exactly one frame body at the geometry top"
+            )
+
+        frame_container, frame_body = top_frames[0]
+        bottom_z = frame_body.z_min()
+        top_z = frame_body.z_max()
+        removed_count = frame_container.remove_bodies({frame_body})
+        if update_cursor:
+            self._cursor_z = self.geometry_z_max()
+        return {
+            "removedCount": removed_count,
+            "removedFrameCount": 1,
+            "bottomZ": bottom_z,
+            "topZ": top_z,
+        }
+
     def place_geometry_state(
         self,
         source,

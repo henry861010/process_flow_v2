@@ -402,6 +402,199 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(state.to_geometry_structure(), before)
         self.assertEqual(state.cursor_z(), cursor_before)
 
+    def test_frame_mount_places_the_sole_frame_body_at_full_geometry_top(self):
+        state = process_state_with_derived_footprint(main_geometry(material="substrate"))
+        frame = ProcessGeometryState.from_structure(frame_geometry())
+        source_before = frame.to_geometry_structure()
+        footprint_before = state.process_footprint()
+
+        result = state.mount_frame_geometry(frame)
+        bodies = state.to_geometry_structure()["root"]["bodies"]
+
+        self.assertEqual(
+            result,
+            {"mountedBodyCount": 1, "bottomZ": 10, "topZ": 90},
+        )
+        self.assertEqual([body.get("key") for body in bodies], [None, "frame"])
+        self.assertEqual(bodies[1]["material"], "tape")
+        self.assertEqual(bodies[1]["geometry"]["center"], [0, 0, 10])
+        self.assertEqual(bodies[1]["geometry"]["bottom_radius"], 175000)
+        self.assertEqual(state.cursor_z(), 90)
+        self.assertEqual(state.process_footprint(), footprint_before)
+        self.assertEqual(frame.to_geometry_structure(), source_before)
+
+    def test_frame_mount_rejects_invalid_sources_atomically(self):
+        empty = ProcessGeometryState.create({"key": "frame"})
+        wrong_key = ProcessGeometryState.from_structure(carrier_geometry())
+
+        multiple_bodies = ProcessGeometryState.from_structure(frame_geometry())
+        multiple_bodies.deposit_box_layer(
+            material="extra",
+            bottom_left=[0, 0, 0],
+            top_right=[1, 1, 0],
+            thickness=1,
+            key="frame",
+        )
+
+        extra_feature = ProcessGeometryState.from_structure(frame_geometry())
+        extra_feature.add_bump(
+            material="SnAg",
+            density=50,
+            direction="+z",
+            geometry=box_spec(0, 0, 1, 1, 40, 1),
+        )
+
+        extra_child = ProcessGeometryState.from_structure(frame_geometry())
+        child = ProcessGeometryState.create({"key": "frame"})
+        child.initialize_box_layer(
+            material="extra",
+            bottom_left=[0, 0, 0],
+            top_right=[1, 1, 0],
+            thickness=1,
+            key="frame",
+        )
+        extra_child.place_geometry_state(child, x=0, y=0, bottom_z=40)
+
+        for label, source, message in (
+            ("empty", empty, "exactly one root direct body"),
+            ("wrong key", wrong_key, "keyed frame"),
+            ("multiple bodies", multiple_bodies, "no other geometry"),
+            ("extra feature", extra_feature, "no other geometry"),
+            ("extra child", extra_child, "no other geometry"),
+        ):
+            with self.subTest(label=label):
+                state = process_state_with_derived_footprint(main_geometry())
+                before = state.to_geometry_structure()
+                cursor_before = state.cursor_z()
+                with self.assertRaisesRegex(ValueError, message):
+                    state.mount_frame_geometry(source)
+                self.assertEqual(state.to_geometry_structure(), before)
+                self.assertEqual(state.cursor_z(), cursor_before)
+
+    def test_frame_demount_removes_root_or_nested_top_frame(self):
+        root_state = process_state_with_derived_footprint(main_geometry())
+        root_state.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
+
+        nested_state = process_state_with_derived_footprint(main_geometry())
+        nested_frame = ProcessGeometryState.create({"key": "frame"})
+        nested_frame.initialize_box_layer(
+            material="tape",
+            bottom_left=[-50, -50, 0],
+            top_right=[50, 50, 0],
+            thickness=80,
+            key="frame",
+        )
+        nested_state.place_geometry_state(nested_frame, x=0, y=0, bottom_z=10)
+        nested_state.set_cursor_z(90)
+
+        for label, state in (("root", root_state), ("nested", nested_state)):
+            with self.subTest(label=label):
+                footprint_before = state.process_footprint()
+                self.assertEqual(
+                    state.remove_mounted_frame(),
+                    {
+                        "removedCount": 1,
+                        "removedFrameCount": 1,
+                        "bottomZ": 10,
+                        "topZ": 90,
+                    },
+                )
+                self.assertNotIn("frame", recursive_body_keys(state))
+                self.assertEqual(state.cursor_z(), 10)
+                self.assertEqual(state.process_footprint(), footprint_before)
+
+    def test_frame_demount_allows_other_geometry_at_the_same_top(self):
+        state = process_state_with_derived_footprint(main_geometry())
+        state.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
+        state.deposit_box_layer(
+            material="side body",
+            bottom_left=[200000, 200000, 89],
+            top_right=[200001, 200001, 89],
+            thickness=1,
+        )
+
+        self.assertEqual(state.remove_mounted_frame()["removedCount"], 1)
+        self.assertEqual(state.geometry_z_max(), 90)
+        self.assertEqual(state.cursor_z(), 90)
+
+    def test_frame_demount_rejects_missing_covered_or_ambiguous_targets_atomically(self):
+        missing = process_state_with_derived_footprint(main_geometry())
+
+        covered_body = process_state_with_derived_footprint(main_geometry())
+        covered_body.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
+        covered_body.deposit_box_layer(
+            material="cover",
+            bottom_left=[0, 0, 90],
+            top_right=[1, 1, 90],
+            thickness=1,
+        )
+
+        covered_feature = process_state_with_derived_footprint(main_geometry())
+        covered_feature.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
+        covered_feature.add_bump(
+            material="SnAg",
+            density=50,
+            direction="+z",
+            geometry=box_spec(0, 0, 1, 1, 90, 1),
+        )
+
+        covered_child = process_state_with_derived_footprint(main_geometry())
+        covered_child.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
+        child = ProcessGeometryState.create()
+        child.initialize_box_layer(
+            material="cover",
+            bottom_left=[0, 0, 0],
+            top_right=[1, 1, 0],
+            thickness=1,
+        )
+        covered_child.place_geometry_state(child, x=0, y=0, bottom_z=90)
+
+        duplicate = process_state_with_derived_footprint(main_geometry())
+        duplicate.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
+        duplicate.deposit_box_layer(
+            material="second tape",
+            bottom_left=[200000, 200000, 10],
+            top_right=[200001, 200001, 10],
+            thickness=80,
+            key="frame",
+        )
+
+        for label, state, message in (
+            ("missing", missing, "expected one frame body"),
+            ("covered body", covered_body, "expected one frame body"),
+            ("covered feature", covered_feature, "expected one frame body"),
+            ("covered child", covered_child, "expected one frame body"),
+            ("duplicate", duplicate, "expected exactly one frame body"),
+        ):
+            with self.subTest(label=label):
+                before = state.to_geometry_structure()
+                cursor_before = state.cursor_z()
+                with self.assertRaisesRegex(ValueError, message):
+                    state.remove_mounted_frame()
+                self.assertEqual(state.to_geometry_structure(), before)
+                self.assertEqual(state.cursor_z(), cursor_before)
+
+    def test_frame_mount_saw_demount_preserves_sawn_main_geometry(self):
+        state = process_state_with_derived_footprint(main_geometry(material="substrate"))
+        state.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
+        state.saw_to_box(
+            bottom_left_x=-25,
+            bottom_left_y=-25,
+            top_right_x=25,
+            top_right_y=25,
+        )
+
+        mounted_bodies = state.to_geometry_structure()["root"]["bodies"]
+        self.assertEqual(mounted_bodies[1]["key"], "frame")
+        self.assertEqual(mounted_bodies[1]["geometry"]["type"], "BoxGeometry")
+
+        state.remove_mounted_frame()
+        bodies = state.to_geometry_structure()["root"]["bodies"]
+        self.assertEqual(len(bodies), 1)
+        self.assertEqual(bodies[0]["material"], "substrate")
+        self.assertEqual(bodies[0]["geometry"]["bottom_left"][0:2], [-25, -25])
+        self.assertEqual(bodies[0]["geometry"]["top_right"][0:2], [25, 25])
+
     def test_debond_removes_one_top_carrier_with_optional_matching_daf(self):
         for include_daf, expected in {
             True: {"removedCount": 2, "removedDafCount": 1, "removedCarrierCount": 1},
@@ -1984,6 +2177,32 @@ def carrier_geometry(half_size=60):
                         "thk": 20,
                     },
                     "material": "glass",
+                }
+            ],
+            "vias": [],
+            "circuits": [],
+            "bumps": [],
+            "children": [],
+        },
+    }
+
+
+def frame_geometry():
+    return {
+        "schemaVersion": "1.0.0",
+        "unitSystem": "um",
+        "root": {
+            "key": "frame",
+            "bodies": [
+                {
+                    "key": "frame",
+                    "geometry": {
+                        "type": "CylinderGeometry",
+                        "center": [0, 0, -40],
+                        "bottom_radius": 175000,
+                        "thk": 80,
+                    },
+                    "material": "tape",
                 }
             ],
             "vias": [],

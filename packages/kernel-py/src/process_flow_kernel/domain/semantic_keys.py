@@ -6,6 +6,7 @@ CONTAINER_KEYS = frozenset(
         "carrier",
         "carrier.panel",
         "carrier.wafer",
+        "frame",
         "hbm",
         "dram",
         "soc",
@@ -18,6 +19,7 @@ CONTAINER_KEYS = frozenset(
 BODY_KEYS = frozenset(
     {
         "carrier",
+        "frame",
         "envelope",
         "molding",
         "daf",

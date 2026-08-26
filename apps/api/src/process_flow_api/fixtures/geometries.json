@@ -784,5 +784,39 @@
         "children": []
       }
     }
+  },
+  {
+    "id": "frame_tape_v1_0_0",
+    "category": "frame",
+    "name": "350 mm Frame Tape",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "350000 x 350000 x 80 um — Circular frame-mount tape centered at 0,0,0; outer frame omitted.",
+    "entityType": "frame",
+    "icon": "frame",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "frame",
+        "bodies": [
+          {
+            "key": "frame",
+            "geometry": {
+              "type": "CylinderGeometry",
+              "center": [0, 0, -40],
+              "bottom_radius": 175000,
+              "thk": 80
+            },
+            "material": "tape"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
   }
 ]

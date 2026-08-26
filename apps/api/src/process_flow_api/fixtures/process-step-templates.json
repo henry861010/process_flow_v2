@@ -867,5 +867,71 @@
         "unit": "um"
       }
     ]
+  },
+  {
+    "schemaVersion": 2,
+    "id": "step_tpl_frame_mount_1_0_0",
+    "version": "V1.0.0",
+    "name": "Frame Mount",
+    "category": "frame",
+    "program": "frame/mount",
+    "description": "Copies the sole frame body from frame geometry onto the full geometry top as a root-direct body and advances cursorZ to the mounted frame top.",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state that receives the mounted frame body at its full geometry top.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      },
+      {
+        "portId": "frame_geometry",
+        "name": "frame_geometry",
+        "description": "Frame geometry containing exactly one root-direct body keyed frame and no other geometry.",
+        "dataType": "geometry",
+        "role": "auxiliary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": []
+  },
+  {
+    "schemaVersion": 2,
+    "id": "step_tpl_frame_demount_1_0_0",
+    "version": "V1.0.0",
+    "name": "Frame Demount",
+    "category": "frame",
+    "program": "frame/demount",
+    "description": "Recursively finds and removes exactly one frame body at the full geometry top. Missing, covered, or ambiguous targets are rejected without changing geometry.",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by frame demount. Exactly one frame body in the full tree must reach the geometry top.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": []
   }
 ]
