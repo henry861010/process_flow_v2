@@ -19,6 +19,7 @@ async def start_cdb_worker(
     *,
     input_path: Path,
     element_size: float,
+    model_type: str,
     output_path: Path,
 ) -> asyncio.subprocess.Process:
     env = os.environ.copy()
@@ -33,6 +34,7 @@ async def start_cdb_worker(
         str(input_path),
         str(element_size),
         str(output_path),
+        model_type,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,

@@ -179,7 +179,11 @@ Viewer 可將同一份 ready snapshot 送到 `POST /api/geometry-preview/export-
 | --- | --- | --- |
 | `json` | `geometryEntityJson` | API process 直接寫 pretty JSON |
 | `step` | `geometryStructure` | `process_flow_cad.worker step` subprocess |
-| `cdb` | `geometryStructure` + positive `elementSize` | `process_flow_mesher.worker` subprocess |
+| `cdb` | `geometryStructure` + positive `elementSize` + optional `modelType` | `process_flow_mesher.worker` subprocess |
+
+CDB `modelType`合法值為`Full_Model`、`Quarter_Model`、`Half_Model_X`、`Half_Model_Y`；省略時使用
+`Full_Model`。Export manager會保存正規化後的值並作為worker第四個CLI參數傳入。Job response的
+`modelType`在CDB為實際使用值，JSON與STEP為`null`。
 
 Job state transition 是 `queued → running → success/failed`，取消路徑可經
 `canceling → canceled`。Manager 預設同時執行一個 job；`EXPORT_MAX_CONCURRENT_JOBS`

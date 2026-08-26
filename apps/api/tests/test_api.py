@@ -1035,6 +1035,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         normalized_output_path = Path(self.tmp.name) / "MODEL.cdb"
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["outputPath"], str(normalized_output_path))
+        self.assertEqual(job["modelType"], "Full_Model")
         self.assertGreater(job["nodeCount"], 0)
         self.assertGreater(job["elementCount"], 0)
         self.assertTrue(normalized_output_path.exists())
@@ -1065,6 +1066,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["kind"], "json")
         self.assertEqual(job["outputPath"], str(normalized_output_path))
         self.assertIsNone(job["elementSize"])
+        self.assertIsNone(job["modelType"])
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertEqual(json.loads(content), geometry_entity)
@@ -1093,6 +1095,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["kind"], "step")
         self.assertEqual(job["outputPath"], str(normalized_output_path))
+        self.assertIsNone(job["modelType"])
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8", errors="replace")
         self.assertIn("ISO-10303-21", content)
@@ -1110,6 +1113,70 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn(".cdb", response.json()["message"])
+
+    def test_cdb_export_job_supports_each_model_type(self):
+        model_types = (
+            "Full_Model",
+            "Quarter_Model",
+            "Half_Model_X",
+            "Half_Model_Y",
+        )
+        element_counts = {}
+
+        for model_type in model_types:
+            with self.subTest(model_type=model_type):
+                response = self.client.post(
+                    "/api/geometry-preview/export-jobs",
+                    json={
+                        "clientId": "client-model-types",
+                        "kind": "cdb",
+                        "geometryStructure": simple_structure(),
+                        "elementSize": 5,
+                        "modelType": model_type,
+                        "outputPath": str(Path(self.tmp.name) / f"{model_type}.cdb"),
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200, response.text)
+                job = wait_for_export_job(
+                    self.client,
+                    response.json()["job"]["jobId"],
+                    "client-model-types",
+                )
+                self.assertEqual(job["status"], "success", job)
+                self.assertEqual(job["modelType"], model_type)
+                element_counts[model_type] = job["elementCount"]
+
+        self.assertLess(
+            element_counts["Quarter_Model"],
+            element_counts["Full_Model"],
+        )
+        self.assertLess(
+            element_counts["Half_Model_X"],
+            element_counts["Full_Model"],
+        )
+        self.assertLess(
+            element_counts["Half_Model_Y"],
+            element_counts["Full_Model"],
+        )
+
+    def test_cdb_export_job_rejects_unknown_model_type(self):
+        output_path = Path(self.tmp.name) / "unknown-model.cdb"
+
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "client-model-types",
+                "kind": "cdb",
+                "geometryStructure": simple_structure(),
+                "elementSize": 5,
+                "modelType": "Upper_Model",
+                "outputPath": str(output_path),
+            },
+        )
+
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertFalse(output_path.exists())
 
     def test_export_job_rejects_wrong_generic_extension(self):
         response = self.client.post(

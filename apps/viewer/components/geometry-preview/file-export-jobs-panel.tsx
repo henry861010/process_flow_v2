@@ -363,6 +363,10 @@ function FileExportJobDetailPopover({
               label="Element size"
               value={formatNullableNumber(job.elementSize)}
             />
+            <JobDetailField
+              label="Model type"
+              value={formatModelType(job.modelType)}
+            />
             <JobDetailField label="Mesh" value={formatMeshSummary(job)} />
           </>
         ) : null}
@@ -478,6 +482,14 @@ function formatNullableNumber(value: number | null) {
   return value == null ? "-" : value.toLocaleString();
 }
 
+function formatModelType(value: FileExportJob["modelType"]) {
+  if (value === "Full_Model") return "Full Model";
+  if (value === "Quarter_Model") return "Quarter Model";
+  if (value === "Half_Model_X") return "Half Model (x-axis)";
+  if (value === "Half_Model_Y") return "Half Model (y-axis)";
+  return "-";
+}
+
 function formatDuration(value: number | null) {
   return value == null ? "-" : `${value.toLocaleString()}s`;
 }
@@ -504,6 +516,7 @@ function jobDetailTitle(job: FileExportJob) {
   ];
   if (job.kind === "cdb") {
     parts.push(`Element size: ${formatNullableNumber(job.elementSize)}`);
+    parts.push(`Model type: ${formatModelType(job.modelType)}`);
     parts.push(`Mesh: ${formatMeshSummary(job)}`);
   }
   if (job.durationSeconds != null) {

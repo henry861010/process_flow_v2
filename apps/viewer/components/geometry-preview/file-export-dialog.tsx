@@ -9,11 +9,34 @@ import {
   getFileExportClientId,
   type FileExportJob,
   type FileExportKind,
+  type ModelType,
 } from "@/components/geometry-preview/file-export-client";
 import { Button } from "@/components/ui/button";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+
+const MODEL_TYPE_OPTIONS: ReadonlyArray<{
+  value: ModelType;
+  label: string;
+}> = [
+  {
+    value: "Full_Model",
+    label: "Full Model",
+  },
+  {
+    value: "Quarter_Model",
+    label: "Quarter Model",
+  },
+  {
+    value: "Half_Model_X",
+    label: "Half Model (x-axis)",
+  },
+  {
+    value: "Half_Model_Y",
+    label: "Half Model (y-axis)",
+  },
+];
 
 export function FileExportDialog({
   kind,
@@ -32,6 +55,7 @@ export function FileExportDialog({
 }) {
   const [portalReady, setPortalReady] = React.useState(false);
   const [elementSize, setElementSize] = React.useState("500");
+  const [modelType, setModelType] = React.useState<ModelType>("Full_Model");
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
@@ -66,6 +90,7 @@ export function FileExportDialog({
         geometryStructure: kind === "json" ? undefined : geometryStructure,
         geometryEntityJson: kind === "json" ? geometryEntityJson : undefined,
         elementSize: kind === "cdb" ? parsedElementSize : undefined,
+        modelType: kind === "cdb" ? modelType : undefined,
         outputPath: trimmedOutputPath,
         sourceLabel,
       });
@@ -123,22 +148,55 @@ export function FileExportDialog({
 
         <div className="space-y-4 px-4 py-4">
           {kind === "cdb" ? (
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-muted-foreground">
-                Element size
-              </span>
-              <input
-                className={inputClass}
-                inputMode="decimal"
-                value={elementSize}
-                disabled={submitting}
-                onChange={(event) => setElementSize(event.target.value)}
-              />
-            </label>
+            <>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-semibold text-foreground">
+                  Element size
+                </span>
+                <input
+                  className={inputClass}
+                  inputMode="decimal"
+                  value={elementSize}
+                  disabled={submitting}
+                  onChange={(event) => setElementSize(event.target.value)}
+                />
+              </label>
+
+              <fieldset className="space-y-1.5" disabled={submitting}>
+                <legend className="text-sm font-semibold text-foreground">
+                  Model type
+                </legend>
+                <div className="space-y-1">
+                  {MODEL_TYPE_OPTIONS.map((option) => {
+                    const selected = modelType === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex items-center gap-2 py-1 text-sm ${
+                          submitting
+                            ? "cursor-not-allowed opacity-60"
+                            : "cursor-pointer"
+                        }`}
+                      >
+                        <input
+                          className="h-4 w-4 shrink-0 accent-primary"
+                          type="radio"
+                          name="modelType"
+                          value={option.value}
+                          checked={selected}
+                          onChange={() => setModelType(option.value)}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            </>
           ) : null}
 
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-sm font-semibold text-foreground">
               Output path
             </span>
             <input

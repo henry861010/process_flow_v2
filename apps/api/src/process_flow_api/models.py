@@ -6,6 +6,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 JsonObject = dict[str, Any]
+ModelType = Literal[
+    "Full_Model",
+    "Quarter_Model",
+    "Half_Model_X",
+    "Half_Model_Y",
+]
+MODEL_TYPES: tuple[ModelType, ...] = (
+    "Full_Model",
+    "Quarter_Model",
+    "Half_Model_X",
+    "Half_Model_Y",
+)
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 PositiveFiniteFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 SectionPoint = tuple[FiniteFloat, FiniteFloat]
@@ -322,6 +334,7 @@ class CdbFileExportCreateRequest(StrictModel):
     clientId: str = Field(min_length=1, max_length=160)
     geometryStructure: JsonObject
     elementSize: float
+    modelType: ModelType = "Full_Model"
     outputPath: str = Field(min_length=1)
     sourceLabel: str | None = None
 
@@ -334,6 +347,7 @@ class FileExportCreateRequest(StrictModel):
     geometryStructure: JsonObject | None = None
     geometryEntityJson: JsonObject | None = None
     elementSize: float | None = None
+    modelType: ModelType | None = None
 
 
 class FileExportCancelRequest(StrictModel):
@@ -414,6 +428,7 @@ class FileExportJob(StrictModel):
     sourceLabel: str | None = None
     outputPath: str
     elementSize: float | None = None
+    modelType: ModelType | None = None
     createdAt: str
     startedAt: str | None = None
     finishedAt: str | None = None

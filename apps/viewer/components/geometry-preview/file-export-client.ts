@@ -5,6 +5,12 @@ const LEGACY_CLIENT_ID_STORAGE_KEY = "process-flow:cdb-export-client-id";
 
 export type FileExportKind = "cdb" | "json" | "step";
 
+export type ModelType =
+  | "Full_Model"
+  | "Quarter_Model"
+  | "Half_Model_X"
+  | "Half_Model_Y";
+
 export type FileExportStatus =
   | "queued"
   | "running"
@@ -21,6 +27,7 @@ export type FileExportJob = {
   sourceLabel: string | null;
   outputPath: string;
   elementSize: number | null;
+  modelType: ModelType | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -40,6 +47,7 @@ export type CreateFileExportJobRequest = {
   geometryStructure?: unknown;
   geometryEntityJson?: unknown;
   elementSize?: number | null;
+  modelType?: ModelType | null;
 };
 
 export function getFileExportClientId() {
