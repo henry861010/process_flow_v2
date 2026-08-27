@@ -201,6 +201,13 @@ class Dragger:
         corner_xy = self.node_2D[self.element_2D[indices]]
         return corner_xy
     
+    def _signed_area(self, points):
+        total = 0
+        for index, (x1, y1) in enumerate(points):
+            x2, y2 = points[(index + 1) % len(points)]
+            total += x1 * y2 - x2 * y1
+        return total
+    
     def _search_faces(self, face, koz=0, indices=None, tolerance=0.01):   
         indices = self._normalize_element_indices(indices)
         
@@ -227,8 +234,10 @@ class Dragger:
             flat_coordinates = element_coordinates.reshape(-1, 2)
             
             for poly in face_dim:
+                radius = tolerance if self._signed_area(poly) > 0 else -tolerance
+                
                 path = Path(np.array(poly, dtype=np.float64))
-                flat_mask_sub = path.contains_points(flat_coordinates, radius=-tolerance)
+                flat_mask_sub = path.contains_points(flat_coordinates, radius=radius)
                 
                 # Reshape the boolean array back to (n, 4) and determine each element
                 node_mask_reshaped = flat_mask_sub.reshape(element_coordinates.shape[0], 4)

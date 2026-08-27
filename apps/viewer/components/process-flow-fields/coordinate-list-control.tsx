@@ -48,6 +48,7 @@ type GdsImportResponse =
     };
 
 type ImportSummary = Extract<GdsImportResponse, { type: "success" }>;
+type PropertyFilterMode = "include" | "exclude";
 
 const coordinateInputClass =
   "h-9 w-full rounded-md border border-input bg-white px-2.5 py-1.5 text-sm tabular-nums shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
@@ -62,6 +63,9 @@ export function CoordinateListControl({
   const [gdsFile, setGdsFile] = React.useState<File | null>(null);
   const [layer, setLayer] = React.useState("");
   const [datatype, setDatatype] = React.useState("");
+  const [propertyFilterMode, setPropertyFilterMode] =
+    React.useState<PropertyFilterMode>("include");
+  const [propertyFilterValue, setPropertyFilterValue] = React.useState("");
   const [isImporting, setIsImporting] = React.useState(false);
   const [importSummary, setImportSummary] = React.useState<ImportSummary | null>(
     null,
@@ -99,6 +103,7 @@ export function CoordinateListControl({
     workerRef.current?.terminate();
 
     const requestId = crypto.randomUUID();
+    const normalizedPropertyFilterValue = propertyFilterValue.trim();
     try {
       const buffer = await gdsFile.arrayBuffer();
       const worker = new Worker(
@@ -133,6 +138,12 @@ export function CoordinateListControl({
           layer: parsedLayer,
           datatype: parsedDatatype,
           unit,
+          propertyFilter: normalizedPropertyFilterValue
+            ? {
+                mode: propertyFilterMode,
+                contains: normalizedPropertyFilterValue,
+              }
+            : undefined,
         },
         [buffer],
       );
@@ -247,6 +258,39 @@ export function CoordinateListControl({
                 step={1}
                 value={datatype}
                 onChange={(event) => setDatatype(event.target.value)}
+              />
+            </label>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-[150px_minmax(0,1fr)]">
+            <label className="text-sm">
+              <span className="mb-1 block font-medium">Property filter</span>
+              <select
+                className={coordinateInputClass}
+                value={propertyFilterMode}
+                onChange={(event) => {
+                  setPropertyFilterMode(event.target.value as PropertyFilterMode);
+                  setImportSummary(null);
+                  setImportError(null);
+                }}
+              >
+                <option value="include">Include</option>
+                <option value="exclude">Exclude</option>
+              </select>
+            </label>
+            <label className="min-w-0 text-sm">
+              <span className="mb-1 block font-medium">
+                Property value contains
+              </span>
+              <input
+                className={coordinateInputClass}
+                type="text"
+                value={propertyFilterValue}
+                onChange={(event) => {
+                  setPropertyFilterValue(event.target.value);
+                  setImportSummary(null);
+                  setImportError(null);
+                }}
+                placeholder="Optional"
               />
             </label>
           </div>

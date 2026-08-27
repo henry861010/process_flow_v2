@@ -64,13 +64,16 @@ icon button，hover 時呈 destructive color。Empty state exact copy `No coordi
 
 ### GDS
 
-White card padding12。Grid在`md`以上為 `1.4fr 110px 110px`：
+White card padding12。第一列grid在`md`以上為 `1.4fr 110px 110px`，property filter
+第二列為 `150px minmax(0,1fr)`：
 
 | Field | Rule |
 | --- | --- |
 | `GDS file` | accept `.gds,.gdsii,.strm,.stream` + octet-stream。 |
 | `Layer` | integer `>=0`。 |
 | `Datatype` | integer `>=0`。 |
+| `Property filter` | `Include`或`Exclude`，default `Include`。 |
+| `Property value contains` | Optional string；empty或whitespace-only表示不套用property filter。 |
 
 Footer左顯示 filename或 `No file selected`；右是 `Import and replace`。缺file/layer/datatype或
 importing時disabled；importing icon是 spinning `Loader2`，否則 `FileUp`。
@@ -81,6 +84,26 @@ Parse在dedicated Web Worker執行；新import會terminate previous worker。只
 `BOUNDARY`/`BOX`轉成其所有transform後的 axis-aligned bounds
 `[[minX,minY],[maxX,maxY]]`；遞迴展開`SREF/AREF`並套translation、rotation、magnification、
 reflection。其他matching element計入unsupported summary。
+
+Worker request可附帶：
+
+```ts
+type GdsPropertyFilter = {
+  mode: "include" | "exclude";
+  contains: string;
+};
+```
+
+GDS element property由`PROPATTR` number與緊接的`PROPVALUE` string組成。本filter只比對
+`PROPVALUE`，不比對attribute number、`TEXT/STRING`或cell name。Query先trim再使用
+case-insensitive substring matching；任一property value命中即為match。`Include`只保留match，
+`Exclude`排除match；因此沒有property的element在Include時排除、Exclude時保留。Empty query
+等同沒有property filter，維持既有layer/datatype-only行為。
+
+`BOUNDARY`/`BOX`同時看到自身properties與目前reference path上所有父層`SREF/AREF`
+properties。Nested references逐層累積；sibling references互不污染；AREF每個instance使用該
+reference的相同properties。Layer/datatype仍是必要條件，property filter是額外條件。
+`matchedElements`與unsupported summary都只計入通過完整條件的elements。
 
 Unit由GDS meters/database-unit換成definition unit；canonical專案unit是 `um`。Worker另支援
 m/mm/nm 保留為 legacy aliases；未知／空 unit scale 1。
@@ -103,6 +126,7 @@ coordinates，顯示worker message或 `GDS import failed.`。
 | Edit bounds | parse finite float或empty；清import summary。 |
 | Remove | 刪該row。 |
 | Importing | button disabled，舊coordinates保留。 |
+| Edit property filter | 清除舊import summary/error；不立即改變coordinates。 |
 | Import success | replace全部rows，green feedback。 |
 | Import error | rows不變，destructive feedback。 |
 | Component unmount | worker terminate。 |
@@ -124,3 +148,7 @@ coordinates，顯示worker message或 `GDS import failed.`。
 | `UI-COORD-006` | upper-right任一axis不大於lower-left | row顯示invalid bounds且configuration incomplete。 |
 | `UI-COORD-004` | second import starts | first worker terminated，stale response不覆蓋值。 |
 | `UI-COORD-005` | 390px | row controls可用，無horizontal overflow。 |
+| `UI-COORD-007` | property query為empty或whitespace-only | Include/Exclude都維持layer/datatype-only結果。 |
+| `UI-COORD-008` | direct或reference-path PROPVALUE包含query，大小寫不同 | Include保留、Exclude排除matching bounds。 |
+| `UI-COORD-009` | nested/sibling SREF或AREF properties | properties只沿各自reference path繼承，無跨sibling污染。 |
+| `UI-COORD-010` | element無property且query non-empty | Include排除、Exclude保留。 |

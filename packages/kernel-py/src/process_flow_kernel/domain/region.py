@@ -171,7 +171,10 @@ class Region:
                 return did_change
             if not did_change:
                 break
+            
+            target_mask |= set_to
             iteration_count += 1
+            
         return iteration_count != 0
 
     def get_outline(self, target_mask=TYPE_TARGET, is_detail=False):

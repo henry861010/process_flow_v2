@@ -20,6 +20,10 @@ type GdsImportRequest = {
   layer: number;
   datatype: number;
   unit?: string | null;
+  propertyFilter?: {
+    mode: "include" | "exclude";
+    contains: string;
+  };
 };
 
 type GdsImportSuccess = {
@@ -52,6 +56,7 @@ type GdsElementKind =
 
 type GdsElement = {
   kind: GdsElementKind;
+  properties: GdsProperty[];
   layer?: number;
   datatype?: number;
   xy?: CoordinatePair[];
@@ -60,6 +65,16 @@ type GdsElement = {
   strans?: number;
   mag?: number;
   angle?: number;
+};
+
+type GdsProperty = {
+  attribute: number;
+  value: string;
+};
+
+type NormalizedPropertyFilter = {
+  mode: "include" | "exclude";
+  contains: string;
 };
 
 type GdsStructure = {
@@ -94,6 +109,7 @@ function importCoordinates(request: GdsImportRequest) {
   const layout = parseLayout(request.buffer);
   const topCellNames = getTopCellNames(layout.structures);
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
+  const propertyFilter = normalizePropertyFilter(request.propertyFilter);
   const coordinates: CoordinateBounds[] = [];
   const coordinateBuckets = new Map<string, CoordinateBounds[]>();
   const unsupportedElements: Record<string, number> = {};
@@ -124,6 +140,7 @@ function importCoordinates(request: GdsImportRequest) {
     structureName: string,
     transform: Matrix,
     stack: Set<string>,
+    inheritedProperties: readonly GdsProperty[],
   ) => {
     if (stack.has(structureName)) {
       cyclicReferences += 1;
@@ -138,7 +155,15 @@ function importCoordinates(request: GdsImportRequest) {
     stack.add(structureName);
     structure.elements.forEach((element) => {
       if (element.kind === "BOUNDARY" || element.kind === "BOX") {
-        if (!elementMatches(element, request.layer, request.datatype)) {
+        if (
+          !elementMatches(
+            element,
+            request.layer,
+            request.datatype,
+            inheritedProperties,
+            propertyFilter,
+          )
+        ) {
           return;
         }
         const bounds = transformedBounds(element.xy ?? [], transform);
@@ -163,6 +188,7 @@ function importCoordinates(request: GdsImportRequest) {
           element.sname,
           multiply(transform, referenceTransform(element, origin)),
           stack,
+          [...inheritedProperties, ...element.properties],
         );
         return;
       }
@@ -183,6 +209,10 @@ function importCoordinates(request: GdsImportRequest) {
           (rowEndpoint[0] - origin[0]) / rows,
           (rowEndpoint[1] - origin[1]) / rows,
         ];
+        const referenceProperties = [
+          ...inheritedProperties,
+          ...element.properties,
+        ];
         for (let column = 0; column < columns; column += 1) {
           for (let row = 0; row < rows; row += 1) {
             const placementOrigin: CoordinatePair = [
@@ -193,13 +223,22 @@ function importCoordinates(request: GdsImportRequest) {
               element.sname,
               multiply(transform, referenceTransform(element, placementOrigin)),
               stack,
+              referenceProperties,
             );
           }
         }
         return;
       }
 
-      if (elementMatches(element, request.layer, request.datatype)) {
+      if (
+        elementMatches(
+          element,
+          request.layer,
+          request.datatype,
+          inheritedProperties,
+          propertyFilter,
+        )
+      ) {
         unsupportedElements[element.kind] =
           (unsupportedElements[element.kind] ?? 0) + 1;
       }
@@ -207,7 +246,9 @@ function importCoordinates(request: GdsImportRequest) {
     stack.delete(structureName);
   };
 
-  topCellNames.forEach((name) => visitStructure(name, IDENTITY, new Set()));
+  topCellNames.forEach((name) =>
+    visitStructure(name, IDENTITY, new Set(), []),
+  );
 
   return {
     coordinates,
@@ -225,6 +266,7 @@ function parseLayout(buffer: ArrayBuffer) {
   let metersPerDbUnit = 1;
   let currentStructure: GdsStructure | null = null;
   let currentElement: GdsElement | null = null;
+  let currentPropertyAttribute: number | null = null;
 
   for (const record of parseGDS(new Uint8Array(buffer))) {
     switch (record.tag) {
@@ -246,28 +288,36 @@ function parseLayout(buffer: ArrayBuffer) {
         currentStructure = null;
         break;
       case RecordType.BOUNDARY:
-        currentElement = { kind: "BOUNDARY" };
+        currentElement = { kind: "BOUNDARY", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.BOX:
-        currentElement = { kind: "BOX" };
+        currentElement = { kind: "BOX", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.SREF:
-        currentElement = { kind: "SREF" };
+        currentElement = { kind: "SREF", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.AREF:
-        currentElement = { kind: "AREF" };
+        currentElement = { kind: "AREF", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.PATH:
-        currentElement = { kind: "PATH" };
+        currentElement = { kind: "PATH", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.TEXT:
-        currentElement = { kind: "TEXT" };
+        currentElement = { kind: "TEXT", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.NODE:
-        currentElement = { kind: "NODE" };
+        currentElement = { kind: "NODE", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.TEXTNODE:
-        currentElement = { kind: "TEXTNODE" };
+        currentElement = { kind: "TEXTNODE", properties: [] };
+        currentPropertyAttribute = null;
         break;
       case RecordType.LAYER:
         if (currentElement) {
@@ -312,11 +362,26 @@ function parseLayout(buffer: ArrayBuffer) {
           currentElement.angle = record.data;
         }
         break;
+      case RecordType.PROPATTR:
+        if (currentElement) {
+          currentPropertyAttribute = record.data;
+        }
+        break;
+      case RecordType.PROPVALUE:
+        if (currentElement && currentPropertyAttribute !== null) {
+          currentElement.properties.push({
+            attribute: currentPropertyAttribute,
+            value: record.data,
+          });
+        }
+        currentPropertyAttribute = null;
+        break;
       case RecordType.ENDEL:
         if (currentStructure && currentElement) {
           currentStructure.elements.push(currentElement);
         }
         currentElement = null;
+        currentPropertyAttribute = null;
         break;
       default:
         break;
@@ -342,8 +407,43 @@ function getTopCellNames(structures: Map<string, GdsStructure>) {
   return topCellNames.length > 0 ? topCellNames : [...structures.keys()];
 }
 
-function elementMatches(element: GdsElement, layer: number, datatype: number) {
-  return element.layer === layer && element.datatype === datatype;
+function elementMatches(
+  element: GdsElement,
+  layer: number,
+  datatype: number,
+  inheritedProperties: readonly GdsProperty[],
+  propertyFilter: NormalizedPropertyFilter | null,
+) {
+  if (element.layer !== layer || element.datatype !== datatype) {
+    return false;
+  }
+  return propertiesMatch(
+    [...inheritedProperties, ...element.properties],
+    propertyFilter,
+  );
+}
+
+function normalizePropertyFilter(
+  propertyFilter: GdsImportRequest["propertyFilter"],
+): NormalizedPropertyFilter | null {
+  const contains = propertyFilter?.contains.trim().toLowerCase();
+  if (!propertyFilter || !contains) {
+    return null;
+  }
+  return { mode: propertyFilter.mode, contains };
+}
+
+function propertiesMatch(
+  properties: readonly GdsProperty[],
+  propertyFilter: NormalizedPropertyFilter | null,
+) {
+  if (!propertyFilter) {
+    return true;
+  }
+  const matched = properties.some((property) =>
+    property.value.toLowerCase().includes(propertyFilter.contains),
+  );
+  return propertyFilter.mode === "include" ? matched : !matched;
 }
 
 function unitScale(metersPerDbUnit: number, unit?: string | null) {
