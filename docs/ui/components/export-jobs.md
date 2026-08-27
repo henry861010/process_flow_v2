@@ -7,7 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
+last_verified: 2026-08-27
 last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
 source_of_truth:
   - apps/viewer/components/geometry-preview/file-export-client.ts
@@ -68,6 +68,34 @@ type FileExportStatus =
 Client cancel是optimistic：queued/running row先改`canceling`，再POST cancel並merge response；failure
 顯示drawer error並立即reload authoritative jobs。
 
+Lifecycle status與執行stage是兩個不同軸。既有六種status維持相容；`running` job另帶：
+
+```ts
+type FileExportProgress = {
+  stage:
+    | "preparing" | "validating" | "analyzing_geometry"
+    | "building_2d_mesh" | "building_3d_mesh"
+    | "building_cad_model" | "writing_output" | "finalizing";
+  current: number | null;
+  total: number | null;
+  unit: "features" | "layers" | "bodies" | "records" | null;
+  message: string | null;
+  stageStartedAt: string;
+  updatedAt: string;
+};
+```
+
+| Kind | Stage順序 |
+| --- | --- |
+| JSON | preparing → writing_output → finalizing |
+| STEP | preparing → validating → analyzing_geometry → building_cad_model → writing_output → finalizing |
+| CDB | preparing → validating → analyzing_geometry → building_2d_mesh → building_3d_mesh → writing_output → finalizing |
+
+Circle imprint/extension及所有2D feature meshing都屬於`building_2d_mesh`；不存在獨立的
+`processing_features` stage。只有`current/total`皆可靠且`total > 0`時才顯示determinate progress；
+stage沒有可靠total時使用activity bar，不推算整體百分比或ETA。Queued job另顯示1-based
+`queuePosition`，running/terminal job提供`runElapsedSeconds`。
+
 ## Polling 規則
 
 1. Client ID建立後立即list。
@@ -97,7 +125,8 @@ duration；其他success顯示kind/duration。Non-success message、warning各�
 
 Hover、pointer或focus-within顯示detail popover；desktop only (`md:block`)，fixed
 `right:432px`、z90、width `min(520px,100vw-464px)`、max-height `min(70vh,420px)`。Popover fields：
-Kind、CDB size/model type/mesh、Duration、Created/Started/Finished、Job ID、Message、Warning。
+Kind、CDB size/model type/mesh、Queue position、Stage/progress/elapsed/last activity、Duration、
+Created/Started/Finished、Job ID、Log path、Message、Warning。
 
 Popover top依row rect計算，至少16px且不超viewport。CDB detail另顯示建立job時使用的Model type。
 它是pointer-events none，不能承載command。
@@ -117,7 +146,8 @@ Popover top依row rect計算，至少16px且不超viewport。CDB detail另顯示
 - Collapsed/Collapse/Cancel是native buttons。
 - Row透過focus capture顯示details，但row本身非focusable；Cancel取得focus即可觸發。
 - Status text與icon並存，不能只靠animation/color。
-- Job updates SHOULD 透過polite live region宣告是target gap；目前普通DOM更新。
+- Job status/stage updates透過polite live region宣告；determinate progress bar提供
+  `aria-valuemin/max/now`。
 - Mobile不顯示detail popover，關鍵message/stats仍必須在row本體可見。
 
 Export form 是 jobs drawer 之外的更高層 modal；提交或關閉 form 不得關閉 Preview，也不得中斷
@@ -135,3 +165,6 @@ Export form 是 jobs drawer 之外的更高層 modal；提交或關閉 form 不�
 | `UI-EXPORT-005` | list request fails | error顯示且既有rows不消失。 |
 | `UI-EXPORT-006` | 390px | drawer寬`100vw-16px`內，popover隱藏，所有row copy可讀。 |
 | `UI-EXPORT-007` | invalid size/path/extension | 不發POST，對應first validation error可見。 |
+| `UI-EXPORT-008` | running job stage更新 | row顯示stage/message/live elapsed，mobile不依賴popover。 |
+| `UI-EXPORT-009` | reliable current/total | 顯示stage progress與可存取value；無total時不顯示假百分比。 |
+| `UI-EXPORT-010` | queued job | 顯示queue position；開始執行後position消失。 |

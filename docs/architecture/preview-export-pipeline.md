@@ -6,7 +6,7 @@ audience:
   - backend engineers
   - CAD and mesher developers
   - operators
-last_verified: 2026-07-12
+last_verified: 2026-08-27
 last_verified_commit: bdf2338e402dbd6e88a5dc494c874969d3be19b0
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
@@ -190,6 +190,14 @@ Job state transition 是 `queued → running → success/failed`，取消路徑�
 優先於 legacy `CDB_EXPORT_MAX_CONCURRENT_JOBS`。每個 `clientId` 最多保留 20 個
 terminal jobs。
 
+Lifecycle status不承載內部pipeline細節；running job另回傳`progress`。JSON依序為
+`preparing → writing_output → finalizing`，STEP為
+`preparing → validating → analyzing_geometry → building_cad_model → writing_output → finalizing`，
+CDB為`preparing → validating → analyzing_geometry → building_2d_mesh → building_3d_mesh →
+writing_output → finalizing`。Circle imprint/extension屬於`building_2d_mesh`，沒有
+`processing_features` stage。`current/total`只在worker能精確計數時提供，不代表整體job百分比。
+Queued job另提供dynamic 1-based`queuePosition`；`runElapsedSeconds`在running時依現在時間計算。
+
 Job list/get/cancel 以 browser-generated `clientId` filter。這是 UI isolation，不是 authentication；知道 client id 的 caller 可讀取或取消該 client jobs。
 
 ## 檔案寫入行為
@@ -198,6 +206,18 @@ Output path 必須是 absolute path、parent directory 必須已存在，extensi
 Worker 先寫同一 directory 的 job temp file；成功時以 replace move 到 final path。若 final
 path 已存在，job 開始時會先刪除。因此 caller 必須把 endpoint 視為 server-side file
 write/replace capability。
+
+每個accepted job會先在output directory以exclusive create建立`<jobId>.log`。這是line-buffered
+plain-text sidecar，API response以`logPath`公開路徑；相同output path的不同job不會覆寫彼此log。
+Log永久保留，不隨20筆in-memory history pruning或API restart刪除，也沒有自動retention。
+建立log失敗時request不會被接受；執行期間log寫入失敗會使job失敗。
+
+Worker以`PROCESS_FLOW_PROGRESS `prefix在stderr傳送JSON事件；API同步drain stdout/stderr、更新
+public progress並寫sidecar。這個structured worker contract不會直接出現在log。Sidecar開頭集中列出
+log schema、job/type、paths與input摘要；timeline只使用`HH:MM:SS.mmm: action — comment`，相同的
+連續comment只寫一次，且不重複記錄item event的metadata。結尾集中列出status、total time、output與
+mesh統計；failure才附上exception、return code、diagnostic與traceback。非協定stderr轉成timeline
+diagnostic。Log不保存完整geometry payload、mesh connectivity或逐node/element資料。
 
 Input temp files 會在 terminal state cleanup。Cleanup 失敗以 job `warning` 回報。
 
@@ -222,8 +242,8 @@ identity；engineering section精度由BRep exact section path負責，不由dis
 ## 失敗契約
 
 Worker non-zero exit、missing output 或 conversion error 會轉成 API/job message；stderr 優先且
-只保留尾端。同步 preview error 是 HTTP error；背景 error 保存在 job status。Operator 應記錄
-API logs 與 job payload，因 job history 不會 persistence。
+只保留尾端作為精簡public error。完整diagnostic、exception type、traceback與return code寫入
+per-job plain-text summary。同步 preview error 是 HTTP error；背景 error 保存在 job status與sidecar log。
 
 Session request的invalid output port回`400`；invalid section axis／non-positive tolerance由request
 validation回`422`；missing／evicted session或unknown snapshot asset回`404`。Mesh/section conditional GET

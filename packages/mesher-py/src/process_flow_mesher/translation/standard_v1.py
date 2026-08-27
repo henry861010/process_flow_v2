@@ -66,7 +66,7 @@ class StandardV1Translator:
         return layer_infos
 
 
-def _get_assignments(container, ancestors=[]):
+def _get_assignments(container, ancestors=None, path="root"):
     '''
         assignment {
             z: float
@@ -113,9 +113,14 @@ def _get_assignments(container, ancestors=[]):
         }
     '''
     assignments = []
+    ancestors = [] if ancestors is None else ancestors
     
     for key in ["bodies", "bumps", "vias", "circuits"]:
-        for term in container[key]:
+        for term_index, term in enumerate(container[key]):
+            source_ref = term.get("id") or f"{path}.{key}[{term_index}]"
+            container_ref = container.get("id") or container.get("key") or path
+            geometry_type = term.get("geometry", {}).get("type")
+            feature_type = key[:-1] if key.endswith("s") else key
             if key == "bodies":
                 geometry = term["geometry"]
                 material = term["material"]
@@ -131,7 +136,14 @@ def _get_assignments(container, ancestors=[]):
                         "face": None,
                         "priority": priority,
                         "material": material
-                    }]
+                    }],
+                    "diagnostic": {
+                        "sourceRef": source_ref,
+                        "containerRef": container_ref,
+                        "featureType": feature_type,
+                        "geometryType": geometry_type,
+                        "operation": "start",
+                    },
                 })
                 
                 # END
@@ -160,7 +172,14 @@ def _get_assignments(container, ancestors=[]):
                     "z": z,
                     "type": END,
                     "face": face,
-                    "areas": areas
+                    "areas": areas,
+                    "diagnostic": {
+                        "sourceRef": source_ref,
+                        "containerRef": container_ref,
+                        "featureType": feature_type,
+                        "geometryType": geometry_type,
+                        "operation": "end",
+                    },
                 }) 
             
             elif key in ["bumps", "vias", "circuits"]:
@@ -181,7 +200,14 @@ def _get_assignments(container, ancestors=[]):
                         "material": material,
                         "density": term["density"],
                         "koz": koz
-                    }]
+                    }],
+                    "diagnostic": {
+                        "sourceRef": source_ref,
+                        "containerRef": container_ref,
+                        "featureType": feature_type,
+                        "geometryType": geometry_type,
+                        "operation": "start_density",
+                    },
                 })
             
                 # END
@@ -210,12 +236,23 @@ def _get_assignments(container, ancestors=[]):
                     "z": z,
                     "type": END,
                     "face": face,
-                    "areas": areas
+                    "areas": areas,
+                    "diagnostic": {
+                        "sourceRef": source_ref,
+                        "containerRef": container_ref,
+                        "featureType": feature_type,
+                        "geometryType": geometry_type,
+                        "operation": "end",
+                    },
                 })     
         
     # child
-    for child in container["children"]:
-        assignment_child = _get_assignments(child, ancestors=ancestors+[container])
+    for child_index, child in enumerate(container["children"]):
+        assignment_child = _get_assignments(
+            child,
+            ancestors=ancestors+[container],
+            path=f"{path}.children[{child_index}]",
+        )
         assignments = assignments + assignment_child
         
     return assignments

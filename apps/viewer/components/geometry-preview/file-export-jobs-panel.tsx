@@ -36,6 +36,7 @@ export function FileExportJobsPanel({
   const [jobs, setJobs] = React.useState<FileExportJob[]>([]);
   const [expanded, setExpanded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [clock, setClock] = React.useState(() => Date.now());
   const [hoveredJob, setHoveredJob] = React.useState<{
     jobId: string;
     top: number;
@@ -78,6 +79,13 @@ export function FileExportJobsPanel({
     return () => window.clearInterval(interval);
   }, [clientId, jobs, loadJobs]);
 
+  React.useEffect(() => {
+    if (!jobs.some((job) => isActiveStatus(job.status))) return;
+    setClock(Date.now());
+    const interval = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [jobs]);
+
   async function cancelJob(job: FileExportJob) {
     if (!clientId || !isCancelableStatus(job.status)) return;
     setJobs((current) =>
@@ -105,6 +113,12 @@ export function FileExportJobsPanel({
     hoveredJob == null
       ? null
       : jobs.find((job) => job.jobId === hoveredJob.jobId) ?? null;
+  const activityAnnouncement = jobs
+    .filter((job) => isActiveStatus(job.status))
+    .map((job) =>
+      `${job.sourceLabel || `${kindLabel(job.kind)} export`}: ${activeJobSummary(job, clock)}`,
+    )
+    .join(". ");
 
   function showJobDetails(job: FileExportJob, rect: DOMRect) {
     const popoverMaxHeight = Math.min(window.innerHeight * 0.7, 420);
@@ -135,6 +149,9 @@ export function FileExportJobsPanel({
 
   return (
     <>
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {activityAnnouncement}
+      </span>
       <aside className="fixed right-0 top-1/2 z-[80] flex max-h-[min(78vh,640px)] w-[min(420px,calc(100vw-16px))] -translate-y-1/2 flex-col overflow-hidden rounded-l-md border border-r-0 bg-white shadow-viewport">
         <header className="flex shrink-0 items-center gap-3 border-b bg-muted/30 px-3 py-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground [&_svg]:h-4 [&_svg]:w-4">
@@ -183,6 +200,7 @@ export function FileExportJobsPanel({
             <FileExportJobRow
               key={job.jobId}
               job={job}
+              nowMs={clock}
               onCancel={() => cancelJob(job)}
               onHover={(rect) => showJobDetails(job, rect)}
               onHoverEnd={() => setHoveredJob(null)}
@@ -199,6 +217,7 @@ export function FileExportJobsPanel({
         <FileExportJobDetailPopover
           job={hoveredJobDetails}
           top={hoveredJob?.top ?? 16}
+          nowMs={clock}
         />
       ) : null}
     </>
@@ -207,11 +226,13 @@ export function FileExportJobsPanel({
 
 function FileExportJobRow({
   job,
+  nowMs,
   onCancel,
   onHover,
   onHoverEnd,
 }: {
   job: FileExportJob;
+  nowMs: number;
   onCancel: () => void;
   onHover: (rect: DOMRect) => void;
   onHoverEnd: () => void;
@@ -270,6 +291,21 @@ function FileExportJobRow({
           <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
             {job.outputPath}
           </p>
+          {job.status === "queued" ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {job.queuePosition != null
+                ? `Queue position ${job.queuePosition}`
+                : "Waiting for an export slot"}
+            </p>
+          ) : null}
+          {job.status === "running" ? (
+            <JobProgressSummary job={job} nowMs={nowMs} />
+          ) : null}
+          {job.status === "canceling" ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Cancel requested · {formatLiveRunElapsed(job, nowMs)} elapsed
+            </p>
+          ) : null}
           {job.status === "success" && job.kind === "cdb" ? (
             <p className="mt-1 text-xs text-muted-foreground">
               {formatCount(job.elementCount)} elements, {formatCount(job.nodeCount)} nodes,{" "}
@@ -284,7 +320,7 @@ function FileExportJobRow({
                 : `${kindLabel(job.kind)} export completed`}
             </p>
           ) : null}
-          {job.message && job.status !== "success" ? (
+          {job.message && job.status !== "success" && job.status !== "canceling" ? (
             <p
               className={cn(
                 "mt-1 line-clamp-2 text-xs",
@@ -318,12 +354,69 @@ function FileExportJobRow({
   );
 }
 
+function JobProgressSummary({
+  job,
+  nowMs,
+}: {
+  job: FileExportJob;
+  nowMs: number;
+}) {
+  const progress = job.progress;
+  const hasDeterminateProgress =
+    progress?.current != null && progress.total != null && progress.total > 0;
+  const percentage = hasDeterminateProgress
+    ? Math.min(100, Math.max(0, (progress.current! / progress.total!) * 100))
+    : null;
+
+  return (
+    <div className="mt-1.5 space-y-1">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="min-w-0 truncate font-medium text-foreground/80">
+          {progress ? stageLabel(progress.stage) : "Starting export"}
+        </span>
+        <span className="shrink-0 tabular-nums text-muted-foreground">
+          {formatLiveRunElapsed(job, nowMs)}
+        </span>
+      </div>
+      {progress?.message ? (
+        <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+          {progress.message}
+        </p>
+      ) : null}
+      <div
+        className="h-1.5 overflow-hidden rounded-full bg-muted"
+        role={hasDeterminateProgress ? "progressbar" : "status"}
+        aria-label={progress ? `${stageLabel(progress.stage)} progress` : "Export activity"}
+        aria-valuemin={hasDeterminateProgress ? 0 : undefined}
+        aria-valuemax={hasDeterminateProgress ? progress?.total ?? undefined : undefined}
+        aria-valuenow={hasDeterminateProgress ? progress?.current ?? undefined : undefined}
+      >
+        {percentage != null ? (
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-300"
+            style={{ width: `${percentage}%` }}
+          />
+        ) : (
+          <div className="h-full w-1/2 animate-pulse rounded-full bg-primary/60" />
+        )}
+      </div>
+      {hasDeterminateProgress ? (
+        <p className="text-[11px] tabular-nums text-muted-foreground">
+          {formatProgress(progress!)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function FileExportJobDetailPopover({
   job,
   top,
+  nowMs,
 }: {
   job: FileExportJob;
   top: number;
+  nowMs: number;
 }) {
   return (
     <div
@@ -370,9 +463,36 @@ function FileExportJobDetailPopover({
             <JobDetailField label="Mesh" value={formatMeshSummary(job)} />
           </>
         ) : null}
+        {job.status === "queued" ? (
+          <JobDetailField
+            label="Queue position"
+            value={job.queuePosition == null ? "-" : job.queuePosition.toLocaleString()}
+          />
+        ) : null}
+        {job.progress ? (
+          <>
+            <JobDetailField label="Stage" value={stageLabel(job.progress.stage)} />
+            <JobDetailField
+              label="Stage progress"
+              value={formatProgress(job.progress)}
+            />
+            <JobDetailField
+              label="Stage elapsed"
+              value={formatElapsedFrom(job.progress.stageStartedAt, nowMs)}
+            />
+            <JobDetailField
+              label="Last activity"
+              value={formatDateTime(job.progress.updatedAt)}
+            />
+          </>
+        ) : null}
         <JobDetailField
           label="Duration"
-          value={formatDuration(job.durationSeconds)}
+          value={
+            isActiveStatus(job.status)
+              ? `${formatLiveRunElapsed(job, nowMs)} elapsed`
+              : formatDuration(job.durationSeconds)
+          }
         />
         <JobDetailField label="Created" value={formatDateTime(job.createdAt)} />
         <JobDetailField label="Started" value={formatDateTime(job.startedAt)} />
@@ -381,6 +501,7 @@ function FileExportJobDetailPopover({
           value={formatDateTime(job.finishedAt)}
         />
         <JobDetailField label="Job ID" value={job.jobId} mono />
+        <JobDetailField label="Log path" value={job.logPath} mono />
         {job.message ? (
           <JobDetailField
             label="Message"
@@ -470,6 +591,70 @@ function statusLabel(status: FileExportStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function stageLabel(stage: NonNullable<FileExportJob["progress"]>["stage"]) {
+  const labels = {
+    preparing: "Preparing export",
+    validating: "Checking geometry",
+    analyzing_geometry: "Analyzing geometry",
+    building_2d_mesh: "Building 2D mesh",
+    building_3d_mesh: "Building 3D mesh",
+    building_cad_model: "Building CAD model",
+    writing_output: "Writing output",
+    finalizing: "Finalizing files",
+  } satisfies Record<NonNullable<FileExportJob["progress"]>["stage"], string>;
+  return labels[stage];
+}
+
+function activeJobSummary(job: FileExportJob, nowMs: number) {
+  if (job.status === "queued") {
+    return job.queuePosition == null
+      ? "Queued"
+      : `Queued, position ${job.queuePosition}`;
+  }
+  if (job.status === "canceling") return "Cancel requested";
+  if (job.progress) {
+    const detail = formatProgress(job.progress);
+    return `${stageLabel(job.progress.stage)}, ${detail}, ${formatLiveRunElapsed(job, nowMs)} elapsed`;
+  }
+  return `Running, ${formatLiveRunElapsed(job, nowMs)} elapsed`;
+}
+
+function formatProgress(progress: NonNullable<FileExportJob["progress"]>) {
+  if (progress.current != null && progress.total != null) {
+    const unit = progress.unit || "items";
+    return `${progress.current.toLocaleString()} / ${progress.total.toLocaleString()} ${unit}`;
+  }
+  return progress.message || "In progress";
+}
+
+function formatLiveRunElapsed(job: FileExportJob, nowMs: number) {
+  if (job.startedAt) {
+    const startedAt = new Date(job.startedAt).getTime();
+    const finishedAt = job.finishedAt ? new Date(job.finishedAt).getTime() : nowMs;
+    if (Number.isFinite(startedAt) && Number.isFinite(finishedAt)) {
+      return formatCompactSeconds(Math.max(0, (finishedAt - startedAt) / 1000));
+    }
+  }
+  return formatCompactSeconds(job.runElapsedSeconds || 0);
+}
+
+function formatElapsedFrom(value: string, nowMs: number) {
+  const startedAt = new Date(value).getTime();
+  return Number.isFinite(startedAt)
+    ? formatCompactSeconds(Math.max(0, (nowMs - startedAt) / 1000))
+    : "-";
+}
+
+function formatCompactSeconds(value: number) {
+  const seconds = Math.max(0, Math.floor(value));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  if (hours > 0) return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+  if (minutes > 0) return `${minutes}m ${remainder.toString().padStart(2, "0")}s`;
+  return `${remainder}s`;
+}
+
 function kindLabel(kind: FileExportKind) {
   return kind.toUpperCase();
 }
@@ -519,6 +704,14 @@ function jobDetailTitle(job: FileExportJob) {
     parts.push(`Model type: ${formatModelType(job.modelType)}`);
     parts.push(`Mesh: ${formatMeshSummary(job)}`);
   }
+  if (job.queuePosition != null) {
+    parts.push(`Queue position: ${job.queuePosition}`);
+  }
+  if (job.progress) {
+    parts.push(`Stage: ${stageLabel(job.progress.stage)}`);
+    parts.push(`Stage progress: ${formatProgress(job.progress)}`);
+  }
+  parts.push(`Log: ${job.logPath}`);
   if (job.durationSeconds != null) {
     parts.push(`Duration: ${formatDuration(job.durationSeconds)}`);
   }

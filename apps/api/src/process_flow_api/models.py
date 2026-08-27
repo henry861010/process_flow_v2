@@ -420,6 +420,25 @@ class GeometryPreviewStepResponse(StrictModel):
     stepBase64: str
 
 
+class FileExportProgress(StrictModel):
+    stage: Literal[
+        "preparing",
+        "validating",
+        "analyzing_geometry",
+        "building_2d_mesh",
+        "building_3d_mesh",
+        "building_cad_model",
+        "writing_output",
+        "finalizing",
+    ]
+    current: int | None = Field(default=None, ge=0)
+    total: int | None = Field(default=None, ge=0)
+    unit: Literal["features", "layers", "bodies", "records"] | None = None
+    message: str | None = None
+    stageStartedAt: str
+    updatedAt: str
+
+
 class FileExportJob(StrictModel):
     jobId: str
     clientId: str
@@ -427,12 +446,16 @@ class FileExportJob(StrictModel):
     status: Literal["queued", "running", "success", "failed", "canceling", "canceled"]
     sourceLabel: str | None = None
     outputPath: str
+    logPath: str
     elementSize: float | None = None
     modelType: ModelType | None = None
     createdAt: str
     startedAt: str | None = None
     finishedAt: str | None = None
     durationSeconds: float | None = None
+    runElapsedSeconds: float | None = None
+    queuePosition: int | None = Field(default=None, ge=1)
+    progress: FileExportProgress | None = None
     nodeCount: int | None = None
     elementCount: int | None = None
     componentCount: int | None = None

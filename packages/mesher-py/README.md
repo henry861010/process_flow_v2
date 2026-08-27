@@ -6,7 +6,7 @@ audience:
   - mesher developers
   - backend engineers
   - simulation engineers
-last_verified: 2026-07-11
+last_verified: 2026-08-27
 last_verified_commit: b01b1e70
 source_of_truth:
   - packages/mesher-py/src/process_flow_mesher
@@ -53,6 +53,7 @@ mesh = build_mesh_from_structure(
     structure,
     element_size=100,
     model_type="Quarter_Model",
+    progress=optional_event_callback,
 )
 ```
 
@@ -88,7 +89,10 @@ python -m process_flow_mesher.worker \
 ```
 
 `model-type` 省略時使用 `Full_Model`。Success 時 stdout最後一行是 JSON metadata
-（node/element/component counts）；error寫 stderr並以 non-zero exit。
+（node/element/component counts）；error寫 stderr並以 non-zero exit。Worker另以
+`PROCESS_FLOW_PROGRESS `prefix在stderr輸出JSON events；一般diagnostic stderr不使用此prefix。
+`progress` callback optional且不改變mesh contract；validating、analysis、2D feature meshing與3D
+layer build都會回報事件。Circle imprint/extension固定屬於`building_2d_mesh`。
 
 ## 現有限制
 

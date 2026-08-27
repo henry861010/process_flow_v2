@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import copy
 import math
+import resource
+import sys
+import time
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Callable, Literal, cast
 
 import numpy as np
 from mesher.generators import generate_rectilinear_mesh
@@ -15,6 +18,7 @@ from .models import Mesh3D
 from .translation.standard_v1 import StandardV1Translator, _geometry_to_face
 
 JsonObject = dict[str, Any]
+ProgressCallback = Callable[[JsonObject], None]
 ModelType = Literal[
     "Full_Model",
     "Quarter_Model",
@@ -75,11 +79,18 @@ class _ModelDomain:
         return self.model_type in {"Quarter_Model", "Half_Model_X"}
 
 
+@dataclass(frozen=True)
+class _StageTimer:
+    wall_started: float
+    cpu_started: float
+
+
 def build_mesh_from_structure(
     geometry_structure: JsonObject,
     *,
     element_size: float,
     model_type: ModelType = "Full_Model",
+    progress: ProgressCallback | None = None,
 ) -> Mesh3D:
     """Build a full or symmetry-reduced 2.5D mesh from a geometry structure.
 
@@ -88,13 +99,16 @@ def build_mesh_from_structure(
     ``Half_Model_Y`` retains the right half, and ``Quarter_Model`` retains the
     upper-right quarter.
     """
+    stage = _start_stage(progress, "validating", "Checking geometry input.")
     normalized_element_size = _positive_finite_number(element_size, "elementSize")
     normalized_model_type = _normalize_model_type(model_type)
     validate_geometry_semantic_keys(geometry_structure)
     root = _root_container(geometry_structure)
+    _complete_stage(progress, "validating", stage)
 
     # The translator annotates containers with priority during 3D pattern
     # extraction, so keep the caller's preview snapshot immutable.
+    stage = _start_stage(progress, "analyzing_geometry", "Analyzing geometry patterns.")
     container = copy.deepcopy(root)
     translator = StandardV1Translator()
     base_face, faces = translator.get_2D_pattern(container)
@@ -116,6 +130,7 @@ def build_mesh_from_structure(
 
     all_faces = [base_face, *faces]
     circle_patterns = _collect_circle_patterns(all_faces)
+    circle_source_refs = _collect_circle_source_refs(container)
     planar_element_size = _planar_element_size(
         normalized_element_size,
         circle_patterns,
@@ -163,6 +178,30 @@ def build_mesh_from_structure(
         domain,
     )
 
+    layer_infos = translator.get_3D_pattern(container)
+    _complete_stage(
+        progress,
+        "analyzing_geometry",
+        stage,
+        data={
+            "faceCount": len(all_faces),
+            "circlePatternCount": len(circle_patterns),
+            "imprintOperationCount": len(circle_plan.imprint_patterns),
+            "extensionOperationCount": len(circle_plan.extensions),
+            "xGridLineCount": len(set(x_lines)),
+            "yGridLineCount": len(set(y_lines)),
+            "layerBoundaryCount": len(layer_infos),
+            "layerIntervalCount": max(0, len(layer_infos) - 1),
+            "assignmentCount": sum(
+                len(layer_info.get("assignments", [])) for layer_info in layer_infos[:-1]
+            ),
+            "planarElementSize": planar_element_size,
+            "modelType": normalized_model_type,
+        },
+    )
+
+    feature_total = len(circle_plan.imprint_patterns) + len(circle_plan.extensions)
+    stage = _start_stage(progress, "building_2d_mesh", "Generating base grid.")
     mesh_2d = generate_rectilinear_mesh(
         planar_element_size,
         x_lines,
@@ -175,18 +214,54 @@ def build_mesh_from_structure(
         guide_segments=pattern_segments,
         band_width=circle_band_width,
         target_edge_size=planar_element_size,
+        progress=progress,
+        completed_offset=0,
+        total_operations=feature_total,
+        source_refs=circle_source_refs,
     )
     _extend_circle_patterns(
         mesh_2d,
         circle_plan.extensions,
         element_size=planar_element_size,
+        progress=progress,
+        completed_offset=len(circle_plan.imprint_patterns),
+        total_operations=feature_total,
+        source_refs=circle_source_refs,
     )
     elements_2d = _clockwise_elements(mesh_2d.elements)
-    layer_infos = translator.get_3D_pattern(container)
+    _complete_stage(
+        progress,
+        "building_2d_mesh",
+        stage,
+        data={
+            "featureOperationCount": feature_total,
+            "node2DCount": int(len(mesh_2d.nodes)),
+            "element2DCount": int(len(elements_2d)),
+        },
+    )
 
+    stage = _start_stage(
+        progress,
+        "building_3d_mesh",
+        "Building 3D mesh layers.",
+        current=0,
+        total=max(0, len(layer_infos) - 1),
+        unit="layers",
+    )
     dragger = Dragger()
     dragger.set_2D(mesh_2d.nodes, elements_2d)
-    return dragger.build(layer_infos, normalized_element_size)
+    mesh = dragger.build(layer_infos, normalized_element_size, progress=progress)
+    _complete_stage(
+        progress,
+        "building_3d_mesh",
+        stage,
+        data={
+            "nodeCount": mesh.node_count,
+            "elementCount": mesh.element_count,
+            "componentCount": mesh.component_count,
+        },
+    )
+    return mesh
 
 
 def _normalize_model_type(value: Any) -> ModelType:
@@ -509,6 +584,36 @@ def _collect_circle_patterns(faces: list[JsonObject]) -> list[_CirclePattern]:
     return sorted(patterns)
 
 
+def _collect_circle_source_refs(
+    container: JsonObject,
+) -> dict[_CirclePattern, list[str]]:
+    refs: dict[_CirclePattern, list[str]] = {}
+
+    def visit(current: JsonObject, path: str) -> None:
+        for field in ("bodies", "vias", "circuits", "bumps"):
+            items = current.get(field, [])
+            if not isinstance(items, list):
+                continue
+            for index, item in enumerate(items):
+                if not isinstance(item, dict) or not isinstance(item.get("geometry"), dict):
+                    continue
+                face = _geometry_to_face(item["geometry"])
+                if face.get("type") != "CIRCLE":
+                    continue
+                pattern = _circle_pattern_from_face(face)
+                refs.setdefault(pattern, []).append(
+                    str(item.get("id") or f"{path}.{field}[{index}]")
+                )
+        children = current.get("children", [])
+        if isinstance(children, list):
+            for child_index, child in enumerate(children):
+                if isinstance(child, dict):
+                    visit(child, f"{path}.children[{child_index}]")
+
+    visit(container, "root")
+    return refs
+
+
 def _circle_pattern_from_face(face: JsonObject) -> _CirclePattern:
     dim = face.get("dim")
     if not isinstance(dim, list) or len(dim) != 3:
@@ -824,8 +929,21 @@ def _imprint_circle_patterns(
     ],
     band_width: float,
     target_edge_size: float,
+    progress: ProgressCallback | None = None,
+    completed_offset: int = 0,
+    total_operations: int = 0,
+    source_refs: dict[_CirclePattern, list[str]] | None = None,
 ) -> None:
-    for pattern in circle_patterns:
+    for index, pattern in enumerate(circle_patterns):
+        operation_index = completed_offset + index + 1
+        started = time.perf_counter()
+        _emit_progress(
+            progress,
+            current=operation_index - 1,
+            total=total_operations,
+            unit="features",
+            message=f"Imprinting feature {operation_index} of {total_operations}.",
+        )
         try:
             imprint_circle(
                 mesh_2d,
@@ -842,6 +960,26 @@ def _imprint_circle_patterns(
             raise ValueError(
                 f"Failed to imprint circle pattern {_circle_label(pattern)}: {exc}"
             ) from exc
+        refs = (source_refs or {}).get(pattern, [])
+        _emit_item_completed(
+            progress,
+            stage="building_2d_mesh",
+            data={
+                "featureRef": refs[0] if refs else f"circle-pattern:{operation_index}",
+                "sourceRefs": refs,
+                "featureType": "circle",
+                "geometryType": "CylinderGeometry",
+                "operation": "imprint",
+                "wallDurationMs": int(round((time.perf_counter() - started) * 1000)),
+            },
+        )
+        _emit_progress(
+            progress,
+            current=operation_index,
+            total=total_operations,
+            unit="features",
+            message=f"Imprinted feature {operation_index} of {total_operations}.",
+        )
 
 
 def _extend_circle_patterns(
@@ -849,8 +987,21 @@ def _extend_circle_patterns(
     extensions: tuple[_CircleExtension, ...],
     *,
     element_size: float,
+    progress: ProgressCallback | None = None,
+    completed_offset: int = 0,
+    total_operations: int = 0,
+    source_refs: dict[_CirclePattern, list[str]] | None = None,
 ) -> None:
-    for extension in extensions:
+    for index, extension in enumerate(extensions):
+        operation_index = completed_offset + index + 1
+        started = time.perf_counter()
+        _emit_progress(
+            progress,
+            current=operation_index - 1,
+            total=total_operations,
+            unit="features",
+            message=f"Extending feature {operation_index} of {total_operations}.",
+        )
         try:
             extend_circular_mesh(
                 mesh_2d,
@@ -866,6 +1017,26 @@ def _extend_circle_patterns(
                 f"{_circle_label(extension.inner)} to "
                 f"{_circle_label(extension.outer)}: {exc}"
             ) from exc
+        refs = (source_refs or {}).get(extension.outer, [])
+        _emit_item_completed(
+            progress,
+            stage="building_2d_mesh",
+            data={
+                "featureRef": refs[0] if refs else f"circle-pattern:{operation_index}",
+                "sourceRefs": refs,
+                "featureType": "circle",
+                "geometryType": "CylinderGeometry",
+                "operation": "extension",
+                "wallDurationMs": int(round((time.perf_counter() - started) * 1000)),
+            },
+        )
+        _emit_progress(
+            progress,
+            current=operation_index,
+            total=total_operations,
+            unit="features",
+            message=f"Extended feature {operation_index} of {total_operations}.",
+        )
 
 
 def _clockwise_elements(elements: Any) -> np.ndarray:
@@ -947,3 +1118,100 @@ def _finite_number(value: Any, name: str) -> float:
     if not math.isfinite(number):
         raise ValueError(f"{name} must be a finite number.")
     return number
+
+
+def _start_stage(
+    progress: ProgressCallback | None,
+    stage: str,
+    message: str,
+    *,
+    current: int | None = None,
+    total: int | None = None,
+    unit: str | None = None,
+) -> _StageTimer:
+    _emit(
+        progress,
+        {
+            "event": "stage.started",
+            "stage": stage,
+            "current": current,
+            "total": total,
+            "unit": unit,
+            "message": message,
+            "data": {},
+        },
+    )
+    return _StageTimer(time.perf_counter(), time.process_time())
+
+
+def _complete_stage(
+    progress: ProgressCallback | None,
+    stage: str,
+    timer: _StageTimer,
+    *,
+    data: JsonObject | None = None,
+) -> None:
+    metrics = dict(data or {})
+    metrics.update(
+        {
+            "wallDurationMs": int(round((time.perf_counter() - timer.wall_started) * 1000)),
+            "cpuDurationMs": int(round((time.process_time() - timer.cpu_started) * 1000)),
+            "peakRssBytes": _peak_rss_bytes(),
+        }
+    )
+    _emit(
+        progress,
+        {
+            "event": "stage.completed",
+            "stage": stage,
+            "data": metrics,
+        },
+    )
+
+
+def _emit_progress(
+    progress: ProgressCallback | None,
+    *,
+    current: int | None,
+    total: int | None,
+    unit: str | None,
+    message: str,
+    data: JsonObject | None = None,
+) -> None:
+    _emit(
+        progress,
+        {
+            "event": "progress",
+            "current": current,
+            "total": total,
+            "unit": unit,
+            "message": message,
+            "data": data or {},
+        },
+    )
+
+
+def _emit_item_completed(
+    progress: ProgressCallback | None,
+    *,
+    stage: str,
+    data: JsonObject,
+) -> None:
+    _emit(
+        progress,
+        {
+            "event": "item.completed",
+            "stage": stage,
+            "data": data,
+        },
+    )
+
+
+def _emit(progress: ProgressCallback | None, payload: JsonObject) -> None:
+    if progress is not None:
+        progress(payload)
+
+
+def _peak_rss_bytes() -> int:
+    peak = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    return peak if sys.platform == "darwin" else peak * 1024

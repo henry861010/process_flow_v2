@@ -39,6 +39,29 @@ class CadExporterTests(unittest.TestCase):
         self.assertIn("ISO-10303-21", step)
         self.assertRegex(step, r"AP242|242")
 
+    def test_step_export_reports_body_progress_without_changing_output(self):
+        events = []
+
+        step = export_cad_bytes(
+            feature_structure(),
+            format="step",
+            progress=events.append,
+        )
+
+        self.assertIn(b"ISO-10303-21", step)
+        progress_events = [event for event in events if event["event"] == "progress"]
+        body_events = [
+            event
+            for event in events
+            if event["event"] == "item.completed"
+            and event["data"].get("itemType") == "cad_body"
+        ]
+        self.assertGreater(len(progress_events), 0)
+        self.assertGreater(len(body_events), 0)
+        self.assertTrue(
+            all(event["stage"] == "building_cad_model" for event in body_events)
+        )
+
     def test_all_supported_primitives_export(self):
         step = export_cad_bytes(all_primitive_structure(), format="step").decode(
             "utf-8",

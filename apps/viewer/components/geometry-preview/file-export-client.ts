@@ -19,6 +19,26 @@ export type FileExportStatus =
   | "canceling"
   | "canceled";
 
+export type FileExportStage =
+  | "preparing"
+  | "validating"
+  | "analyzing_geometry"
+  | "building_2d_mesh"
+  | "building_3d_mesh"
+  | "building_cad_model"
+  | "writing_output"
+  | "finalizing";
+
+export type FileExportProgress = {
+  stage: FileExportStage;
+  current: number | null;
+  total: number | null;
+  unit: "features" | "layers" | "bodies" | "records" | null;
+  message: string | null;
+  stageStartedAt: string;
+  updatedAt: string;
+};
+
 export type FileExportJob = {
   jobId: string;
   clientId: string;
@@ -26,12 +46,16 @@ export type FileExportJob = {
   status: FileExportStatus;
   sourceLabel: string | null;
   outputPath: string;
+  logPath: string;
   elementSize: number | null;
   modelType: ModelType | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
   durationSeconds: number | null;
+  runElapsedSeconds: number | null;
+  queuePosition: number | null;
+  progress: FileExportProgress | null;
   nodeCount: number | null;
   elementCount: number | null;
   componentCount: number | null;

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -16,6 +19,7 @@ from process_flow_kernel import ProcessStepModuleResolver
 import process_flow_api.main as api_main
 from process_flow_api.main import create_app
 from process_flow_api import services as api_services
+from process_flow_api.export_job_logging import ExportJobLogError
 from process_flow_api.models import PreviewSectionResponse
 from process_flow_api.seed import load_seed_fixtures
 
@@ -36,6 +40,13 @@ class ProcessFlowApiTests(unittest.TestCase):
         response = self.client.post("/api/reset")
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
+
+    def assert_log_actions_in_order(self, log_text, actions):
+        cursor = 0
+        for action in actions:
+            index = log_text.find(action, cursor)
+            self.assertNotEqual(index, -1, f"Missing log action after offset {cursor}: {action}")
+            cursor = index + len(action)
 
     def assert_seed_payload_counts(self, payload):
         fixtures = load_seed_fixtures()
@@ -1067,11 +1078,171 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["modelType"], "Full_Model")
         self.assertGreater(job["nodeCount"], 0)
         self.assertGreater(job["elementCount"], 0)
+        self.assertIsNone(job["queuePosition"])
+        self.assertGreaterEqual(job["runElapsedSeconds"], 0)
+        self.assertEqual(job["progress"]["stage"], "finalizing")
+        self.assertEqual(job["logPath"], str(Path(self.tmp.name) / f"{job['jobId']}.log"))
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertIn("*NODES,index,x,y,z", content)
         self.assertIn("*ELEMENTS,index,n0,n1,n2,n3,n4,n5,n6,n7", content)
         self.assertIn("*COMPS,component_id,name", content)
+        log_text = Path(job["logPath"]).read_text(encoding="utf-8")
+        self.assertIn("Log schema: process-flow-export-log/v2", log_text)
+        self.assertIn("Type: CDB", log_text)
+        self.assertIn("Input SHA-256:", log_text)
+        self.assertIn("--- Timeline (elapsed) ---", log_text)
+        self.assertIn("--- Summary ---", log_text)
+        self.assertIn("Status: success", log_text)
+        self.assertIn("Total time:", log_text)
+        self.assertIn("Mesh: components=", log_text)
+        self.assert_log_actions_in_order(
+            log_text,
+            (
+                "Preparing export",
+                "Checking geometry",
+                "Analyzing geometry",
+                "Building 2D mesh",
+                "Building 3D mesh",
+                "Writing output",
+                "Finalizing files",
+            ),
+        )
+        timeline_lines = [
+            line for line in log_text.splitlines() if re.match(r"^\d{2}:\d{2}:\d{2}\.\d{3}: ", line)
+        ]
+        self.assertTrue(timeline_lines)
+        self.assertNotIn('"event":', log_text)
+        self.assertNotIn("processing_features", log_text)
+        self.assertNotIn("geometryStructure", log_text)
+
+    def test_running_job_exposes_live_worker_stage_progress(self):
+        output_path = Path(self.tmp.name) / "slow.cdb"
+
+        async def start_slow_worker(*, output_path, **_):
+            script = (
+                "import json,pathlib,sys,time\n"
+                "event={'event':'stage.started','stage':'building_2d_mesh',"
+                "'current':2,'total':10,'unit':'features',"
+                "'message':'Imprinting feature 3 of 10.','data':{}}\n"
+                "print('PROCESS_FLOW_PROGRESS {bad-json',file=sys.stderr,flush=True)\n"
+                "print('PROCESS_FLOW_PROGRESS '+json.dumps(event),file=sys.stderr,flush=True)\n"
+                "time.sleep(0.6)\n"
+                "pathlib.Path(sys.argv[1]).write_text('fake cdb',encoding='utf-8')\n"
+                "print(json.dumps({'nodeCount':8,'elementCount':1,'componentCount':2}),flush=True)\n"
+            )
+            return await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                script,
+                str(output_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+        with mock.patch(
+            "process_flow_api.file_export_jobs.start_cdb_worker",
+            new=start_slow_worker,
+        ):
+            response = self.client.post(
+                "/api/geometry-preview/export-jobs",
+                json={
+                    "clientId": "client-live-progress",
+                    "kind": "cdb",
+                    "geometryStructure": simple_structure(),
+                    "elementSize": 5,
+                    "outputPath": str(output_path),
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            job_id = response.json()["job"]["jobId"]
+
+            running = None
+            for _ in range(40):
+                candidate = self.client.get(
+                    f"/api/export-jobs/{job_id}?clientId=client-live-progress"
+                ).json()["job"]
+                if candidate["progress"] and candidate["progress"]["stage"] == "building_2d_mesh":
+                    running = candidate
+                    break
+                time.sleep(0.025)
+
+            self.assertIsNotNone(running)
+            self.assertEqual(running["status"], "running")
+            self.assertEqual(running["progress"]["current"], 2)
+            self.assertEqual(running["progress"]["total"], 10)
+            self.assertEqual(running["progress"]["unit"], "features")
+            self.assertGreaterEqual(running["runElapsedSeconds"], 0)
+            completed = wait_for_export_job(
+                self.client,
+                job_id,
+                "client-live-progress",
+            )
+            self.assertEqual(completed["status"], "success", completed)
+            log_text = Path(completed["logPath"]).read_text(encoding="utf-8")
+            self.assertIn("Malformed worker progress event", log_text)
+            self.assertNotIn('"event":"stage.started"', log_text)
+
+    def test_cancel_running_job_keeps_terminal_log(self):
+        output_path = Path(self.tmp.name) / "cancel-running.cdb"
+
+        async def start_long_worker(*, output_path, **_):
+            script = (
+                "import json,sys,time\n"
+                "event={'event':'stage.started','stage':'validating',"
+                "'message':'Checking geometry input.','data':{}}\n"
+                "print('PROCESS_FLOW_PROGRESS '+json.dumps(event),file=sys.stderr,flush=True)\n"
+                "time.sleep(10)\n"
+            )
+            return await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                script,
+                str(output_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+        with mock.patch(
+            "process_flow_api.file_export_jobs.start_cdb_worker",
+            new=start_long_worker,
+        ):
+            response = self.client.post(
+                "/api/geometry-preview/export-jobs",
+                json={
+                    "clientId": "client-cancel-running",
+                    "kind": "cdb",
+                    "geometryStructure": simple_structure(),
+                    "elementSize": 5,
+                    "outputPath": str(output_path),
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            job_id = response.json()["job"]["jobId"]
+            for _ in range(40):
+                running = self.client.get(
+                    f"/api/export-jobs/{job_id}?clientId=client-cancel-running"
+                ).json()["job"]
+                if running["progress"] and running["progress"]["stage"] == "validating":
+                    break
+                time.sleep(0.025)
+            cancel = self.client.post(
+                f"/api/export-jobs/{job_id}/cancel",
+                json={"clientId": "client-cancel-running"},
+            )
+            self.assertEqual(cancel.status_code, 200, cancel.text)
+            self.assertEqual(cancel.json()["job"]["status"], "canceling")
+            completed = wait_for_export_job(
+                self.client,
+                job_id,
+                "client-cancel-running",
+            )
+
+        self.assertEqual(completed["status"], "canceled", completed)
+        self.assertFalse(output_path.exists())
+        log_text = Path(completed["logPath"]).read_text(encoding="utf-8")
+        self.assertIn("Cancellation requested", log_text)
+        self.assertIn("Status: canceled", log_text)
 
     def test_json_export_job_writes_geometry_entity_file(self):
         output_path = Path(self.tmp.name) / "PREVIEW.JSON"
@@ -1100,9 +1271,61 @@ class ProcessFlowApiTests(unittest.TestCase):
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertEqual(json.loads(content), geometry_entity)
         self.assertIn('\n  "entityType": "preview"', content)
+        json_log = Path(job["logPath"]).read_text(encoding="utf-8")
+        self.assert_log_actions_in_order(
+            json_log,
+            ("Preparing export", "Writing output", "Finalizing files"),
+        )
         jobs = self.client.get("/api/export-jobs?clientId=client-json")
         self.assertEqual(jobs.status_code, 200, jobs.text)
         self.assertIn(job["jobId"], [candidate["jobId"] for candidate in jobs.json()["jobs"]])
+
+    def test_jobs_using_the_same_output_keep_unique_per_job_logs(self):
+        output_path = Path(self.tmp.name) / "reused.json"
+        logs = []
+
+        for client_id in ("client-log-a", "client-log-b"):
+            response = self.client.post(
+                "/api/geometry-preview/export-jobs",
+                json={
+                    "clientId": client_id,
+                    "kind": "json",
+                    "geometryEntityJson": preview_geometry_entity(),
+                    "outputPath": str(output_path),
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            job = wait_for_export_job(
+                self.client,
+                response.json()["job"]["jobId"],
+                client_id,
+            )
+            logs.append(Path(job["logPath"]))
+
+        self.assertNotEqual(logs[0], logs[1])
+        self.assertTrue(all(path.exists() for path in logs))
+        self.assertTrue(all(path.name.endswith(".log") for path in logs))
+
+    def test_export_job_is_rejected_when_log_cannot_be_created(self):
+        output_path = Path(self.tmp.name) / "no-log.json"
+
+        with mock.patch(
+            "process_flow_api.file_export_jobs.ExportJobLogger.create",
+            side_effect=ExportJobLogError("log folder is not writable"),
+        ):
+            response = self.client.post(
+                "/api/geometry-preview/export-jobs",
+                json={
+                    "clientId": "client-log-failure",
+                    "kind": "json",
+                    "geometryEntityJson": preview_geometry_entity(),
+                    "outputPath": str(output_path),
+                },
+            )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("log folder is not writable", response.json()["message"])
+        self.assertFalse(output_path.exists())
 
     def test_step_export_job_writes_step_file(self):
         output_path = Path(self.tmp.name) / "MODEL.STEP"
@@ -1128,6 +1351,18 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8", errors="replace")
         self.assertIn("ISO-10303-21", content)
+        step_log = Path(job["logPath"]).read_text(encoding="utf-8")
+        self.assert_log_actions_in_order(
+            step_log,
+            (
+                "Preparing export",
+                "Checking geometry",
+                "Analyzing geometry",
+                "Building CAD model",
+                "Writing output",
+                "Finalizing files",
+            ),
+        )
 
     def test_cdb_export_job_rejects_non_cdb_extension(self):
         response = self.client.post(
@@ -1256,6 +1491,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         job_id = response.json()["job"]["jobId"]
         self.assertEqual(response.json()["job"]["status"], "queued")
+        self.assertEqual(response.json()["job"]["queuePosition"], 1)
+        log_path = Path(response.json()["job"]["logPath"])
+        self.assertEqual(log_path.name, f"{job_id}.log")
+        self.assertTrue(log_path.exists())
 
         cancel = self.client.post(
             f"/api/export-jobs/{job_id}/cancel",
@@ -1265,6 +1504,9 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(cancel.status_code, 200, cancel.text)
         self.assertEqual(cancel.json()["job"]["status"], "canceled")
         self.assertFalse(output_path.exists())
+        log_text = log_path.read_text(encoding="utf-8")
+        self.assertIn("Cancellation requested", log_text)
+        self.assertIn("Status: canceled", log_text)
 
 
 def preview_session_request(

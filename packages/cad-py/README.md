@@ -5,7 +5,7 @@ owner: integration.platform
 audience:
   - CAD developers
   - backend engineers
-last_verified: 2026-07-11
+last_verified: 2026-08-27
 last_verified_commit: b01b1e70
 source_of_truth:
   - packages/cad-py/src/process_flow_cad/exporter.py
@@ -29,7 +29,7 @@ Dependencies：CadQuery 2.5+（<3）與 `process-flow-kernel`。
 ```python
 from process_flow_cad import convert_cad_bodies, export_cad_bytes
 
-glb = export_cad_bytes(structure, format="glb")
+glb = export_cad_bytes(structure, format="glb", progress=optional_event_callback)
 step = export_cad_bytes(structure, format="step")
 ```
 
@@ -38,6 +38,9 @@ Worker interface：
 ```bash
 python -m process_flow_cad.worker <glb|step> <input-json> <output-file>
 ```
+
+Progress callback是optional；STEP worker以`PROCESS_FLOW_PROGRESS `prefix在stderr回報validation、
+analysis、CAD body conversion與output writing。Success artifact及既有Python回傳值不受影響。
 
 ## 現行語意
 

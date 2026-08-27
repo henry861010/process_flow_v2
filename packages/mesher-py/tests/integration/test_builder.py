@@ -214,6 +214,42 @@ class BuilderIntegrationTests(unittest.TestCase):
         )
         np.testing.assert_array_equal(mesh.nodes[-1], [2.0, 2.0, 1.0])
 
+    def test_progress_callback_reports_features_inside_building_2d_mesh(self):
+        events = []
+
+        mesh = build_mesh_from_structure(
+            _multi_circle_structure(),
+            element_size=1.0,
+            progress=events.append,
+        )
+
+        self.assertGreater(mesh.element_count, 0)
+        started_stages = [
+            event["stage"]
+            for event in events
+            if event["event"] == "stage.started"
+        ]
+        self.assertEqual(
+            started_stages,
+            [
+                "validating",
+                "analyzing_geometry",
+                "building_2d_mesh",
+                "building_3d_mesh",
+            ],
+        )
+        feature_items = [
+            event
+            for event in events
+            if event["event"] == "item.completed"
+            and event["data"].get("featureType") == "circle"
+        ]
+        self.assertGreater(len(feature_items), 0)
+        self.assertTrue(
+            all(event["stage"] == "building_2d_mesh" for event in feature_items)
+        )
+        self.assertNotIn("processing_features", started_stages)
+
     def test_model_types_use_the_full_boundary_box_center(self):
         structure = _offset_box_structure()
         cases = (

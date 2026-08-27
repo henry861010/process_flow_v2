@@ -12,6 +12,11 @@ Design notes:
       time. Use ``element_num`` and ``node_num`` to read the valid slices.
 """
 
+from __future__ import annotations
+
+import time
+from typing import Any, Callable
+
 import numpy as np
 from matplotlib.path import Path
 
@@ -27,6 +32,7 @@ START_NORMAL = 3
 START_DENSITY = 2
 START_CONVERT = 1
 END = 0
+ProgressCallback = Callable[[dict[str, Any]], None]
 
 class Dragger:
     """Build a 3D solid mesh from a mixed 2D process layout.
@@ -290,11 +296,29 @@ class Dragger:
             # no assignment if density threshold is 0 or vols too small
             return np.empty((0), dtype=np.int32)
         
-    def _organize(self, assignments, layer=1):
+    def _organize(
+        self,
+        assignments,
+        layer=1,
+        *,
+        progress: ProgressCallback | None = None,
+        layer_total: int = 0,
+    ):
         # sort the assignment (high priority first)
         assignments = sorted(assignments, key=lambda item: (item['type'], -item['areas'][0]['priority']))
         
         for index, assignment in enumerate(assignments):
+            assignment_started = time.perf_counter()
+            _emit_progress(
+                progress,
+                current=layer,
+                total=layer_total,
+                unit="layers",
+                message=(
+                    f"Assigning feature {index + 1} of {len(assignments)} "
+                    f"in layer {layer + 1} of {layer_total}."
+                ),
+            )
             face = assignment["face"]
             areas = assignment["areas"]
             assign_type = assignment["type"]
@@ -304,6 +328,14 @@ class Dragger:
             potential_indices = np.where(mask)[0]
             
             if len(potential_indices) == 0:
+                _emit_assignment_completed(
+                    progress,
+                    assignment,
+                    layer=layer,
+                    assignment_index=index,
+                    duration_ms=int(round((time.perf_counter() - assignment_started) * 1000)),
+                    selected_element_count=0,
+                )
                 continue
 
             # START_NORMAL
@@ -385,6 +417,15 @@ class Dragger:
                 ### assignment
                 self.element_2D_comp[target_indices] = comp_id
                 self.element_2D_priority[target_indices] = priority 
+
+            _emit_assignment_completed(
+                progress,
+                assignment,
+                layer=layer,
+                assignment_index=index,
+                duration_ms=int(round((time.perf_counter() - assignment_started) * 1000)),
+                selected_element_count=len(target_indices),
+            )
         
     def _drag(self, element_size: float, begin: float, end: float):
         """Extrude currently labeled 2D elements between two z positions.
@@ -485,7 +526,14 @@ class Dragger:
         self.node_2D_to_3D[:] = -1
         self.node_2D_to_3D[node2D_idx] = layer_nodes[-1]
         
-    def build(self, layer_infos, element_size, *, verbose=False) -> Mesh3D:
+    def build(
+        self,
+        layer_infos,
+        element_size,
+        *,
+        verbose=False,
+        progress: ProgressCallback | None = None,
+    ) -> Mesh3D:
         """Build 3D mesh data from process object definitions.
 
         Args:
@@ -504,14 +552,47 @@ class Dragger:
         """
 
         self._organize_empty()
+        layer_total = max(0, len(layer_infos) - 1)
         for index, layer_info in enumerate(layer_infos[:-1]):
+            layer_started = time.perf_counter()
+            nodes_before = self.node_num
+            elements_before = self.element_num
             z_now = layer_infos[index]["z"]
             z_next = layer_infos[index+1]["z"]
             assignments = layer_info["assignments"]
             
-            self._organize(assignments, index)
+            self._organize(
+                assignments,
+                index,
+                progress=progress,
+                layer_total=layer_total,
+            )
             
             self._drag(element_size, z_now, z_next)
+            if progress is not None:
+                progress(
+                    {
+                        "event": "item.completed",
+                        "stage": "building_3d_mesh",
+                        "data": {
+                            "itemType": "layer",
+                            "layerIndex": index + 1,
+                            "assignmentCount": len(assignments),
+                            "nodesAdded": self.node_num - nodes_before,
+                            "elementsAdded": self.element_num - elements_before,
+                            "wallDurationMs": int(
+                                round((time.perf_counter() - layer_started) * 1000)
+                            ),
+                        },
+                    }
+                )
+            _emit_progress(
+                progress,
+                current=index + 1,
+                total=layer_total,
+                unit="layers",
+                message=f"Built layer {index + 1} of {layer_total}.",
+            )
             
 
         if verbose:
@@ -524,3 +605,57 @@ class Dragger:
             element_comps=self.element_comps[: self.element_num],
             comps=self.comps,
         )
+
+
+def _emit_progress(
+    progress: ProgressCallback | None,
+    *,
+    current: int,
+    total: int,
+    unit: str,
+    message: str,
+) -> None:
+    if progress is not None:
+        progress(
+            {
+                "event": "progress",
+                "current": current,
+                "total": total,
+                "unit": unit,
+                "message": message,
+                "data": {},
+            }
+        )
+
+
+def _emit_assignment_completed(
+    progress: ProgressCallback | None,
+    assignment: dict[str, Any],
+    *,
+    layer: int,
+    assignment_index: int,
+    duration_ms: int,
+    selected_element_count: int,
+) -> None:
+    if progress is None:
+        return
+    diagnostic = assignment.get("diagnostic")
+    diagnostic_data = diagnostic if isinstance(diagnostic, dict) else {}
+    progress(
+        {
+            "event": "item.completed",
+            "stage": "building_3d_mesh",
+            "data": {
+                "itemType": "assignment",
+                "layerIndex": layer + 1,
+                "assignmentIndex": assignment_index + 1,
+                "sourceRef": diagnostic_data.get("sourceRef"),
+                "containerRef": diagnostic_data.get("containerRef"),
+                "featureType": diagnostic_data.get("featureType"),
+                "geometryType": diagnostic_data.get("geometryType"),
+                "operation": diagnostic_data.get("operation"),
+                "selectedElementCount": selected_element_count,
+                "wallDurationMs": duration_ms,
+            },
+        }
+    )
