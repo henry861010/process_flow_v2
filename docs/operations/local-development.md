@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - developers
   - operators
-last_verified: 2026-07-11
-last_verified_commit: b01b1e70
+last_verified: 2026-08-29
+last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
 source_of_truth:
   - README.md
   - apps/api/pyproject.toml
@@ -24,8 +24,9 @@ source_of_truth:
 - Python 3.11+
 - Node.js `>=18.17.0`（目前驗證環境為 Node `24.3.0`、npm `11.4.2`）
 - macOS/Linux environment capable of installing CadQuery/OCP
-- `mesher` repository 包含 `extend_circular_mesh` 的 local `main` checkout；它提供 2D
-  grid、circle imprint 與 concentric circle extension
+- `mesher` repository checkout commit
+  `8b588bbc077d7cb4858a7926a4f563e148f5ec71`；它提供2D／3D mesh、Standard V1 translation、
+  CDB export與optional visualization
 
 Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm ci`。Python
 目前只有 `pyproject.toml` version ranges，沒有 committed lock/constraints file，因此安裝
@@ -38,18 +39,17 @@ Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm
 ```bash
 python3 -m venv venv
 venv/bin/pip install --upgrade pip
-venv/bin/pip install /absolute/path/to/mesher
+git -C /absolute/path/to/mesher checkout 8b588bbc077d7cb4858a7926a4f563e148f5ec71
+venv/bin/pip install -e packages/kernel-py
+venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
-  -e packages/kernel-py \
   -e packages/process-step-py \
   -e packages/cad-py \
-  -e packages/mesher-py \
   -e 'apps/api[test]'
 ```
 
-需要同步修改 `mesher` 時，使用
-`venv/bin/pip install -e /absolute/path/to/mesher`。必須先安裝 local checkout，
-不可執行沒有 path 的 `pip install mesher`，因為 PyPI 上的同名 package 與本專案無關。
+需要同步修改 `mesher` 時，維持 editable install。必須先安裝指定的local checkout，
+不可執行沒有path的`pip install mesher`，因為PyPI上的同名package與本專案無關。
 
 所有 local packages 必須安裝在啟動 API 的同一 Python environment。Kernel 會在 execution time import `process_flow_steps`；CAD/CDB workers也使用 `sys.executable` 啟動。
 
@@ -117,13 +117,12 @@ marker 不是 `2` 時，目前 implementation 會清空 resource tables；這個
 venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
 venv/bin/python -m unittest discover apps/api/tests
-venv/bin/python -m unittest discover packages/mesher-py/tests -v
 cd apps/viewer && npm run build
 ```
 
 CAD tests 位於 `apps/api/tests/test_cad_exporter.py`，由 API test discovery 執行。Process-step modules 的 current integration coverage 位於 kernel tests。
 
-目前沒有 committed CI workflow、browser E2E test 或 standalone process-step test suite；在建立 release gate 前，以上 commands 是最低 handoff checks。
+Mesher integration workflow執行外部mesher、API、文件與viewer build；目前仍沒有browser E2E test或standalone process-step test suite。
 
 ## Export 操作
 
@@ -133,7 +132,9 @@ Background export output path 是 API host 的 absolute path，不是 browser do
 
 ## 開發者 scripts
 
-`script/geometry_viewer.py` 是 optional desktop mesh visualization utility；先以 `pip install -e 'packages/mesher-py[visualization]'` 安裝 PyVista extra。`script/test1.py` 與 `script/test2.py` 是 legacy experiments，不是 supported verification commands，但已改用 installed package imports，不再依賴 developer-specific absolute paths。
+`script/geometry_viewer.py` 是optional desktop mesh visualization utility；前述mesher install已包含
+`visualization` extra。`script/test1.py`與`script/test2.py`是legacy experiments，不是supported
+verification commands，但都使用installed `mesher` package imports。
 
 ## 疑難排解
 

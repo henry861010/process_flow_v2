@@ -19,7 +19,7 @@ async def start_cdb_worker(
     *,
     input_path: Path,
     element_size: float,
-    model_type: str,
+    symmetry: str,
     output_path: Path,
 ) -> asyncio.subprocess.Process:
     env = os.environ.copy()
@@ -30,11 +30,11 @@ async def start_cdb_worker(
     return await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
-        "process_flow_mesher.worker",
+        "mesher.process_flow.worker",
         str(input_path),
         str(element_size),
         str(output_path),
-        model_type,
+        symmetry,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,

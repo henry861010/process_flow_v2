@@ -6,8 +6,8 @@ audience:
   - process-step authors
   - CAD and mesher developers
   - viewer developers
-last_verified: 2026-07-12
-last_verified_commit: bdf2338e402dbd6e88a5dc494c874969d3be19b0
+last_verified: 2026-08-29
+last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/conformance.md
@@ -15,7 +15,7 @@ source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/serialization
   - packages/cad-py/src/process_flow_cad/exporter.py
   - packages/cad-py/src/process_flow_cad/section.py
-  - packages/mesher-py/src/process_flow_mesher/translation/standard_v1.py
+  - https://github.com/henry861010/mesher/blob/8b588bbc077d7cb4858a7926a4f563e148f5ec71/src/mesher/process_flow/translation.py
 ---
 
 # Geometry 解讀語意

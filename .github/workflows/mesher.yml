@@ -6,17 +6,31 @@ on:
       - ".github/workflows/mesher.yml"
       - "README.md"
       - "docs/**"
-      - "packages/mesher-py/**"
-      - "script/test1.py"
-      - "script/test2.py"
+      - "apps/api/pyproject.toml"
+      - "apps/api/src/process_flow_api/cdb_exporter.py"
+      - "apps/api/src/process_flow_api/export_job_logging.py"
+      - "apps/api/src/process_flow_api/file_export_jobs.py"
+      - "apps/api/src/process_flow_api/main.py"
+      - "apps/api/src/process_flow_api/models.py"
+      - "apps/api/tests/**"
+      - "apps/viewer/components/geometry-preview/file-export-*.ts*"
+      - "script/geometry_viewer.py"
+      - "script/test*.py"
   push:
     paths:
       - ".github/workflows/mesher.yml"
       - "README.md"
       - "docs/**"
-      - "packages/mesher-py/**"
-      - "script/test1.py"
-      - "script/test2.py"
+      - "apps/api/pyproject.toml"
+      - "apps/api/src/process_flow_api/cdb_exporter.py"
+      - "apps/api/src/process_flow_api/export_job_logging.py"
+      - "apps/api/src/process_flow_api/file_export_jobs.py"
+      - "apps/api/src/process_flow_api/main.py"
+      - "apps/api/src/process_flow_api/models.py"
+      - "apps/api/tests/**"
+      - "apps/viewer/components/geometry-preview/file-export-*.ts*"
+      - "script/geometry_viewer.py"
+      - "script/test*.py"
 
 permissions:
   contents: read
@@ -28,11 +42,11 @@ jobs:
       - name: Check out process-flow
         uses: actions/checkout@v4
 
-      - name: Check out mesher v0.1.0
+      - name: Check out pinned mesher 0.2
         uses: actions/checkout@v4
         with:
           repository: henry861010/mesher
-          ref: v0.1.0
+          ref: 8b588bbc077d7cb4858a7926a4f563e148f5ec71
           path: _external/mesher
 
       - name: Set up Python
@@ -40,17 +54,36 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/viewer/package-lock.json
+
       - name: Install packages
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ./_external/mesher
-          python -m pip install -e 'packages/mesher-py[visualization]'
+          python -m pip install -e packages/kernel-py
+          python -m pip install './_external/mesher[process-flow,visualization]'
+          python -m pip install \
+            -e packages/process-step-py \
+            -e packages/cad-py \
+            -e 'apps/api[test]'
 
       - name: Test external mesher
         run: python -m unittest discover -s _external/mesher/tests -v
 
-      - name: Test process-flow mesher
-        run: python -m unittest discover -s packages/mesher-py/tests -v
+      - name: Test process-flow API integration
+        run: python -m unittest discover -s apps/api/tests -v
 
       - name: Validate documentation
-        run: python scripts/check_docs.py
+        run: |
+          python scripts/check_docs.py
+          python scripts/check_golden_example.py
+
+      - name: Build viewer
+        working-directory: apps/viewer
+        run: |
+          npm ci
+          npm run build

@@ -13,7 +13,6 @@ topology、研究中的 workspace、immutable product instance 與 geometry cata
 | `packages/kernel-py` | Geometry domain、graph/configuration validation、compile 與 process-step execution；不存取 HTTP 或 SQLite。 |
 | `packages/process-step-py` | `process_flow_steps.<program>` 的實際 process operations。 |
 | `packages/cad-py` | GeometryStructure 到 GLB / STEP AP242 的轉換。 |
-| `packages/mesher-py` | 2.5D mesh 與 text CDB 輸出。 |
 | `docs` | Target contract、現行架構、UI 規格、操作手冊與 conformance ledger。 |
 
 系統邊界與 dependency direction 見
@@ -30,25 +29,26 @@ topology、研究中的 workspace、immutable product instance 與 geometry cata
 
 ## 最短啟動流程
 
-Python 3.11+ 與 Node.js 18.17+ 是最低基線。2D grid、circle imprint 與 concentric
-circle extension 來自獨立的 [`mesher`](https://github.com/henry861010/mesher)
-repository；目前必須使用包含 `extend_circular_mesh` 的 local `main` checkout。完整
-dependency 與平台注意事項請依
+Python 3.11+ 與 Node.js 18.17+ 是最低基線。2D／3D mesh、Standard V1 translation、CDB
+export 與 optional mesh visualization 由獨立的
+[`mesher`](https://github.com/henry861010/mesher) repository 管理；目前整合固定在 commit
+`8b588bbc077d7cb4858a7926a4f563e148f5ec71`。完整 dependency 與平台注意事項請依
 [本機開發手冊](docs/operations/local-development.md)；以下命令從 repository root 執行：
 
 ```bash
 python3 -m venv venv
-venv/bin/pip install -e /absolute/path/to/mesher
+git -C /absolute/path/to/mesher checkout 8b588bbc077d7cb4858a7926a4f563e148f5ec71
+venv/bin/pip install -e packages/kernel-py
+venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
-  -e packages/kernel-py \
   -e packages/process-step-py \
   -e packages/cad-py \
-  -e packages/mesher-py \
   -e 'apps/api[test]'
 ```
 
 不要使用沒有 local path 的 `pip install mesher`；PyPI 上的同名 distribution 是另一個
-專案，而且舊的 `v0.1.0` tag 尚未提供 concentric extension API。
+專案。API metadata 要求 `mesher[process-flow]==0.2.0`，local checkout 必須先安裝在同一個
+Python environment。
 
 啟動只供受信任本機使用的 API：
 
@@ -72,7 +72,6 @@ NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://localhost:8000 npm run dev -- -p 30
 venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
 venv/bin/python -m unittest discover apps/api/tests
-venv/bin/python -m unittest discover packages/mesher-py/tests
 venv/bin/python scripts/check_docs.py
 venv/bin/python scripts/check_golden_example.py
 cd apps/viewer && npm run build

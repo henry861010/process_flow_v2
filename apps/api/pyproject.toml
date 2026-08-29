@@ -13,7 +13,7 @@ dependencies = [
   "pydantic>=2.7",
   "process-flow-cad",
   "process-flow-kernel",
-  "process-flow-mesher",
+  "mesher[process-flow]==0.2.0",
   "process-flow-steps",
 ]
 

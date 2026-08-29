@@ -6,17 +6,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 JsonObject = dict[str, Any]
-ModelType = Literal[
-    "Full_Model",
-    "Quarter_Model",
-    "Half_Model_X",
-    "Half_Model_Y",
+SymmetryMode = Literal[
+    "full",
+    "upper_half",
+    "right_half",
+    "upper_right_quarter",
 ]
-MODEL_TYPES: tuple[ModelType, ...] = (
-    "Full_Model",
-    "Quarter_Model",
-    "Half_Model_X",
-    "Half_Model_Y",
+SYMMETRY_MODES: tuple[SymmetryMode, ...] = (
+    "full",
+    "upper_half",
+    "right_half",
+    "upper_right_quarter",
 )
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 PositiveFiniteFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
@@ -334,7 +334,7 @@ class CdbFileExportCreateRequest(StrictModel):
     clientId: str = Field(min_length=1, max_length=160)
     geometryStructure: JsonObject
     elementSize: float
-    modelType: ModelType = "Full_Model"
+    symmetry: SymmetryMode = "full"
     outputPath: str = Field(min_length=1)
     sourceLabel: str | None = None
 
@@ -347,7 +347,7 @@ class FileExportCreateRequest(StrictModel):
     geometryStructure: JsonObject | None = None
     geometryEntityJson: JsonObject | None = None
     elementSize: float | None = None
-    modelType: ModelType | None = None
+    symmetry: SymmetryMode | None = None
 
 
 class FileExportCancelRequest(StrictModel):
@@ -448,7 +448,7 @@ class FileExportJob(StrictModel):
     outputPath: str
     logPath: str
     elementSize: float | None = None
-    modelType: ModelType | None = None
+    symmetry: SymmetryMode | None = None
     createdAt: str
     startedAt: str | None = None
     finishedAt: str | None = None

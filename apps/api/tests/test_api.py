@@ -1075,7 +1075,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         normalized_output_path = Path(self.tmp.name) / "MODEL.cdb"
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["outputPath"], str(normalized_output_path))
-        self.assertEqual(job["modelType"], "Full_Model")
+        self.assertEqual(job["symmetry"], "full")
         self.assertGreater(job["nodeCount"], 0)
         self.assertGreater(job["elementCount"], 0)
         self.assertIsNone(job["queuePosition"])
@@ -1090,6 +1090,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         log_text = Path(job["logPath"]).read_text(encoding="utf-8")
         self.assertIn("Log schema: process-flow-export-log/v2", log_text)
         self.assertIn("Type: CDB", log_text)
+        self.assertIn("Symmetry: full", log_text)
         self.assertIn("Input SHA-256:", log_text)
         self.assertIn("--- Timeline (elapsed) ---", log_text)
         self.assertIn("--- Summary ---", log_text)
@@ -1266,7 +1267,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["kind"], "json")
         self.assertEqual(job["outputPath"], str(normalized_output_path))
         self.assertIsNone(job["elementSize"])
-        self.assertIsNone(job["modelType"])
+        self.assertIsNone(job["symmetry"])
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertEqual(json.loads(content), geometry_entity)
@@ -1347,7 +1348,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["kind"], "step")
         self.assertEqual(job["outputPath"], str(normalized_output_path))
-        self.assertIsNone(job["modelType"])
+        self.assertIsNone(job["symmetry"])
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8", errors="replace")
         self.assertIn("ISO-10303-21", content)
@@ -1378,26 +1379,26 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn(".cdb", response.json()["message"])
 
-    def test_cdb_export_job_supports_each_model_type(self):
-        model_types = (
-            "Full_Model",
-            "Quarter_Model",
-            "Half_Model_X",
-            "Half_Model_Y",
+    def test_cdb_export_job_supports_each_symmetry(self):
+        symmetries = (
+            "full",
+            "upper_half",
+            "right_half",
+            "upper_right_quarter",
         )
         element_counts = {}
 
-        for model_type in model_types:
-            with self.subTest(model_type=model_type):
+        for symmetry in symmetries:
+            with self.subTest(symmetry=symmetry):
                 response = self.client.post(
                     "/api/geometry-preview/export-jobs",
                     json={
-                        "clientId": "client-model-types",
+                        "clientId": "client-symmetry-modes",
                         "kind": "cdb",
                         "geometryStructure": simple_structure(),
                         "elementSize": 5,
-                        "modelType": model_type,
-                        "outputPath": str(Path(self.tmp.name) / f"{model_type}.cdb"),
+                        "symmetry": symmetry,
+                        "outputPath": str(Path(self.tmp.name) / f"{symmetry}.cdb"),
                     },
                 )
 
@@ -1405,41 +1406,60 @@ class ProcessFlowApiTests(unittest.TestCase):
                 job = wait_for_export_job(
                     self.client,
                     response.json()["job"]["jobId"],
-                    "client-model-types",
+                    "client-symmetry-modes",
                 )
                 self.assertEqual(job["status"], "success", job)
-                self.assertEqual(job["modelType"], model_type)
-                element_counts[model_type] = job["elementCount"]
+                self.assertEqual(job["symmetry"], symmetry)
+                element_counts[symmetry] = job["elementCount"]
 
         self.assertLess(
-            element_counts["Quarter_Model"],
-            element_counts["Full_Model"],
+            element_counts["upper_right_quarter"],
+            element_counts["full"],
         )
         self.assertLess(
-            element_counts["Half_Model_X"],
-            element_counts["Full_Model"],
+            element_counts["upper_half"],
+            element_counts["full"],
         )
         self.assertLess(
-            element_counts["Half_Model_Y"],
-            element_counts["Full_Model"],
+            element_counts["right_half"],
+            element_counts["full"],
         )
 
-    def test_cdb_export_job_rejects_unknown_model_type(self):
-        output_path = Path(self.tmp.name) / "unknown-model.cdb"
+    def test_cdb_export_job_rejects_unknown_symmetry(self):
+        output_path = Path(self.tmp.name) / "unknown-symmetry.cdb"
 
         response = self.client.post(
             "/api/geometry-preview/export-jobs",
             json={
-                "clientId": "client-model-types",
+                "clientId": "client-symmetry-modes",
                 "kind": "cdb",
                 "geometryStructure": simple_structure(),
                 "elementSize": 5,
-                "modelType": "Upper_Model",
+                "symmetry": "Upper_Model",
                 "outputPath": str(output_path),
             },
         )
 
         self.assertEqual(response.status_code, 422, response.text)
+        self.assertFalse(output_path.exists())
+
+    def test_cdb_export_job_rejects_legacy_model_type_field(self):
+        output_path = Path(self.tmp.name) / "legacy-model-type.cdb"
+
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "client-legacy-model-type",
+                "kind": "cdb",
+                "geometryStructure": simple_structure(),
+                "elementSize": 5,
+                "modelType": "Full_Model",
+                "outputPath": str(output_path),
+            },
+        )
+
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertIn("modelType", response.text)
         self.assertFalse(output_path.exists())
 
     def test_export_job_rejects_wrong_generic_extension(self):

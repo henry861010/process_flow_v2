@@ -1,5 +1,5 @@
-from process_flow_mesher import build_mesh_from_structure
-from process_flow_mesher.visualization import MeshViewer
+from mesher.process_flow import build_mesh_from_structure
+from mesher.mesh3d.visualization import MeshViewer
 
 # ---------------------------------------
 

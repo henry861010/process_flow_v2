@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-08-27
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-08-29
+last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
 source_of_truth:
   - apps/viewer/components/geometry-preview/file-export-client.ts
   - apps/viewer/components/geometry-preview/file-export-dialog.tsx
@@ -35,10 +35,10 @@ source label、Close；footer `Cancel`、primary `Export`。
 | --- | --- | --- | --- |
 | JSON | Output path | `/Users/henry/Desktop/geometry-preview.json` | `geometryEntityJson` |
 | STEP | Output path | `/Users/henry/Desktop/geometry-preview.step` | `geometryStructure` |
-| CDB | Element size + Model type + Output path | `/Users/henry/Desktop/model.cdb` | `geometryStructure` |
+| CDB | Element size + Symmetry + Output path | `/Users/henry/Desktop/model.cdb` | `geometryStructure` |
 
-CDB element size default `500`。Model type以緊湊的單欄radio list依序顯示`Full Model`、
-`Quarter Model`、`Half Model (x-axis)`、`Half Model (y-axis)`，每次開啟預設`Full_Model`。
+CDB element size default `500`。Symmetry以緊湊的單欄radio list依序顯示`Full`、
+`Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
 Client validation順序：CDB size finite且`>0`、path required、path以
 `/`開頭、extension case-insensitive符合`.json/.step/.cdb`。錯誤顯示form內 destructive block。
 
@@ -125,10 +125,10 @@ duration；其他success顯示kind/duration。Non-success message、warning各�
 
 Hover、pointer或focus-within顯示detail popover；desktop only (`md:block`)，fixed
 `right:432px`、z90、width `min(520px,100vw-464px)`、max-height `min(70vh,420px)`。Popover fields：
-Kind、CDB size/model type/mesh、Queue position、Stage/progress/elapsed/last activity、Duration、
+Kind、CDB size/symmetry/mesh、Queue position、Stage/progress/elapsed/last activity、Duration、
 Created/Started/Finished、Job ID、Log path、Message、Warning。
 
-Popover top依row rect計算，至少16px且不超viewport。CDB detail另顯示建立job時使用的Model type。
+Popover top依row rect計算，至少16px且不超viewport。CDB detail另顯示建立job時使用的Symmetry。
 它是pointer-events none，不能承載command。
 
 ## 狀態與 action 矩陣

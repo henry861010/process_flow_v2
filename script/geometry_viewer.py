@@ -1,8 +1,8 @@
 import json
 import argparse
 
-from process_flow_mesher import build_mesh_from_structure
-from process_flow_mesher.visualization import MeshViewer
+from mesher.process_flow import build_mesh_from_structure
+from mesher.mesh3d.visualization import MeshViewer
 
 parser = argparse.ArgumentParser(description="The geoemtry strcuture viewer")
 parser.add_argument("-json", '--json', type=str, help="The path to the input json.")

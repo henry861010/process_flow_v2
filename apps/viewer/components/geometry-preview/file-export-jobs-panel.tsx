@@ -457,8 +457,8 @@ function FileExportJobDetailPopover({
               value={formatNullableNumber(job.elementSize)}
             />
             <JobDetailField
-              label="Model type"
-              value={formatModelType(job.modelType)}
+              label="Symmetry"
+              value={formatSymmetryMode(job.symmetry)}
             />
             <JobDetailField label="Mesh" value={formatMeshSummary(job)} />
           </>
@@ -667,11 +667,11 @@ function formatNullableNumber(value: number | null) {
   return value == null ? "-" : value.toLocaleString();
 }
 
-function formatModelType(value: FileExportJob["modelType"]) {
-  if (value === "Full_Model") return "Full Model";
-  if (value === "Quarter_Model") return "Quarter Model";
-  if (value === "Half_Model_X") return "Half Model (x-axis)";
-  if (value === "Half_Model_Y") return "Half Model (y-axis)";
+function formatSymmetryMode(value: FileExportJob["symmetry"]) {
+  if (value === "full") return "Full";
+  if (value === "upper_right_quarter") return "Upper-right Quarter";
+  if (value === "upper_half") return "Upper Half";
+  if (value === "right_half") return "Right Half";
   return "-";
 }
 
@@ -701,7 +701,7 @@ function jobDetailTitle(job: FileExportJob) {
   ];
   if (job.kind === "cdb") {
     parts.push(`Element size: ${formatNullableNumber(job.elementSize)}`);
-    parts.push(`Model type: ${formatModelType(job.modelType)}`);
+    parts.push(`Symmetry: ${formatSymmetryMode(job.symmetry)}`);
     parts.push(`Mesh: ${formatMeshSummary(job)}`);
   }
   if (job.queuePosition != null) {

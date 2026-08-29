@@ -9,32 +9,32 @@ import {
   getFileExportClientId,
   type FileExportJob,
   type FileExportKind,
-  type ModelType,
+  type SymmetryMode,
 } from "@/components/geometry-preview/file-export-client";
 import { Button } from "@/components/ui/button";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
-const MODEL_TYPE_OPTIONS: ReadonlyArray<{
-  value: ModelType;
+const SYMMETRY_OPTIONS: ReadonlyArray<{
+  value: SymmetryMode;
   label: string;
 }> = [
   {
-    value: "Full_Model",
-    label: "Full Model",
+    value: "full",
+    label: "Full",
   },
   {
-    value: "Quarter_Model",
-    label: "Quarter Model",
+    value: "upper_half",
+    label: "Upper Half",
   },
   {
-    value: "Half_Model_X",
-    label: "Half Model (x-axis)",
+    value: "right_half",
+    label: "Right Half",
   },
   {
-    value: "Half_Model_Y",
-    label: "Half Model (y-axis)",
+    value: "upper_right_quarter",
+    label: "Upper-right Quarter",
   },
 ];
 
@@ -55,7 +55,7 @@ export function FileExportDialog({
 }) {
   const [portalReady, setPortalReady] = React.useState(false);
   const [elementSize, setElementSize] = React.useState("500");
-  const [modelType, setModelType] = React.useState<ModelType>("Full_Model");
+  const [symmetry, setSymmetryMode] = React.useState<SymmetryMode>("full");
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
@@ -90,7 +90,7 @@ export function FileExportDialog({
         geometryStructure: kind === "json" ? undefined : geometryStructure,
         geometryEntityJson: kind === "json" ? geometryEntityJson : undefined,
         elementSize: kind === "cdb" ? parsedElementSize : undefined,
-        modelType: kind === "cdb" ? modelType : undefined,
+        symmetry: kind === "cdb" ? symmetry : undefined,
         outputPath: trimmedOutputPath,
         sourceLabel,
       });
@@ -164,11 +164,11 @@ export function FileExportDialog({
 
               <fieldset className="space-y-1.5" disabled={submitting}>
                 <legend className="text-sm font-semibold text-foreground">
-                  Model type
+                  Symmetry
                 </legend>
                 <div className="space-y-1">
-                  {MODEL_TYPE_OPTIONS.map((option) => {
-                    const selected = modelType === option.value;
+                  {SYMMETRY_OPTIONS.map((option) => {
+                    const selected = symmetry === option.value;
                     return (
                       <label
                         key={option.value}
@@ -181,10 +181,10 @@ export function FileExportDialog({
                         <input
                           className="h-4 w-4 shrink-0 accent-primary"
                           type="radio"
-                          name="modelType"
+                          name="symmetry"
                           value={option.value}
                           checked={selected}
-                          onChange={() => setModelType(option.value)}
+                          onChange={() => setSymmetryMode(option.value)}
                         />
                         <span>{option.label}</span>
                       </label>

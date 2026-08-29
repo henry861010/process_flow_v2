@@ -6,8 +6,8 @@ audience:
   - backend engineers
   - CAD and mesher developers
   - operators
-last_verified: 2026-08-27
-last_verified_commit: bdf2338e402dbd6e88a5dc494c874969d3be19b0
+last_verified: 2026-08-29
+last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/conformance.md
@@ -17,7 +17,7 @@ source_of_truth:
   - apps/api/src/process_flow_api/file_export_jobs.py
   - packages/cad-py/src/process_flow_cad/worker.py
   - packages/cad-py/src/process_flow_cad/section.py
-  - packages/mesher-py/src/process_flow_mesher/worker.py
+  - https://github.com/henry861010/mesher/blob/8b588bbc077d7cb4858a7926a4f563e148f5ec71/src/mesher/process_flow/worker.py
 ---
 
 # Preview 與 export pipeline
@@ -179,11 +179,11 @@ Viewer 可將同一份 ready snapshot 送到 `POST /api/geometry-preview/export-
 | --- | --- | --- |
 | `json` | `geometryEntityJson` | API process 直接寫 pretty JSON |
 | `step` | `geometryStructure` | `process_flow_cad.worker step` subprocess |
-| `cdb` | `geometryStructure` + positive `elementSize` + optional `modelType` | `process_flow_mesher.worker` subprocess |
+| `cdb` | `geometryStructure` + positive `elementSize` + optional `symmetry` | `mesher.process_flow.worker` subprocess |
 
-CDB `modelType`合法值為`Full_Model`、`Quarter_Model`、`Half_Model_X`、`Half_Model_Y`；省略時使用
-`Full_Model`。Export manager會保存正規化後的值並作為worker第四個CLI參數傳入。Job response的
-`modelType`在CDB為實際使用值，JSON與STEP為`null`。
+CDB `symmetry`合法值為`full`、`upper_half`、`right_half`、`upper_right_quarter`；省略時使用
+`full`。Export manager會保存正規化後的值並作為worker第四個CLI參數傳入。Job response的
+`symmetry`在CDB為實際使用值，JSON與STEP為`null`。舊`modelType`欄位不相容且會被strict schema拒絕。
 
 Job state transition 是 `queued → running → success/failed`，取消路徑可經
 `canceling → canceled`。Manager 預設同時執行一個 job；`EXPORT_MAX_CONCURRENT_JOBS`

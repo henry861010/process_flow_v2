@@ -29,7 +29,7 @@ from .export_job_logging import (
     ExportJobLogger,
     summarize_export_input,
 )
-from .models import MODEL_TYPES, ModelType
+from .models import SYMMETRY_MODES, SymmetryMode
 
 JsonObject = dict[str, Any]
 FileExportKind = Literal["cdb", "json", "step"]
@@ -89,7 +89,7 @@ class FileExportJob:
     log_path: Path
     logger: ExportJobLogger = field(repr=False)
     element_size: float | None = None
-    model_type: ModelType | None = None
+    symmetry: SymmetryMode | None = None
     status: FileExportStatus = "queued"
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -112,7 +112,7 @@ class FileExportJob:
             "outputPath": str(self.output_path),
             "logPath": str(self.log_path),
             "elementSize": self.element_size,
-            "modelType": self.model_type,
+            "symmetry": self.symmetry,
             "createdAt": _iso(self.created_at),
             "startedAt": _iso(self.started_at),
             "finishedAt": _iso(self.finished_at),
@@ -162,17 +162,17 @@ class FileExportJobManager:
         geometry_structure: JsonObject | None = None,
         geometry_entity_json: JsonObject | None = None,
         element_size: float | None = None,
-        model_type: str | None = None,
+        symmetry: str | None = None,
     ) -> JsonObject:
         normalized_kind = _normalize_file_export_kind(kind)
         normalized_client_id = _normalize_client_id(client_id)
         final_output_path = _normalize_output_path(output_path, normalized_kind)
 
         normalized_element_size: float | None = None
-        normalized_model_type: ModelType | None = None
+        normalized_symmetry: SymmetryMode | None = None
         if normalized_kind == "cdb":
             normalized_element_size = _positive_number(element_size, "elementSize")
-            normalized_model_type = _normalize_model_type(model_type)
+            normalized_symmetry = _normalize_symmetry(symmetry)
             input_payload = _required_json_object(geometry_structure, "geometryStructure")
             input_path = _write_job_input(input_payload, normalized_kind)
         elif normalized_kind == "step":
@@ -200,7 +200,7 @@ class FileExportJobManager:
                 output_path=str(final_output_path),
                 log_path=str(log_path),
                 element_size=normalized_element_size,
-                model_type=normalized_model_type,
+                symmetry=normalized_symmetry,
                 input_summary=summarize_export_input(input_payload),
             )
         except Exception as error:
@@ -221,7 +221,7 @@ class FileExportJobManager:
             log_path=log_path,
             logger=logger,
             element_size=normalized_element_size,
-            model_type=normalized_model_type,
+            symmetry=normalized_symmetry,
             source_label=source_label,
             created_at=created_at,
         )
@@ -252,7 +252,7 @@ class FileExportJobManager:
         client_id: str,
         geometry_structure: JsonObject,
         element_size: float,
-        model_type: str = "Full_Model",
+        symmetry: str = "full",
         output_path: str,
         source_label: str | None,
     ) -> JsonObject:
@@ -261,7 +261,7 @@ class FileExportJobManager:
             kind="cdb",
             geometry_structure=geometry_structure,
             element_size=element_size,
-            model_type=model_type,
+            symmetry=symmetry,
             output_path=output_path,
             source_label=source_label,
         )
@@ -416,7 +416,7 @@ class FileExportJobManager:
                 kind = job.kind
                 input_path = job.input_path
                 element_size = job.element_size
-                model_type = job.model_type
+                symmetry = job.symmetry
                 temp_output_path = job.temp_output_path
 
             if cancel_requested:
@@ -453,7 +453,7 @@ class FileExportJobManager:
                 process = await start_cdb_worker(
                     input_path=input_path,
                     element_size=_positive_number(element_size, "elementSize"),
-                    model_type=_normalize_model_type(model_type),
+                    symmetry=_normalize_symmetry(symmetry),
                     output_path=temp_output_path,
                 )
             else:
@@ -982,12 +982,12 @@ def _normalize_file_export_kind(value: str) -> FileExportKind:
     raise ValueError("Export job kind must be one of: cdb, json, step.")
 
 
-def _normalize_model_type(value: str | None) -> ModelType:
-    normalized = "Full_Model" if value is None else str(value).strip()
-    if normalized not in MODEL_TYPES:
-        allowed = ", ".join(MODEL_TYPES)
-        raise ValueError(f"modelType must be one of: {allowed}.")
-    return cast(ModelType, normalized)
+def _normalize_symmetry(value: str | None) -> SymmetryMode:
+    normalized = "full" if value is None else str(value).strip()
+    if normalized not in SYMMETRY_MODES:
+        allowed = ", ".join(SYMMETRY_MODES)
+        raise ValueError(f"symmetry must be one of: {allowed}.")
+    return cast(SymmetryMode, normalized)
 
 
 def _normalize_output_path(value: str, kind: FileExportKind) -> Path:
@@ -1163,7 +1163,7 @@ def _package_versions() -> JsonObject:
         "process-flow-api",
         "process-flow-kernel",
         "process-flow-cad",
-        "process-flow-mesher",
+        "mesher",
     ):
         try:
             versions[package] = importlib_metadata.version(package)

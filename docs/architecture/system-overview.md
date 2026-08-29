@@ -6,15 +6,15 @@ audience:
   - software engineers
   - maintainers
   - technical leads
-last_verified: 2026-07-11
-last_verified_commit: b01b1e70
+last_verified: 2026-08-29
+last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
 source_of_truth:
   - apps/api/src/process_flow_api
   - apps/viewer
   - packages/kernel-py/src/process_flow_kernel
   - packages/process-step-py/src/process_flow_steps
   - packages/cad-py/src/process_flow_cad
-  - packages/mesher-py/src/process_flow_mesher
+  - https://github.com/henry861010/mesher/tree/8b588bbc077d7cb4858a7926a4f563e148f5ec71/src/mesher/process_flow
 ---
 
 # 系統架構總覽
@@ -32,7 +32,7 @@ flowchart LR
   Plan --> Kernel["GeometryKernel"]
   Kernel --> Steps["packages/process-step-py\ndynamic process modules"]
   API -->|"subprocess"| CAD["packages/cad-py\nCadQuery/OCP worker"]
-  API -->|"subprocess"| Mesher["packages/mesher-py\n2.5D CDB worker"]
+  API -->|"subprocess"| Mesher["external mesher 0.2\n2.5D CDB worker"]
 ```
 
 ## 套件職責
@@ -44,11 +44,11 @@ flowchart LR
 | `packages/kernel-py` | Geometry domain、flow validation/compiler、execution plan、step execution、normalization | SQLite、HTTP、CadQuery、frontend state |
 | `packages/process-step-py` | Concrete `execute(context)` operation modules | Persistence、API routing、module discovery policy |
 | `packages/cad-py` | Geometry-to-CadQuery conversion、GLB、STEP AP242 | Flow compilation、catalog resolution |
-| `packages/mesher-py` | Standard structure to 2.5D mesh/text CDB | Flow compilation、catalog resolution |
+| external `mesher` 0.2 | Standard structure to 2.5D mesh/text CDB | Flow compilation、catalog resolution |
 
-Dependency direction 是 `viewer → API → kernel`。API 另外啟動 CAD/mesher adapters；kernel
-在 execution time 動態 import process-step modules；CAD 使用 kernel 的 normalization 與
-polygon helpers。Kernel 不依賴 API 或 storage。
+Dependency direction 是 `viewer → API → kernel`。API 另外啟動CAD與external mesher workers；
+kernel在execution time動態import process-step modules；CAD與mesher process-flow extra使用kernel
+的geometry contract。Kernel不依賴API或storage。
 
 ## 核心 runtime flow
 

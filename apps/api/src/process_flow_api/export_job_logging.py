@@ -77,7 +77,7 @@ class ExportJobLogger:
         output_path: str,
         log_path: str,
         element_size: float | None,
-        model_type: str | None,
+        symmetry: str | None,
         input_summary: JsonObject,
     ) -> None:
         counts = input_summary.get("counts")
@@ -96,8 +96,8 @@ class ExportJobLogger:
         ]
         if element_size is not None:
             lines.append(f"Element size: {_format_number(element_size)}")
-        if model_type is not None:
-            lines.append(f"Model type: {model_type}")
+        if symmetry is not None:
+            lines.append(f"Symmetry: {symmetry}")
         lines.extend(
             [
                 f"Input schema: {_display_value(input_summary.get('schemaVersion'))}",

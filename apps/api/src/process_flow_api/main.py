@@ -276,7 +276,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             client_id=body.clientId,
             geometry_structure=body.geometryStructure,
             element_size=body.elementSize,
-            model_type=body.modelType,
+            symmetry=body.symmetry,
             output_path=body.outputPath,
             source_label=body.sourceLabel,
         )
@@ -292,7 +292,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             geometry_structure=body.geometryStructure,
             geometry_entity_json=body.geometryEntityJson,
             element_size=body.elementSize,
-            model_type=body.modelType,
+            symmetry=body.symmetry,
         )
         return {"job": job}
 
