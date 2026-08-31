@@ -11,6 +11,7 @@ import {
   multiply,
   referenceTransform,
   transformedBounds,
+  transformedPoints,
   type Matrix,
 } from "./gds-coordinate-geometry";
 
@@ -20,6 +21,7 @@ type GdsImportRequest = {
   layer: number;
   datatype: number;
   unit?: string | null;
+  preserveShapes?: boolean;
   propertyFilter?: {
     mode: "include" | "exclude";
     contains: string;
@@ -30,6 +32,7 @@ type GdsImportSuccess = {
   type: "success";
   requestId: string;
   coordinates: CoordinateBounds[];
+  regions: GdsTargetRegion[];
   matchedElements: number;
   duplicatesRemoved: number;
   topCellNames: string[];
@@ -37,6 +40,10 @@ type GdsImportSuccess = {
   unresolvedReferences: number;
   cyclicReferences: number;
 };
+
+type GdsTargetRegion =
+  | { type: "rectangle"; bounds: CoordinateBounds }
+  | { type: "polygon"; points: CoordinatePair[] };
 
 type GdsImportFailure = {
   type: "error";
@@ -111,7 +118,9 @@ function importCoordinates(request: GdsImportRequest) {
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
   const propertyFilter = normalizePropertyFilter(request.propertyFilter);
   const coordinates: CoordinateBounds[] = [];
+  const regions: GdsTargetRegion[] = [];
   const coordinateBuckets = new Map<string, CoordinateBounds[]>();
+  const regionSignatures = new Set<string>();
   const unsupportedElements: Record<string, number> = {};
   let matchedElements = 0;
   let duplicatesRemoved = 0;
@@ -134,6 +143,17 @@ function importCoordinates(request: GdsImportRequest) {
       coordinate,
     ]);
     coordinates.push(coordinate);
+  };
+
+  const addRegion = (region: GdsTargetRegion, bounds: CoordinateBounds) => {
+    const signature = regionSignature(region);
+    if (regionSignatures.has(signature)) {
+      duplicatesRemoved += 1;
+      return;
+    }
+    regionSignatures.add(signature);
+    regions.push(region);
+    coordinates.push(bounds);
   };
 
   const visitStructure = (
@@ -166,15 +186,27 @@ function importCoordinates(request: GdsImportRequest) {
         ) {
           return;
         }
-        const bounds = transformedBounds(element.xy ?? [], transform);
+        const sourcePoints = element.xy ?? [];
+        const bounds = transformedBounds(sourcePoints, transform);
         if (!bounds) {
           return;
         }
         matchedElements += 1;
-        addCoordinate([
+        const scaledBounds: CoordinateBounds = [
           [bounds[0][0] * coordinateScale, bounds[0][1] * coordinateScale],
           [bounds[1][0] * coordinateScale, bounds[1][1] * coordinateScale],
-        ]);
+        ];
+        if (request.preserveShapes) {
+          const points = transformedPoints(sourcePoints, transform).map(
+            (point): CoordinatePair => [
+              point[0] * coordinateScale,
+              point[1] * coordinateScale,
+            ],
+          );
+          addRegion(targetRegion(element.kind, points, scaledBounds), scaledBounds);
+        } else {
+          addCoordinate(scaledBounds);
+        }
         return;
       }
 
@@ -252,6 +284,7 @@ function importCoordinates(request: GdsImportRequest) {
 
   return {
     coordinates,
+    regions,
     matchedElements,
     duplicatesRemoved,
     topCellNames,
@@ -259,6 +292,73 @@ function importCoordinates(request: GdsImportRequest) {
     unresolvedReferences,
     cyclicReferences,
   };
+}
+
+function targetRegion(
+  _kind: "BOUNDARY" | "BOX",
+  rawPoints: CoordinatePair[],
+  bounds: CoordinateBounds,
+): GdsTargetRegion {
+  const points = withoutClosingPoint(rawPoints);
+  if (isAxisAlignedRectangle(points, bounds)) {
+    return { type: "rectangle", bounds };
+  }
+  if (points.length < 3) {
+    throw new Error("Matched GDS boundary must contain at least three points.");
+  }
+  return { type: "polygon", points };
+}
+
+function withoutClosingPoint(points: CoordinatePair[]) {
+  if (
+    points.length > 1 &&
+    pointsEqual(points[0], points[points.length - 1])
+  ) {
+    return points.slice(0, -1);
+  }
+  return points;
+}
+
+function isAxisAlignedRectangle(
+  points: CoordinatePair[],
+  bounds: CoordinateBounds,
+) {
+  if (points.length !== 4) return false;
+  const corners = new Set([
+    `${bounds[0][0]}:${bounds[0][1]}`,
+    `${bounds[1][0]}:${bounds[0][1]}`,
+    `${bounds[1][0]}:${bounds[1][1]}`,
+    `${bounds[0][0]}:${bounds[1][1]}`,
+  ]);
+  return points.every((point) => corners.has(`${point[0]}:${point[1]}`));
+}
+
+function regionSignature(region: GdsTargetRegion) {
+  if (region.type === "rectangle") {
+    return `rectangle:${region.bounds.flat().map(quantized).join(":")}`;
+  }
+  const points = region.points.map(
+    (point) => `${quantized(point[0])}:${quantized(point[1])}`,
+  );
+  const variants: string[] = [];
+  for (const ordered of [points, [...points].reverse()]) {
+    for (let index = 0; index < ordered.length; index += 1) {
+      variants.push([...ordered.slice(index), ...ordered.slice(0, index)].join(";"));
+    }
+  }
+  variants.sort();
+  return `polygon:${variants[0] ?? ""}`;
+}
+
+function quantized(value: number) {
+  return Math.round(value / COORDINATE_DUPLICATE_TOLERANCE);
+}
+
+function pointsEqual(left: CoordinatePair, right: CoordinatePair) {
+  return (
+    Math.abs(left[0] - right[0]) <= COORDINATE_DUPLICATE_TOLERANCE &&
+    Math.abs(left[1] - right[1]) <= COORDINATE_DUPLICATE_TOLERANCE
+  );
 }
 
 function parseLayout(buffer: ArrayBuffer) {

@@ -6,6 +6,7 @@ from typing import Any
 from .context import ProcessStepContext
 from .execution_plan import ExecutionPlan, PlannedStep
 from .execution_result import GeometryKernelExecutionResult
+from .geometry_artifact import GeometryArtifact
 from .material_instances import prepare_step_material_instances
 from .options import ExecuteOptions
 from ..domain.process_geometry_state import ProcessGeometryState
@@ -28,34 +29,55 @@ class GeometryKernel:
         if not isinstance(execution_plan, ExecutionPlan):
             raise TypeError("GeometryKernel.execute requires an ExecutionPlan")
         execute_options = ExecuteOptions.from_value(options)
-        step_outputs: dict[str, ProcessGeometryState] = {}
+        step_outputs: dict[str, GeometryArtifact] = {}
 
         for planned_step in execution_plan.steps:
-            runtime_geometry_inputs, geometry_input_sources = _resolve_geometry_inputs(
+            runtime_geometry_artifacts, geometry_input_sources = _resolve_geometry_inputs(
                 planned_step,
                 execution_plan.external_geometries,
                 step_outputs,
             )
             material_preparation = prepare_step_material_instances(
-                geometry_inputs=runtime_geometry_inputs,
+                geometry_inputs={
+                    port_id: artifact.structure
+                    for port_id, artifact in runtime_geometry_artifacts.items()
+                },
                 geometry_input_sources=geometry_input_sources,
                 step_template=planned_step.step_template,
                 values=planned_step.parameter_values,
             )
-            runtime_geometry_inputs = material_preparation.geometry_inputs
+            runtime_geometry_artifacts = {
+                port_id: artifact.with_structure(
+                    material_preparation.geometry_inputs[port_id],
+                    preserve_runtime_state=(
+                        port_id == "main_geometry"
+                        and geometry_input_sources.get(port_id) == "stepOutput"
+                    ),
+                )
+                for port_id, artifact in runtime_geometry_artifacts.items()
+            }
             values = material_preparation.values
-            input_geometry = _main_or_first_geometry(runtime_geometry_inputs)
+            input_artifact = _main_or_first_geometry(runtime_geometry_artifacts)
             state = (
-                _geometry_input_to_process_geometry_state(input_geometry)
-                if input_geometry is not None
+                _geometry_input_to_process_geometry_state(input_artifact)
+                if input_artifact is not None
                 else ProcessGeometryState.create()
             )
-            serialized_geometry_inputs = _serialize_geometry_input_map(runtime_geometry_inputs)
+            serialized_geometry_inputs = _serialize_geometry_input_map(
+                runtime_geometry_artifacts
+            )
             process_module = self._module_resolver.resolve(planned_step.step_template)
 
             def resolve_geometry(port_id):
-                geometry = runtime_geometry_inputs.get(port_id)
-                return None if geometry is None else _geometry_input_to_process_geometry_state(geometry)
+                artifact = runtime_geometry_artifacts.get(port_id)
+                return (
+                    None
+                    if artifact is None
+                    else _geometry_input_to_process_geometry_state(artifact)
+                )
+
+            def resolve_geometry_artifact(port_id):
+                return runtime_geometry_artifacts.get(port_id)
 
             step_ref = {
                 "stepRefId": planned_step.step_ref_id,
@@ -75,10 +97,21 @@ class GeometryKernel:
                 geometry_inputs=serialized_geometry_inputs,
                 input_geometry=_main_or_first_geometry(serialized_geometry_inputs),
                 geometry_resolver=resolve_geometry,
+                geometry_artifact_resolver=resolve_geometry_artifact,
             )
 
             output = process_module.execute(context)
-            step_outputs[planned_step.step_ref_id] = _normalize_step_output_state(output, state)
+            output_state = _normalize_step_output_state(output, state)
+            output_structure = process_geometry_state_to_geometry_structure(output_state)
+            step_outputs[planned_step.step_ref_id] = (
+                input_artifact.with_structure(output_structure).with_runtime_state(
+                    output_state
+                )
+                if input_artifact is not None
+                else GeometryArtifact.from_structure(output_structure).with_runtime_state(
+                    output_state
+                )
+            )
 
         terminal_step_ref_ids = list(execution_plan.terminal_step_ref_ids)
         selected_step_ref_id = execute_options.output_step_ref_id or (
@@ -90,7 +123,7 @@ class GeometryKernel:
         if selected_output is None:
             raise ValueError(f"No geometry output for step {selected_step_ref_id}")
         return GeometryKernelExecutionResult(
-            geometry_structure=process_geometry_state_to_geometry_structure(selected_output),
+            geometry_structure=selected_output.structure,
             step_outputs=_serialize_step_outputs(step_outputs),
             terminal_step_ref_ids=terminal_step_ref_ids,
         )
@@ -138,6 +171,10 @@ def _normalize_step_output_state(output, fallback_state):
 
 
 def _geometry_input_to_process_geometry_state(value):
+    if isinstance(value, GeometryArtifact):
+        if value.runtime_state is not None:
+            return value.runtime_state.clone()
+        return geometry_structure_to_process_geometry_state(value.structure)
     if isinstance(value, ProcessGeometryState):
         return value.clone()
     if hasattr(value, "to_geometry_structure") and callable(value.to_geometry_structure):
@@ -147,13 +184,13 @@ def _geometry_input_to_process_geometry_state(value):
 
 def _serialize_step_outputs(step_outputs):
     return {
-        step_ref_id: process_geometry_state_to_geometry_structure(output)
+        step_ref_id: dict(output.structure)
         for step_ref_id, output in step_outputs.items()
     }
 
 
 def _serialize_geometry_input_map(geometry_inputs):
     return {
-        port_id: process_geometry_state_to_geometry_structure(input_)
-        for port_id, input_ in geometry_inputs.items()
+        port_id: dict(artifact.structure)
+        for port_id, artifact in geometry_inputs.items()
     }

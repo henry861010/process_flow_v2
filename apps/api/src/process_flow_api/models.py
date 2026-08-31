@@ -38,13 +38,22 @@ ValueType = Literal[
     "boolean",
     "materialRef",
     "coordinates",
+    "placements",
     "fieldGroupArray",
     "string[]",
     "integer[]",
     "float[]",
     "materialRef[]",
 ]
-ControlType = Literal["text", "number", "checkbox", "select", "repeater", "coordinateList"]
+ControlType = Literal[
+    "text",
+    "number",
+    "checkbox",
+    "select",
+    "repeater",
+    "coordinateList",
+    "placementList",
+]
 
 
 class StaticOption(StrictModel):
@@ -211,6 +220,12 @@ class GeometryGeneration(StrictModel):
     parameters: JsonObject
 
 
+class GeometryAdaptationContract(StrictModel):
+    adapterId: str = Field(min_length=1)
+    adapterVersion: int = Field(ge=1)
+    parameters: JsonObject = Field(default_factory=dict)
+
+
 class EmbeddedGeometry(StrictModel):
     name: str
     entityType: str
@@ -223,6 +238,7 @@ class EmbeddedGeometry(StrictModel):
     structureFormat: str = "standard"
     structure: JsonObject
     generation: GeometryGeneration | None = None
+    adaptationContract: GeometryAdaptationContract | None = None
 
 
 class FlowConfiguration(StrictModel):
@@ -288,6 +304,119 @@ class GeometryEntity(StrictModel):
     structureFormat: str = "standard"
     structure: JsonObject
     generation: GeometryGeneration | None = None
+    adaptationContract: GeometryAdaptationContract | None = None
+
+
+PreviewPoint = tuple[FiniteFloat, FiniteFloat]
+
+
+class EngineeringPreviewBounds(StrictModel):
+    uMin: FiniteFloat
+    uMax: FiniteFloat
+    vMin: FiniteFloat
+    vMax: FiniteFloat
+
+    @model_validator(mode="after")
+    def validate_area(self):
+        if self.uMax <= self.uMin or self.vMax <= self.vMin:
+            raise ValueError("Engineering preview bounds require positive area")
+        return self
+
+
+class EngineeringPreviewEntity(StrictModel):
+    id: str = Field(min_length=1)
+    sourceId: str = Field(min_length=1)
+    role: str = Field(min_length=1)
+    semanticKey: str | None = None
+    kind: Literal["rectangle", "polygon", "circle"]
+    uMin: FiniteFloat | None = None
+    uMax: FiniteFloat | None = None
+    vMin: FiniteFloat | None = None
+    vMax: FiniteFloat | None = None
+    center: PreviewPoint | None = None
+    radius: PositiveFiniteFloat | None = None
+    loops: list[Annotated[list[PreviewPoint], Field(min_length=3)]] | None = None
+
+    @model_validator(mode="after")
+    def validate_shape(self):
+        if self.kind == "rectangle":
+            if None in (self.uMin, self.uMax, self.vMin, self.vMax):
+                raise ValueError("Rectangle preview entity requires u/v bounds")
+            if self.uMax <= self.uMin or self.vMax <= self.vMin:
+                raise ValueError("Rectangle preview entity requires positive area")
+        elif self.kind == "circle":
+            if self.center is None or self.radius is None:
+                raise ValueError("Circle preview entity requires center and radius")
+        elif not self.loops:
+            raise ValueError("Polygon preview entity requires loops")
+        return self
+
+
+class EngineeringPreviewDimension(StrictModel):
+    id: str = Field(min_length=1)
+    axis: Literal["u", "v"]
+    from_: PreviewPoint = Field(alias="from")
+    to: PreviewPoint
+    value: FiniteFloat
+    label: str = Field(min_length=1)
+
+
+class EngineeringPreviewView(StrictModel):
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    projection: Literal["xy", "xz", "yz"]
+    bounds: EngineeringPreviewBounds
+    entities: list[EngineeringPreviewEntity]
+    dimensions: list[EngineeringPreviewDimension]
+    annotations: list[JsonObject] = Field(default_factory=list)
+
+
+class EngineeringPreviewDocument(StrictModel):
+    schemaVersion: Literal[1] = 1
+    unit: str = Field(min_length=1)
+    views: list[EngineeringPreviewView] = Field(min_length=1)
+
+
+class GeometryGeneratorDefinition(StrictModel):
+    schemaVersion: Literal[1] = 1
+    id: str = Field(min_length=1)
+    version: int = Field(ge=1)
+    label: str = Field(min_length=1)
+    description: str = ""
+    entityType: str = Field(min_length=1)
+    category: str | None = None
+    icon: str | None = None
+    adaptationContract: GeometryAdaptationContract
+    defaultParameters: JsonObject
+    parameterDefinitions: list[ParameterDefinition]
+    previewViews: list[str] = Field(default_factory=list)
+
+
+class GeometryGeneratorPreviewRequest(StrictModel):
+    generatorVersion: int | None = Field(default=None, ge=1)
+    parameters: JsonObject
+
+
+class GeometryGeneratorPreviewResponse(StrictModel):
+    generatorId: str = Field(min_length=1)
+    generatorVersion: int = Field(ge=1)
+    valid: bool
+    errors: JsonObject
+    normalizedParameters: JsonObject
+    computedParameters: JsonObject
+    engineeringPreview: EngineeringPreviewDocument | None = None
+    geometryHash: str | None = None
+    previewToken: str | None = None
+    geometryEntityJson: GeometryEntity | None = None
+
+
+class GeometryMaterializationRequest(StrictModel):
+    previewToken: str = Field(min_length=1)
+
+
+class GeometryMaterializationResponse(StrictModel):
+    geometryHash: str = Field(min_length=1)
+    geometryEntityJson: GeometryEntity
 
 
 class TemplateInstanceCreateRequest(StrictModel):

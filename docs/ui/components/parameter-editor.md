@@ -40,6 +40,7 @@ bounds values 被 description column 壓縮。Label顯示 name、required `*`（
 | Definition | Render | Serialization |
 | --- | --- | --- |
 | `coordinates` 或 `coordinateList` | [Coordinate List](coordinate-list.md) | `[[xMin,yMin],[xMax,yMax]][]` |
+| `placements` 或 `placementList` | [Coordinate List adaptive mode](coordinate-list.md#adaptive-placement-mode) | target region + pose + anchor array |
 | disabled coordinates | muted monospace JSON/`Not set` | no change |
 | `select` + array type | option checkboxes | typed array |
 | `select` + primitive | native select，首項 `Select value` | coerced primitive/empty |

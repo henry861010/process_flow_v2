@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from process_flow_kernel import validate_geometry_semantic_keys
 
 from .file_export_jobs import FileExportJobManager
+from .geometry_generation import GeometryGeneratorRegistry
 from .identifiers import generated_geometry_id
 from .models import (
     CdbFileExportCreateRequest,
@@ -20,6 +21,11 @@ from .models import (
     FileExportJobListResponse,
     FileExportJobResponse,
     GeometryEntity,
+    GeometryGeneratorDefinition,
+    GeometryGeneratorPreviewRequest,
+    GeometryGeneratorPreviewResponse,
+    GeometryMaterializationRequest,
+    GeometryMaterializationResponse,
     GeometryPreviewRequest,
     GeometryPreviewResponse,
     GeometryPreviewStepRequest,
@@ -56,6 +62,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     app.state.store = SQLiteStore(db_path or default_db_path())
     app.state.file_export_jobs = FileExportJobManager()
     app.state.preview_sessions = PreviewSessionManager.from_environment()
+    app.state.geometry_generators = GeometryGeneratorRegistry()
 
     app.add_middleware(
         CORSMiddleware,
@@ -96,14 +103,15 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     @app.get("/api/bootstrap")
     async def bootstrap(request: Request):
         store = get_store(request)
-        return bootstrap_payload(store)
+        return _bootstrap_payload(request, store)
 
     @app.post("/api/reset")
     async def reset(request: Request):
         store = get_store(request)
         store.seed(load_seed_fixtures(), reset=True)
         await get_preview_sessions(request).clear()
-        return bootstrap_payload(store)
+        get_geometry_generators(request).clear()
+        return _bootstrap_payload(request, store)
 
     @app.get("/api/process-step-templates")
     async def list_process_step_templates(
@@ -152,6 +160,48 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         if payload.get("id") in (None, ""):
             payload["id"] = generated_geometry_id(payload)
         return get_store(request).insert_geometry(payload)
+
+    @app.get(
+        "/api/geometry-generators",
+        response_model=list[GeometryGeneratorDefinition],
+    )
+    async def list_geometry_generators(request: Request):
+        return get_geometry_generators(request).definitions()
+
+    @app.post(
+        "/api/geometry-generators/{generator_id}/preview",
+        response_model=GeometryGeneratorPreviewResponse,
+    )
+    async def preview_generated_geometry(
+        request: Request,
+        generator_id: str,
+        body: GeometryGeneratorPreviewRequest,
+    ):
+        try:
+            return get_geometry_generators(request).preview(
+                generator_id,
+                body.parameters,
+                generator_version=body.generatorVersion,
+            )
+        except KeyError:
+            raise NotFoundError(generator_id) from None
+
+    @app.post(
+        "/api/geometry-materializations",
+        response_model=GeometryMaterializationResponse,
+    )
+    async def materialize_generated_geometry(
+        request: Request,
+        body: GeometryMaterializationRequest,
+    ):
+        try:
+            preview = get_geometry_generators(request).materialize(body.previewToken)
+        except KeyError:
+            raise NotFoundError(body.previewToken) from None
+        return {
+            "geometryHash": preview["geometryHash"],
+            "geometryEntityJson": preview["geometryEntityJson"],
+        }
 
     @app.get("/api/process-flow-templates")
     async def list_process_flow_templates(request: Request):
@@ -353,6 +403,16 @@ def get_store(request: Request) -> SQLiteStore:
 
 def get_preview_sessions(request: Request) -> PreviewSessionManager:
     return request.app.state.preview_sessions
+
+
+def get_geometry_generators(request: Request) -> GeometryGeneratorRegistry:
+    return request.app.state.geometry_generators
+
+
+def _bootstrap_payload(request: Request, store: SQLiteStore):
+    payload = bootstrap_payload(store)
+    payload["geometryGenerators"] = get_geometry_generators(request).definitions()
+    return payload
 
 
 app = create_app()

@@ -14,6 +14,7 @@ source_of_truth:
   - apps/viewer/components/process-flow-fields/coordinate-list-value.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-import.worker.ts
+  - apps/viewer/components/process-flow-fields/placement-list-control.tsx
 ---
 
 # Coordinate List
@@ -81,9 +82,11 @@ importing時disabled；importing icon是 spinning `Loader2`，否則 `FileUp`。
 ## GDS 語意
 
 Parse在dedicated Web Worker執行；新import會terminate previous worker。只把指定layer/datatype的
-`BOUNDARY`/`BOX`轉成其所有transform後的 axis-aligned bounds
-`[[minX,minY],[maxX,maxY]]`；遞迴展開`SREF/AREF`並套translation、rotation、magnification、
-reflection。其他matching element計入unsupported summary。
+`BOUNDARY`/`BOX`遞迴展開`SREF/AREF`並套translation、rotation、magnification、reflection。
+`coordinates` control輸出transform後的axis-aligned bounds
+`[[minX,minY],[maxX,maxY]]`；`placements` control則要求worker保留exact shape：axis-aligned
+rectangle canonicalize為rectangle，其他BOUNDARY輸出polygon points。其他matching element計入
+unsupported summary。
 
 Worker request可附帶：
 
@@ -117,6 +120,14 @@ Top cells: ...
 
 視情況追加duplicates removed、unsupported elements、unresolved/cyclic references。Error保留原
 coordinates，顯示worker message或 `GDS import failed.`。
+
+## Adaptive placement mode
+
+`placementList`沿用rectangle manual editor與GDS form，但canonical value的每筆資料同時包含
+`targetRegion`、`pose`與`anchor`。Manual lower-left/upper-right會轉成rectangle width/height與
+`pose.x/y`；rotation保存在同一placement，不得因其他row編輯而歸零。GDS polygon會以其bounds
+lower-left作pose，points轉為相對該pose的local XY，因此不同位置可各自攜帶不同size/shape。
+GDS import會取代完整placement list；manual rectangle edit保留既有polygon items。
 
 ## Action 與狀態矩陣
 
@@ -152,3 +163,4 @@ coordinates，顯示worker message或 `GDS import failed.`。
 | `UI-COORD-008` | direct或reference-path PROPVALUE包含query，大小寫不同 | Include保留、Exclude排除matching bounds。 |
 | `UI-COORD-009` | nested/sibling SREF或AREF properties | properties只沿各自reference path繼承，無跨sibling污染。 |
 | `UI-COORD-010` | element無property且query non-empty | Include排除、Exclude保留。 |
+| `UI-COORD-011` | placement mode匯入非矩形BOUNDARY | 保存exact polygon target、pose與rotation欄位，不退化成AABB。 |

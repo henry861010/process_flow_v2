@@ -72,6 +72,17 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | `GET` | `/api/geometries/{id}` | Detail |
 | `POST` | `/api/geometries` | Insert；missing/empty id 由 API generate |
 
+### Geometry generator
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/geometry-generators` | List backend generator manifests |
+| `POST` | `/api/geometry-generators/{id}/preview` | Validate parameters、build geometry 與通用2D engineering preview |
+| `POST` | `/api/geometry-materializations` | Materialize exact preview snapshot by opaque token |
+
+Preview token是process-local bounded cache entry；restart、reset或eviction後可能失效。Client遇到
+missing token必須重新preview，不可在前端自行重建geometry。
+
 ### Flow template 與 immutable instance
 
 | Method | Path | Purpose |

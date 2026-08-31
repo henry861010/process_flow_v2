@@ -5,8 +5,10 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..domain.process_geometry_state import ProcessGeometryState
+from .geometry_artifact import GeometryArtifact
 
 GeometryStateResolver = Callable[[str], ProcessGeometryState | None]
+GeometryArtifactResolver = Callable[[str], GeometryArtifact | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +22,10 @@ class ProcessStepContext:
     geometry_inputs: Mapping[str, Mapping[str, Any]]
     input_geometry: Mapping[str, Any] | None
     geometry_resolver: GeometryStateResolver = field(repr=False)
+    geometry_artifact_resolver: GeometryArtifactResolver | None = field(
+        default=None,
+        repr=False,
+    )
 
     def get_param(self, parameter_id: str, default: Any = None) -> Any:
         return self.values.get(parameter_id, default)
@@ -59,6 +65,17 @@ class ProcessStepContext:
         if geometry is None:
             raise ValueError(f"{port_id} must resolve to a ProcessGeometryState")
         return geometry
+
+    def get_geometry_artifact(self, port_id: str) -> GeometryArtifact | None:
+        if self.geometry_artifact_resolver is None:
+            return None
+        return self.geometry_artifact_resolver(port_id)
+
+    def require_geometry_artifact(self, port_id: str) -> GeometryArtifact:
+        artifact = self.get_geometry_artifact(port_id)
+        if artifact is None:
+            raise ValueError(f"{port_id} must resolve to a GeometryArtifact")
+        return artifact
 
 
 def _finite_number(value: Any, label: str) -> float:

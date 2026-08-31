@@ -103,12 +103,18 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "3"
+  "value": "5"
 }
 ```
 
-Database internal marker string `"3"`、Process payload wire marker integer `2` 與
+Database internal marker string `"5"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
+
+Version `4 -> 5` migration MUST 保留所有 geometry/workspace rows，並對 catalog 與 embedded
+geometry backfill `adaptationContract`。Category `die.hbm*`、`die.dram*`、`die.vrm*` 分別使用
+`hbm-package@1`、`dram-package@1`、`rigid@1`；其他未標記資料使用
+`legacy-box-stretch@1`。沒有任何 schema marker 的 pre-migration database 不在此 migration
+chain 內，startup 會沿用既有 bootstrap reset 行為。
 
 ## 3. 邏輯引用
 
@@ -264,25 +270,27 @@ Transaction failure MUST NOT return partial resource payload。
 
 ## 11. SQLite schema 初始化與 reset policy
 
-Current internal schema marker 是 `"2"`。產品尚未正式發行，startup 只維護目前唯一的
-physical schema，不提供早期草案資料轉換：
+Current internal schema marker 是 `"5"`。Startup提供明確的`4 -> 5`payload migration：
 
 1. Ensure current physical schema can be created/recognized。
 2. Read `schema_metadata.databaseSchemaVersion`。
-3. If marker is absent or not `"2"`，destructively reset local resource data。
-4. Ensure physical tables/columns/indexes match the current schema；row deletion alone 若無法
+3. Marker是`"4"`時，在同一transaction backfill catalog與workspace embedded geometry
+   `adaptationContract`，不得刪除resource rows。
+4. Marker缺少時視為不在supported migration chain的pre-version database，destructively reset
+   local resource data；其他未知marker MUST明確fail。
+5. Ensure physical tables/columns/indexes match the current schema；row deletion alone 若無法
    做到，MUST drop/recreate 或明確 fail，不得把不符合目前結構的 DDL 標記成 current。
-5. Set marker `"2"`。
-6. Load validated canonical fixtures when all resource tables are empty。
+6. Set marker `"5"`。
+7. Load validated canonical fixtures when all resource tables are empty。
 
-Marker already `"2"` 時，startup MUST NOT silently reseed a partially populated database。
+Marker already `"5"` 時，startup MUST NOT silently reseed a partially populated database。
 
 ## 12. Reset 與 seed
 
 Manual POC reset MAY：
 
 - clear all resource tables；
-- retain/reassert database marker `"2"`；
+- retain/reassert database marker `"5"`；
 - validate and insert canonical fixtures in dependency order：step templates、flow templates、instances、
   geometries；
 - leave no stale workspaces or user-created immutable resources。

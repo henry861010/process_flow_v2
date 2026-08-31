@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .execution_plan import ExecutionPlan, PlannedGeometryInput, PlannedStep
+from .geometry_artifact import GeometryArtifact
 from .flow_validation import analyze_flow_graph, upstream_step_ref_ids
 from .resource_resolution import GeometryCatalogResolver
 from ..serialization.schema import normalize_geometry_structure
@@ -178,7 +179,7 @@ class FlowCompiler:
             flow_input,
             binding,
             configuration.get("embeddedGeometries", {}),
-        )
+        ).structure
 
     def _resolve_binding(self, flow_input_id, flow_input, binding, embedded_geometries):
         _validate_binding_shape(flow_input_id, binding, embedded_geometries)
@@ -194,7 +195,13 @@ class FlowCompiler:
         if not isinstance(structure, Mapping):
             raise ValueError(f"Geometry for flow input {flow_input_id} is missing structure")
         _validate_geometry_constraints(flow_input, geometry)
-        return normalize_geometry_structure(structure)
+        source_geometry_id = (
+            binding["geometryId"] if binding["kind"] == "catalog" else binding["localId"]
+        )
+        return GeometryArtifact.from_entity(
+            geometry,
+            source_geometry_id=source_geometry_id,
+        )
 
 
 def _validate_configuration_keys(configuration, analysis):
@@ -293,6 +300,8 @@ def _normalize_parameter_value(definition, value, *, require_complete):
         ]
     elif value_type == "coordinates":
         normalized = _normalize_coordinates(definition["id"], value)
+    elif value_type == "placements":
+        normalized = _normalize_placements(definition["id"], value)
     elif value_type == "fieldGroupArray":
         normalized = _normalize_parameter_group(
             definition,
@@ -352,6 +361,187 @@ def _coordinate_rectangles_equal(left, right, tolerance=1e-6):
         )
         for point_index in range(2)
         for axis_index in range(2)
+    )
+
+
+def _normalize_placements(parameter_id, value):
+    if not isinstance(value, list):
+        raise ValueError(f"Parameter {parameter_id} must be a placement array")
+    normalized = []
+    for index, placement in enumerate(value):
+        if not isinstance(placement, Mapping):
+            raise ValueError(f"Parameter {parameter_id}[{index}] must be an object")
+        region = placement.get("targetRegion")
+        if not isinstance(region, Mapping):
+            raise ValueError(
+                f"Parameter {parameter_id}[{index}].targetRegion must be an object"
+            )
+        region_type = region.get("type")
+        if region_type == "rectangle":
+            width = _finite_parameter_number(
+                region.get("width"), f"Parameter {parameter_id}[{index}] width"
+            )
+            height = _finite_parameter_number(
+                region.get("height"), f"Parameter {parameter_id}[{index}] height"
+            )
+            if width <= 0 or height <= 0:
+                raise ValueError(
+                    f"Parameter {parameter_id}[{index}] rectangle requires positive width and height"
+                )
+            normalized_region = {
+                "type": "rectangle",
+                "width": width,
+                "height": height,
+            }
+        elif region_type == "polygon":
+            points = region.get("points")
+            if not isinstance(points, list) or len(points) < 3:
+                raise ValueError(
+                    f"Parameter {parameter_id}[{index}] polygon requires at least three points"
+                )
+            normalized_points = []
+            for point_index, point in enumerate(points):
+                if not isinstance(point, list) or len(point) != 2:
+                    raise ValueError(
+                        f"Parameter {parameter_id}[{index}] polygon point {point_index} must be [x, y]"
+                    )
+                normalized_points.append(
+                    [
+                        _finite_parameter_number(
+                            point[0],
+                            f"Parameter {parameter_id}[{index}] polygon point X",
+                        ),
+                        _finite_parameter_number(
+                            point[1],
+                            f"Parameter {parameter_id}[{index}] polygon point Y",
+                        ),
+                    ]
+                )
+            if (
+                len(normalized_points) > 3
+                and _placement_points_equal(
+                    normalized_points[0], normalized_points[-1]
+                )
+            ):
+                normalized_points.pop()
+            if len(normalized_points) < 3:
+                raise ValueError(
+                    f"Parameter {parameter_id}[{index}] polygon requires non-zero area"
+                )
+            if _placement_polygon_self_intersects(normalized_points):
+                raise ValueError(
+                    f"Parameter {parameter_id}[{index}] polygon must not self-intersect"
+                )
+            if abs(_placement_polygon_area(normalized_points)) <= 1e-9:
+                raise ValueError(
+                    f"Parameter {parameter_id}[{index}] polygon requires non-zero area"
+                )
+            normalized_region = {"type": "polygon", "points": normalized_points}
+        else:
+            raise ValueError(
+                f"Parameter {parameter_id}[{index}] targetRegion type must be rectangle or polygon"
+            )
+
+        pose = placement.get("pose")
+        if not isinstance(pose, Mapping):
+            raise ValueError(f"Parameter {parameter_id}[{index}].pose must be an object")
+        rotation_z = _finite_parameter_number(
+            pose.get("rotationZ", 0),
+            f"Parameter {parameter_id}[{index}] rotationZ",
+        )
+        anchor = placement.get("anchor", "bottomLeft")
+        if anchor not in {"bottomLeft", "center", "origin"}:
+            raise ValueError(
+                f"Parameter {parameter_id}[{index}] anchor must be bottomLeft, center, or origin"
+            )
+        normalized.append(
+            {
+                "targetRegion": normalized_region,
+                "pose": {
+                    "x": _finite_parameter_number(
+                        pose.get("x"), f"Parameter {parameter_id}[{index}] pose X"
+                    ),
+                    "y": _finite_parameter_number(
+                        pose.get("y"), f"Parameter {parameter_id}[{index}] pose Y"
+                    ),
+                    "rotationZ": rotation_z,
+                },
+                "anchor": anchor,
+            }
+        )
+    return normalized
+
+
+def _finite_parameter_number(value, label):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+    ):
+        raise ValueError(f"{label} must be a finite number")
+    return float(value)
+
+
+def _placement_polygon_area(points):
+    return sum(
+        points[index][0] * points[(index + 1) % len(points)][1]
+        - points[(index + 1) % len(points)][0] * points[index][1]
+        for index in range(len(points))
+    ) / 2
+
+
+def _placement_polygon_self_intersects(points):
+    count = len(points)
+    for left in range(count):
+        left_end = (left + 1) % count
+        for right in range(left + 1, count):
+            right_end = (right + 1) % count
+            if left in {right, right_end} or left_end in {right, right_end}:
+                continue
+            if _placement_segments_intersect(
+                points[left],
+                points[left_end],
+                points[right],
+                points[right_end],
+            ):
+                return True
+    return False
+
+
+def _placement_segments_intersect(a, b, c, d):
+    orientations = (
+        _placement_orientation(a, b, c),
+        _placement_orientation(a, b, d),
+        _placement_orientation(c, d, a),
+        _placement_orientation(c, d, b),
+    )
+    if orientations[0] * orientations[1] < -1e-9 and orientations[2] * orientations[3] < -1e-9:
+        return True
+    return any(
+        _placement_point_on_segment(point, start, end)
+        for point, start, end in (
+            (a, c, d),
+            (b, c, d),
+            (c, a, b),
+            (d, a, b),
+        )
+    )
+
+
+def _placement_point_on_segment(point, start, end):
+    return abs(_placement_orientation(start, end, point)) <= 1e-9 and (
+        min(start[0], end[0]) - 1e-9 <= point[0] <= max(start[0], end[0]) + 1e-9
+        and min(start[1], end[1]) - 1e-9 <= point[1] <= max(start[1], end[1]) + 1e-9
+    )
+
+
+def _placement_orientation(a, b, c):
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _placement_points_equal(left, right):
+    return math.isclose(left[0], right[0], abs_tol=1e-9) and math.isclose(
+        left[1], right[1], abs_tol=1e-9
     )
 
 

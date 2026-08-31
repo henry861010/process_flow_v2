@@ -4,6 +4,7 @@ import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { CoordinateListControl } from "@/components/process-flow-fields/coordinate-list-control";
+import { PlacementListControl } from "@/components/process-flow-fields/placement-list-control";
 import { Button } from "@/components/ui/button";
 import type {
   ParameterDefinition,
@@ -30,11 +31,13 @@ const selectClass =
 export function ParameterValueEditor({
   definitions,
   values,
+  errors = {},
   disabled = false,
   onChange,
 }: {
   definitions: ParameterDefinition[];
   values: Record<string, unknown>;
+  errors?: Record<string, string>;
   disabled?: boolean;
   onChange: (values: Record<string, unknown>) => void;
 }) {
@@ -53,6 +56,7 @@ export function ParameterValueEditor({
           key={definition.id}
           definition={definition}
           value={values[definition.id]}
+          error={errors[definition.id]}
           disabled={disabled}
           onChange={(value) => onChange({ ...values, [definition.id]: value })}
         />
@@ -64,31 +68,39 @@ export function ParameterValueEditor({
 function ParameterRow({
   definition,
   value,
+  error,
   disabled,
   onChange,
 }: {
   definition: ParameterDefinition;
   value: unknown;
+  error?: string;
   disabled: boolean;
   onChange: (value: unknown) => void;
 }) {
   if (definition.valueType === "fieldGroupArray" && definition.repeatDefinition) {
     return (
-      <RepeaterControl
-        definition={definition}
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-      />
+      <div className={cn(error && "bg-destructive/5")}>
+        <RepeaterControl
+          definition={definition}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+        />
+        {error ? (
+          <p className="px-4 pb-4 text-xs text-destructive">{error}</p>
+        ) : null}
+      </div>
     );
   }
 
   if (
     definition.valueType === "coordinates" ||
+    definition.valueType === "placements" ||
     definition.controlType === "coordinateList"
   ) {
     return (
-      <div className="px-4 py-4 text-sm">
+      <div className={cn("px-4 py-4 text-sm", error && "bg-destructive/5")}>
         <div className="mb-3">
           <ParameterLabel definition={definition} />
         </div>
@@ -98,19 +110,28 @@ function ParameterRow({
           disabled={disabled}
           onChange={onChange}
         />
+        {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1">
+    <div
+      className={cn(
+        "grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1",
+        error && "bg-destructive/5",
+      )}
+    >
       <ParameterLabel definition={definition} />
-      <PrimitiveControl
-        definition={definition}
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-      />
+      <div>
+        <PrimitiveControl
+          definition={definition}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+        />
+        {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+      </div>
     </div>
   );
 }
@@ -258,6 +279,23 @@ function PrimitiveControl({
     }
     return (
       <CoordinateListControl
+        value={value}
+        unit={definition.unit}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (definition.valueType === "placements" || definition.controlType === "placementList") {
+    if (disabled) {
+      return (
+        <div className="min-h-9 rounded-md border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+          {formatReadonlyValue(value)}
+        </div>
+      );
+    }
+    return (
+      <PlacementListControl
         value={value}
         unit={definition.unit}
         onChange={onChange}

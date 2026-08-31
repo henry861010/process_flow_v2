@@ -18,6 +18,9 @@ verified_against:
 
 # ADR-0006：PnP coordinates 使用 target rectangle 與 additive Box resize
 
+> 本 ADR 仍是 `pnp/pnp`（PnP v3）的 compatibility contract。新 adaptive placement 使用
+> [ADR-0007](./0007-backend-geometry-generation-and-adaptive-pnp.md) 與 `pnp/pnp_v2`。
+
 ## 背景
 
 HBM、DRAM 等公版 geometry 適合保存於 catalog，但 SoC、SoIC 尺寸常隨 TV 改變，同一 TV

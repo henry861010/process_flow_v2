@@ -53,6 +53,53 @@
   },
   {
     "schemaVersion": 2,
+    "id": "step_tpl_pnp_4_0_0",
+    "version": "V4.0.0",
+    "name": "PnP (adaptive)",
+    "category": "PnP",
+    "program": "pnp/pnp_v2",
+    "description": "Materializes a target-specific geometry variant through the source adaptation contract, then performs rigid placement.",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main package geometry state that receives placed component child scopes.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      },
+      {
+        "portId": "die_geometry",
+        "name": "die_geometry",
+        "description": "Component geometry whose adaptation contract determines target-region materialization.",
+        "dataType": "geometry",
+        "role": "auxiliary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by adaptive placement.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "placements",
+        "name": "placements",
+        "description": "Target region and rigid pose for every component instance.",
+        "valueType": "placements",
+        "controlType": "placementList",
+        "selectionMode": null,
+        "unit": "um"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
     "id": "step_tpl_ecl_2_0_0",
     "version": "V2.0.0",
     "name": "ECL",

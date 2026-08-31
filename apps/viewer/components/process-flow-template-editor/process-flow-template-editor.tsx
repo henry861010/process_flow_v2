@@ -34,8 +34,9 @@ import { CategoryLibraryBrowser } from "@/components/category-library/category-l
 import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
 import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
 import {
-  GEOMETRY_GENERATORS,
   GeometryGeneratorDialogLauncher,
+  GeometryGeneratorIcon,
+  type GeometryGeneratorDefinition,
   type GeometryGeneratorId,
 } from "@/components/geometry-generator/geometry-generator-registry";
 import type { GeometryGeneratorDefineResult } from "@/components/geometry-generator/geometry-generator-types";
@@ -167,6 +168,7 @@ function ProcessFlowTemplateEditorInner() {
   const [flowTemplates, setFlowTemplates] = React.useState<ProcessFlowTemplate[]>([]);
   const [flowInstances, setFlowInstances] = React.useState<ProcessFlowInstance[]>([]);
   const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
+  const [geometryGenerators, setGeometryGenerators] = React.useState<GeometryGeneratorDefinition[]>([]);
   const [metadata, setMetadata] = React.useState<TemplateMetadata>(newMetadata());
   const [instanceIdentity, setInstanceIdentity] = React.useState({ id: "", name: "" });
   const [configuration, setConfiguration] = React.useState<FlowConfiguration>(emptyConfiguration());
@@ -203,6 +205,7 @@ function ProcessFlowTemplateEditorInner() {
         setFlowTemplates(payload.processFlowTemplates);
         setFlowInstances(payload.processFlowInstances);
         setGeometries(payload.geometries);
+        setGeometryGenerators(payload.geometryGenerators);
       })
       .catch((error) => {
         if (!active) return;
@@ -255,6 +258,9 @@ function ProcessFlowTemplateEditorInner() {
         )
       : null;
   const pickerNode = nodes.find((node): node is FlowInputNode => node.id === pickerNodeId && isFlowInputNode(node)) ?? null;
+  const activeGeneratorDefinition = generatorSession
+    ? geometryGenerators.find((generator) => generator.id === generatorSession.generatorId) ?? null
+    : null;
   const embeddedGeometrySaveInformation = React.useMemo(
     () => referencedEmbeddedGeometrySaveInformation(configuration),
     [configuration],
@@ -1117,7 +1123,7 @@ function ProcessFlowTemplateEditorInner() {
         <aside className="flex min-h-[240px] flex-col border-r bg-white lg:min-h-0">
           <PaletteHeader icon={<Boxes className="h-4 w-4" />} title="Geometry library" />
           <div className="grid shrink-0 grid-cols-2 gap-2 border-b p-3">
-            {GEOMETRY_GENERATORS.map((generator) => (
+            {geometryGenerators.map((generator) => (
               <Button
                 key={generator.id}
                 type="button"
@@ -1131,7 +1137,7 @@ function ProcessFlowTemplateEditorInner() {
                   })
                 }
               >
-                <generator.Icon />
+                <GeometryGeneratorIcon definition={generator} />
                 {generator.label}
               </Button>
             ))}
@@ -1282,6 +1288,7 @@ function ProcessFlowTemplateEditorInner() {
           flowInput={pickerNode.data.definition}
           selectedBinding={configuration.inputBindings[pickerNode.data.definition.flowInputId]}
           geometries={geometries}
+          geometryGenerators={geometryGenerators}
           onClose={() => setPickerNodeId(null)}
           onSelect={(geometryId) => setInputGeometry(pickerNode, geometryId)}
           onOpenGenerator={(generatorId) =>
@@ -1290,9 +1297,9 @@ function ProcessFlowTemplateEditorInner() {
         />
       ) : null}
 
-      {generatorSession ? (
+      {generatorSession && activeGeneratorDefinition ? (
         <GeometryGeneratorDialogLauncher
-          generatorId={generatorSession.generatorId}
+          definition={activeGeneratorDefinition}
           initialParameters={generatorSession.initialParameters}
           onClose={() => setGeneratorSession(null)}
           onDefine={applyGeneratedGeometry}
@@ -1751,6 +1758,7 @@ function GeometryPickerDialog({
   flowInput,
   selectedBinding,
   geometries,
+  geometryGenerators,
   onClose,
   onSelect,
   onOpenGenerator,
@@ -1758,6 +1766,7 @@ function GeometryPickerDialog({
   flowInput: FlowInputDefinition;
   selectedBinding: FlowConfiguration["inputBindings"][string] | undefined;
   geometries: GeometryEntity[];
+  geometryGenerators: GeometryGeneratorDefinition[];
   onClose: () => void;
   onSelect: (geometryId: string) => void;
   onOpenGenerator: (generatorId: GeometryGeneratorId) => void;
@@ -1794,14 +1803,14 @@ function GeometryPickerDialog({
             Generate geometry
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {GEOMETRY_GENERATORS.map((generator) => (
+            {geometryGenerators.map((generator) => (
               <Button
                 key={generator.id}
                 type="button"
                 variant="outline"
                 onClick={() => onOpenGenerator(generator.id)}
               >
-                <generator.Icon />
+                <GeometryGeneratorIcon definition={generator} />
                 {generator.label}
               </Button>
             ))}
@@ -2329,6 +2338,9 @@ function geometryEntityFromEmbedded(
     structureFormat: geometry.structureFormat,
     structure: clone(geometry.structure),
     generation: geometry.generation ? clone(geometry.generation) : undefined,
+    adaptationContract: geometry.adaptationContract
+      ? clone(geometry.adaptationContract)
+      : undefined,
   };
 }
 

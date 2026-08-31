@@ -5,6 +5,11 @@ import type {
   ProcessFlowWorkspace,
   ProcessStepTemplate,
 } from "@/lib/process-flow/types";
+import type {
+  GeometryGeneratorDefinition,
+  GeometryGeneratorPreview,
+  GeometryMaterialization,
+} from "@/components/geometry-generator/geometry-generator-contracts";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
@@ -23,6 +28,7 @@ export type BootstrapPayload = {
   processFlowTemplates: ProcessFlowTemplate[];
   processFlowInstances: ProcessFlowInstance[];
   geometries: GeometryEntity[];
+  geometryGenerators: GeometryGeneratorDefinition[];
 };
 
 export function processFlowApiBaseUrl() {
@@ -89,6 +95,35 @@ export async function createGeometry(geometry: unknown): Promise<GeometryEntity>
   return apiFetch<GeometryEntity>("/api/geometries", {
     method: "POST",
     body: JSON.stringify(geometry),
+  });
+}
+
+export async function listGeometryGenerators(): Promise<GeometryGeneratorDefinition[]> {
+  return apiFetch<GeometryGeneratorDefinition[]>("/api/geometry-generators");
+}
+
+export async function previewGeneratedGeometry(
+  generatorId: string,
+  generatorVersion: number,
+  parameters: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<GeometryGeneratorPreview> {
+  return apiFetch<GeometryGeneratorPreview>(
+    `/api/geometry-generators/${encodeURIComponent(generatorId)}/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify({ generatorVersion, parameters }),
+      signal,
+    },
+  );
+}
+
+export async function materializeGeneratedGeometry(
+  previewToken: string,
+): Promise<GeometryMaterialization> {
+  return apiFetch<GeometryMaterialization>("/api/geometry-materializations", {
+    method: "POST",
+    body: JSON.stringify({ previewToken }),
   });
 }
 

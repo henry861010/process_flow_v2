@@ -20,13 +20,20 @@ export function transformedBounds(
   if (points.length === 0) {
     return null;
   }
-  const transformedPoints = points.map((point) => transformPoint(transform, point));
-  const xs = transformedPoints.map((point) => point[0]);
-  const ys = transformedPoints.map((point) => point[1]);
+  const result = transformedPoints(points, transform);
+  const xs = result.map((point) => point[0]);
+  const ys = result.map((point) => point[1]);
   return [
     [Math.min(...xs), Math.min(...ys)],
     [Math.max(...xs), Math.max(...ys)],
   ];
+}
+
+export function transformedPoints(
+  points: CoordinatePair[],
+  transform: Matrix,
+): CoordinatePair[] {
+  return points.map((point) => transformPoint(transform, point));
 }
 
 export function referenceTransform(

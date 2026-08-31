@@ -12,8 +12,9 @@ import {
 } from "lucide-react";
 
 import {
-  GEOMETRY_GENERATORS,
   GeometryGeneratorCatalogDialogLauncher,
+  GeometryGeneratorIcon,
+  type GeometryGeneratorDefinition,
   type GeometryGeneratorId,
 } from "@/components/geometry-generator/geometry-generator-registry";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ type HomeData = {
   flowTemplates: ProcessFlowTemplate[];
   flowInstances: ProcessFlowInstance[];
   stepTemplates: ProcessStepTemplate[];
+  geometryGenerators: GeometryGeneratorDefinition[];
 };
 
 type FlowInstanceRow = {
@@ -57,6 +59,7 @@ const emptyHomeData: HomeData = {
   flowTemplates: [],
   flowInstances: [],
   stepTemplates: [],
+  geometryGenerators: [],
 };
 
 export default function Home() {
@@ -77,6 +80,7 @@ export default function Home() {
           flowTemplates: payload.processFlowTemplates as ProcessFlowTemplate[],
           flowInstances: payload.processFlowInstances as ProcessFlowInstance[],
           stepTemplates: payload.processStepTemplates as ProcessStepTemplate[],
+          geometryGenerators: payload.geometryGenerators,
         });
         setLoadError(null);
       })
@@ -120,6 +124,9 @@ export default function Home() {
   );
 
   const templateCount = homeData.flowTemplates.length;
+  const openGenerator = homeData.geometryGenerators.find(
+    (generator) => generator.id === openGeneratorId,
+  );
 
   async function handlePocReset() {
     const payload = await resetPocData();
@@ -127,6 +134,7 @@ export default function Home() {
       flowTemplates: payload.processFlowTemplates as ProcessFlowTemplate[],
       flowInstances: payload.processFlowInstances as ProcessFlowInstance[],
       stepTemplates: payload.processStepTemplates as ProcessStepTemplate[],
+      geometryGenerators: payload.geometryGenerators,
     });
     setSelectedTemplateType(ALL_TEMPLATE_TYPES);
   }
@@ -151,7 +159,7 @@ export default function Home() {
           </div>
 
           <nav aria-label="Process flow tools" className="flex flex-wrap gap-2">
-            {GEOMETRY_GENERATORS.map((generator) => (
+            {homeData.geometryGenerators.map((generator) => (
               <Button
                 key={generator.id}
                 type="button"
@@ -159,7 +167,7 @@ export default function Home() {
                 size="sm"
                 onClick={() => setOpenGeneratorId(generator.id)}
               >
-                <generator.Icon />
+                <GeometryGeneratorIcon definition={generator} />
                 {generator.label}
               </Button>
             ))}
@@ -336,9 +344,9 @@ export default function Home() {
         cmd: reset-poc-data
       </button>
 
-      {openGeneratorId ? (
+      {openGenerator ? (
         <GeometryGeneratorCatalogDialogLauncher
-          generatorId={openGeneratorId}
+          definition={openGenerator}
           onClose={() => setOpenGeneratorId(null)}
         />
       ) : null}

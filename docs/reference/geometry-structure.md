@@ -71,6 +71,8 @@ Canonical structure wrapper：
 | `iconScale` | positive finite number or omitted | optional | Viewer scale；不是 geometry semantics。 |
 | `structureFormat` | literal `"standard"` | required | 目前唯一 supported format。 |
 | `structure` | `GeometryStructure` | required | Complete, deeply valid structure。 |
+| `generation` | object or omitted | optional | Backend generator authoring metadata；不改變structure semantics。 |
+| `adaptationContract` | versioned adapter object | catalog canonical required | Adaptive placement policy；缺少的legacy/create payload由repository依category materialize。 |
 
 Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，但在匯入 catalog
 時 server MUST 生成符合 Process Flow identifier grammar 的新 id。
@@ -80,6 +82,9 @@ Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，�
 `EmbeddedGeometry` 只存在於 `FlowConfiguration.embeddedGeometries`，shape 等同
 `GeometryEntity` metadata + structure，但 MUST NOT 有 catalog `id`。Map key 是
 `localId` identity。
+
+Draft embedded geometry MAY暫時省略`adaptationContract`；compiler會使用與repository相同的
+effective default。Backend generator產生的embedded geometry MUST明確包含generation與contract。
 
 Commit MUST：
 

@@ -7,8 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from process_flow_kernel import effective_adaptation_contract
+
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "4"
+DATABASE_SCHEMA_VERSION = "5"
 
 
 class DuplicateItemError(ValueError):
@@ -114,9 +116,20 @@ class SQLiteStore:
         ).fetchone()
         if row is not None and row["value"] == DATABASE_SCHEMA_VERSION:
             return
+        if row is not None and row["value"] not in {"4"}:
+            raise RuntimeError(
+                "Unsupported database schema migration: "
+                f"{row['value']} -> {DATABASE_SCHEMA_VERSION}"
+            )
         with self._connection:
-            for table in TABLES:
-                self._connection.execute(f"DELETE FROM {table}")
+            # A database without a version marker predates the supported migration
+            # chain. Preserve the established bootstrap behavior and reseed it;
+            # versioned v4 databases take the non-destructive path below.
+            if row is None:
+                for table in TABLES:
+                    self._connection.execute(f"DELETE FROM {table}")
+            if row is not None and row["value"] == "4":
+                self._migrate_v4_to_v5()
             self._connection.execute(
                 """
                 INSERT INTO schema_metadata(key, value)
@@ -124,6 +137,36 @@ class SQLiteStore:
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
                 """,
                 (DATABASE_SCHEMA_VERSION,),
+            )
+
+    def _migrate_v4_to_v5(self) -> None:
+        geometry_rows = self._connection.execute(
+            "SELECT id, payload FROM geometries"
+        ).fetchall()
+        for row in geometry_rows:
+            payload = _geometry_with_adaptation_contract(json.loads(row["payload"]))
+            self._connection.execute(
+                "UPDATE geometries SET payload = ? WHERE id = ?",
+                (_json(payload), row["id"]),
+            )
+
+        workspace_rows = self._connection.execute(
+            "SELECT id, payload FROM process_flow_workspaces"
+        ).fetchall()
+        for row in workspace_rows:
+            payload = json.loads(row["payload"])
+            embedded = payload.get("embeddedGeometries", {})
+            if not isinstance(embedded, dict):
+                continue
+            payload["embeddedGeometries"] = {
+                local_id: _geometry_with_adaptation_contract(geometry)
+                if isinstance(geometry, dict)
+                else geometry
+                for local_id, geometry in embedded.items()
+            }
+            self._connection.execute(
+                "UPDATE process_flow_workspaces SET payload = ? WHERE id = ?",
+                (_json(payload), row["id"]),
             )
 
     def reset(self) -> None:
@@ -177,6 +220,7 @@ class SQLiteStore:
         self._delete("process_step_templates", id_)
 
     def insert_geometry(self, payload: JsonObject) -> JsonObject:
+        payload = _geometry_with_adaptation_contract(payload)
         return self._insert(
             "geometries",
             {
@@ -452,6 +496,7 @@ class SQLiteStore:
         )
 
     def _insert_geometry_in_transaction(self, payload: JsonObject) -> None:
+        payload = _geometry_with_adaptation_contract(payload)
         self._insert_values(
             "geometries",
             {
@@ -498,6 +543,12 @@ TABLES = (
 
 def _json(payload: JsonObject) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def _geometry_with_adaptation_contract(payload: JsonObject) -> JsonObject:
+    normalized = json.loads(_json(payload))
+    normalized["adaptationContract"] = effective_adaptation_contract(normalized)
+    return normalized
 
 
 def utc_now() -> str:

@@ -78,6 +78,7 @@ Parameter ids、nested item parameter ids 與 repeat `itemId` MUST 符合：
 | `boolean` | boolean | boolean | n/a |
 | `materialRef` | non-empty string when present | string；kernel MAY rewrite suffix | n/a |
 | `coordinates` | array of unique `[[xMin, yMin], [xMax, yMax]]` rectangles | array of float rectangles | yes |
+| `placements` | array of target-region + pose + anchor objects | normalized placement object array | yes |
 | `string[]` | string array | string array | yes |
 | `integer[]` | integral finite number array | integer array | yes |
 | `float[]` | finite number array | float array | yes |
@@ -93,6 +94,10 @@ Rules：
 - Coordinates 每個 item MUST 是 `[[xMin, yMin], [xMax, yMax]]`，四個值都 MUST finite，
   且 `xMax > xMin`、`yMax > yMin`。四個對應值都在 absolute tolerance `1e-6 um`
   內時視為 duplicate 並 MUST reject；canonical length unit 是 `um`。
+- Placements 每個 item MUST 同時包含 `targetRegion` 與 `pose`。Rectangle region 使用 positive
+  `width`/`height`；polygon 使用至少三個 finite `[x,y]` points、面積不得為零且不得
+  self-intersect。`pose.x/y/rotationZ` MUST finite；`anchor` MUST 是 `bottomLeft`、`center` 或
+  `origin`，省略時為 `bottomLeft`。Array order MUST preserve。
 - Required collection 的 `[]` 是「已提供的空 collection」，不是 missing。若 domain
   至少需要一個 item，definition MUST 使用可表達 cardinality 的 schema；
   `fieldGroupArray` 使用 `minItems`。目前 generic arrays/coordinates 沒有 `minItems` field。
@@ -104,6 +109,7 @@ Rules：
 | `valueType` | Allowed `controlType` |
 | --- | --- |
 | `coordinates` | `coordinateList` |
+| `placements` | `placementList` |
 | `fieldGroupArray` | `repeater` |
 | `boolean` | `checkbox` |
 | `integer`, `float` | `number`, `select` |
@@ -118,7 +124,7 @@ Additional rules：
 - Scalar option control MUST 使用 `selectionMode: "single"`。
 - Array option control MUST 使用 `selectionMode: "multiple"`。
 - 沒有 `optionSource` 的 control MUST 省略 `selectionMode`。
-- `coordinateList` 與 `repeater` MUST NOT 提供 `optionSource`。
+- `coordinateList`、`placementList` 與 `repeater` MUST NOT 提供 `optionSource`。
 
 ## 5. OptionSource 是 enum contract
 

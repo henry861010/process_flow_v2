@@ -393,9 +393,15 @@ Workspace 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的�
 
 `EmbeddedGeometry`與`GeometryEntity` MAY包含通用`generation` authoring metadata：
 `generatorId`是registry key、`schemaVersion >= 1`標記parameter contract、`parameters`保存完整
-JSON object。這個欄位不得包含flow input identity或routing，backend也不得依特定HBM/DRAM
-generator分支處理；materialization必須原樣保存它。Runtime execution只讀`structure`，
-`generation`僅用於重新開啟generator時回填參數。
+JSON object。Generator validation、build 與 engineering preview 由 backend registry 擁有；
+materialization必須原樣保存metadata。`generation`僅用於重新開啟generator時回填參數，
+不作為flow routing identity。
+
+兩種geometry也包含versioned `adaptationContract`：`adapterId`是backend adapter registry key、
+`adapterVersion >= 1`、`parameters`是adapter-specific JSON object。Runtime `GeometryArtifact`同時
+攜帶structure與此metadata；adaptive PnP依contract materialize target-specific geometry。
+Explicit contract優先；舊資料依category backfill HBM/DRAM/VRM adapter，其他未標記資料使用
+`legacy-box-stretch@1`。未知adapter id/version MUST reject，不得silent fallback。
 
 三個 map 的資料關係如下：
 
@@ -405,7 +411,8 @@ generator分支處理；materialization必須原樣保存它。Runtime execution
 - `embeddedGeometries` 不會由 step 直接查詢；它必須先被 `inputBindings` 以 `localId` 引用。
 
 在 PnP 範例中，`inputBindings` 分別為 `incoming_panel` 與 `incoming_die` 選擇 geometry，
-`stepConfigurations.pnp.parameterValues` 則提供 placement `coordinates`。
+`stepConfigurations.pnp.parameterValues` 在PnP v3提供`coordinates`，在PnP v4則以同一筆
+`placements[]` item保存target region、pose與anchor。
 
 `inputBindings` 中的 `GeometryBinding` 有兩種來源：
 
@@ -537,7 +544,7 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"3"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"5"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Resource metadata label | `version` | string | 新 resource 使用 `"current"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 

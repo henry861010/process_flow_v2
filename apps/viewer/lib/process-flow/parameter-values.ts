@@ -25,6 +25,7 @@ export function createDefaultParameterValue(parameter: ParameterDefinition): unk
     case "boolean":
       return false;
     case "coordinates":
+    case "placements":
       return [];
     case "fieldGroupArray":
       return createDefaultRepeatableGroup(parameter);

@@ -5,6 +5,7 @@ export type ValueType =
   | "boolean"
   | "materialRef"
   | "coordinates"
+  | "placements"
   | "fieldGroupArray"
   | "string[]"
   | "integer[]"
@@ -18,6 +19,7 @@ export type ControlType =
   | "select"
   | "repeater"
   | "coordinateList"
+  | "placementList"
   | null;
 
 export type SelectionMode = "single" | "multiple" | null;
@@ -171,6 +173,12 @@ export type GeometryGeneration = {
   parameters: Record<string, unknown>;
 };
 
+export type GeometryAdaptationContract = {
+  adapterId: string;
+  adapterVersion: number;
+  parameters?: Record<string, unknown>;
+};
+
 export type EmbeddedGeometry = {
   name: string;
   entityType: string;
@@ -183,6 +191,7 @@ export type EmbeddedGeometry = {
   structureFormat: string;
   structure: unknown;
   generation?: GeometryGeneration;
+  adaptationContract?: GeometryAdaptationContract;
 };
 
 export type FlowConfiguration = {
@@ -231,6 +240,7 @@ export type GeometryEntity = {
   structureFormat: string;
   structure?: unknown;
   generation?: GeometryGeneration;
+  adaptationContract?: GeometryAdaptationContract;
 };
 
 export type StepCompletion = {

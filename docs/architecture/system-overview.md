@@ -26,6 +26,7 @@ Process Flow 是 local-first PoC，由 static Next.js viewer、FastAPI/SQLite se
 ```mermaid
 flowchart LR
   Browser["apps/viewer\nstatic Next.js browser app"] -->|"HTTP JSON"| API["apps/api\nFastAPI composition root"]
+  API --> Generators["backend generator registry\nparameters + geometry + 2D preview"]
   API --> Store["SQLite\nJSON snapshots + indexed metadata"]
   API --> Compiler["packages/kernel-py\nFlowCompiler"]
   Compiler --> Plan["ExecutionPlan"]
@@ -39,8 +40,8 @@ flowchart LR
 
 | 套件 | 負責 | 不負責 |
 | --- | --- | --- |
-| `apps/viewer` | Browser interaction、working editor state、HTTP clients、3D presentation | Canonical persistence、kernel execution rules |
-| `apps/api` | HTTP contract、Pydantic validation、SQLite persistence/transactions、resource orchestration、export job lifecycle | Geometry domain operations |
+| `apps/viewer` | Browser interaction、generic generator/2D preview renderer、working editor state、HTTP clients、3D presentation | Generator engineering logic、canonical persistence、kernel execution rules |
+| `apps/api` | HTTP contract、backend generator registry、Pydantic validation、SQLite persistence/transactions、resource orchestration、export job lifecycle | Process-step geometry operations |
 | `packages/kernel-py` | Geometry domain、flow validation/compiler、execution plan、step execution、normalization | SQLite、HTTP、CadQuery、frontend state |
 | `packages/process-step-py` | Concrete `execute(context)` operation modules | Persistence、API routing、module discovery policy |
 | `packages/cad-py` | Geometry-to-CadQuery conversion、GLB、STEP AP242 | Flow compilation、catalog resolution |
@@ -65,7 +66,8 @@ insert-only；workspace 是可修改的例外。
 2. `StoreGeometryCatalog` 把 SQLite geometry lookup 轉接成 kernel 的
    `GeometryCatalogResolver`。
 3. `FlowCompiler` 驗證 topology/configuration、解析 catalog 或 embedded geometry、normalize
-   structures，並建立有順序的 `ExecutionPlan`。
+   structures，並將structure與generation/adaptation metadata包成`GeometryArtifact`後建立有順序的
+   `ExecutionPlan`。
 4. `GeometryKernel` 解析每個 planned input、clone geometry state、配置 material instance
    name，並 import `process_flow_steps.<program>`。
 5. Module `execute(context)` 回傳或修改 `ProcessGeometryState`。
@@ -88,8 +90,9 @@ Preview 可以直接解析 flow input，或只執行 step output 的 upstream cl
 
 預設 storage 是 `apps/api/.data/process-flow.sqlite3`。啟動時 store 建立 tables、檢查
 `schema_metadata.databaseSchemaVersion`，且只在所有 resource tables 都是空的時候 seed
-fixtures。Internal marker 缺少或不等於 `"2"` 時，local database 會被清空並重新 seed；
-此 PoC 不提供早期草案資料轉換。
+fixtures。目前marker是`"5"`；version `4 -> 5`會保留rows並backfill geometry
+`adaptationContract`。沒有marker的pre-migration database才會清空並重新seed；其他未知版本
+明確失敗。
 
 Export job 是 process-local memory state，不是 SQLite resource。API shutdown 會取消 queued／
 running jobs；restart 後 history 會消失。

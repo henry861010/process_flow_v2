@@ -299,12 +299,140 @@ export function isParameterValueComplete(
       return true;
     });
   }
+  if (definition.valueType === "placements") {
+    if (!Array.isArray(value)) return false;
+    return value.every((placement) => {
+      if (!isRecord(placement) || !isRecord(placement.targetRegion)) return false;
+      if (!isRecord(placement.pose)) return false;
+      if (
+        placement.anchor !== undefined &&
+        !["bottomLeft", "center", "origin"].includes(String(placement.anchor))
+      ) {
+        return false;
+      }
+      const pose = placement.pose;
+      if (
+        typeof pose.x !== "number" ||
+        !Number.isFinite(pose.x) ||
+        typeof pose.y !== "number" ||
+        !Number.isFinite(pose.y) ||
+        (pose.rotationZ !== undefined &&
+          (typeof pose.rotationZ !== "number" || !Number.isFinite(pose.rotationZ)))
+      ) {
+        return false;
+      }
+      const region = placement.targetRegion;
+      if (region.type === "rectangle") {
+        return (
+          typeof region.width === "number" &&
+          Number.isFinite(region.width) &&
+          region.width > 0 &&
+          typeof region.height === "number" &&
+          Number.isFinite(region.height) &&
+          region.height > 0
+        );
+      }
+      if (region.type !== "polygon" || !Array.isArray(region.points)) return false;
+      if (
+        !region.points.every(
+          (point) =>
+            Array.isArray(point) &&
+            point.length === 2 &&
+            point.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate)),
+        )
+      ) {
+        return false;
+      }
+      const points = (region.points as number[][]).map((point) => [point[0], point[1]]);
+      if (points.length > 3 && placementPointsEqual(points[0], points[points.length - 1])) {
+        points.pop();
+      }
+      return (
+        points.length >= 3 &&
+        !placementPolygonSelfIntersects(points) &&
+        Math.abs(placementPolygonArea(points)) > 1e-9
+      );
+    });
+  }
   if (definition.valueType.endsWith("[]")) {
     if (!Array.isArray(value)) return false;
     const scalarType = definition.valueType.slice(0, -2);
     return value.every((item) => scalarValueIsValid(scalarType, item, definition));
   }
   return scalarValueIsValid(definition.valueType, value, definition);
+}
+
+function placementPolygonArea(points: number[][]) {
+  return (
+    points.reduce((area, point, index) => {
+      const next = points[(index + 1) % points.length];
+      return area + point[0] * next[1] - next[0] * point[1];
+    }, 0) / 2
+  );
+}
+
+function placementPolygonSelfIntersects(points: number[][]) {
+  for (let left = 0; left < points.length; left += 1) {
+    const leftEnd = (left + 1) % points.length;
+    for (let right = left + 1; right < points.length; right += 1) {
+      const rightEnd = (right + 1) % points.length;
+      if (
+        left === right ||
+        left === rightEnd ||
+        leftEnd === right ||
+        leftEnd === rightEnd
+      ) {
+        continue;
+      }
+      if (
+        placementSegmentsIntersect(
+          points[left],
+          points[leftEnd],
+          points[right],
+          points[rightEnd],
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function placementSegmentsIntersect(a: number[], b: number[], c: number[], d: number[]) {
+  const orientations = [
+    placementOrientation(a, b, c),
+    placementOrientation(a, b, d),
+    placementOrientation(c, d, a),
+    placementOrientation(c, d, b),
+  ];
+  if (orientations[0] * orientations[1] < -1e-9 && orientations[2] * orientations[3] < -1e-9) {
+    return true;
+  }
+  return (
+    placementPointOnSegment(a, c, d) ||
+    placementPointOnSegment(b, c, d) ||
+    placementPointOnSegment(c, a, b) ||
+    placementPointOnSegment(d, a, b)
+  );
+}
+
+function placementPointOnSegment(point: number[], start: number[], end: number[]) {
+  return (
+    Math.abs(placementOrientation(start, end, point)) <= 1e-9 &&
+    point[0] >= Math.min(start[0], end[0]) - 1e-9 &&
+    point[0] <= Math.max(start[0], end[0]) + 1e-9 &&
+    point[1] >= Math.min(start[1], end[1]) - 1e-9 &&
+    point[1] <= Math.max(start[1], end[1]) + 1e-9
+  );
+}
+
+function placementOrientation(a: number[], b: number[], c: number[]) {
+  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+
+function placementPointsEqual(left: number[], right: number[]) {
+  return Math.abs(left[0] - right[0]) <= 1e-9 && Math.abs(left[1] - right[1]) <= 1e-9;
 }
 
 export function isConfigurationComplete(

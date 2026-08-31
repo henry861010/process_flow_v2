@@ -27,13 +27,19 @@ type CoordinateListControlProps = {
   value: unknown;
   unit?: string | null;
   onChange: (value: unknown) => void;
+  onGdsRegions?: (regions: GdsTargetRegion[]) => void;
 };
+
+export type GdsTargetRegion =
+  | { type: "rectangle"; bounds: CoordinateBounds }
+  | { type: "polygon"; points: Array<[number, number]> };
 
 type GdsImportResponse =
   | {
       type: "success";
       requestId: string;
       coordinates: CoordinateBounds[];
+      regions: GdsTargetRegion[];
       matchedElements: number;
       duplicatesRemoved: number;
       topCellNames: string[];
@@ -57,6 +63,7 @@ export function CoordinateListControl({
   value,
   unit,
   onChange,
+  onGdsRegions,
 }: CoordinateListControlProps) {
   const rows = React.useMemo(() => normalizeCoordinateRows(value), [value]);
   const diagnostics = React.useMemo(() => analyzeCoordinateRows(rows), [rows]);
@@ -122,7 +129,11 @@ export function CoordinateListControl({
           setImportError(event.data.message);
           return;
         }
-        onChange(event.data.coordinates);
+        if (onGdsRegions) {
+          onGdsRegions(event.data.regions);
+        } else {
+          onChange(event.data.coordinates);
+        }
         setImportSummary(event.data);
       };
       worker.onerror = (event) => {
@@ -138,6 +149,7 @@ export function CoordinateListControl({
           layer: parsedLayer,
           datatype: parsedDatatype,
           unit,
+          preserveShapes: Boolean(onGdsRegions),
           propertyFilter: normalizedPropertyFilterValue
             ? {
                 mode: propertyFilterMode,
@@ -304,7 +316,11 @@ export function CoordinateListControl({
             </Button>
           </div>
         </div>
-        <ImportFeedback summary={importSummary} error={importError} />
+        <ImportFeedback
+          summary={importSummary}
+          error={importError}
+          preserveShapes={Boolean(onGdsRegions)}
+        />
       </TabsContent>
     </Tabs>
   );
@@ -496,9 +512,11 @@ function CoordinateNumberInput({
 function ImportFeedback({
   summary,
   error,
+  preserveShapes,
 }: {
   summary: ImportSummary | null;
   error: string | null;
+  preserveShapes: boolean;
 }) {
   if (error) {
     return (
@@ -521,14 +539,18 @@ function ImportFeedback({
         <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <div className="space-y-1">
           <div>
-            Imported {summary.coordinates.length} coordinates from{" "}
+            Imported {summary.coordinates.length}{" "}
+            {preserveShapes ? "target regions" : "coordinates"} from{" "}
             {summary.matchedElements} matching elements.
           </div>
           <div className="text-emerald-800">
             Top cells: {formatTopCells(summary.topCellNames)}
           </div>
           {summary.duplicatesRemoved > 0 ? (
-            <div>{summary.duplicatesRemoved} duplicate coordinates removed.</div>
+            <div>
+              {summary.duplicatesRemoved} duplicate{" "}
+              {preserveShapes ? "target regions" : "coordinates"} removed.
+            </div>
           ) : null}
           {unsupportedEntries.length > 0 ? (
             <div>

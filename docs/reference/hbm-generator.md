@@ -13,11 +13,16 @@ source_of_truth:
   - docs/reference/geometry-structure.md
   - docs/concepts/geometry-semantics.md
 verified_against:
-  - apps/viewer/lib/hbm-generator.ts
-  - apps/viewer/components/hbm-generator/hbm-generator-dialog.tsx
+  - apps/api/src/process_flow_api/geometry_generation/hbm.py
+  - apps/api/src/process_flow_api/geometry_generation/engineering_preview.py
+  - apps/viewer/components/geometry-generator/backend-geometry-generator-dialog.tsx
 ---
 
 # HBM Geometry Generator
+
+HBM generator implementation與validation位於backend registry；viewer使用
+[`Geometry Generator Framework`](../ui/components/geometry-generator.md)的通用parameter與2D CAD
+preview renderer，不保存另一份HBM計算邏輯。
 
 ## 目的與範圍
 
@@ -39,7 +44,7 @@ HBM Geometry Generator 將一組 package、base die、core die stack 與 molding
 - `unitSystem` 必須是 `um`。
 - Package 中心必須位於 XY 原點，底面必須位於 `Z = 0`。
 - Root container key 必須是 `hbm`，且 direct body 是佔滿完整 package envelope 的
-  molding body。
+  molding body；該 body key 必須是 `envelope`，供 package adapter 選取可變 footprint。
 - 其餘 child containers 與所有 bodies 不提供 semantic key；它們以 structure-local id
   區分。
 - Base die 與每一層 core die 必須各自是 root 的 direct child container。
@@ -107,6 +112,10 @@ coreBottomZ(i) =
 Root 的 molding 會自然保留在 core die 四周、core-base gap、core-core gaps 與 top molding
 區域；producer 不得為這些區域另外建立互相重疊的 sibling molding bodies。
 
+Generator輸出的`adaptationContract`是`hbm-package@1`。Adaptive PnP只改變package/molding
+footprint（以及generator定義的package-sized base die），所有core child bodies維持原XY尺寸；
+target無法容納fixed core時必須失敗。
+
 ## Structure identity
 
 Generator 必須輸出 normalized empty arrays與structure-local ids：
@@ -147,6 +156,7 @@ Save 必須用同一份 GeometryStructure 建立 `GeometryEntity`：
 | `icon` | `die.stack` |
 | `structureFormat` | `standard` |
 | `structure` | Generator 產生的完整 GeometryStructure。 |
+| `adaptationContract` | `hbm-package@1`，包含backend manifest提供的parameters。 |
 
 Catalog record MUST 同時保存通用`generation` metadata：`generatorId = "hbm"`、parameter
 schema version與建立structure所用的完整parameters。此metadata供authoring UI重新載入參數；
@@ -156,8 +166,9 @@ GeometryStructure仍是compiler與kernel使用的authoritative geometry。
 
 Flow Template Editor使用同一generator的flow-input mode。此模式不得顯示Generate JSON或
 Save to DB；`Define`回傳draft-local EmbeddedGeometry，使用暫存metadata
-`name = "hbm_generator"`、`version = "v0.0.0"`、`owner = null`，並附完整generation
-metadata。Define本身不得寫DB；只有後續instance save materialization可以建立catalog record。
+`name = "HBM generator"`、`version = "v0.0.0"`、`owner = null`，並附完整generation與
+adaptation metadata。Define本身不得寫DB；只有後續instance save materialization可以建立
+catalog record。
 
 Catalog persistence 與 server-generated geometry id 的一般規則見
 [Persistence](./persistence.md) 與 [Geometry structure](./geometry-structure.md#2-geometryentity-外層結構)。
@@ -165,7 +176,7 @@ Catalog persistence 與 server-generated geometry id 的一般規則見
 ## Error behavior
 
 - 任一參數不合法時，generator 不得建立或下載 geometry，也不得開啟 Save dialog。
-- `buildHbmGeometry` 收到不合法參數時必須 throw，不得輸出部分 structure。
+- Backend HBM evaluator收到不合法參數時不得輸出部分structure或preview token。
 - Save request 失敗時，Save dialog 必須保留使用者 metadata 與 geometry parameters，並顯示 API
   error；不得把失敗顯示成已儲存。
 - Save 成功後必須顯示 server 回傳的 geometry name 與 id。

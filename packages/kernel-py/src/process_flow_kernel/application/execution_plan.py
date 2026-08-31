@@ -4,6 +4,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from .geometry_artifact import GeometryArtifact
+
 
 @dataclass(frozen=True, slots=True)
 class PlannedGeometryInput:
@@ -27,7 +29,7 @@ class PlannedStep:
 @dataclass(frozen=True, slots=True)
 class ExecutionPlan:
     steps: Sequence[PlannedStep]
-    external_geometries: Mapping[str, Mapping[str, Any]]
+    external_geometries: Mapping[str, GeometryArtifact]
     terminal_step_ref_ids: Sequence[str]
 
     def step(self, step_ref_id: str) -> PlannedStep:

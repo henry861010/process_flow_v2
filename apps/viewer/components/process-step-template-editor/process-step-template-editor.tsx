@@ -65,6 +65,7 @@ const VALUE_TYPES: Array<{ value: ValueType; label: string }> = [
   { value: "boolean", label: "Boolean" },
   { value: "materialRef", label: "Material reference" },
   { value: "coordinates", label: "Coordinates" },
+  { value: "placements", label: "Adaptive placements" },
   { value: "string[]", label: "String array" },
   { value: "integer[]", label: "Integer array" },
   { value: "float[]", label: "Float array" },
@@ -1320,6 +1321,7 @@ function validIdentifier(value: string) {
 
 function compatibleControls(valueType: ValueType): Exclude<ControlType, null>[] {
   if (valueType === "coordinates") return ["coordinateList"];
+  if (valueType === "placements") return ["placementList"];
   if (valueType === "fieldGroupArray") return ["repeater"];
   if (valueType === "boolean") return ["checkbox", "select"];
   if (valueType === "integer" || valueType === "float") return ["number", "select"];
@@ -1329,6 +1331,7 @@ function compatibleControls(valueType: ValueType): Exclude<ControlType, null>[] 
 
 function defaultControl(valueType: ValueType): ControlType {
   if (valueType === "coordinates") return "coordinateList";
+  if (valueType === "placements") return "placementList";
   if (valueType === "fieldGroupArray") return "repeater";
   if (valueType === "boolean") return "checkbox";
   if (valueType === "integer" || valueType === "float") return "number";
@@ -1343,6 +1346,7 @@ function controlLabel(control: Exclude<ControlType, null>) {
     select: "Select",
     repeater: "Repeater",
     coordinateList: "Coordinate list",
+    placementList: "Placement list",
   };
   return labels[control];
 }
