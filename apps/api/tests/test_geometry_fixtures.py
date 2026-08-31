@@ -25,7 +25,6 @@ CATALOG_COUNT_RANGES = {
     "package.soic": (5, 10),
     "die.lsi": (5, 10),
     "die.cpo": (5, 10),
-    "die.vrm": (1, 1),
     "carrier.wafer": (1, 4),
     "carrier.panel": (1, 4),
 }
@@ -72,7 +71,6 @@ class GeometryFixtureTests(unittest.TestCase):
                 "panel_v1_0_0",
                 "hbm_v1_3_1",
                 "soc_v1_0_0",
-                "vrm_polygon_test_v1_0_0",
                 "test1",
             }
             <= fixture_ids
@@ -113,7 +111,6 @@ class GeometryFixtureTests(unittest.TestCase):
             "package.soic": "soic",
             "die.lsi": "lsi",
             "die.cpo": "cpo",
-            "die.vrm": "vrm",
             "test.carrier": "carrier",
         }
 
@@ -136,7 +133,6 @@ class GeometryFixtureTests(unittest.TestCase):
                     "package.soic",
                     "die.lsi",
                     "die.cpo",
-                    "die.vrm",
                 }:
                     self.assertTrue(all(body.get("key") == "envelope" for body in bodies))
                 elif item["category"] in {"carrier.wafer", "carrier.panel"}:

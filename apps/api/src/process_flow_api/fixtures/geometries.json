@@ -764,41 +764,6 @@
     }
   },
   {
-    "id": "vrm_polygon_test_v1_0_0",
-    "category": "die.vrm",
-    "name": "Polygon VRM Test Fixture",
-    "version": "v1.0.0",
-    "owner": "demo.example",
-    "description": "5000 x 3400 x 350 um — Single-loop PolygonGeometry fixture for polygon-rescale PnP validation.",
-    "entityType": "die",
-    "icon": "die.piece",
-    "structureFormat": "standard",
-    "structure": {
-      "schemaVersion": "1.0.0",
-      "unitSystem": "um",
-      "root": {
-        "key": "vrm",
-        "bodies": [
-          {
-            "key": "envelope",
-            "geometry": {
-              "type": "PolygonGeometry",
-              "polys": [
-                [[0, 0, 0], [4200, 0, 0], [5000, 1600, 0], [3600, 3400, 0], [600, 3000, 0]]
-              ],
-              "thk": 350
-            },
-            "material": "VRM"
-          }
-        ],
-        "vias": [],
-        "circuits": [],
-        "bumps": [],
-        "children": []
-      }
-    }
-  },
-  {
     "id": "test1",
     "category": "test.carrier",
     "name": "carrier",

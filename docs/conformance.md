@@ -6,11 +6,12 @@ audience:
   - 產品與架構負責人
   - 開發者
   - QA
-last_verified: 2026-07-12
-last_verified_commit: bdf2338e402dbd6e88a5dc494c874969d3be19b0
+last_verified: 2026-09-01
+last_verified_commit: 80002c4ec18d4fd7d5dbc6491e3223e58c8254f1
 source_of_truth:
   - docs/data-model.md
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
+  - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
   - apps/api/src/process_flow_api/
   - apps/viewer/
   - packages/kernel-py/
@@ -46,6 +47,7 @@ UI normative reference 為準。本頁的 `Open` 不會降低 target contract �
 | DM-018 | Non-empty names/category/program/owner、positive `iconScale`、opaque non-empty `version`、`structureFormat: "standard"` 等 metadata constraints 一致 | 多數欄位仍是 unconstrained `str`／`float`；空字串、負 scale 與任意 format 可通過 Pydantic。`apps/api/src/process_flow_api/models.py` | integration.platform | Open |
 | DM-019 | Normalized structure-local ids 保留或 deterministic 產生，且全 structure 唯一 | Hydration/serialization 未完整保留 explicit ids，也未一致驗 uniqueness。`packages/kernel-py/src/process_flow_kernel/serialization` | integration.platform | Open |
 | DM-020 | 未正式發行前，新 resource 的 `version` metadata label 固定為 `current`，不表示 release generation | Current fixtures 與 editor defaults 仍使用 release-like numbered labels。`apps/api/src/process_flow_api/fixtures`、`apps/viewer/components/process-step-template-editor/process-step-template-editor.tsx`、`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |
+| DM-021 | 同一PnP batch可交錯rectangle與polygon target；單一Box source可轉exact polygon，多Box polygon failure維持batch atomicity | Runtime逐筆adapt target；`box-rescale@1`支援single-Box polygon conversion，測試覆蓋default／explicit contract、mixed order、source immutability與multi-Box atomic rejection。`packages/process-step-py/src/process_flow_steps/pnp/adapters.py`、`packages/kernel-py/tests/test_adaptive_pnp.py` | integration.platform | Closed |
 
 ## Semantic preview session
 

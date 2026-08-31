@@ -18,6 +18,9 @@ verified_against:
 
 # ADR-0007：後端 Geometry Generator 與 unified PnP
 
+> `box-rescale@1` 的 polygon-target extension 與同批 mixed-shape policy 由
+> [ADR-0008](./0008-pnp-mixed-target-shapes.md) 補充。
+
 ## 背景
 
 PnP 原本只接受 rectangle coordinates，且只會對 BoxGeometry subtree 做 additive resize。
@@ -43,7 +46,8 @@ PnP 原本只接受 rectangle coordinates，且只會對 BoxGeometry subtree 做
    - exactly one、single-loop PolygonGeometry使用`polygon-rescale@1`；
    - mixed、empty、multiple-loop、Cylinder或Cone要求explicit contract。
 7. Built-in contracts：
-   - `box-rescale@1`：對Box-only subtree套用相同additive XY delta，只接受rectangle target；
+   - `box-rescale@1`：rectangle target對Box-only subtree套用相同additive XY delta；polygon
+     target依ADR-0008只接受exactly one BoxGeometry footprint；
    - `polygon-rescale@1`：以target polygon或rectangle四角直接替換唯一polygon loop，保留
      Z、thickness與feature/container metadata；
    - `hbm-package@1`、`dram-package@1`：只改變package envelope，fixed children必須能容納；

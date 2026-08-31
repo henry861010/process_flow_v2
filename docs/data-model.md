@@ -11,6 +11,8 @@ last_verified_commit: b01b1e70
 source_of_truth:
   - docs/architecture/decisions/0002-single-terminal-flow.md
   - docs/architecture/decisions/0003-geometry-units-and-density.md
+  - docs/architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md
+  - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
 verified_against:
   - apps/api/src/process_flow_api/models.py
   - apps/api/src/process_flow_api/repository.py
@@ -60,6 +62,8 @@ kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語�
 - [Persistence](./reference/persistence.md)
 - [ADR-0002：Single-terminal Flow](./architecture/decisions/0002-single-terminal-flow.md)
 - [ADR-0003：Geometry Units and Density](./architecture/decisions/0003-geometry-units-and-density.md)
+- [ADR-0007：Backend Geometry Generation and Unified PnP](./architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md)
+- [ADR-0008：PnP Mixed Target Shapes](./architecture/decisions/0008-pnp-mixed-target-shapes.md)
 
 ### 1.1 範圍與非目標
 
@@ -401,7 +405,9 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 `adapterVersion >= 1`、`parameters`是adapter-specific JSON object。Runtime `GeometryArtifact`同時
 攜帶structure與此metadata；PnP依contract materialize target-specific geometry。Explicit contract
 優先；missing contract在runtime依primitive選擇Box-only `box-rescale@1`或single-loop
-`polygon-rescale@1`。其他structure要求explicit contract；未知adapter id/version MUST reject。
+`polygon-rescale@1`。同一個`placements[]` MAY交錯rectangle與polygon target；`box-rescale@1`
+的polygon target只接受exactly one BoxGeometry footprint。其他structure要求explicit contract；
+未知adapter id/version MUST reject。
 
 三個 map 的資料關係如下：
 
@@ -871,6 +877,8 @@ source；兩個 required bindings 與 `placements` 都完整。
 
 PnP 依 source 的 explicit adaptation contract或primitive default materialize每個target region。
 Box-only source使用`box-rescale@1`；單一、單loop PolygonGeometry使用`polygon-rescale@1`。
+每筆target type獨立處理，因此同一batch可交錯rectangle與polygon；Box-only source的rectangle
+維持additive resize，而polygon只在source恰好一個BoxGeometry時轉成exact target polygon。
 Materialize後以anchor為rotation pivot，再把anchor對齊pose並將Z bottom對齊current cursor。
 任一placement失敗時整個batch不得attach部分結果。
 

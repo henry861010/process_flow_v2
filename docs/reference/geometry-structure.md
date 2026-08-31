@@ -10,6 +10,8 @@ last_verified: 2026-07-11
 last_verified_commit: b01b1e70
 source_of_truth:
   - docs/data-model.md
+  - docs/architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md
+  - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
 verified_against:
   - packages/kernel-py/src/process_flow_kernel/serialization
   - packages/kernel-py/src/process_flow_kernel/domain
@@ -84,7 +86,9 @@ Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，�
 `localId` identity。
 
 Embedded geometry MAY省略`adaptationContract`；PnP runtime對Box-only或single-loop polygon
-structure選擇default。Backend HBM/DRAM generator產生的geometry MUST明確包含generation與contract。
+structure選擇default。同一batch可混合rectangle與polygon target；default `box-rescale@1`僅在
+source恰好一個BoxGeometry時接受polygon target，多Box source必須使用specialized contract。
+Backend HBM/DRAM generator產生的geometry MUST明確包含generation與contract。
 
 Commit MUST：
 

@@ -65,7 +65,6 @@ MUST NOT 放入 key。
 - `carrier.wafer` 與 `carrier.panel` catalog geometry 的 carrier solid MUST 使用 body key=`carrier`。
 - HBM 與 DRAM generator 標記 root container 為 `hbm`／`dram`，並將代表完整 package
   footprint 的 root body 標記為 `envelope`；其他內部 containers 與 bodies不提供key。
-- VRM polygon test fixture 標記 root container 為 `vrm`，單一外框 body 為 `envelope`。
 - Molding 與 DAF 分別建立 `molding`、`daf` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
   `daf` role 視為可選的 bonded DAF。

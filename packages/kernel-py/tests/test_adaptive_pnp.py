@@ -28,6 +28,51 @@ class AdaptivePnpTests(unittest.TestCase):
         self.assertEqual(bump["bottom_left"], [11, 21, 10])
         self.assertEqual(bump["top_right"], [15, 24, 10])
 
+    def test_single_box_supports_mixed_target_shapes_for_default_and_explicit_contracts(self):
+        for adaptation in (
+            None,
+            {"adapterId": "box-rescale", "adapterVersion": 1},
+        ):
+            with self.subTest(adaptation=adaptation):
+                source = geometry_entity(
+                    "single-box",
+                    main_geometry(),
+                    adaptation=adaptation,
+                )
+                original = copy.deepcopy(source["structure"])
+                result = execute_pnp(
+                    source,
+                    [
+                        rectangle_placement(10, 20, 6, 5),
+                        polygon_placement(
+                            30,
+                            40,
+                            [[0, 0], [5, 0], [6, 3], [1, 4]],
+                        ),
+                        rectangle_placement(50, 60, 8, 7),
+                    ],
+                )
+
+                first, second, third = result.geometry()["root"]["children"]
+                first_geometry = first["bodies"][0]["geometry"]
+                second_geometry = second["bodies"][0]["geometry"]
+                third_geometry = third["bodies"][0]["geometry"]
+
+                self.assertEqual(first_geometry["type"], "BoxGeometry")
+                self.assertEqual(first_geometry["bottom_left"][:2], [10, 20])
+                self.assertEqual(first_geometry["top_right"][:2], [16, 25])
+                self.assertEqual(second_geometry["type"], "PolygonGeometry")
+                self.assertEqual(
+                    [point[:2] for point in second_geometry["polys"][0]],
+                    [[30, 40], [35, 40], [36, 43], [31, 44]],
+                )
+                self.assertEqual(second_geometry["polys"][0][0][2], 10)
+                self.assertEqual(second_geometry["thk"], 10)
+                self.assertEqual(third_geometry["type"], "BoxGeometry")
+                self.assertEqual(third_geometry["bottom_left"][:2], [50, 60])
+                self.assertEqual(third_geometry["top_right"][:2], [58, 67])
+                self.assertEqual(source["structure"], original)
+
     def test_hbm_placements_vary_envelope_without_resizing_core(self):
         source = geometry_entity(
             "hbm",
@@ -114,6 +159,36 @@ class AdaptivePnpTests(unittest.TestCase):
         self.assertEqual(polygon["thk"], 3)
         self.assertEqual(source["structure"], original)
 
+    def test_polygon_source_supports_mixed_rectangle_and_polygon_targets(self):
+        source = geometry_entity("vrm", polygon_geometry())
+        original = copy.deepcopy(source["structure"])
+        result = execute_pnp(
+            source,
+            [
+                rectangle_placement(10, 20, 8, 6),
+                polygon_placement(
+                    30,
+                    40,
+                    [[0, 0], [4, 0], [5, 2], [2, 5], [0, 3]],
+                ),
+            ],
+        )
+
+        first, second = result.geometry()["root"]["children"]
+        first_geometry = first["bodies"][0]["geometry"]
+        second_geometry = second["bodies"][0]["geometry"]
+        self.assertEqual(first_geometry["type"], "PolygonGeometry")
+        self.assertEqual(
+            [point[:2] for point in first_geometry["polys"][0]],
+            [[10, 20], [18, 20], [18, 26], [10, 26]],
+        )
+        self.assertEqual(second_geometry["type"], "PolygonGeometry")
+        self.assertEqual(
+            [point[:2] for point in second_geometry["polys"][0]],
+            [[30, 40], [34, 40], [35, 42], [32, 45], [30, 43]],
+        )
+        self.assertEqual(source["structure"], original)
+
     def test_polygon_rescale_rectangle_target_preserves_polygon_primitive(self):
         artifact = GeometryArtifact.from_entity(geometry_entity("vrm", polygon_geometry()))
 
@@ -128,6 +203,31 @@ class AdaptivePnpTests(unittest.TestCase):
             [point[:2] for point in geometry["polys"][0]],
             [[0, 0], [8, 0], [8, 6], [0, 6]],
         )
+
+    def test_box_rescale_polygon_target_preserves_exact_points_and_metadata(self):
+        source = geometry_entity(
+            "single-box",
+            main_geometry(),
+            adaptation={"adapterId": "box-rescale", "adapterVersion": 1},
+        )
+        artifact = GeometryArtifact.from_entity(source)
+        original = copy.deepcopy(source["structure"])
+        target = [[1, 2], [6, 2], [7, 5], [2, 6]]
+
+        adapted = adapt_geometry(
+            artifact,
+            {"type": "polygon", "points": target},
+        )
+
+        body = adapted["root"]["bodies"][0]
+        self.assertEqual(body["geometry"]["type"], "PolygonGeometry")
+        self.assertEqual(
+            body["geometry"]["polys"][0],
+            [[1, 2, 0], [6, 2, 0], [7, 5, 0], [2, 6, 0]],
+        )
+        self.assertEqual(body["geometry"]["thk"], 10)
+        self.assertEqual(body["material"], "substrate")
+        self.assertEqual(source["structure"], original)
 
     def test_rotation_rebases_each_supported_anchor_before_rotating(self):
         artifact = GeometryArtifact.from_entity(geometry_entity("vrm", polygon_geometry()))
@@ -175,6 +275,43 @@ class AdaptivePnpTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "width must be greater than 0"):
+            execute_pnp_step(context)
+
+        self.assertEqual(state.to_geometry_structure()["root"]["children"], [])
+
+    def test_multi_box_polygon_target_fails_without_partial_attachment(self):
+        state = ProcessGeometryState.from_structure(main_geometry())
+        source = GeometryArtifact.from_entity(
+            geometry_entity("soc", legacy_soc_geometry())
+        )
+        context = ProcessStepContext(
+            state=state,
+            values={
+                "placements": [
+                    rectangle_placement(10, 20, 6, 5),
+                    polygon_placement(
+                        30,
+                        40,
+                        [[0, 0], [5, 0], [6, 3], [1, 4]],
+                    ),
+                ]
+            },
+            raw_parameter_values={},
+            step_ref={},
+            step_template={},
+            step_configuration={},
+            geometry_inputs={},
+            input_geometry=None,
+            geometry_resolver=lambda _port_id: None,
+            geometry_artifact_resolver=lambda port_id: source
+            if port_id == "die_geometry"
+            else None,
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires exactly one BoxGeometry footprint",
+        ):
             execute_pnp_step(context)
 
         self.assertEqual(state.to_geometry_structure()["root"]["children"], [])
@@ -400,6 +537,14 @@ def edge(id_, flow_input_id, port_id):
 def rectangle_placement(x, y, width, height):
     return {
         "targetRegion": {"type": "rectangle", "width": width, "height": height},
+        "pose": {"x": x, "y": y, "rotationZ": 0},
+        "anchor": "bottomLeft",
+    }
+
+
+def polygon_placement(x, y, points):
+    return {
+        "targetRegion": {"type": "polygon", "points": points},
         "pose": {"x": x, "y": y, "rotationZ": 0},
         "anchor": "bottomLeft",
     }

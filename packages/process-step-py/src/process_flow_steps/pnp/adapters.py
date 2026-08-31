@@ -182,9 +182,17 @@ def normalize_target_region(value: Mapping[str, Any]) -> JsonObject:
 
 
 def _box_rescale(structure: JsonObject, region: JsonObject) -> JsonObject:
-    if region["type"] != "rectangle":
-        raise ValueError("box-rescale supports only rectangle target regions")
     result = copy.deepcopy(structure)
+    if region["type"] == "polygon":
+        geometries = list(_walk_geometries(result["root"]))
+        if len(geometries) != 1 or geometries[0].get("type") != "BoxGeometry":
+            raise ValueError(
+                "box-rescale polygon target requires exactly one BoxGeometry footprint; "
+                "use a specialized adaptationContract for multi-primitive sources"
+            )
+        _replace_footprint(geometries[0], region, region)
+        return result
+
     source_bounds = _structure_bounds(result)
     delta_x = float(region["width"]) - (source_bounds["xMax"] - source_bounds["xMin"])
     delta_y = float(region["height"]) - (source_bounds["yMax"] - source_bounds["yMin"])
