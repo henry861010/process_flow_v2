@@ -5,7 +5,7 @@ from typing import Any
 
 from process_flow_kernel import ProcessGeometryState, ProcessStepContext
 
-from .adapters import adapt_geometry, rotate_geometry
+from .adapters import adapt_geometry_for_placement, rotate_geometry
 
 
 def execute(context: ProcessStepContext) -> ProcessGeometryState:
@@ -17,11 +17,15 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
     # Materialize and validate the complete batch before mutating the destination.
     prepared: list[tuple[ProcessGeometryState, dict[str, Any]]] = []
     for placement in placements:
-        adapted_structure = adapt_geometry(source, placement["targetRegion"])
+        adapted_structure, anchor_bounds = adapt_geometry_for_placement(
+            source,
+            placement["targetRegion"],
+        )
         transformed_structure = rotate_geometry(
             adapted_structure,
             placement["pose"]["rotationZ"],
             placement["anchor"],
+            anchor_bounds,
         )
         prepared.append(
             (ProcessGeometryState.from_structure(transformed_structure), placement)

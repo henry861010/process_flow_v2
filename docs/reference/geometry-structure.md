@@ -86,8 +86,9 @@ Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，�
 `localId` identity。
 
 Embedded geometry MAY省略`adaptationContract`；PnP runtime對Box-only或single-loop polygon
-structure選擇default。同一batch可混合rectangle與polygon target；default `box-rescale@1`僅在
-source恰好一個BoxGeometry時接受polygon target，多Box source必須使用specialized contract。
+structure選擇default。同一batch可混合rectangle與polygon target；default `box-rescale@1`會把
+所有root direct Box features替換成exact target polygon，children不rescale並跟placement做rigid
+transform。Polygon pose anchor以root target bounds為準，不受突出children影響。
 Backend HBM/DRAM generator產生的geometry MUST明確包含generation與contract。
 
 Commit MUST：

@@ -47,7 +47,7 @@ PnP 原本只接受 rectangle coordinates，且只會對 BoxGeometry subtree 做
    - mixed、empty、multiple-loop、Cylinder或Cone要求explicit contract。
 7. Built-in contracts：
    - `box-rescale@1`：rectangle target對Box-only subtree套用相同additive XY delta；polygon
-     target依ADR-0008只接受exactly one BoxGeometry footprint；
+     target依ADR-0008替換所有root direct Box features並保留children；
    - `polygon-rescale@1`：以target polygon或rectangle四角直接替換唯一polygon loop，保留
      Z、thickness與feature/container metadata；
    - `hbm-package@1`、`dram-package@1`：只改變package envelope，fixed children必須能容納；

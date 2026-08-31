@@ -406,8 +406,8 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 攜帶structure與此metadata；PnP依contract materialize target-specific geometry。Explicit contract
 優先；missing contract在runtime依primitive選擇Box-only `box-rescale@1`或single-loop
 `polygon-rescale@1`。同一個`placements[]` MAY交錯rectangle與polygon target；`box-rescale@1`
-的polygon target只接受exactly one BoxGeometry footprint。其他structure要求explicit contract；
-未知adapter id/version MUST reject。
+的polygon target會將所有root direct features替換成exact target polygon，children維持原shape並
+跟placement做rigid transform。其他structure要求explicit contract；未知adapter id/version MUST reject。
 
 三個 map 的資料關係如下：
 
@@ -878,9 +878,10 @@ source；兩個 required bindings 與 `placements` 都完整。
 PnP 依 source 的 explicit adaptation contract或primitive default materialize每個target region。
 Box-only source使用`box-rescale@1`；單一、單loop PolygonGeometry使用`polygon-rescale@1`。
 每筆target type獨立處理，因此同一batch可交錯rectangle與polygon；Box-only source的rectangle
-維持additive resize，而polygon只在source恰好一個BoxGeometry時轉成exact target polygon。
-Materialize後以anchor為rotation pivot，再把anchor對齊pose並將Z bottom對齊current cursor。
-任一placement失敗時整個batch不得attach部分結果。
+維持全樹additive resize；polygon則將所有root direct body/via/circuit/bump改成exact target shape，
+不rescale或containment-check children。此polygon case以root target bounds作為anchor，children套
+相同rigid transform；其他case維持adapted structure anchor。最後將anchor對齊pose並把Z bottom
+對齊current cursor。任一placement失敗時整個batch不得attach部分結果。
 
 ## 15. 已知實作差異
 

@@ -94,8 +94,9 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
   PolygonGeometry使用`polygon-rescale@1`。Mixed、empty、multiple-loop、Cylinder/Cone source
   要求explicit contract。
 - 同一個PnP `placements[]`可交錯rectangle與polygon target。`box-rescale@1`的rectangle target
-  維持Box-only additive resize；polygon target只接受exactly one BoxGeometry，轉換後保留exact
-  local points、Z、thickness與metadata。多Box source必須使用specialized contract。
+  維持Box-only全樹additive resize；polygon target將所有root direct body/via/circuit/bump改成
+  exact local polygon並保留各自Z、thickness與metadata。Children不rescale、不檢查containment，
+  只跟placement做rigid transform；anchor以root target為準。
 - Built-in explicit contracts另有`hbm-package@1`、`dram-package@1`與`rigid@1`。Polygon target
   必須unique、無zero-length edge、non-zero-area且不得self-intersect；HBM/DRAM fixed children
   必須完整位於target內。Unknown adapter id/version明確失敗。

@@ -8,7 +8,7 @@ audience:
   - 製程與產品負責人
   - QA 與 coding agent
 last_verified: 2026-09-01
-last_verified_commit: 80002c4ec18d4fd7d5dbc6491e3223e58c8254f1
+last_verified_commit: b5da397ad81f5225e6d7e01128d7cb0e58bd5c94
 verified_against:
   - packages/process-step-py/src/process_flow_steps/pnp/adapters.py
   - packages/process-step-py/src/process_flow_steps/pnp/pnp.py
@@ -36,25 +36,27 @@ target-shape selector。Target shape 必須由每筆 placement 各自決定，�
    成功後才 attach；任何一筆失敗時不得產生 partial result。
 3. `box-rescale@1` 對 rectangle target 維持既有行為：Box-only subtree的每個 primitive使用
    相同 additive XY delta，並保留各自 lower-left。
-4. `box-rescale@1` 對 polygon target只接受整棵 source tree恰好一個`BoxGeometry`。該 primitive
-   轉成`PolygonGeometry`，loop在pose與rotation前必須等於normalized `targetRegion.points`，
-   並保留Z、thickness與所屬feature/container metadata。
-5. 多個Box primitives的generic source遇到polygon target必須明確失敗，要求呼叫端提供
-   specialized adaptation contract；runtime不得猜測envelope，也不得將所有internal primitives
-   改成同一polygon。
-6. `polygon-rescale@1`、`hbm-package@1`、`dram-package@1`與`rigid@1`既有target-shape行為不變。
+4. `box-rescale@1` 對 polygon target要求Box-only source的root至少一個direct feature geometry。
+   Root direct `bodies`、`vias`、`circuits`與`bumps`全部轉成`PolygonGeometry`，每個loop在pose與
+   rotation前都等於normalized `targetRegion.points`，並各自保留Z、thickness與feature metadata。
+5. Descendant containers不參與polygon rescale，也不執行target containment validation；children
+   保留原primitive、尺寸與local coordinates，只跟整份placement做相同rigid transform。
+6. `box-rescale@1` polygon placement的`bottomLeft`與`center` anchor以root target bounds為準，
+   不使用可能突出target的child aggregate bounds；`origin`仍使用local origin。
+7. `polygon-rescale@1`、`hbm-package@1`、`dram-package@1`與`rigid@1`既有target-shape行為不變。
    Explicit contract precedence、unknown id/version failure與source immutability也不變。
-7. `placements`、API models、TypeScript types與persistence schema不變，不需要資料migration。
+8. `placements`、API models、TypeScript types與persistence schema不變，不需要資料migration。
 
 ## 影響
 
-單一Box footprint與單一single-loop Polygon footprint現在都能在同一PnP batch中交錯使用
-rectangle與polygon target。多-primitive generic shape deformation仍未定義；需要resizable
-envelope或fixed-core policy時，必須使用HBM／DRAM類型的specialized adapter或新增versioned
-contract。
+Box-only source與單一single-loop Polygon footprint現在都能在同一PnP batch中交錯使用
+rectangle與polygon target。Box source的所有root feature會共享相同polygon XY footprint；
+children可能突出target，但不會改變root-target pose alignment。需要child containment、resizable
+child或fixed-core policy時，必須使用HBM／DRAM類型的specialized adapter或新增versioned contract。
 
 ## 驗證
 
 Tests MUST覆蓋default與explicit `box-rescale@1`的rectangle/polygon混合batch、exact polygon
-points、child order、Z/thickness與metadata preservation、polygon source混合batch、source
-immutability，以及multi-Box polygon rejection的batch atomicity。
+points、root body/via/circuit/bump metadata preservation、child primitive preservation、突出child的
+root-target anchor與rigid rotation、polygon source混合batch、source immutability、缺少root feature
+的明確failure，以及batch atomicity。

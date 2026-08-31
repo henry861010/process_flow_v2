@@ -16,6 +16,14 @@ def adapt_geometry(
     source: GeometryArtifact,
     target_region: Mapping[str, Any],
 ) -> JsonObject:
+    structure, _anchor_bounds = adapt_geometry_for_placement(source, target_region)
+    return structure
+
+
+def adapt_geometry_for_placement(
+    source: GeometryArtifact,
+    target_region: Mapping[str, Any],
+) -> tuple[JsonObject, JsonObject | None]:
     structure = normalize_geometry_structure(source.structure)
     contract = source.adaptation_contract or {
         "adapterId": _default_adapter_id(structure),
@@ -34,17 +42,28 @@ def adapt_geometry(
     if adapter is None:
         raise ValueError(f"Geometry adapter is not installed: {adapter_id}@{adapter_version}")
     normalized_region = normalize_target_region(target_region)
-    return normalize_geometry_structure(adapter(structure, normalized_region))
+    adapted = normalize_geometry_structure(adapter(structure, normalized_region))
+    anchor_bounds = (
+        copy.deepcopy(normalized_region["bounds"])
+        if adapter_id == "box-rescale" and normalized_region["type"] == "polygon"
+        else None
+    )
+    return adapted, anchor_bounds
 
 
 def rotate_geometry(
     structure: Mapping[str, Any],
     degrees: float,
     anchor: str,
+    anchor_bounds: Mapping[str, Any] | None = None,
 ) -> JsonObject:
     angle = _finite_number(degrees, "rotationZ") % 360
     result = normalize_geometry_structure(structure)
-    bounds = _structure_bounds(result)
+    bounds = (
+        dict(anchor_bounds)
+        if anchor_bounds is not None
+        else _structure_bounds(result)
+    )
     pivot = _anchor_point(bounds, anchor)
     radians = math.radians(angle)
     cosine = math.cos(radians)
@@ -185,12 +204,17 @@ def _box_rescale(structure: JsonObject, region: JsonObject) -> JsonObject:
     result = copy.deepcopy(structure)
     if region["type"] == "polygon":
         geometries = list(_walk_geometries(result["root"]))
-        if len(geometries) != 1 or geometries[0].get("type") != "BoxGeometry":
+        if not geometries or any(
+            geometry.get("type") != "BoxGeometry" for geometry in geometries
+        ):
+            raise ValueError("box-rescale supports only BoxGeometry sources")
+        root_geometries = list(_direct_geometries(result["root"]))
+        if not root_geometries:
             raise ValueError(
-                "box-rescale polygon target requires exactly one BoxGeometry footprint; "
-                "use a specialized adaptationContract for multi-primitive sources"
+                "box-rescale polygon target requires at least one root feature geometry"
             )
-        _replace_footprint(geometries[0], region, region)
+        for geometry in root_geometries:
+            _replace_footprint(geometry, region, region)
         return result
 
     source_bounds = _structure_bounds(result)
@@ -574,13 +598,17 @@ def _envelope_body(root: JsonObject) -> JsonObject:
 
 
 def _walk_geometries(container: JsonObject) -> Iterable[JsonObject]:
+    yield from _direct_geometries(container)
+    for child in container.get("children", []):
+        if isinstance(child, dict):
+            yield from _walk_geometries(child)
+
+
+def _direct_geometries(container: JsonObject) -> Iterable[JsonObject]:
     for collection in ("bodies", "vias", "circuits", "bumps"):
         for feature in container.get(collection, []):
             if isinstance(feature, dict) and isinstance(feature.get("geometry"), dict):
                 yield feature["geometry"]
-    for child in container.get("children", []):
-        if isinstance(child, dict):
-            yield from _walk_geometries(child)
 
 
 def _structure_bounds(structure: JsonObject) -> JsonObject:

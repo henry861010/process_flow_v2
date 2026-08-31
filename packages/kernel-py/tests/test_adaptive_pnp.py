@@ -28,15 +28,15 @@ class AdaptivePnpTests(unittest.TestCase):
         self.assertEqual(bump["bottom_left"], [11, 21, 10])
         self.assertEqual(bump["top_right"], [15, 24, 10])
 
-    def test_single_box_supports_mixed_target_shapes_for_default_and_explicit_contracts(self):
+    def test_root_box_features_support_mixed_targets_for_default_and_explicit_contracts(self):
         for adaptation in (
             None,
             {"adapterId": "box-rescale", "adapterVersion": 1},
         ):
             with self.subTest(adaptation=adaptation):
                 source = geometry_entity(
-                    "single-box",
-                    main_geometry(),
+                    "root-box-features",
+                    legacy_soc_geometry(),
                     adaptation=adaptation,
                 )
                 original = copy.deepcopy(source["structure"])
@@ -54,23 +54,41 @@ class AdaptivePnpTests(unittest.TestCase):
                 )
 
                 first, second, third = result.geometry()["root"]["children"]
-                first_geometry = first["bodies"][0]["geometry"]
-                second_geometry = second["bodies"][0]["geometry"]
-                third_geometry = third["bodies"][0]["geometry"]
+                first_body = first["bodies"][0]["geometry"]
+                first_bump = first["bumps"][0]["geometry"]
+                second_body = second["bodies"][0]["geometry"]
+                second_bump_feature = second["bumps"][0]
+                second_bump = second_bump_feature["geometry"]
+                third_body = third["bodies"][0]["geometry"]
+                third_bump = third["bumps"][0]["geometry"]
 
-                self.assertEqual(first_geometry["type"], "BoxGeometry")
-                self.assertEqual(first_geometry["bottom_left"][:2], [10, 20])
-                self.assertEqual(first_geometry["top_right"][:2], [16, 25])
-                self.assertEqual(second_geometry["type"], "PolygonGeometry")
+                self.assertEqual(first_body["type"], "BoxGeometry")
+                self.assertEqual(first_body["bottom_left"][:2], [10, 20])
+                self.assertEqual(first_body["top_right"][:2], [16, 25])
+                self.assertEqual(first_bump["bottom_left"][:2], [11, 21])
+                self.assertEqual(first_bump["top_right"][:2], [15, 24])
+                self.assertEqual(second_body["type"], "PolygonGeometry")
+                self.assertEqual(second_bump["type"], "PolygonGeometry")
                 self.assertEqual(
-                    [point[:2] for point in second_geometry["polys"][0]],
+                    [point[:2] for point in second_body["polys"][0]],
                     [[30, 40], [35, 40], [36, 43], [31, 44]],
                 )
-                self.assertEqual(second_geometry["polys"][0][0][2], 10)
-                self.assertEqual(second_geometry["thk"], 10)
-                self.assertEqual(third_geometry["type"], "BoxGeometry")
-                self.assertEqual(third_geometry["bottom_left"][:2], [50, 60])
-                self.assertEqual(third_geometry["top_right"][:2], [58, 67])
+                self.assertEqual(
+                    [point[:2] for point in second_bump["polys"][0]],
+                    [[30, 40], [35, 40], [36, 43], [31, 44]],
+                )
+                self.assertEqual(second_body["polys"][0][0][2], 12)
+                self.assertEqual(second_body["thk"], 5)
+                self.assertEqual(second_bump["polys"][0][0][2], 10)
+                self.assertEqual(second_bump["thk"], 2)
+                self.assertEqual(second_bump_feature["density"], 80)
+                self.assertEqual(second_bump_feature["direction"], "-z")
+                self.assertEqual(second_bump_feature["koz"], 0)
+                self.assertEqual(third_body["type"], "BoxGeometry")
+                self.assertEqual(third_body["bottom_left"][:2], [50, 60])
+                self.assertEqual(third_body["top_right"][:2], [58, 67])
+                self.assertEqual(third_bump["bottom_left"][:2], [51, 61])
+                self.assertEqual(third_bump["top_right"][:2], [57, 66])
                 self.assertEqual(source["structure"], original)
 
     def test_hbm_placements_vary_envelope_without_resizing_core(self):
@@ -206,8 +224,8 @@ class AdaptivePnpTests(unittest.TestCase):
 
     def test_box_rescale_polygon_target_preserves_exact_points_and_metadata(self):
         source = geometry_entity(
-            "single-box",
-            main_geometry(),
+            "root-box-features",
+            root_box_features_geometry(),
             adaptation={"adapterId": "box-rescale", "adapterVersion": 1},
         )
         artifact = GeometryArtifact.from_entity(source)
@@ -220,13 +238,93 @@ class AdaptivePnpTests(unittest.TestCase):
         )
 
         body = adapted["root"]["bodies"][0]
+        via = adapted["root"]["vias"][0]
+        circuit = adapted["root"]["circuits"][0]
+        bump = adapted["root"]["bumps"][0]
         self.assertEqual(body["geometry"]["type"], "PolygonGeometry")
+        self.assertEqual(via["geometry"]["type"], "PolygonGeometry")
+        self.assertEqual(circuit["geometry"]["type"], "PolygonGeometry")
+        self.assertEqual(bump["geometry"]["type"], "PolygonGeometry")
         self.assertEqual(
             body["geometry"]["polys"][0],
+            [[1, 2, 2], [6, 2, 2], [7, 5, 2], [2, 6, 2]],
+        )
+        self.assertEqual(
+            bump["geometry"]["polys"][0],
             [[1, 2, 0], [6, 2, 0], [7, 5, 0], [2, 6, 0]],
         )
-        self.assertEqual(body["geometry"]["thk"], 10)
-        self.assertEqual(body["material"], "substrate")
+        self.assertEqual(
+            via["geometry"]["polys"][0],
+            [[1, 2, 1], [6, 2, 1], [7, 5, 1], [2, 6, 1]],
+        )
+        self.assertEqual(
+            circuit["geometry"]["polys"][0],
+            [[1, 2, 3], [6, 2, 3], [7, 5, 3], [2, 6, 3]],
+        )
+        self.assertEqual(body["geometry"]["thk"], 5)
+        self.assertEqual(body["material"], "Si")
+        self.assertEqual(via["geometry"]["thk"], 1)
+        self.assertEqual(via["material"], "Cu-via")
+        self.assertEqual(via["density"], 50)
+        self.assertEqual(via["direction"], "+z")
+        self.assertEqual(via["koz"], 1)
+        self.assertEqual(circuit["geometry"]["thk"], 1)
+        self.assertEqual(circuit["material"], "Cu-circuit")
+        self.assertEqual(circuit["density"], 40)
+        self.assertEqual(circuit["koz"], 2)
+        self.assertEqual(bump["geometry"]["thk"], 2)
+        self.assertEqual(bump["material"], "SnAg")
+        self.assertEqual(bump["density"], 80)
+        self.assertEqual(bump["direction"], "-z")
+        self.assertEqual(bump["koz"], 0)
+        self.assertEqual(source["structure"], original)
+
+    def test_polygon_target_uses_root_anchor_and_rigidly_transforms_children(self):
+        source = geometry_entity(
+            "root-with-child",
+            box_geometry_with_protruding_child(),
+        )
+        original = copy.deepcopy(source["structure"])
+        target = [[0, 0], [4, 0], [4, 2], [0, 2]]
+
+        result = execute_pnp(
+            source,
+            [
+                polygon_placement(30, 40, target),
+                polygon_placement(
+                    100,
+                    200,
+                    target,
+                    rotation_z=90,
+                    anchor="center",
+                ),
+            ],
+        )
+
+        first, second = result.geometry()["root"]["children"]
+        first_body = first["bodies"][0]["geometry"]
+        first_bump = first["bumps"][0]["geometry"]
+        first_child = first["children"][0]["bodies"][0]["geometry"]
+        self.assertEqual(
+            [point[:2] for point in first_body["polys"][0]],
+            [[30, 40], [34, 40], [34, 42], [30, 42]],
+        )
+        self.assertEqual(first_bump["type"], "PolygonGeometry")
+        self.assertEqual(first_child["type"], "BoxGeometry")
+        self.assertEqual(first_child["bottom_left"], [28, 39, 10])
+        self.assertEqual(first_child["top_right"], [29, 40, 10])
+        self.assertEqual(first_child["thk"], 1)
+
+        second_body = second["bodies"][0]["geometry"]
+        second_child = second["children"][0]["bodies"][0]["geometry"]
+        self.assertEqual(
+            [point[:2] for point in second_body["polys"][0]],
+            [[101, 198], [101, 202], [99, 202], [99, 198]],
+        )
+        self.assertEqual(second_child["type"], "BoxGeometry")
+        self.assertEqual(second_child["bottom_left"], [101, 196, 10])
+        self.assertEqual(second_child["top_right"], [102, 197, 10])
+        self.assertEqual(second_child["thk"], 1)
         self.assertEqual(source["structure"], original)
 
     def test_rotation_rebases_each_supported_anchor_before_rotating(self):
@@ -279,10 +377,10 @@ class AdaptivePnpTests(unittest.TestCase):
 
         self.assertEqual(state.to_geometry_structure()["root"]["children"], [])
 
-    def test_multi_box_polygon_target_fails_without_partial_attachment(self):
+    def test_child_only_polygon_target_fails_without_partial_attachment(self):
         state = ProcessGeometryState.from_structure(main_geometry())
         source = GeometryArtifact.from_entity(
-            geometry_entity("soc", legacy_soc_geometry())
+            geometry_entity("child-only", child_only_box_geometry())
         )
         context = ProcessStepContext(
             state=state,
@@ -310,7 +408,7 @@ class AdaptivePnpTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             ValueError,
-            "requires exactly one BoxGeometry footprint",
+            "requires at least one root feature geometry",
         ):
             execute_pnp_step(context)
 
@@ -542,11 +640,18 @@ def rectangle_placement(x, y, width, height):
     }
 
 
-def polygon_placement(x, y, points):
+def polygon_placement(
+    x,
+    y,
+    points,
+    *,
+    rotation_z=0,
+    anchor="bottomLeft",
+):
     return {
         "targetRegion": {"type": "polygon", "points": points},
-        "pose": {"x": x, "y": y, "rotationZ": 0},
-        "anchor": "bottomLeft",
+        "pose": {"x": x, "y": y, "rotationZ": rotation_z},
+        "anchor": anchor,
     }
 
 
@@ -633,6 +738,70 @@ def legacy_soc_geometry():
             "children": [],
         },
     }
+
+
+def box_geometry_with_protruding_child():
+    structure = legacy_soc_geometry()
+    structure["root"]["children"] = [
+        {
+            "key": "soic",
+            "bodies": [
+                {
+                    "geometry": {
+                        "type": "BoxGeometry",
+                        "bottom_left": [-2, -1, 0],
+                        "top_right": [-1, 0, 0],
+                        "thk": 1,
+                    },
+                    "material": "child",
+                }
+            ],
+            "vias": [],
+            "circuits": [],
+            "bumps": [],
+            "children": [],
+        }
+    ]
+    return structure
+
+
+def root_box_features_geometry():
+    structure = legacy_soc_geometry()
+    structure["root"]["vias"] = [
+        {
+            "geometry": {
+                "type": "BoxGeometry",
+                "bottom_left": [1, 1, 1],
+                "top_right": [2, 2, 1],
+                "thk": 1,
+            },
+            "material": "Cu-via",
+            "density": 50,
+            "direction": "+z",
+            "koz": 1,
+        }
+    ]
+    structure["root"]["circuits"] = [
+        {
+            "geometry": {
+                "type": "BoxGeometry",
+                "bottom_left": [1, 1, 3],
+                "top_right": [2, 2, 3],
+                "thk": 1,
+            },
+            "material": "Cu-circuit",
+            "density": 40,
+            "koz": 2,
+        }
+    ]
+    return structure
+
+
+def child_only_box_geometry():
+    structure = box_geometry_with_protruding_child()
+    for collection in ("bodies", "vias", "circuits", "bumps"):
+        structure["root"][collection] = []
+    return structure
 
 
 def hbm_geometry():
