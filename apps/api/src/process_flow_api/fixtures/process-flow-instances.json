@@ -17,27 +17,17 @@
     "stepConfigurations": {
       "pnp_hbm": {
         "parameterValues": {
-          "coordinates": [
-            [
-              [
-                -760,
-                -520
-              ],
-              [
-                640,
-                480
-              ]
-            ],
-            [
-              [
-                760,
-                -520
-              ],
-              [
-                2160,
-                480
-              ]
-            ]
+          "placements": [
+            {
+              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
+              "pose": { "x": -760, "y": -520, "rotationZ": 0 },
+              "anchor": "bottomLeft"
+            },
+            {
+              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
+              "pose": { "x": 760, "y": -520, "rotationZ": 0 },
+              "anchor": "bottomLeft"
+            }
           ]
         }
       },
@@ -103,37 +93,22 @@
     "stepConfigurations": {
       "pnp_hbm": {
         "parameterValues": {
-          "coordinates": [
-            [
-              [
-                -820,
-                -560
-              ],
-              [
-                580,
-                440
-              ]
-            ],
-            [
-              [
-                0,
-                -560
-              ],
-              [
-                1400,
-                440
-              ]
-            ],
-            [
-              [
-                820,
-                -560
-              ],
-              [
-                2220,
-                440
-              ]
-            ]
+          "placements": [
+            {
+              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
+              "pose": { "x": -820, "y": -560, "rotationZ": 0 },
+              "anchor": "bottomLeft"
+            },
+            {
+              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
+              "pose": { "x": 0, "y": -560, "rotationZ": 0 },
+              "anchor": "bottomLeft"
+            },
+            {
+              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
+              "pose": { "x": 820, "y": -560, "rotationZ": 0 },
+              "anchor": "bottomLeft"
+            }
           ]
         }
       },
@@ -189,17 +164,12 @@
     "stepConfigurations": {
       "pnp_soc": {
         "parameterValues": {
-          "coordinates": [
-            [
-              [
-                -1000,
-                -800
-              ],
-              [
-                1000,
-                800
-              ]
-            ]
+          "placements": [
+            {
+              "targetRegion": { "type": "rectangle", "width": 2000, "height": 1600 },
+              "pose": { "x": -1000, "y": -800, "rotationZ": 0 },
+              "anchor": "bottomLeft"
+            }
           ]
         }
       },

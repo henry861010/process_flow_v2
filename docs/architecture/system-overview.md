@@ -90,9 +90,8 @@ Preview 可以直接解析 flow input，或只執行 step output 的 upstream cl
 
 預設 storage 是 `apps/api/.data/process-flow.sqlite3`。啟動時 store 建立 tables、檢查
 `schema_metadata.databaseSchemaVersion`，且只在所有 resource tables 都是空的時候 seed
-fixtures。目前marker是`"5"`；version `4 -> 5`會保留rows並backfill geometry
-`adaptationContract`。沒有marker的pre-migration database才會清空並重新seed；其他未知版本
-明確失敗。
+fixtures。目前marker是`"6"`；任何較舊marker或無marker資料都會destructively clear並重新seed。
+非數字或未來版本marker明確失敗且不得刪除資料。
 
 Export job 是 process-local memory state，不是 SQLite resource。API shutdown 會取消 queued／
 running jobs；restart 後 history 會消失。

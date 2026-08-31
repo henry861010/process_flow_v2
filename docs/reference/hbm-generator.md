@@ -112,7 +112,7 @@ coreBottomZ(i) =
 Root 的 molding 會自然保留在 core die 四周、core-base gap、core-core gaps 與 top molding
 區域；producer 不得為這些區域另外建立互相重疊的 sibling molding bodies。
 
-Generator輸出的`adaptationContract`是`hbm-package@1`。Adaptive PnP只改變package/molding
+Generator輸出的`adaptationContract`是`hbm-package@1`。Unified PnP只改變package/molding
 footprint（以及generator定義的package-sized base die），所有core child bodies維持原XY尺寸；
 target無法容納fixed core時必須失敗。
 

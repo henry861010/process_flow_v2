@@ -48,7 +48,7 @@ class GeometryArtifact(Mapping[str, Any]):
     def from_structure(cls, structure: Mapping[str, Any]) -> "GeometryArtifact":
         return cls(
             structure=normalize_geometry_structure(structure),
-            adaptation_contract=legacy_adaptation_contract(),
+            adaptation_contract=None,
         )
 
     def with_structure(
@@ -88,7 +88,7 @@ class GeometryArtifact(Mapping[str, Any]):
         return len(self.structure)
 
 
-def effective_adaptation_contract(entity: Mapping[str, Any]) -> JsonObject:
+def effective_adaptation_contract(entity: Mapping[str, Any]) -> JsonObject | None:
     explicit = entity.get("adaptationContract")
     if isinstance(explicit, Mapping):
         adapter_id = explicit.get("adapterId")
@@ -110,49 +110,7 @@ def effective_adaptation_contract(entity: Mapping[str, Any]) -> JsonObject:
             "parameters": deep_copy(dict(parameters)),
         }
 
-    generation = entity.get("generation")
-    generator_id = generation.get("generatorId") if isinstance(generation, Mapping) else None
-    if generator_id == "hbm":
-        return {
-            "adapterId": "hbm-package",
-            "adapterVersion": 1,
-            "parameters": {},
-        }
-    if generator_id == "dram":
-        return {
-            "adapterId": "dram-package",
-            "adapterVersion": 1,
-            "parameters": {},
-        }
-    category = entity.get("category")
-    if isinstance(category, str):
-        if category == "die.hbm" or category.startswith("die.hbm."):
-            return {
-                "adapterId": "hbm-package",
-                "adapterVersion": 1,
-                "parameters": {},
-            }
-        if category == "die.dram" or category.startswith("die.dram."):
-            return {
-                "adapterId": "dram-package",
-                "adapterVersion": 1,
-                "parameters": {},
-            }
-        if category == "die.vrm" or category.startswith("die.vrm."):
-            return {
-                "adapterId": "rigid",
-                "adapterVersion": 1,
-                "parameters": {},
-            }
-    return legacy_adaptation_contract()
-
-
-def legacy_adaptation_contract() -> JsonObject:
-    return {
-        "adapterId": "legacy-box-stretch",
-        "adapterVersion": 1,
-        "parameters": {},
-    }
+    return None
 
 
 def _optional_string(value: Any) -> str | None:

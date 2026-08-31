@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { CoordinateListControl } from "@/components/process-flow-fields/coordinate-list-control";
 import { PlacementListControl } from "@/components/process-flow-fields/placement-list-control";
 import { Button } from "@/components/ui/button";
 import type {
@@ -95,9 +94,8 @@ function ParameterRow({
   }
 
   if (
-    definition.valueType === "coordinates" ||
     definition.valueType === "placements" ||
-    definition.controlType === "coordinateList"
+    definition.controlType === "placementList"
   ) {
     return (
       <div className={cn("px-4 py-4 text-sm", error && "bg-destructive/5")}>
@@ -269,35 +267,12 @@ function PrimitiveControl({
   disabled: boolean;
   onChange: (value: unknown) => void;
 }) {
-  if (definition.valueType === "coordinates" || definition.controlType === "coordinateList") {
-    if (disabled) {
-      return (
-        <div className="min-h-9 rounded-md border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-          {formatReadonlyValue(value)}
-        </div>
-      );
-    }
-    return (
-      <CoordinateListControl
-        value={value}
-        unit={definition.unit}
-        onChange={onChange}
-      />
-    );
-  }
-
   if (definition.valueType === "placements" || definition.controlType === "placementList") {
-    if (disabled) {
-      return (
-        <div className="min-h-9 rounded-md border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-          {formatReadonlyValue(value)}
-        </div>
-      );
-    }
     return (
       <PlacementListControl
         value={value}
         unit={definition.unit}
+        disabled={disabled}
         onChange={onChange}
       />
     );

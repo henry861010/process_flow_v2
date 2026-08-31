@@ -37,8 +37,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | tiv | `tiv/tiv` | `main_geometry` | `thk`, `material`, `density` | 在 cursor 上方建立 `+z` via feature |
-| PnP v3 (legacy) | `pnp/pnp` | `main_geometry`, `die_geometry` | `coordinates` | 依 target rectangles clone、additive resize、place BoxGeometry-only die |
-| PnP v4 (adaptive) | `pnp/pnp_v2` | `main_geometry`, `die_geometry` | `placements` | 依 geometry adaptation contract materialize target-specific geometry，再 rigid place |
+| PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `placements` | 依 explicit或primitive-default adapter materialize rectangle/polygon target，再以anchor pose放置 |
 
 ## 共同行為
 
@@ -65,8 +64,7 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 bump envelope。 |
 | tiv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
-| PnP v3 | 不變 | 不變 | 依 coordinates order resize 並 attach cloned child scopes。 |
-| PnP v4 | 不變 | 不變 | 依 placements order adapt、rotate 並 attach target-specific child scopes。 |
+| PnP | 不變 | 不變 | 依placements order整批adapt，以anchor為pivot rotate；全部成功後attach target-specific child scopes。 |
 
 ## 重要 operation 說明
 
@@ -88,18 +86,16 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
   接觸 carrier bottom 的 key=`daf` body：沒有時只移除 carrier，恰好一個時還必須具有相同 primitive
   type 與 XY footprint，多個相連 DAF 或 footprint 不同都會失敗。非相連 DAF 保留；carrier 與 DAF
   可屬於不同 containers。任何 validation 失敗時 geometry、cursor 與 process footprint 都不變。
-- PnP v3 coordinate item 是 `[[xMin,yMin],[xMax,yMax]]` target rectangle，必須 finite、
-  positive-area，並以 `1e-6 um` tolerance unique。Source size 取完整 subtree aggregate bounds；
-  每個 BoxGeometry 固定 lower-left、將 upper-right 加上 target/source size delta，再把 resized
-  aggregate lower-left 對齊 target lower-left，bottom Z 對齊 current cursor。
-- PnP v3 resize 允許負 delta，但任何 BoxGeometry collapse 時整個 placement 失敗且不得 attach child。
-  Source 中任何 PolygonGeometry、CylinderGeometry 或 ConeGeometry 都會明確 reject。
-- PnP v4 placement 將 `targetRegion`（rectangle 或 polygon）、`pose.x/y/rotationZ` 與 `anchor`
-  保存在同一 item。每個 item 先由 source `adaptationContract` 獨立 materialize，再做 rigid
-  placement，因此同一 HBM source 可在不同位置使用不同 molding size，core die 尺寸不變。
-- PnP v4 built-in contracts 為 `legacy-box-stretch@1`、`hbm-package@1`、`dram-package@1` 與
-  `rigid@1`。Polygon target 必須有非零面積且不得 self-intersect；HBM/DRAM fixed children
-  必須完整位於 target 內。Unknown adapter id/version 明確失敗。
+- PnP placement將`targetRegion`（rectangle或simple polygon）、required `pose.x/y/rotationZ`與
+  required `anchor`保存在同一item。Target使用local XY；selected anchor是rotation pivot與pose
+  對齊點，bottom Z對齊current cursor。
+- Missing contract的Box-only subtree使用`box-rescale@1`；exactly one single-loop
+  PolygonGeometry使用`polygon-rescale@1`。Mixed、empty、multiple-loop、Cylinder/Cone source
+  要求explicit contract。
+- Built-in explicit contracts另有`hbm-package@1`、`dram-package@1`與`rigid@1`。Polygon target
+  必須unique、無zero-length edge、non-zero-area且不得self-intersect；HBM/DRAM fixed children
+  必須完整位於target內。Unknown adapter id/version明確失敗。
+- PnP先完成整個placements batch的validation/materialization；任一筆失敗時不得attach任何child。
 - Bump feature envelope 不會預先套用 `koz`；各 exporter 的 current behavior 見 [geometry-semantics.md](../../concepts/geometry-semantics.md)。
 - TIV 需要既有 process footprint、正的 `thk`、非空 `material` 與 `0` 到 `100`（含端點）的 `density`；輸出的 via direction 固定為 `+z`、`koz` 為 `0`，且不推進 cursor。
 

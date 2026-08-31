@@ -103,18 +103,16 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "5"
+  "value": "6"
 }
 ```
 
-Database internal marker string `"5"`、Process payload wire marker integer `2` 與
+Database internal marker string `"6"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 
-Version `4 -> 5` migration MUST 保留所有 geometry/workspace rows，並對 catalog 與 embedded
-geometry backfill `adaptationContract`。Category `die.hbm*`、`die.dram*`、`die.vrm*` 分別使用
-`hbm-package@1`、`dram-package@1`、`rigid@1`；其他未標記資料使用
-`legacy-box-stretch@1`。沒有任何 schema marker 的 pre-migration database 不在此 migration
-chain 內，startup 會沿用既有 bootstrap reset 行為。
+Version 6移除rectangle-only PnP資料契約，是destructive schema boundary。任何較舊marker或
+無markerdatabase都會清空resource tables並由canonical fixtures重建；未知、非數字或未來marker
+MUST fail。Repository保存explicit `adaptationContract`原值，不依category backfill missing contract。
 
 ## 3. 邏輯引用
 
@@ -270,20 +268,19 @@ Transaction failure MUST NOT return partial resource payload。
 
 ## 11. SQLite schema 初始化與 reset policy
 
-Current internal schema marker 是 `"5"`。Startup提供明確的`4 -> 5`payload migration：
+Current internal schema marker 是 `"6"`。Startup policy：
 
 1. Ensure current physical schema can be created/recognized。
 2. Read `schema_metadata.databaseSchemaVersion`。
-3. Marker是`"4"`時，在同一transaction backfill catalog與workspace embedded geometry
-   `adaptationContract`，不得刪除resource rows。
-4. Marker缺少時視為不在supported migration chain的pre-version database，destructively reset
-   local resource data；其他未知marker MUST明確fail。
+3. Marker缺少或是小於`"6"`的整數時，在同一transaction destructively clear所有resource
+   tables；不執行coordinates-to-placements migration。
+4. Marker是非數字或大於`"6"`時MUST明確fail且不得刪除資料。
 5. Ensure physical tables/columns/indexes match the current schema；row deletion alone 若無法
    做到，MUST drop/recreate 或明確 fail，不得把不符合目前結構的 DDL 標記成 current。
-6. Set marker `"5"`。
+6. Set marker `"6"`。
 7. Load validated canonical fixtures when all resource tables are empty。
 
-Marker already `"5"` 時，startup MUST NOT silently reseed a partially populated database。
+Marker already `"6"` 時，startup MUST NOT silently reseed a partially populated database。
 
 ## 12. Reset 與 seed
 

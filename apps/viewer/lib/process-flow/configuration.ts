@@ -258,54 +258,12 @@ export function isParameterValueComplete(
       );
     });
   }
-  if (definition.valueType === "coordinates") {
-    if (!Array.isArray(value)) return false;
-    const seen: number[][][] = [];
-    return value.every((coordinate) => {
-      if (
-        !Array.isArray(coordinate) ||
-        coordinate.length !== 2 ||
-        !coordinate.every(
-          (point) =>
-            Array.isArray(point) &&
-            point.length === 2 &&
-            point.every(
-              (item) => typeof item === "number" && Number.isFinite(item),
-            ),
-        )
-      ) {
-        return false;
-      }
-      const rectangle = coordinate as number[][];
-      if (
-        rectangle[1][0] <= rectangle[0][0] ||
-        rectangle[1][1] <= rectangle[0][1]
-      ) {
-        return false;
-      }
-      if (
-        seen.some((existing) =>
-          existing.every((point, pointIndex) =>
-            point.every(
-              (item, axisIndex) =>
-                Math.abs(item - rectangle[pointIndex][axisIndex]) <= 1e-6,
-            ),
-          ),
-        )
-      ) {
-        return false;
-      }
-      seen.push(rectangle);
-      return true;
-    });
-  }
   if (definition.valueType === "placements") {
     if (!Array.isArray(value)) return false;
     return value.every((placement) => {
       if (!isRecord(placement) || !isRecord(placement.targetRegion)) return false;
       if (!isRecord(placement.pose)) return false;
       if (
-        placement.anchor !== undefined &&
         !["bottomLeft", "center", "origin"].includes(String(placement.anchor))
       ) {
         return false;
@@ -316,8 +274,8 @@ export function isParameterValueComplete(
         !Number.isFinite(pose.x) ||
         typeof pose.y !== "number" ||
         !Number.isFinite(pose.y) ||
-        (pose.rotationZ !== undefined &&
-          (typeof pose.rotationZ !== "number" || !Number.isFinite(pose.rotationZ)))
+        typeof pose.rotationZ !== "number" ||
+        !Number.isFinite(pose.rotationZ)
       ) {
         return false;
       }
@@ -349,6 +307,10 @@ export function isParameterValueComplete(
       }
       return (
         points.length >= 3 &&
+        new Set(points.map((point) => `${point[0]}:${point[1]}`)).size === points.length &&
+        points.every(
+          (point, index) => !placementPointsEqual(point, points[(index + 1) % points.length]),
+        ) &&
         !placementPolygonSelfIntersects(points) &&
         Math.abs(placementPolygonArea(points)) > 1e-9
       );

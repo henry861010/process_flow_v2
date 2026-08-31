@@ -113,7 +113,7 @@ desktop `260px minmax(0,1fr)`，`<768px` one column。
 
 Definition builder MUST 支援：
 
-- `string`、`integer`、`float`、`boolean`、`materialRef`、`coordinates`；
+- `string`、`integer`、`float`、`boolean`、`materialRef`、`placements`；
 - `string[]`、`integer[]`、`float[]`、`materialRef[]`；
 - recursive `fieldGroupArray`；
 - 合法 control 組合、static enum options、selection mode；

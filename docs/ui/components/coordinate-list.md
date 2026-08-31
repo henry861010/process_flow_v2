@@ -1,5 +1,5 @@
 ---
-title: Coordinate List
+title: Placement List
 status: normative
 owner: Process Flow UI
 audience:
@@ -7,160 +7,80 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-08-31
+last_verified_commit: 79a37fb7651eb2e0b1e2b46152ee0af28766fa43
 source_of_truth:
-  - apps/viewer/components/process-flow-fields/coordinate-list-control.tsx
-  - apps/viewer/components/process-flow-fields/coordinate-list-value.ts
+  - apps/viewer/components/process-flow-fields/placement-list-control.tsx
+  - apps/viewer/components/process-flow-fields/gds-placement-import.tsx
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-import.worker.ts
-  - apps/viewer/components/process-flow-fields/placement-list-control.tsx
 ---
 
-# Coordinate List
+# Placement List
 
-## Value 契約
+## Value契約
 
-Canonical editable value是：
+`placements`是ordered array。每筆同時保存rectangle或simple polygon `targetRegion`、required
+`pose.x/y/rotationZ`與required `anchor`。Target region使用local XY，pose表示anchor的global XY。
 
-```ts
-type CoordinatePair = [number, number];
-type CoordinateBounds = [CoordinatePair, CoordinatePair];
-type CoordinateList = CoordinateBounds[];
-```
+Rectangle width/height必須positive finite。Polygon至少三個unique finite points，不得有
+zero-length edge、zero area或self-intersection；first/last closing duplicate由normalizer移除。
+Draft numeric cell可暫時是empty string，但configuration complete時所有欄位都必須合法。
 
-每列依序保存 lower-left 與 upper-right。Draft cell可暫時是empty string。Complete條件：value
-是array、每列四值皆finite、`xMax > xMin`、`yMax > yMin`，且無duplicate。四個對應值都在
-absolute tolerance `1e-6 um` 內時視為duplicate；只有後出現的row標duplicate。Empty list本
-component視為shape complete，required/min count由parameter validator決定。
+## Placement cards
 
-## Tabs 與版面配置
+每筆資料使用一張ordered card。Header顯示index與compact summary，並提供Move up、Move down與
+Remove。Body依序顯示shape、pose X/Y、rotation Z與anchor；rectangle另顯示width/height，polygon
+顯示local X/Y vertex table。Array order就是runtime execution與serialized child order。
 
-Default tab `Manual`，另一tab `GDS`；Radix tabs高度36px，content上margin8px。
+Add placement建立rectangle draft：pose `(0,0)`、rotation `0`、anchor `bottomLeft`，width/height
+保持empty。Shape轉換規則：
 
-### 手動輸入
+- Rectangle→Polygon：合法尺寸轉成四角；incomplete尺寸轉成三個empty point rows。
+- Polygon→Rectangle：合法points轉成AABB width/height；invalid points轉成empty尺寸。
+- Pose、rotation、anchor與array position保持不變。
 
-White bordered card，不顯示額外的 coordinate count/header。`Plus + Add die` 位於 coordinate rows
-底部的 white footer，點擊後新增的 row 會直接出現在按鈕上方。
+Polygon preview使用SVG顯示外框、vertex order、rotation與黃色anchor marker。Preview不得修改值；
+invalid draft顯示fallback copy且不得throw。Readonly mode顯示summary與polygon preview，不顯示操作。
 
-Coordinate parameter 使用完整 parameter row 寬度，不與左側 parameter description 分欄。`md`
-以上以 compact table 顯示，共用白底表頭依序為 Die、Lower-left X/Y、Upper-right X/Y 與 remove
-action；unit 若存在則分別顯示為 `Lower-left (<unit>)` 與 `Upper-right (<unit>)`。兩個 group title
-各自與該組 X 欄左緣對齊，同組 X/Y 使用 8px gap、兩組座標使用
-24px gap，以強化 point grouping。每個 die 僅占一列，rows 以淡色水平分隔線區隔，不使用
-nested card/fieldset。Unit只在 header
-顯示一次。窄螢幕時每個 die row 以 Lower-left 與 Upper-right 兩個 section 垂直排列，各 section
-的 X/Y 維持兩欄。
+## GDS import
 
-Input 使用 tabular numbers；accessible name 保留完整 `Lower-left X` 等語意。Remove 使用 ghost
-icon button，hover 時呈 destructive color。Empty state exact copy `No coordinates`。Invalid row
-只加左側 destructive indicator，empty input 顯示 destructive border，不鋪滿 destructive surface；
-依序顯示：
+GDS不是required input。Editor初始只顯示小型`Import from GDS`button；button以`aria-expanded`
+控制import panel，使用者展開後才顯示file、layer、datatype與property filter。
 
-- `Duplicate coordinate`
-- `Enter a finite number in every coordinate field`
-- `Upper-right must be greater than lower-left on both axes`
+Import在dedicated Web Worker執行；新import terminate previous worker。只把指定layer/datatype的
+`BOUNDARY`/`BOX`遞迴展開`SREF/AREF`，套用translation、rotation、magnification、reflection與
+optional inherited property filter。
 
-錯誤訊息只在對應 row 內顯示，不另外重複 aggregate diagnostics。
+- Axis-aligned transformed boundary canonicalize為rectangle。
+- 其他boundary保留exact transformed polygon points。
+- Rectangle bounds minimum成為pose，width/height成為local target。
+- Polygon AABB minimum成為pose，所有points扣除minimum成為local target。
+- Imported placement使用rotation `0`與anchor `bottomLeft`，因reference transform已烘焙在shape。
+- Success整批取代placements；error保留原值。Shape signature duplicate會移除。
 
-### GDS
+## Validation與accessibility
 
-White card padding12。第一列grid在`md`以上為 `1.4fr 110px 110px`，property filter
-第二列為 `150px minmax(0,1fr)`：
+Card-level inline error依序報告pose、rectangle size、finite point、minimum point count、unique
+point、zero-length edge、self-intersection與zero area。Status不得只靠border color。
 
-| Field | Rule |
-| --- | --- |
-| `GDS file` | accept `.gds,.gdsii,.strm,.stream` + octet-stream。 |
-| `Layer` | integer `>=0`。 |
-| `Datatype` | integer `>=0`。 |
-| `Property filter` | `Include`或`Exclude`，default `Include`。 |
-| `Property value contains` | Optional string；empty或whitespace-only表示不套用property filter。 |
+Pose與anchor欄位共用一個小型驚嘆號help control。Mouse hover或keyboard focus時顯示tooltip，說明
+Pose X/Y是selected anchor的global位置、Rotation Z繞anchor逆時針旋轉，以及三種anchor定義。
 
-Footer左顯示 filename或 `No file selected`；右是 `Import and replace`。缺file/layer/datatype或
-importing時disabled；importing icon是 spinning `Loader2`，否則 `FileUp`。
+所有reorder/remove/add controls必須有包含1-based index的accessible name。Vertex與pose inputs使用
+完整native label。Desktop、compact與390px不得造成page-level horizontal overflow。
 
-## GDS 語意
-
-Parse在dedicated Web Worker執行；新import會terminate previous worker。只把指定layer/datatype的
-`BOUNDARY`/`BOX`遞迴展開`SREF/AREF`並套translation、rotation、magnification、reflection。
-`coordinates` control輸出transform後的axis-aligned bounds
-`[[minX,minY],[maxX,maxY]]`；`placements` control則要求worker保留exact shape：axis-aligned
-rectangle canonicalize為rectangle，其他BOUNDARY輸出polygon points。其他matching element計入
-unsupported summary。
-
-Worker request可附帶：
-
-```ts
-type GdsPropertyFilter = {
-  mode: "include" | "exclude";
-  contains: string;
-};
-```
-
-GDS element property由`PROPATTR` number與緊接的`PROPVALUE` string組成。本filter只比對
-`PROPVALUE`，不比對attribute number、`TEXT/STRING`或cell name。Query先trim再使用
-case-insensitive substring matching；任一property value命中即為match。`Include`只保留match，
-`Exclude`排除match；因此沒有property的element在Include時排除、Exclude時保留。Empty query
-等同沒有property filter，維持既有layer/datatype-only行為。
-
-`BOUNDARY`/`BOX`同時看到自身properties與目前reference path上所有父層`SREF/AREF`
-properties。Nested references逐層累積；sibling references互不污染；AREF每個instance使用該
-reference的相同properties。Layer/datatype仍是必要條件，property filter是額外條件。
-`matchedElements`與unsupported summary都只計入通過完整條件的elements。
-
-Unit由GDS meters/database-unit換成definition unit；canonical專案unit是 `um`。Worker另支援
-m/mm/nm 保留為 legacy aliases；未知／空 unit scale 1。
-
-Import success**整批取代**manual coordinates並顯示：
-
-```text
-Imported <n> coordinates from <m> matching elements.
-Top cells: ...
-```
-
-視情況追加duplicates removed、unsupported elements、unresolved/cyclic references。Error保留原
-coordinates，顯示worker message或 `GDS import failed.`。
-
-## Adaptive placement mode
-
-`placementList`沿用rectangle manual editor與GDS form，但canonical value的每筆資料同時包含
-`targetRegion`、`pose`與`anchor`。Manual lower-left/upper-right會轉成rectangle width/height與
-`pose.x/y`；rotation保存在同一placement，不得因其他row編輯而歸零。GDS polygon會以其bounds
-lower-left作pose，points轉為相對該pose的local XY，因此不同位置可各自攜帶不同size/shape。
-GDS import會取代完整placement list；manual rectangle edit保留既有polygon items。
-
-## Action 與狀態矩陣
-
-| State/action | Result |
-| --- | --- |
-| Add die | append `[["",""],["",""]]`；清import summary。 |
-| Edit bounds | parse finite float或empty；清import summary。 |
-| Remove | 刪該row。 |
-| Importing | button disabled，舊coordinates保留。 |
-| Edit property filter | 清除舊import summary/error；不立即改變coordinates。 |
-| Import success | replace全部rows，green feedback。 |
-| Import error | rows不變，destructive feedback。 |
-| Component unmount | worker terminate。 |
-
-## 鍵盤、focus 與 ARIA
-
-- Tabs使用Radix keyboard semantics。
-- Remove accessible name exact `Remove coordinate <n>`。
-- 四個bounds native labels可讀；file/layer/datatype均以label包覆。
-- Diagnostics需加入live-region是target gap；現行為普通text。
-
-## 驗收案例
+## Acceptance
 
 | ID | Given / When | Then |
 | --- | --- | --- |
-| `UI-COORD-001` | invalid/duplicate rows | 對應 row 顯示 compact inline error。 |
-| `UI-COORD-002` | 四個對應values差都小於或等於duplicate tolerance | 後一列被判duplicate。 |
-| `UI-COORD-003` | valid GDS/layer/datatype | transformed axis-aligned bounds以um取代原list。 |
-| `UI-COORD-006` | upper-right任一axis不大於lower-left | row顯示invalid bounds且configuration incomplete。 |
-| `UI-COORD-004` | second import starts | first worker terminated，stale response不覆蓋值。 |
-| `UI-COORD-005` | 390px | row controls可用，無horizontal overflow。 |
-| `UI-COORD-007` | property query為empty或whitespace-only | Include/Exclude都維持layer/datatype-only結果。 |
-| `UI-COORD-008` | direct或reference-path PROPVALUE包含query，大小寫不同 | Include保留、Exclude排除matching bounds。 |
-| `UI-COORD-009` | nested/sibling SREF或AREF properties | properties只沿各自reference path繼承，無跨sibling污染。 |
-| `UI-COORD-010` | element無property且query non-empty | Include排除、Exclude保留。 |
-| `UI-COORD-011` | placement mode匯入非矩形BOUNDARY | 保存exact polygon target、pose與rotation欄位，不退化成AABB。 |
+| `UI-PLACE-001` | add/remove/reorder cards | persisted array與畫面order一致。 |
+| `UI-PLACE-002` | rectangle與polygon互相切換 | deterministic conversion且pose/anchor不變。 |
+| `UI-PLACE-003` | duplicate point、zero edge、zero area或self-intersection | inline diagnostic顯示且configuration incomplete。 |
+| `UI-PLACE-004` | GDS含rotated/reflected non-rectangle boundary | 保存exact local polygon與bottom-left pose。 |
+| `UI-PLACE-005` | second import starts before first completes | first worker terminated，stale response不覆蓋值。 |
+| `UI-PLACE-006` | polygon rotation或anchor改變 | SVG preview以selected anchor為pivot更新。 |
+| `UI-PLACE-007` | committed/disabled configuration | summary可讀，所有mutating actions不render。 |
+| `UI-PLACE-008` | viewport 390px | cards與vertex editor可操作，無page-level horizontal overflow。 |
+| `UI-PLACE-009` | editor初次開啟 | 只顯示`Import from GDS`button；GDS fields保持收合且不暗示required。 |
+| `UI-PLACE-010` | hover或focus pose help驚嘆號 | tooltip完整解釋Pose X/Y、Rotation Z與Anchor。 |

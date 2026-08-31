@@ -80,15 +80,15 @@ kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語�
 `ProcessFlowTemplate`；這份 flow template 代表一項封裝技術的完整製程拓撲，例如 AAA 的
 flow inputs、steps 與 geometry routing，但不包含特定產品的 geometry 或製程參數。當同一項
 技術套用到 HBM4 Alpha、HBM4 Beta 等不同產品時，工程師會在 `ProcessFlowWorkspace` 中
-選擇 panel 種類或 HBM 種類，並分別設定 placement coordinates、molding thickness、RDL
+選擇 panel 種類或 HBM 種類，並分別設定 placements、molding thickness、RDL
 layers 等 step parameters。設定完整並 commit 後，系統建立 immutable
 `ProcessFlowInstance`，保存該產品可重現、可執行的完整製程設定。
 
 | Resource | 主要用途 | 半導體封裝範例 | 可變性 |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | 定義可重用的單一製程步驟，包括 geometry ports、parameter definitions 與執行程式。 | PnP step 宣告 panel primary input、HBM auxiliary input 與 `coordinates` parameter。 | Immutable snapshot |
+| `ProcessStepTemplate` | 定義可重用的單一製程步驟，包括 geometry ports、parameter definitions 與執行程式。 | PnP step 宣告 panel primary input、HBM auxiliary input 與 `placements` parameter。 | Immutable snapshot |
 | `ProcessFlowTemplate` | 定義一項封裝技術的完整 topology，包括 flow inputs、step references 與 edges。 | AAA flow 將 PnP、molding、RDL 與 C4 依製程順序連接。 | Immutable snapshot |
-| `ProcessFlowWorkspace` | 保存特定產品仍在調整中的 `FlowConfiguration`。 | HBM4 Alpha 開發過程中調整 geometry bindings、placement coordinates、材料與厚度。 | 只有 `draft` 可修改 |
+| `ProcessFlowWorkspace` | 保存特定產品仍在調整中的 `FlowConfiguration`。 | HBM4 Alpha 開發過程中調整 geometry bindings、placements、材料與厚度。 | 只有 `draft` 可修改 |
 | `ProcessFlowInstance` | 保存已完成並通過完整驗證的產品製程設定。 | HBM4 Alpha Build 的完整 geometry bindings 與各 step parameter values。 | Immutable snapshot |
 | `GeometryEntity` | 保存可被 flow input 引用的 catalog geometry snapshot。 | `panel_v1_0_0` panel 與 `hbm_v1_3_1` HBM die。 | Immutable snapshot |
 
@@ -113,13 +113,13 @@ Geometry 與 parameter values 使用不同路徑：
 ### 2.1 本文使用的 PnP 範例
 
 後續章節都以同一個 PnP flow 說明欄位之間的關係：panel 是 primary geometry，die 是
-auxiliary geometry，`coordinates` 則是 PnP 的 parameter value。
+auxiliary geometry，`placements` 則是 PnP 的 parameter value。
 
 ```mermaid
 flowchart LR
   Panel["incoming_panel<br/>catalog: panel_v1_0_0"] --> Main["pnp.main_geometry"]
   Die["incoming_die<br/>catalog: hbm_v1_3_1"] --> Aux["pnp.die_geometry"]
-  Main --> PnP["pnp<br/>coordinates: [[[-760,-520],[640,480]], ...]"]
+  Main --> PnP["pnp<br/>placements: targetRegion + pose + anchor"]
   Aux --> PnP
   PnP --> Result["pnp.result_geometry<br/>唯一 terminal output"]
 ```
@@ -172,7 +172,7 @@ flowchart TB
 
 `ProcessStepTemplate` 定義一個可執行 process node 的 ports、parameters 與 module path。
 在 PnP 範例中，它宣告 primary port `main_geometry`、auxiliary port `die_geometry`、唯一 output
-`result_geometry`，以及 parameter `coordinates`。
+`result_geometry`，以及 parameter `placements`。
 
 | 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
 | --- | --- | --- | --- | --- |
@@ -388,7 +388,7 @@ Workspace 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的�
 | 欄位 | 型別 | 用途 | 必填條件 | Request 省略時 | 契約 |
 | --- | --- | --- | --- | --- | --- |
 | `inputBindings` | map of `flowInputId -> GeometryBinding` | 記錄每個 flow input 實際使用的 geometry 來源。`catalog` binding 以 `geometryId` 引用已存入 catalog 的 `GeometryEntity`；`embedded` binding 以 `localId` 引用同一份 configuration 中的 `embeddedGeometries`。Template 的 `flowEdges` 再將該 geometry route 到 step port。 | canonical yes | `{}` | Unknown flow-input key MUST reject。 |
-| `stepConfigurations` | map of `stepRefId -> StepConfiguration` | 記錄每個 step 實際使用的 `parameterValues`，例如 PnP 的 `coordinates` 或 molding 的 material、thickness。Parameter id 與 value shape 由該 step 引用的 `ProcessStepTemplate` 定義。 | canonical yes | `{}` | Unknown step key MUST reject。 |
+| `stepConfigurations` | map of `stepRefId -> StepConfiguration` | 記錄每個 step 實際使用的 `parameterValues`，例如 PnP 的 `placements` 或 molding 的 material、thickness。Parameter id 與 value shape 由該 step 引用的 `ProcessStepTemplate` 定義。 | canonical yes | `{}` | Unknown step key MUST reject。 |
 | `embeddedGeometries` | map of `localId -> EmbeddedGeometry` | 作為 draft-local geometry store，暫存尚未進入 catalog 的完整 geometry metadata 與 `GeometryStructure`，供 `embedded` input binding 引用。Commit 只會將實際被引用的項目 materialize 到 catalog。 | configuration canonical yes | `{}` | Instance MUST NOT persist this field。 |
 
 `EmbeddedGeometry`與`GeometryEntity` MAY包含通用`generation` authoring metadata：
@@ -399,9 +399,9 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 
 兩種geometry也包含versioned `adaptationContract`：`adapterId`是backend adapter registry key、
 `adapterVersion >= 1`、`parameters`是adapter-specific JSON object。Runtime `GeometryArtifact`同時
-攜帶structure與此metadata；adaptive PnP依contract materialize target-specific geometry。
-Explicit contract優先；舊資料依category backfill HBM/DRAM/VRM adapter，其他未標記資料使用
-`legacy-box-stretch@1`。未知adapter id/version MUST reject，不得silent fallback。
+攜帶structure與此metadata；PnP依contract materialize target-specific geometry。Explicit contract
+優先；missing contract在runtime依primitive選擇Box-only `box-rescale@1`或single-loop
+`polygon-rescale@1`。其他structure要求explicit contract；未知adapter id/version MUST reject。
 
 三個 map 的資料關係如下：
 
@@ -411,8 +411,7 @@ Explicit contract優先；舊資料依category backfill HBM/DRAM/VRM adapter，�
 - `embeddedGeometries` 不會由 step 直接查詢；它必須先被 `inputBindings` 以 `localId` 引用。
 
 在 PnP 範例中，`inputBindings` 分別為 `incoming_panel` 與 `incoming_die` 選擇 geometry，
-`stepConfigurations.pnp.parameterValues` 在PnP v3提供`coordinates`，在PnP v4則以同一筆
-`placements[]` item保存target region、pose與anchor。
+`stepConfigurations.pnp.parameterValues`以同一筆`placements[]` item保存target region、pose與anchor。
 
 `inputBindings` 中的 `GeometryBinding` 有兩種來源：
 
@@ -440,7 +439,13 @@ reject；value shape 由對應 `ParameterDefinition` 決定。
 {
   "pnp": {
     "parameterValues": {
-      "coordinates": [[[0, 0], [1400, 1000]]]
+      "placements": [
+        {
+          "targetRegion": {"type": "rectangle", "width": 1400, "height": 1000},
+          "pose": {"x": 0, "y": 0, "rotationZ": 0},
+          "anchor": "bottomLeft"
+        }
+      ]
     }
   }
 }
@@ -494,7 +499,7 @@ Commit retry 以 workspace 的 committed state 為準。一旦 commit 成功，�
 Instance 是完整、immutable，而且只包含 catalog bindings 的產品設定。Instance create request
 MAY使用完整FlowConfiguration並包含embedded bindings；server必須在同一transaction將被引用的
 embedded records materialize後，回傳及持久化catalog-only ProcessFlowInstance。
-PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完整的 `coordinates`。
+PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完整的 `placements`。
 
 | 欄位 | 型別 | 必填條件 | 契約 |
 | --- | --- | --- | --- |
@@ -544,7 +549,7 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"5"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"6"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Resource metadata label | `version` | string | 新 resource 使用 `"current"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 
@@ -715,7 +720,7 @@ Kernel MUST：
   "name": "PnP",
   "category": "assembly.pnp",
   "program": "pnp/pnp",
-  "description": "Resizes and places BoxGeometry-only auxiliary die copies on the primary geometry.",
+  "description": "Adapts and places auxiliary die copies on rectangle or polygon target regions.",
   "owner": "integration.platform",
   "inputPorts": [
     {
@@ -742,11 +747,11 @@ Kernel MUST：
   ],
   "parameterDefinitions": [
     {
-      "id": "coordinates",
-      "name": "Coordinates",
-      "description": "Target [[xMin, yMin], [xMax, yMax]] rectangle for each resized die copy.",
-      "valueType": "coordinates",
-      "controlType": "coordinateList",
+      "id": "placements",
+      "name": "Placements",
+      "description": "Target region, pose, and anchor for each placed die copy.",
+      "valueType": "placements",
+      "controlType": "placementList",
       "required": true,
       "unit": "um"
     }
@@ -843,9 +848,17 @@ Kernel MUST：
   "stepConfigurations": {
     "pnp": {
       "parameterValues": {
-        "coordinates": [
-          [[-760, -520], [640, 480]],
-          [[760, -520], [2160, 480]]
+        "placements": [
+          {
+            "targetRegion": {"type": "rectangle", "width": 1400, "height": 1000},
+            "pose": {"x": -760, "y": -520, "rotationZ": 0},
+            "anchor": "bottomLeft"
+          },
+          {
+            "targetRegion": {"type": "rectangle", "width": 1400, "height": 1000},
+            "pose": {"x": 760, "y": -520, "rotationZ": 0},
+            "anchor": "bottomLeft"
+          }
         ]
       }
     }
@@ -854,13 +867,12 @@ Kernel MUST：
 ```
 
 此 graph 的唯一 terminal 是 `pnp.result_geometry`；兩個 required ports 各有 exactly one
-source；兩個 required bindings 與 `coordinates` 都完整。
+source；兩個 required bindings 與 `placements` 都完整。
 
-PnP 以 auxiliary die 完整 subtree 的 aggregate bounds 計算每個 target rectangle 的 XY
-size delta。Clone 中每個 BoxGeometry 保持 lower-left，upper-right 加上相同 delta；之後將
-aggregate lower-left 對齊 target lower-left，Z bottom 對齊 current cursor。負 delta 合法，但
-任何 BoxGeometry collapse 或 source 出現 Polygon/Cylinder/Cone 時，operation MUST reject且不得
-attach部分結果。
+PnP 依 source 的 explicit adaptation contract或primitive default materialize每個target region。
+Box-only source使用`box-rescale@1`；單一、單loop PolygonGeometry使用`polygon-rescale@1`。
+Materialize後以anchor為rotation pivot，再把anchor對齊pose並將Z bottom對齊current cursor。
+任一placement失敗時整個batch不得attach部分結果。
 
 ## 15. 已知實作差異
 

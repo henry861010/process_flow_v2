@@ -954,27 +954,97 @@ class FlowCompilerTests(unittest.TestCase):
                 {"step_molding": molding_step_template()},
             )
 
-    def test_compiler_normalizes_coordinate_rectangles_and_rejects_near_duplicates(self):
+    def test_compiler_normalizes_polygon_closing_point_and_preserves_duplicates(self):
         configuration = pnp_configuration()
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["coordinates"] = [
-            [[0, 0], [10, 12]],
-            [[0.0000005, 0], [10, 12]],
+        placement = {
+            "targetRegion": {
+                "type": "polygon",
+                "points": [[0, 0], [10, 0], [10, 12], [0, 0]],
+            },
+            "pose": {"x": 1, "y": 2, "rotationZ": 0},
+            "anchor": "bottomLeft",
+        }
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
+            placement,
+            placement,
         ]
 
-        with self.assertRaisesRegex(ValueError, "duplicate coordinates"):
+        plan = compiler().compile(
+            pnp_template(),
+            configuration,
+            {"step_pnp": pnp_step_template()},
+        )
+
+        placements = plan.step("pnp").parameter_values["placements"]
+        self.assertEqual(len(placements), 2)
+        self.assertEqual(
+            placements[0]["targetRegion"]["points"],
+            [[0.0, 0.0], [10.0, 0.0], [10.0, 12.0]],
+        )
+
+    def test_compiler_rejects_placement_rectangle_without_positive_area(self):
+        configuration = pnp_configuration()
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
+            {
+                "targetRegion": {"type": "rectangle", "width": 0, "height": 12},
+                "pose": {"x": 0, "y": 0, "rotationZ": 0},
+                "anchor": "bottomLeft",
+            }
+        ]
+
+        with self.assertRaisesRegex(ValueError, "positive width and height"):
             compiler().compile(
                 pnp_template(),
                 configuration,
                 {"step_pnp": pnp_step_template()},
             )
 
-    def test_compiler_rejects_coordinate_rectangle_without_positive_area(self):
+    def test_compiler_requires_placement_rotation_and_valid_anchor(self):
+        placement = {
+            "targetRegion": {"type": "rectangle", "width": 10, "height": 12},
+            "pose": {"x": 0, "y": 0},
+            "anchor": "bottomLeft",
+        }
         configuration = pnp_configuration()
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["coordinates"] = [
-            [[0, 0], [0, 12]],
-        ]
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [placement]
 
-        with self.assertRaisesRegex(ValueError, "top-right greater than bottom-left"):
+        with self.assertRaisesRegex(ValueError, "rotationZ is required"):
+            compiler().compile(
+                pnp_template(),
+                configuration,
+                {"step_pnp": pnp_step_template()},
+            )
+
+        placement["pose"]["rotationZ"] = 0
+        placement["anchor"] = "topLeft"
+        with self.assertRaisesRegex(ValueError, "anchor must be bottomLeft, center, or origin"):
+            compiler().compile(
+                pnp_template(),
+                configuration,
+                {"step_pnp": pnp_step_template()},
+            )
+
+    def test_compiler_rejects_repeated_and_zero_length_polygon_points(self):
+        placement = {
+            "targetRegion": {
+                "type": "polygon",
+                "points": [[0, 0], [4, 0], [4, 4], [4, 0], [0, 4]],
+            },
+            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+            "anchor": "origin",
+        }
+        configuration = pnp_configuration()
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [placement]
+
+        with self.assertRaisesRegex(ValueError, "points must be unique"):
+            compiler().compile(
+                pnp_template(),
+                configuration,
+                {"step_pnp": pnp_step_template()},
+            )
+
+        placement["targetRegion"]["points"] = [[0, 0], [4, 0], [4, 0], [0, 4]]
+        with self.assertRaisesRegex(ValueError, "zero-length edges"):
             compiler().compile(
                 pnp_template(),
                 configuration,
@@ -1525,7 +1595,7 @@ def pnp_step_template():
         "program": "pnp/pnp",
         "inputPorts": [geometry_input(), geometry_input("die_geometry", role="auxiliary")],
         "outputPorts": [output_port()],
-        "parameterDefinitions": [parameter("coordinates", "coordinates")],
+        "parameterDefinitions": [parameter("placements", "placements")],
     }
 
 
@@ -1897,9 +1967,17 @@ def pnp_configuration():
         "stepConfigurations": {
             "pnp": {
                 "parameterValues": {
-                    "coordinates": [
-                        [[10, 20], [16, 25]],
-                        [[-5, 0], [-2, 2.5]],
+                    "placements": [
+                        {
+                            "targetRegion": {"type": "rectangle", "width": 6, "height": 5},
+                            "pose": {"x": 10, "y": 20, "rotationZ": 0},
+                            "anchor": "bottomLeft",
+                        },
+                        {
+                            "targetRegion": {"type": "rectangle", "width": 3, "height": 2.5},
+                            "pose": {"x": -5, "y": 0, "rotationZ": 0},
+                            "anchor": "bottomLeft",
+                        },
                     ]
                 }
             }

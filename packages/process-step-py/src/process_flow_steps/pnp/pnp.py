@@ -1,56 +1,76 @@
+from __future__ import annotations
+
+import math
 from typing import Any
 
 from process_flow_kernel import ProcessGeometryState, ProcessStepContext
 
+from .adapters import adapt_geometry, rotate_geometry
+
 
 def execute(context: ProcessStepContext) -> ProcessGeometryState:
     state = context.state
-    die = context.require_geometry("die_geometry")
-    placements = _required_coordinates(context.get_param("coordinates"))
+    source = context.require_geometry_artifact("die_geometry")
+    placements = _required_placements(context.get_param("placements"))
     bottom_z = state.cursor_z()
-    state.place_geometry_states(
-        die,
-        [
-            {
-                "x": placement["x"],
-                "y": placement["y"],
-                "top_right_x": placement["top_right_x"],
-                "top_right_y": placement["top_right_y"],
-                "bottom_z": bottom_z,
-                "anchor": "bottomLeft",
-                "clone": True,
-            }
-            for placement in placements
-        ],
-    )
+
+    # Materialize and validate the complete batch before mutating the destination.
+    prepared: list[tuple[ProcessGeometryState, dict[str, Any]]] = []
+    for placement in placements:
+        adapted_structure = adapt_geometry(source, placement["targetRegion"])
+        transformed_structure = rotate_geometry(
+            adapted_structure,
+            placement["pose"]["rotationZ"],
+            placement["anchor"],
+        )
+        prepared.append(
+            (ProcessGeometryState.from_structure(transformed_structure), placement)
+        )
+
+    for adapted, placement in prepared:
+        state.place_geometry_state(
+            adapted,
+            x=placement["pose"]["x"],
+            y=placement["pose"]["y"],
+            bottom_z=bottom_z,
+            anchor="origin",
+            clone=False,
+        )
     return state
 
 
-def _required_coordinates(value: Any) -> list[dict[str, float]]:
+def _required_placements(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
-        raise ValueError("PnP.coordinates must be an array of placement coordinates")
-    return [_coordinate_item(item, index) for index, item in enumerate(value)]
+        raise ValueError("PnP.placements must be an array")
+    return [_placement(item, index) for index, item in enumerate(value)]
 
 
-def _coordinate_item(item: Any, index: int) -> dict[str, float]:
-    if (
-        not isinstance(item, list)
-        or len(item) != 2
-        or not all(isinstance(point, list) and len(point) == 2 for point in item)
-    ):
+def _placement(value: Any, index: int) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"PnP.placements[{index}] must be an object")
+    target_region = value.get("targetRegion")
+    if not isinstance(target_region, dict):
+        raise ValueError(f"PnP.placements[{index}].targetRegion must be an object")
+    pose = value.get("pose")
+    if not isinstance(pose, dict):
+        raise ValueError(f"PnP.placements[{index}].pose must be an object")
+    if "rotationZ" not in pose:
+        raise ValueError(f"PnP.placements[{index}].pose.rotationZ is required")
+    anchor = value.get("anchor")
+    if anchor not in {"bottomLeft", "center", "origin"}:
         raise ValueError(
-            f"PnP.coordinates[{index}] must be a [[xMin, yMin], [xMax, yMax]] rectangle"
+            f"PnP.placements[{index}].anchor must be bottomLeft, center, or origin"
         )
-    bottom_left, top_right = item
     return {
-        "x": _finite_number(bottom_left[0], f"PnP.coordinates[{index}][0][0]"),
-        "y": _finite_number(bottom_left[1], f"PnP.coordinates[{index}][0][1]"),
-        "top_right_x": _finite_number(
-            top_right[0], f"PnP.coordinates[{index}][1][0]"
-        ),
-        "top_right_y": _finite_number(
-            top_right[1], f"PnP.coordinates[{index}][1][1]"
-        ),
+        "targetRegion": target_region,
+        "pose": {
+            "x": _finite_number(pose.get("x"), f"PnP.placements[{index}].pose.x"),
+            "y": _finite_number(pose.get("y"), f"PnP.placements[{index}].pose.y"),
+            "rotationZ": _finite_number(
+                pose.get("rotationZ"), f"PnP.placements[{index}].pose.rotationZ"
+            ),
+        },
+        "anchor": anchor,
     }
 
 
@@ -59,6 +79,6 @@ def _finite_number(value: Any, label: str) -> float:
         number = float(value)
     except (TypeError, ValueError):
         raise ValueError(f"{label} must be a finite number") from None
-    if number in (float("inf"), float("-inf")) or number != number:
+    if not math.isfinite(number):
         raise ValueError(f"{label} must be a finite number")
     return number

@@ -8,12 +8,15 @@ from process_flow_kernel import (
     GeometryArtifact,
     GeometryKernel,
     InMemoryGeometryCatalog,
+    ProcessGeometryState,
+    ProcessStepContext,
 )
-from process_flow_steps.pnp.adapters import adapt_geometry
+from process_flow_steps.pnp.adapters import adapt_geometry, rotate_geometry
+from process_flow_steps.pnp.pnp import execute as execute_pnp_step
 
 
 class AdaptivePnpTests(unittest.TestCase):
-    def test_unmarked_geometry_uses_legacy_recursive_box_stretch(self):
+    def test_unmarked_box_geometry_uses_box_rescale(self):
         source = geometry_entity("soc", legacy_soc_geometry())
         result = execute_pnp(source, [rectangle_placement(10, 20, 6, 5)])
 
@@ -87,8 +90,94 @@ class AdaptivePnpTests(unittest.TestCase):
 
         polygon = result.geometry()["root"]["children"][0]["bodies"][0]["geometry"]
         self.assertEqual(polygon["type"], "PolygonGeometry")
-        self.assertEqual(polygon["polys"][0][0][:2], [104, 200])
+        self.assertEqual(polygon["polys"][0][0][:2], [100, 200])
         self.assertEqual(source["structure"], original)
+
+    def test_unmarked_polygon_uses_exact_polygon_rescale(self):
+        source = geometry_entity("vrm", polygon_geometry())
+        original = copy.deepcopy(source["structure"])
+        target = [[0, 0], [8, 0], [7, 5], [2, 6], [-1, 3]]
+
+        result = execute_pnp(
+            source,
+            [
+                {
+                    "targetRegion": {"type": "polygon", "points": target},
+                    "pose": {"x": 20, "y": 30, "rotationZ": 0},
+                    "anchor": "origin",
+                }
+            ],
+        )
+
+        polygon = result.geometry()["root"]["children"][0]["bodies"][0]["geometry"]
+        self.assertEqual([point[:2] for point in polygon["polys"][0]], [[x + 20, y + 30] for x, y in target])
+        self.assertEqual(polygon["thk"], 3)
+        self.assertEqual(source["structure"], original)
+
+    def test_polygon_rescale_rectangle_target_preserves_polygon_primitive(self):
+        artifact = GeometryArtifact.from_entity(geometry_entity("vrm", polygon_geometry()))
+
+        adapted = adapt_geometry(
+            artifact,
+            {"type": "rectangle", "width": 8, "height": 6},
+        )
+
+        geometry = adapted["root"]["bodies"][0]["geometry"]
+        self.assertEqual(geometry["type"], "PolygonGeometry")
+        self.assertEqual(
+            [point[:2] for point in geometry["polys"][0]],
+            [[0, 0], [8, 0], [8, 6], [0, 6]],
+        )
+
+    def test_rotation_rebases_each_supported_anchor_before_rotating(self):
+        artifact = GeometryArtifact.from_entity(geometry_entity("vrm", polygon_geometry()))
+        adapted = adapt_geometry(
+            artifact,
+            {
+                "type": "polygon",
+                "points": [[1, 1], [3, 1], [3, 2], [1, 2]],
+            },
+        )
+
+        expected_first_points = {
+            "bottomLeft": [0.0, 0.0],
+            "center": [0.5, -1.0],
+            "origin": [-1.0, 1.0],
+        }
+        for anchor, expected in expected_first_points.items():
+            with self.subTest(anchor=anchor):
+                rotated = rotate_geometry(adapted, 90, anchor)
+                actual = rotated["root"]["bodies"][0]["geometry"]["polys"][0][0][:2]
+                self.assertAlmostEqual(actual[0], expected[0])
+                self.assertAlmostEqual(actual[1], expected[1])
+
+    def test_batch_failure_does_not_attach_prepared_placements(self):
+        state = ProcessGeometryState.from_structure(main_geometry())
+        source = GeometryArtifact.from_entity(geometry_entity("soc", legacy_soc_geometry()))
+        context = ProcessStepContext(
+            state=state,
+            values={
+                "placements": [
+                    rectangle_placement(10, 20, 6, 5),
+                    rectangle_placement(30, 40, 0, 5),
+                ]
+            },
+            raw_parameter_values={},
+            step_ref={},
+            step_template={},
+            step_configuration={},
+            geometry_inputs={},
+            input_geometry=None,
+            geometry_resolver=lambda _port_id: None,
+            geometry_artifact_resolver=lambda port_id: source
+            if port_id == "die_geometry"
+            else None,
+        )
+
+        with self.assertRaisesRegex(ValueError, "width must be greater than 0"):
+            execute_pnp_step(context)
+
+        self.assertEqual(state.to_geometry_structure()["root"]["children"], [])
 
     def test_hbm_rejects_target_smaller_than_fixed_core(self):
         artifact = GeometryArtifact.from_entity(
@@ -165,27 +254,52 @@ class AdaptivePnpTests(unittest.TestCase):
                 {"type": "rectangle", "width": 6, "height": 5},
             )
 
-    def test_category_defaults_are_specialized_without_changing_soc_legacy(self):
-        cases = [
-            ("die.hbm", "hbm-package"),
-            ("die.dram.mobile", "dram-package"),
-            ("die.vrm", "rigid"),
-            ("die.soc", "legacy-box-stretch"),
-            ("die.lsi", "legacy-box-stretch"),
-        ]
-        for category, expected_adapter in cases:
-            with self.subTest(category=category):
-                artifact = GeometryArtifact.from_entity(
-                    geometry_entity(
-                        "category-default",
-                        legacy_soc_geometry(),
-                        category=category,
-                    )
-                )
-                self.assertEqual(
-                    artifact.adaptation_contract["adapterId"],
-                    expected_adapter,
-                )
+    def test_missing_contract_is_preserved_for_runtime_primitive_inference(self):
+        box = GeometryArtifact.from_entity(geometry_entity("box", legacy_soc_geometry()))
+        polygon = GeometryArtifact.from_entity(geometry_entity("polygon", polygon_geometry()))
+
+        self.assertIsNone(box.adaptation_contract)
+        self.assertIsNone(polygon.adaptation_contract)
+        self.assertEqual(
+            adapt_geometry(box, {"type": "rectangle", "width": 6, "height": 5})["root"]["bodies"][0]["geometry"]["type"],
+            "BoxGeometry",
+        )
+        self.assertEqual(
+            adapt_geometry(polygon, {"type": "rectangle", "width": 6, "height": 5})["root"]["bodies"][0]["geometry"]["type"],
+            "PolygonGeometry",
+        )
+
+    def test_polygon_rescale_rejects_multiple_loops(self):
+        structure = polygon_geometry()
+        structure["root"]["bodies"][0]["geometry"]["polys"].append(
+            [[1, 1, 0], [2, 1, 0], [2, 2, 0], [1, 2, 0]]
+        )
+        artifact = GeometryArtifact.from_entity(
+            geometry_entity(
+                "vrm-with-hole",
+                structure,
+                adaptation={"adapterId": "polygon-rescale", "adapterVersion": 1},
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "exactly one polygon loop"):
+            adapt_geometry(
+                artifact,
+                {"type": "rectangle", "width": 6, "height": 5},
+            )
+
+    def test_default_adapter_rejects_mixed_primitives(self):
+        structure = legacy_soc_geometry()
+        structure["root"]["bodies"].append(
+            polygon_geometry()["root"]["bodies"][0]
+        )
+        artifact = GeometryArtifact.from_entity(geometry_entity("mixed", structure))
+
+        with self.assertRaisesRegex(ValueError, "explicit adaptationContract"):
+            adapt_geometry(
+                artifact,
+                {"type": "rectangle", "width": 6, "height": 5},
+            )
 
 
 def execute_pnp(source, placements):
@@ -227,9 +341,9 @@ def pnp_step_template():
         "schemaVersion": 2,
         "id": "adaptive-pnp-step",
         "version": "V4.0.0",
-        "name": "Adaptive PnP",
+        "name": "PnP",
         "category": "PnP",
-        "program": "pnp/pnp_v2",
+        "program": "pnp/pnp",
         "owner": "test",
         "inputPorts": [
             {

@@ -48,7 +48,7 @@
       {
         "stepRefId": "pnp_hbm",
         "stepLabel": "PnP",
-        "processStepTemplateId": "step_tpl_pnp_3_0_0"
+        "processStepTemplateId": "step_tpl_pnp_4_0_0"
       },
       {
         "stepRefId": "mold_cap",
@@ -176,7 +176,7 @@
       {
         "stepRefId": "pnp_soc",
         "stepLabel": "PnP",
-        "processStepTemplateId": "step_tpl_pnp_3_0_0"
+        "processStepTemplateId": "step_tpl_pnp_4_0_0"
       },
       {
         "stepRefId": "micro_bump",

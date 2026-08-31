@@ -37,7 +37,6 @@ ValueType = Literal[
     "float",
     "boolean",
     "materialRef",
-    "coordinates",
     "placements",
     "fieldGroupArray",
     "string[]",
@@ -51,7 +50,6 @@ ControlType = Literal[
     "checkbox",
     "select",
     "repeater",
-    "coordinateList",
     "placementList",
 ]
 

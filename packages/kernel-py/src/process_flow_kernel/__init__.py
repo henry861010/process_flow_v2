@@ -5,7 +5,6 @@ from .application.flow_compiler import FlowCompiler
 from .application.geometry_artifact import (
     GeometryArtifact,
     effective_adaptation_contract,
-    legacy_adaptation_contract,
 )
 from .application.flow_validation import analyze_flow_graph, validate_flow_graph, validate_process_step_template
 from .application.geometry_kernel import GeometryKernel
@@ -77,7 +76,6 @@ __all__ = [
     "container_key_matches",
     "geometry_structure_to_process_geometry_state",
     "effective_adaptation_contract",
-    "legacy_adaptation_contract",
     "normalize_geometry_structure",
     "process_geometry_state_to_geometry_structure",
     "stable_id",

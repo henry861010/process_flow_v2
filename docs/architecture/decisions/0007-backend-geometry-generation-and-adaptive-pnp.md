@@ -1,5 +1,5 @@
 ---
-title: ADR-0007：後端 Geometry Generator 與 adaptive PnP
+title: ADR-0007：後端 Geometry Generator 與 unified PnP
 status: normative
 decision_status: accepted
 owner: integration.platform
@@ -8,7 +8,7 @@ audience:
   - 製程與產品負責人
   - QA 與 coding agent
 last_verified: 2026-08-31
-last_verified_commit: 283d28057aae3d2cde2a6383740f4c2551cb2a6a
+last_verified_commit: 79a37fb7651eb2e0b1e2b46152ee0af28766fa43
 verified_against:
   - apps/api/src/process_flow_api/geometry_generation
   - apps/viewer/components/geometry-generator
@@ -16,65 +16,54 @@ verified_against:
   - packages/process-step-py/src/process_flow_steps/pnp
 ---
 
-# ADR-0007：後端 Geometry Generator 與 adaptive PnP
+# ADR-0007：後端 Geometry Generator 與 unified PnP
 
 ## 背景
 
-PnP v3 對 source subtree 中所有 `BoxGeometry` 做相同 additive resize。這對單純 SoC/LSI
-仍可維持既有行為，但會使 HBM 中尺寸固定的 core dies 變形，也完全排除 polygon VRM。
-此外，HBM/DRAM generator 的工程邏輯與 CAD drawing 若同時存在前端與後端，每新增或修改
-一種 generator 都必須同步修改兩處。
+PnP 原本只接受 rectangle coordinates，且只會對 BoxGeometry subtree 做 additive resize。
+未來 VRM 使用 PolygonGeometry；target shape、pose、rotation 與 anchor 也必須在同一筆資料中
+被完整保存。舊 PnP 尚未正式發行，因此本次直接替換，不保留 dual runtime contract。
 
 ## 決策
 
-1. Generator 的 parameter definition、default、validation、derived values、geometry build 與
-   preview document 全部由後端 registry 擁有。前端不得以 generator id 實作 HBM/DRAM
-   engineering branch。
-2. 前端只渲染 versioned generic 2D engineering preview document。Preview 可包含多個 view、
-   rectangle、polygon、circle、dimension 與 semantic role；它不是 executable geometry。
-3. Preview 成功時後端回傳 opaque `previewToken` 與 geometry hash。Materialize 必須使用該
-   token，避免使用者看到的 preview 與最後保存的 geometry 來自不同次計算。
-4. `GeometryEntity` 與 `EmbeddedGeometry` 增加 entity-level `adaptationContract`：
-
-   ```json
-   {
-     "adapterId": "hbm-package",
-     "adapterVersion": 1,
-     "parameters": {}
-   }
-   ```
-
-   Contract 選擇 resize policy；不得在 PnP 內依 primitive 或前端 UI 猜測工程語意。
-5. PnP v4 的每一筆 `placements[]` 必須同時保存 `targetRegion`、`pose` 與 `anchor`。
-   `targetRegion` 可為 positive rectangle，或 finite、non-zero-area、non-self-intersecting
-   polygon。`pose` 至少包含 X/Y 與 `rotationZ`。
-6. PnP v4 對每筆 placement 先呼叫 source contract 對 target region materialize 一份獨立
-   geometry，再做 rigid rotation/placement。不得修改 catalog source。
-7. Built-in adapter v1 行為：
-   - `legacy-box-stretch`：維持 ADR-0006 的全 subtree Box additive resize；只接受 rectangle。
-   - `hbm-package`：改變 package/molding footprint，HBM core children 維持原尺寸，且必須能
-     完整容納於 target region。
-   - `dram-package`：改變 root package footprint，child core geometry 維持原尺寸。
-   - `rigid`：不 resize，允許 Box、Polygon、Cylinder 與 Cone，只套用 pose。
-8. Explicit contract 優先。舊資料 migration 依 category backfill：`die.hbm*` 使用
-   `hbm-package`、`die.dram*` 使用 `dram-package`、`die.vrm*` 使用 `rigid`；其他未標記資料
-   （包括 SoC/LSI）使用 `legacy-box-stretch`。
-9. PnP v3 與 `coordinates` 保留為 compatibility contract，不在 migration 中改寫既有 flow。
-10. GDS 對 PnP v4 匯入 BOUNDARY 時保留 hierarchy transform 後的 exact polygon；axis-aligned
-    rectangle 仍 canonicalize 為 rectangle。PnP v3 GDS import 仍輸出 AABB coordinates。
+1. Generator 的 parameter definition、validation、geometry build與engineering preview由後端
+   registry擁有；前端只渲染versioned generic preview document。
+2. `GeometryEntity`與`EmbeddedGeometry`可明確保存versioned `adaptationContract`。Explicit
+   contract永遠優先，未知id/version必須失敗。
+3. 唯一 PnP program locator是`pnp/pnp`，唯一parameter是`placements`；`coordinates`、
+   `coordinateList`與`pnp/pnp_v2`不存在於current contract。
+4. 每筆placement必須包含：
+   - rectangle或simple polygon `targetRegion`；
+   - finite `pose.x/y/rotationZ`；
+   - `bottomLeft`、`center`或`origin` anchor。
+5. Target region使用local XY。Materialize後以selected anchor為pivot旋轉，再將anchor平移至
+   pose，Z bottom對齊main cursorZ。Array order是execution與serialized child order。
+6. Missing adaptation contract由runtime依primitive選擇：
+   - non-empty、BoxGeometry-only subtree使用`box-rescale@1`；
+   - exactly one、single-loop PolygonGeometry使用`polygon-rescale@1`；
+   - mixed、empty、multiple-loop、Cylinder或Cone要求explicit contract。
+7. Built-in contracts：
+   - `box-rescale@1`：對Box-only subtree套用相同additive XY delta，只接受rectangle target；
+   - `polygon-rescale@1`：以target polygon或rectangle四角直接替換唯一polygon loop，保留
+     Z、thickness與feature/container metadata；
+   - `hbm-package@1`、`dram-package@1`：只改變package envelope，fixed children必須能容納；
+   - `rigid@1`：explicit-only，不rescale，只套pose。
+8. HBM／DRAM generator與seed geometry必須明確保存specialized contract；repository不得依
+   category backfill missing contract。
+9. PnP先materialize完整placement batch，再attach任何child；任一筆失敗不得產生partial result。
+10. GDS import保留完整hierarchy transform。Axis-aligned rectangle canonicalize為rectangle；
+    其他BOUNDARY保存exact polygon，再拆成local points與bottom-left pose。
+11. Database schema v6是destructive boundary。任何較舊marker或無marker資料會清空並重新seed；
+    未知或未來marker明確失敗。
 
 ## 影響
 
-增加 generator 只需要後端註冊新 implementation；只要沿用 preview/parameter contract，前端
-不需修改。Resize 規則集中在 versioned adapters，geometry structure 不需要在每個 primitive
-散佈 `resize: true/false`。同一 PnP step 可在不同位置使用不同 target size；HBM core 不變形，
-polygon VRM 可使用 rigid placement。
-
-Adapter id/version 是 persisted compatibility boundary。修改既有 adapter 的 observable behavior
-必須增加 version；未知 id/version 必須明確失敗，不得 silent fallback。
+Box、HBM、DRAM與polygon VRM共用同一placement contract。Polygon deformation v1刻意只支援
+單一outer loop，不定義holes、multi-body mapping或general mesh warp；需要此類語意時必須增加
+新的versioned adapter，而非擴張`polygon-rescale@1`既有observable behavior。
 
 ## 驗證
 
-Tests MUST 覆蓋 generator catalog/preview/materialize、preview token、v4→v5 無資料遺失 migration、
-legacy recursive resize、同一 HBM source 的多尺寸 placement、fixed core fit rejection、rigid polygon、
-rotation、unknown adapter、GDS polygon preservation，以及 source immutability。
+Tests MUST覆蓋rectangle/polygon validation、primitive inference、explicit precedence、exact
+polygon replacement、anchor-pivot rotation、HBM/DRAM fixed-child policy、source immutability、
+batch atomicity、GDS exact shape與v6 destructive reset。

@@ -4,7 +4,6 @@ export type ValueType =
   | "float"
   | "boolean"
   | "materialRef"
-  | "coordinates"
   | "placements"
   | "fieldGroupArray"
   | "string[]"
@@ -18,7 +17,6 @@ export type ControlType =
   | "checkbox"
   | "select"
   | "repeater"
-  | "coordinateList"
   | "placementList"
   | null;
 

@@ -77,7 +77,6 @@ Parameter ids、nested item parameter ids 與 repeat `itemId` MUST 符合：
 | `float` | finite JSON number | float | n/a |
 | `boolean` | boolean | boolean | n/a |
 | `materialRef` | non-empty string when present | string；kernel MAY rewrite suffix | n/a |
-| `coordinates` | array of unique `[[xMin, yMin], [xMax, yMax]]` rectangles | array of float rectangles | yes |
 | `placements` | array of target-region + pose + anchor objects | normalized placement object array | yes |
 | `string[]` | string array | string array | yes |
 | `integer[]` | integral finite number array | integer array | yes |
@@ -91,16 +90,14 @@ Rules：
 - `integer` MAY 接受 `1.0`，但 normalized value MUST 是 `1`；非 integral number MUST reject。
 - `float` MAY 接受 JSON integer，normalized value MUST 使用 numeric float semantics。
 - NaN 與 positive/negative Infinity 不是合法 JSON/parameter number，MUST reject。
-- Coordinates 每個 item MUST 是 `[[xMin, yMin], [xMax, yMax]]`，四個值都 MUST finite，
-  且 `xMax > xMin`、`yMax > yMin`。四個對應值都在 absolute tolerance `1e-6 um`
-  內時視為 duplicate 並 MUST reject；canonical length unit 是 `um`。
-- Placements 每個 item MUST 同時包含 `targetRegion` 與 `pose`。Rectangle region 使用 positive
-  `width`/`height`；polygon 使用至少三個 finite `[x,y]` points、面積不得為零且不得
-  self-intersect。`pose.x/y/rotationZ` MUST finite；`anchor` MUST 是 `bottomLeft`、`center` 或
-  `origin`，省略時為 `bottomLeft`。Array order MUST preserve。
+- Placements 每個 item MUST 同時包含 `targetRegion`、`pose`與`anchor`。Rectangle region使用
+  positive finite`width`/`height`；polygon使用至少三個unique finite`[x,y]`points，closing
+  duplicate會移除，其他duplicate、zero-length edge、zero area與self-intersection MUST reject。
+  `pose.x/y/rotationZ` MUST finite；`anchor` MUST是`bottomLeft`、`center`或`origin`。Array order
+  MUST preserve；duplicate placements合法。
 - Required collection 的 `[]` 是「已提供的空 collection」，不是 missing。若 domain
   至少需要一個 item，definition MUST 使用可表達 cardinality 的 schema；
-  `fieldGroupArray` 使用 `minItems`。目前 generic arrays/coordinates 沒有 `minItems` field。
+  `fieldGroupArray` 使用 `minItems`。目前 generic arrays/placements 沒有 `minItems` field。
 
 ## 4. `ControlType` 合法組合
 
@@ -108,7 +105,6 @@ Rules：
 
 | `valueType` | Allowed `controlType` |
 | --- | --- |
-| `coordinates` | `coordinateList` |
 | `placements` | `placementList` |
 | `fieldGroupArray` | `repeater` |
 | `boolean` | `checkbox` |
@@ -124,7 +120,7 @@ Additional rules：
 - Scalar option control MUST 使用 `selectionMode: "single"`。
 - Array option control MUST 使用 `selectionMode: "multiple"`。
 - 沒有 `optionSource` 的 control MUST 省略 `selectionMode`。
-- `coordinateList`、`placementList` 與 `repeater` MUST NOT 提供 `optionSource`。
+- `placementList` 與 `repeater` MUST NOT 提供 `optionSource`。
 
 ## 5. OptionSource 是 enum contract
 
@@ -271,7 +267,7 @@ Collection order 規則：
 | --- | --- |
 | `parameterDefinitions[]` / nested definitions | Authoring/display order；runtime 必須以 id 取值，不得依位置賦予 meaning。 |
 | `optionSource.options[]` | UI display order；不改變 persisted enum value。 |
-| `coordinates[]` | Placement execution 與 serialized child order。 |
+| `placements[]` | Placement execution 與 serialized child order。 |
 | Repeat `items[]` | Process execution order；例如 RDL 奇偶層依 array position，不依 display `index`。 |
 
 ## 8. Compiler normalization
@@ -295,11 +291,11 @@ Normalization rules：
 
 - Unknown top-level parameter key MUST reject。
 - Definition order MAY 決定 normalized object iteration order，但 modules MUST access by id。
-- Repeat/coordinates array order MUST preserve；normalization MUST NOT sort。
+- Repeat/placements array order MUST preserve；normalization MUST NOT sort。
 - Missing optional parameter normalize 為 `null`；persisted JSON MAY omit it。
 - Missing required parameter在 draft MAY 接受，在 complete compile MUST reject。
 - `null` 與 `""` 對 required scalar 都是 incomplete。
-- Numeric、array、coordinate 與 repeat values依本文件 canonicalize。
+- Numeric、array、placement 與 repeat values依本文件 canonicalize。
 - Normalization MUST NOT mutate persisted `raw_parameter_values`。
 
 ## 9. `materialRef` runtime 語意

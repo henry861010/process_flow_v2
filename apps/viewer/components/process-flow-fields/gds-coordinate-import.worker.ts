@@ -2,7 +2,6 @@ import { RecordType, parseGDS } from "gdsii";
 
 import {
   COORDINATE_DUPLICATE_TOLERANCE,
-  coordinateBoundsEqual,
   type CoordinateBounds,
   type CoordinatePair,
 } from "./coordinate-list-value";
@@ -21,7 +20,6 @@ type GdsImportRequest = {
   layer: number;
   datatype: number;
   unit?: string | null;
-  preserveShapes?: boolean;
   propertyFilter?: {
     mode: "include" | "exclude";
     contains: string;
@@ -31,7 +29,6 @@ type GdsImportRequest = {
 type GdsImportSuccess = {
   type: "success";
   requestId: string;
-  coordinates: CoordinateBounds[];
   regions: GdsTargetRegion[];
   matchedElements: number;
   duplicatesRemoved: number;
@@ -117,9 +114,7 @@ function importCoordinates(request: GdsImportRequest) {
   const topCellNames = getTopCellNames(layout.structures);
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
   const propertyFilter = normalizePropertyFilter(request.propertyFilter);
-  const coordinates: CoordinateBounds[] = [];
   const regions: GdsTargetRegion[] = [];
-  const coordinateBuckets = new Map<string, CoordinateBounds[]>();
   const regionSignatures = new Set<string>();
   const unsupportedElements: Record<string, number> = {};
   let matchedElements = 0;
@@ -127,25 +122,7 @@ function importCoordinates(request: GdsImportRequest) {
   let unresolvedReferences = 0;
   let cyclicReferences = 0;
 
-  const addCoordinate = (coordinate: CoordinateBounds) => {
-    const duplicate = coordinateNeighborBucketKeys(coordinate).some((key) =>
-      (coordinateBuckets.get(key) ?? []).some((candidate) =>
-        coordinateBoundsEqual(candidate, coordinate),
-      ),
-    );
-    if (duplicate) {
-      duplicatesRemoved += 1;
-      return;
-    }
-    const bucketKey = coordinateBucketKey(coordinate);
-    coordinateBuckets.set(bucketKey, [
-      ...(coordinateBuckets.get(bucketKey) ?? []),
-      coordinate,
-    ]);
-    coordinates.push(coordinate);
-  };
-
-  const addRegion = (region: GdsTargetRegion, bounds: CoordinateBounds) => {
+  const addRegion = (region: GdsTargetRegion) => {
     const signature = regionSignature(region);
     if (regionSignatures.has(signature)) {
       duplicatesRemoved += 1;
@@ -153,7 +130,6 @@ function importCoordinates(request: GdsImportRequest) {
     }
     regionSignatures.add(signature);
     regions.push(region);
-    coordinates.push(bounds);
   };
 
   const visitStructure = (
@@ -193,20 +169,22 @@ function importCoordinates(request: GdsImportRequest) {
         }
         matchedElements += 1;
         const scaledBounds: CoordinateBounds = [
-          [bounds[0][0] * coordinateScale, bounds[0][1] * coordinateScale],
-          [bounds[1][0] * coordinateScale, bounds[1][1] * coordinateScale],
+          [
+            scaledCoordinate(bounds[0][0], coordinateScale),
+            scaledCoordinate(bounds[0][1], coordinateScale),
+          ],
+          [
+            scaledCoordinate(bounds[1][0], coordinateScale),
+            scaledCoordinate(bounds[1][1], coordinateScale),
+          ],
         ];
-        if (request.preserveShapes) {
-          const points = transformedPoints(sourcePoints, transform).map(
-            (point): CoordinatePair => [
-              point[0] * coordinateScale,
-              point[1] * coordinateScale,
-            ],
-          );
-          addRegion(targetRegion(element.kind, points, scaledBounds), scaledBounds);
-        } else {
-          addCoordinate(scaledBounds);
-        }
+        const points = transformedPoints(sourcePoints, transform).map(
+          (point): CoordinatePair => [
+            scaledCoordinate(point[0], coordinateScale),
+            scaledCoordinate(point[1], coordinateScale),
+          ],
+        );
+        addRegion(targetRegion(element.kind, points, scaledBounds));
         return;
       }
 
@@ -283,7 +261,6 @@ function importCoordinates(request: GdsImportRequest) {
   );
 
   return {
-    coordinates,
     regions,
     matchedElements,
     duplicatesRemoved,
@@ -352,6 +329,10 @@ function regionSignature(region: GdsTargetRegion) {
 
 function quantized(value: number) {
   return Math.round(value / COORDINATE_DUPLICATE_TOLERANCE);
+}
+
+function scaledCoordinate(value: number, scale: number) {
+  return quantized(value * scale) * COORDINATE_DUPLICATE_TOLERANCE;
 }
 
 function pointsEqual(left: CoordinatePair, right: CoordinatePair) {
@@ -571,36 +552,4 @@ function unitScale(metersPerDbUnit: number, unit?: string | null) {
     return metersPerDbUnit * 1e9;
   }
   return 1;
-}
-
-function coordinateBucketKey(bounds: CoordinateBounds) {
-  return coordinateBucketIndexes(bounds).join(":");
-}
-
-function coordinateNeighborBucketKeys(bounds: CoordinateBounds) {
-  const [xMin, yMin, xMax, yMax] = coordinateBucketIndexes(bounds);
-  const keys: string[] = [];
-  for (let dxMin = -1; dxMin <= 1; dxMin += 1) {
-    for (let dyMin = -1; dyMin <= 1; dyMin += 1) {
-      for (let dxMax = -1; dxMax <= 1; dxMax += 1) {
-        for (let dyMax = -1; dyMax <= 1; dyMax += 1) {
-          keys.push(
-            [
-              xMin + dxMin,
-              yMin + dyMin,
-              xMax + dxMax,
-              yMax + dyMax,
-            ].join(":"),
-          );
-        }
-      }
-    }
-  }
-  return keys;
-}
-
-function coordinateBucketIndexes(bounds: CoordinateBounds) {
-  return [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]].map(
-    (value) => Math.floor(value / COORDINATE_DUPLICATE_TOLERANCE),
-  );
 }

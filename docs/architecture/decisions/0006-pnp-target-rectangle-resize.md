@@ -1,7 +1,7 @@
 ---
 title: ADR-0006：PnP coordinates 使用 target rectangle 與 additive Box resize
-status: normative
-decision_status: accepted
+status: historical
+decision_status: superseded
 owner: integration.platform
 audience:
   - 製程與產品負責人
@@ -18,8 +18,8 @@ verified_against:
 
 # ADR-0006：PnP coordinates 使用 target rectangle 與 additive Box resize
 
-> 本 ADR 仍是 `pnp/pnp`（PnP v3）的 compatibility contract。新 adaptive placement 使用
-> [ADR-0007](./0007-backend-geometry-generation-and-adaptive-pnp.md) 與 `pnp/pnp_v2`。
+> 本 ADR 已由 [ADR-0007](./0007-backend-geometry-generation-and-adaptive-pnp.md) 取代。
+> Current PnP只使用`placements`，本文件僅保留舊決策歷史。
 
 ## 背景
 

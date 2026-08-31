@@ -10,9 +10,9 @@ from process_flow_api.repository import DATABASE_SCHEMA_VERSION, SQLiteStore
 
 
 class RepositoryMigrationTests(unittest.TestCase):
-    def test_v4_to_v5_preserves_rows_and_backfills_adaptation_contracts(self):
+    def test_v5_to_v6_clears_incompatible_resources(self):
         with tempfile.TemporaryDirectory() as tmp_name:
-            db_path = Path(tmp_name) / "v4.sqlite3"
+            db_path = Path(tmp_name) / "v5.sqlite3"
             connection = sqlite3.connect(db_path)
             connection.executescript(
                 """
@@ -41,7 +41,7 @@ class RepositoryMigrationTests(unittest.TestCase):
                   payload TEXT NOT NULL
                 );
                 INSERT INTO schema_metadata(key, value)
-                VALUES ('databaseSchemaVersion', '4');
+                VALUES ('databaseSchemaVersion', '5');
                 """
             )
             for item in (
@@ -85,21 +85,27 @@ class RepositoryMigrationTests(unittest.TestCase):
                     "WHERE key = 'databaseSchemaVersion'"
                 ).fetchone()["value"]
                 self.assertEqual(version, DATABASE_SCHEMA_VERSION)
-                self.assertEqual(
-                    store.get_geometry("hbm-existing")["adaptationContract"]["adapterId"],
-                    "hbm-package",
-                )
-                self.assertEqual(
-                    store.get_geometry("soc-existing")["adaptationContract"]["adapterId"],
-                    "legacy-box-stretch",
-                )
-                embedded = store.get_process_flow_workspace("workspace-existing")[
-                    "embeddedGeometries"
-                ]["vrm-local"]
-                self.assertEqual(embedded["adaptationContract"]["adapterId"], "rigid")
-                self.assertEqual(len(store.list_geometries()), 2)
+                self.assertEqual(store.list_geometries(), [])
+                self.assertIsNone(store.get_process_flow_workspace("workspace-existing"))
             finally:
                 store.close()
+
+    def test_future_schema_version_is_rejected_without_deleting_rows(self):
+        with tempfile.TemporaryDirectory() as tmp_name:
+            db_path = Path(tmp_name) / "future.sqlite3"
+            connection = sqlite3.connect(db_path)
+            connection.executescript(
+                """
+                CREATE TABLE schema_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO schema_metadata(key, value)
+                VALUES ('databaseSchemaVersion', '999');
+                """
+            )
+            connection.commit()
+            connection.close()
+
+            with self.assertRaisesRegex(RuntimeError, "Unsupported database schema migration"):
+                SQLiteStore(db_path)
 
 
 def geometry(id_: str, category: str):

@@ -13,6 +13,7 @@ CONTAINER_KEYS = frozenset(
         "soic",
         "lsi",
         "cpo",
+        "vrm",
     }
 )
 

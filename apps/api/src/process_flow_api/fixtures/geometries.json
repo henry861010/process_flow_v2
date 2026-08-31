@@ -98,6 +98,7 @@
   {
     "id": "hbm_v1_2_1",
     "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM2 4-Hi",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -114,6 +115,7 @@
   {
     "id": "hbm_v1_2e_1",
     "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM2E 8-Hi",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -130,6 +132,7 @@
   {
     "id": "hbm_v1_3_1",
     "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM3 8-Hi",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -146,6 +149,7 @@
   {
     "id": "hbm_v1_3e_1",
     "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM3E 12-Hi",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -162,6 +166,7 @@
   {
     "id": "hbm_v1_4_1",
     "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM4 12-Hi",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -178,6 +183,7 @@
   {
     "id": "dram_ddr3_x8_v1_0_0",
     "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "DDR3 x8 FBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -194,6 +200,7 @@
   {
     "id": "dram_ddr4_x8_v1_0_0",
     "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "DDR4 x8 FBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -210,6 +217,7 @@
   {
     "id": "dram_ddr5_x8_v1_0_0",
     "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "DDR5 x8 VFBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -226,6 +234,7 @@
   {
     "id": "dram_lpddr4x_v1_0_0",
     "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "LPDDR4X FBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -242,6 +251,7 @@
   {
     "id": "dram_lpddr5_v1_0_0",
     "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "LPDDR5 TFBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -258,6 +268,7 @@
   {
     "id": "dram_gddr6_v1_0_0",
     "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "GDDR6 FBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -274,6 +285,7 @@
   {
     "id": "dram_gddr7_v1_0_0",
     "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "GDDR7 FBGA",
     "version": "v1.0.0",
     "owner": "demo.example",
@@ -749,6 +761,41 @@
       "schemaVersion": "1.0.0",
       "unitSystem": "um",
       "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -8000, -250], "top_right": [6000, 8000, -250], "thk": 500}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "vrm_polygon_test_v1_0_0",
+    "category": "die.vrm",
+    "name": "Polygon VRM Test Fixture",
+    "version": "v1.0.0",
+    "owner": "demo.example",
+    "description": "5000 x 3400 x 350 um — Single-loop PolygonGeometry fixture for polygon-rescale PnP validation.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "vrm",
+        "bodies": [
+          {
+            "key": "envelope",
+            "geometry": {
+              "type": "PolygonGeometry",
+              "polys": [
+                [[0, 0, 0], [4200, 0, 0], [5000, 1600, 0], [3600, 3400, 0], [600, 3000, 0]]
+              ],
+              "thk": 350
+            },
+            "material": "VRM"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
     }
   },
   {

@@ -168,7 +168,7 @@ Visible copy 逐字固定；重建 agent 不可自行翻譯：
 | Template empty graph | `Empty flow` |
 | Instance no template | `Select a flow template` |
 | Parameter empty | `No parameters` |
-| Coordinate empty | `No coordinates` |
+| Placement empty | `No placements` |
 | Preview loading | `Generating geometry preview...` |
 | Export empty | `No export requests` / `Exports created from preview will appear here.` |
 

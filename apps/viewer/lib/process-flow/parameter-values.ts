@@ -24,7 +24,6 @@ export function createDefaultParameterValue(parameter: ParameterDefinition): unk
   switch (parameter.valueType) {
     case "boolean":
       return false;
-    case "coordinates":
     case "placements":
       return [];
     case "fieldGroupArray":

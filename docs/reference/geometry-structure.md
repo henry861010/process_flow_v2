@@ -72,7 +72,7 @@ Canonical structure wrapper：
 | `structureFormat` | literal `"standard"` | required | 目前唯一 supported format。 |
 | `structure` | `GeometryStructure` | required | Complete, deeply valid structure。 |
 | `generation` | object or omitted | optional | Backend generator authoring metadata；不改變structure semantics。 |
-| `adaptationContract` | versioned adapter object | catalog canonical required | Adaptive placement policy；缺少的legacy/create payload由repository依category materialize。 |
+| `adaptationContract` | versioned adapter object or omitted | optional | Explicit placement policy；missing時PnP runtime依primitive選擇default。 |
 
 Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，但在匯入 catalog
 時 server MUST 生成符合 Process Flow identifier grammar 的新 id。
@@ -83,8 +83,8 @@ Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，�
 `GeometryEntity` metadata + structure，但 MUST NOT 有 catalog `id`。Map key 是
 `localId` identity。
 
-Draft embedded geometry MAY暫時省略`adaptationContract`；compiler會使用與repository相同的
-effective default。Backend generator產生的embedded geometry MUST明確包含generation與contract。
+Embedded geometry MAY省略`adaptationContract`；PnP runtime對Box-only或single-loop polygon
+structure選擇default。Backend HBM/DRAM generator產生的geometry MUST明確包含generation與contract。
 
 Commit MUST：
 

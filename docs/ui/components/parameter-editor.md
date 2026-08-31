@@ -39,9 +39,7 @@ bounds values 被 description column 壓縮。Label顯示 name、required `*`（
 
 | Definition | Render | Serialization |
 | --- | --- | --- |
-| `coordinates` 或 `coordinateList` | [Coordinate List](coordinate-list.md) | `[[xMin,yMin],[xMax,yMax]][]` |
-| `placements` 或 `placementList` | [Coordinate List adaptive mode](coordinate-list.md#adaptive-placement-mode) | target region + pose + anchor array |
-| disabled coordinates | muted monospace JSON/`Not set` | no change |
+| `placements` 或 `placementList` | [Placement List](coordinate-list.md) | target region + pose + anchor array |
 | `select` + array type | option checkboxes | typed array |
 | `select` + primitive | native select，首項 `Select value` | coerced primitive/empty |
 | `checkbox` + boolean | checkbox + `True/False` | boolean |
@@ -81,14 +79,14 @@ React key MUST 用`itemId`，不可用array index；edit child不得重建item i
 
 ## Disabled 與 read-only
 
-所有 native controls disabled；repeater Add/Remove disabled。Readonly coordinates顯示compact JSON，
-其餘primitive保留相同control layout。Disabled不代表值被清除。
+所有native controls disabled；repeater Add/Remove disabled。Readonly placements顯示ordered summary
+與polygon SVG preview，但不render mutating actions。Disabled不代表值被清除。
 
 ## Validation 呈現
 
 Editor現況不在每個primitive旁render validation message；screen status與graph readiness顯示第一個
-blocking reason。重建不得用HTML coercion把invalid user input靜默改成default。Enum外值、duplicate
-coordinates、repeat min/max、nested required等均使configuration incomplete/error。
+blocking reason。重建不得用HTML coercion把invalid user input靜默改成default。Enum外值、invalid
+placements、repeat min/max、nested required等均使configuration incomplete/error。
 
 ## 鍵盤、focus 與 ARIA
 
@@ -100,7 +98,7 @@ coordinates、repeat min/max、nested required等均使configuration incomplete/
 ## 測試 fixture
 
 Component fixture至少包含：text、integer+unit、float range、boolean、single enum、multi enum、array、
-coordinates、one-level repeat、nested repeat、disabled state。
+rectangle/polygon placements、one-level repeat、nested repeat、disabled state。
 
 ## 驗收案例
 

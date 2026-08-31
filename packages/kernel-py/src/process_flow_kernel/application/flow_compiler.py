@@ -298,8 +298,6 @@ def _normalize_parameter_value(definition, value, *, require_complete):
             )
             for item in value
         ]
-    elif value_type == "coordinates":
-        normalized = _normalize_coordinates(definition["id"], value)
     elif value_type == "placements":
         normalized = _normalize_placements(definition["id"], value)
     elif value_type == "fieldGroupArray":
@@ -312,56 +310,6 @@ def _normalize_parameter_value(definition, value, *, require_complete):
         raise ValueError(f"Unsupported parameter valueType: {value_type}")
     _validate_parameter_rule(definition, normalized)
     return normalized
-
-
-def _normalize_coordinates(parameter_id, value):
-    if not isinstance(value, list):
-        raise ValueError(f"Parameter {parameter_id} must be a coordinate array")
-    normalized = []
-    for coordinate in value:
-        if (
-            not isinstance(coordinate, list)
-            or len(coordinate) != 2
-            or any(
-                not isinstance(point, list) or len(point) != 2
-                for point in coordinate
-            )
-            or any(
-                isinstance(number, bool)
-                or not isinstance(number, (int, float))
-                or not math.isfinite(number)
-                for point in coordinate
-                for number in point
-            )
-        ):
-            raise ValueError(
-                f"Parameter {parameter_id} must contain [[xMin, yMin], [xMax, yMax]] rectangles"
-            )
-        rectangle = [
-            [float(coordinate[0][0]), float(coordinate[0][1])],
-            [float(coordinate[1][0]), float(coordinate[1][1])],
-        ]
-        if rectangle[1][0] <= rectangle[0][0] or rectangle[1][1] <= rectangle[0][1]:
-            raise ValueError(
-                f"Parameter {parameter_id} rectangles must have top-right greater than bottom-left"
-            )
-        if any(_coordinate_rectangles_equal(rectangle, existing) for existing in normalized):
-            raise ValueError(f"Parameter {parameter_id} contains duplicate coordinates")
-        normalized.append(rectangle)
-    return normalized
-
-
-def _coordinate_rectangles_equal(left, right, tolerance=1e-6):
-    return all(
-        math.isclose(
-            left[point_index][axis_index],
-            right[point_index][axis_index],
-            rel_tol=0,
-            abs_tol=tolerance,
-        )
-        for point_index in range(2)
-        for axis_index in range(2)
-    )
 
 
 def _normalize_placements(parameter_id, value):
@@ -428,6 +376,16 @@ def _normalize_placements(parameter_id, value):
                 raise ValueError(
                     f"Parameter {parameter_id}[{index}] polygon requires non-zero area"
                 )
+            for point_index, point in enumerate(normalized_points):
+                next_point = normalized_points[(point_index + 1) % len(normalized_points)]
+                if _placement_points_equal(point, next_point):
+                    raise ValueError(
+                        f"Parameter {parameter_id}[{index}] polygon must not contain zero-length edges"
+                    )
+            if len({tuple(point) for point in normalized_points}) != len(normalized_points):
+                raise ValueError(
+                    f"Parameter {parameter_id}[{index}] polygon points must be unique"
+                )
             if _placement_polygon_self_intersects(normalized_points):
                 raise ValueError(
                     f"Parameter {parameter_id}[{index}] polygon must not self-intersect"
@@ -445,11 +403,15 @@ def _normalize_placements(parameter_id, value):
         pose = placement.get("pose")
         if not isinstance(pose, Mapping):
             raise ValueError(f"Parameter {parameter_id}[{index}].pose must be an object")
+        if "rotationZ" not in pose:
+            raise ValueError(
+                f"Parameter {parameter_id}[{index}] rotationZ is required"
+            )
         rotation_z = _finite_parameter_number(
-            pose.get("rotationZ", 0),
+            pose.get("rotationZ"),
             f"Parameter {parameter_id}[{index}] rotationZ",
         )
-        anchor = placement.get("anchor", "bottomLeft")
+        anchor = placement.get("anchor")
         if anchor not in {"bottomLeft", "center", "origin"}:
             raise ValueError(
                 f"Parameter {parameter_id}[{index}] anchor must be bottomLeft, center, or origin"

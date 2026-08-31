@@ -25,7 +25,7 @@ UI-<AREA>-<三位數>
 ```
 
 `AREA` 只使用 `HOME`、`FTE`、`FIE`、`PSTE`、`CAD`、`GRAPH`、`LIB`、`PARAM`、
-`COORD`、`PREVIEW`、`EXPORT`、`HBM`。Case ID 不因 test framework 或檔名改變。
+`PLACE`、`PREVIEW`、`EXPORT`、`HBM`。Case ID 不因 test framework 或檔名改變。
 
 ## 環境契約
 
@@ -102,7 +102,11 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | `UI-EXPORT-002` | running job | cancel | 先顯示 canceling，再顯示 canceled或 server terminal result。 |
 | `UI-EXPORT-008` | ready preview，Export form open | press Escape while idle | 只關閉 Export form，Geometry Preview 保持開啟；submitting 時 Escape 不關閉。 |
 | `UI-CAD-001` | axis view X、imported model | Reset | demo回復且 camera仍為 X view並重新 fit。 |
-| `UI-COORD-001` | duplicate/invalid/zero-area coordinate rectangle rows | edit row | inline diagnostics顯示且 configuration不算 complete。 |
+| `UI-PLACE-001` | placement cards | add/remove/reorder | persisted array與execution order一致。 |
+| `UI-PLACE-003` | invalid polygon points/edges/area | edit vertex | inline diagnostics顯示且configuration不算complete。 |
+| `UI-PLACE-004` | GDS rotated/reflected polygon | import | exact local polygon與bottom-left pose取代原placements。 |
+| `UI-PLACE-009` | open placement editor | inspect optional GDS input | 初始只顯示`Import from GDS`button，展開後才顯示fields。 |
+| `UI-PLACE-010` | pose help icon | hover與keyboard focus | tooltip解釋Pose X/Y、Rotation Z與Anchor。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。

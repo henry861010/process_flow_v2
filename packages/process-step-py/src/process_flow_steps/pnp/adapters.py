@@ -16,8 +16,9 @@ def adapt_geometry(
     source: GeometryArtifact,
     target_region: Mapping[str, Any],
 ) -> JsonObject:
+    structure = normalize_geometry_structure(source.structure)
     contract = source.adaptation_contract or {
-        "adapterId": "legacy-box-stretch",
+        "adapterId": _default_adapter_id(structure),
         "adapterVersion": 1,
         "parameters": {},
     }
@@ -33,28 +34,28 @@ def adapt_geometry(
     if adapter is None:
         raise ValueError(f"Geometry adapter is not installed: {adapter_id}@{adapter_version}")
     normalized_region = normalize_target_region(target_region)
-    structure = normalize_geometry_structure(source.structure)
     return normalize_geometry_structure(adapter(structure, normalized_region))
 
 
-def rotate_geometry(structure: Mapping[str, Any], degrees: float) -> JsonObject:
+def rotate_geometry(
+    structure: Mapping[str, Any],
+    degrees: float,
+    anchor: str,
+) -> JsonObject:
     angle = _finite_number(degrees, "rotationZ") % 360
     result = normalize_geometry_structure(structure)
-    if math.isclose(angle, 0, abs_tol=1e-9):
-        return result
     bounds = _structure_bounds(result)
-    center_x = (bounds["xMin"] + bounds["xMax"]) / 2
-    center_y = (bounds["yMin"] + bounds["yMax"]) / 2
+    pivot = _anchor_point(bounds, anchor)
     radians = math.radians(angle)
     cosine = math.cos(radians)
     sine = math.sin(radians)
 
     def rotate_point(x: float, y: float) -> tuple[float, float]:
-        local_x = x - center_x
-        local_y = y - center_y
+        local_x = x - pivot["x"]
+        local_y = y - pivot["y"]
         return (
-            center_x + local_x * cosine - local_y * sine,
-            center_y + local_x * sine + local_y * cosine,
+            local_x * cosine - local_y * sine,
+            local_x * sine + local_y * cosine,
         )
 
     for geometry in _walk_geometries(result["root"]):
@@ -152,6 +153,14 @@ def normalize_target_region(value: Mapping[str, Any]) -> JsonObject:
             normalized_points.pop()
         if len(normalized_points) < 3:
             raise ValueError("PnP polygon targetRegion requires at least three points")
+        for index, point in enumerate(normalized_points):
+            next_point = normalized_points[(index + 1) % len(normalized_points)]
+            if _points_equal(point, next_point):
+                raise ValueError("PnP polygon targetRegion must not contain zero-length edges")
+        if len({(point[0], point[1]) for point in normalized_points}) != len(
+            normalized_points
+        ):
+            raise ValueError("PnP polygon targetRegion points must be unique")
         if _polygon_self_intersects(normalized_points):
             raise ValueError("PnP polygon targetRegion must not self-intersect")
         if abs(_polygon_area(normalized_points)) <= 1e-9:
@@ -172,9 +181,9 @@ def normalize_target_region(value: Mapping[str, Any]) -> JsonObject:
     raise ValueError('PnP targetRegion.type must be "rectangle" or "polygon"')
 
 
-def _legacy_box_stretch(structure: JsonObject, region: JsonObject) -> JsonObject:
+def _box_rescale(structure: JsonObject, region: JsonObject) -> JsonObject:
     if region["type"] != "rectangle":
-        raise ValueError("legacy-box-stretch supports only rectangle target regions")
+        raise ValueError("box-rescale supports only rectangle target regions")
     result = copy.deepcopy(structure)
     source_bounds = _structure_bounds(result)
     delta_x = float(region["width"]) - (source_bounds["xMax"] - source_bounds["xMin"])
@@ -190,6 +199,35 @@ def _legacy_box_stretch(structure: JsonObject, region: JsonObject) -> JsonObject
             raise ValueError("BoxGeometry XY resize collapses the footprint")
         top_right[0] = resized_x
         top_right[1] = resized_y
+    return result
+
+
+def _polygon_rescale(structure: JsonObject, region: JsonObject) -> JsonObject:
+    result = copy.deepcopy(structure)
+    geometries = list(_walk_geometries(result["root"]))
+    if len(geometries) != 1 or geometries[0].get("type") != "PolygonGeometry":
+        raise ValueError(
+            "polygon-rescale requires exactly one PolygonGeometry and no other geometry"
+        )
+    geometry = geometries[0]
+    loops = geometry.get("polys")
+    if not isinstance(loops, list) or len(loops) != 1:
+        raise ValueError("polygon-rescale supports exactly one polygon loop without holes")
+    z_min, thickness = _geometry_z(geometry)
+    if region["type"] == "rectangle":
+        width = float(region["width"])
+        height = float(region["height"])
+        points = [[0.0, 0.0], [width, 0.0], [width, height], [0.0, height]]
+    else:
+        points = region["points"]
+    geometry.clear()
+    geometry.update(
+        {
+            "type": "PolygonGeometry",
+            "polys": [[[float(point[0]), float(point[1]), z_min] for point in points]],
+            "thk": thickness,
+        }
+    )
     return result
 
 
@@ -618,8 +656,40 @@ def _positive_number(value: Any, label: str) -> float:
     return number
 
 
+def _anchor_point(bounds: JsonObject, anchor: str) -> JsonObject:
+    if anchor == "bottomLeft":
+        return {"x": bounds["xMin"], "y": bounds["yMin"]}
+    if anchor == "center":
+        return {
+            "x": (bounds["xMin"] + bounds["xMax"]) / 2,
+            "y": (bounds["yMin"] + bounds["yMax"]) / 2,
+        }
+    if anchor == "origin":
+        return {"x": 0.0, "y": 0.0}
+    raise ValueError("PnP anchor must be bottomLeft, center, or origin")
+
+
+def _default_adapter_id(structure: JsonObject) -> str:
+    geometries = list(_walk_geometries(structure["root"]))
+    if geometries and all(
+        geometry.get("type") == "BoxGeometry" for geometry in geometries
+    ):
+        return "box-rescale"
+    if len(geometries) == 1 and geometries[0].get("type") == "PolygonGeometry":
+        loops = geometries[0].get("polys")
+        if isinstance(loops, list) and len(loops) == 1:
+            return "polygon-rescale"
+        raise ValueError(
+            "PnP default polygon adaptation requires exactly one loop without holes"
+        )
+    raise ValueError(
+        "PnP source geometry requires an explicit adaptationContract for mixed, empty, or unsupported primitives"
+    )
+
+
 _ADAPTERS: dict[str, Adapter] = {
-    "legacy-box-stretch": _legacy_box_stretch,
+    "box-rescale": _box_rescale,
+    "polygon-rescale": _polygon_rescale,
     "rigid": _rigid,
     "hbm-package": _hbm_package,
     "dram-package": _dram_package,
