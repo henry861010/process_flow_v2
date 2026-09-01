@@ -12,6 +12,7 @@ source_of_truth:
   - docs/data-model.md
   - docs/architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md
   - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
+  - docs/architecture/decisions/0009-pnp-absolute-target-coordinates.md
 verified_against:
   - packages/kernel-py/src/process_flow_kernel/serialization
   - packages/kernel-py/src/process_flow_kernel/domain
@@ -88,7 +89,8 @@ Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，�
 Embedded geometry MAY省略`adaptationContract`；PnP runtime對Box-only或single-loop polygon
 structure選擇default。同一batch可混合rectangle與polygon target；default `box-rescale@1`會把
 所有root direct Box features替換成exact target polygon，children不rescale並跟placement做rigid
-transform。Polygon pose anchor以root target bounds為準，不受突出children影響。
+transform。PnP會將absolute polygon暫時轉入以bounds lower-left為原點的adapter frame，再以
+absolute bounds center放回global XY；突出children不改變target alignment。
 Backend HBM/DRAM generator產生的geometry MUST明確包含generation與contract。
 
 Commit MUST：

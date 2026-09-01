@@ -90,7 +90,7 @@
       {
         "id": "placements",
         "name": "placements",
-        "description": "Target region and rigid pose for every component instance.",
+        "description": "Absolute target region for every component instance; pose is fixed at zero and anchor is fixed at center.",
         "valueType": "placements",
         "controlType": "placementList",
         "selectionMode": null,

@@ -326,20 +326,38 @@ def _normalize_placements(parameter_id, value):
             )
         region_type = region.get("type")
         if region_type == "rectangle":
-            width = _finite_parameter_number(
-                region.get("width"), f"Parameter {parameter_id}[{index}] width"
+            bottom_left_x = _finite_parameter_number(
+                region.get("bottomLeftX"),
+                f"Parameter {parameter_id}[{index}] bottomLeftX",
             )
-            height = _finite_parameter_number(
-                region.get("height"), f"Parameter {parameter_id}[{index}] height"
+            bottom_left_y = _finite_parameter_number(
+                region.get("bottomLeftY"),
+                f"Parameter {parameter_id}[{index}] bottomLeftY",
             )
-            if width <= 0 or height <= 0:
+            top_right_x = _finite_parameter_number(
+                region.get("topRightX"),
+                f"Parameter {parameter_id}[{index}] topRightX",
+            )
+            top_right_y = _finite_parameter_number(
+                region.get("topRightY"),
+                f"Parameter {parameter_id}[{index}] topRightY",
+            )
+            if top_right_x <= bottom_left_x:
                 raise ValueError(
-                    f"Parameter {parameter_id}[{index}] rectangle requires positive width and height"
+                    f"Parameter {parameter_id}[{index}] rectangle topRightX "
+                    "must be greater than bottomLeftX"
+                )
+            if top_right_y <= bottom_left_y:
+                raise ValueError(
+                    f"Parameter {parameter_id}[{index}] rectangle topRightY "
+                    "must be greater than bottomLeftY"
                 )
             normalized_region = {
                 "type": "rectangle",
-                "width": width,
-                "height": height,
+                "bottomLeftX": bottom_left_x,
+                "bottomLeftY": bottom_left_y,
+                "topRightX": top_right_x,
+                "topRightY": top_right_y,
             }
         elif region_type == "polygon":
             points = region.get("points")
@@ -407,25 +425,32 @@ def _normalize_placements(parameter_id, value):
             raise ValueError(
                 f"Parameter {parameter_id}[{index}] rotationZ is required"
             )
+        pose_x = _finite_parameter_number(
+            pose.get("x"), f"Parameter {parameter_id}[{index}] pose X"
+        )
+        pose_y = _finite_parameter_number(
+            pose.get("y"), f"Parameter {parameter_id}[{index}] pose Y"
+        )
         rotation_z = _finite_parameter_number(
             pose.get("rotationZ"),
             f"Parameter {parameter_id}[{index}] rotationZ",
         )
-        anchor = placement.get("anchor")
-        if anchor not in {"bottomLeft", "center", "origin"}:
+        if pose_x != 0 or pose_y != 0 or rotation_z != 0:
             raise ValueError(
-                f"Parameter {parameter_id}[{index}] anchor must be bottomLeft, center, or origin"
+                f"Parameter {parameter_id}[{index}] pose X, pose Y, and rotationZ "
+                "must be zero for absolute targets"
+            )
+        anchor = placement.get("anchor")
+        if anchor != "center":
+            raise ValueError(
+                f"Parameter {parameter_id}[{index}] anchor must be center for absolute targets"
             )
         normalized.append(
             {
                 "targetRegion": normalized_region,
                 "pose": {
-                    "x": _finite_parameter_number(
-                        pose.get("x"), f"Parameter {parameter_id}[{index}] pose X"
-                    ),
-                    "y": _finite_parameter_number(
-                        pose.get("y"), f"Parameter {parameter_id}[{index}] pose Y"
-                    ),
+                    "x": pose_x,
+                    "y": pose_y,
                     "rotationZ": rotation_z,
                 },
                 "anchor": anchor,

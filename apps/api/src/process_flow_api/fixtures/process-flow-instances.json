@@ -19,14 +19,14 @@
         "parameterValues": {
           "placements": [
             {
-              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
-              "pose": { "x": -760, "y": -520, "rotationZ": 0 },
-              "anchor": "bottomLeft"
+              "targetRegion": { "type": "rectangle", "bottomLeftX": -760, "bottomLeftY": -520, "topRightX": 640, "topRightY": 480 },
+              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
+              "anchor": "center"
             },
             {
-              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
-              "pose": { "x": 760, "y": -520, "rotationZ": 0 },
-              "anchor": "bottomLeft"
+              "targetRegion": { "type": "rectangle", "bottomLeftX": 760, "bottomLeftY": -520, "topRightX": 2160, "topRightY": 480 },
+              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
+              "anchor": "center"
             }
           ]
         }
@@ -95,19 +95,19 @@
         "parameterValues": {
           "placements": [
             {
-              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
-              "pose": { "x": -820, "y": -560, "rotationZ": 0 },
-              "anchor": "bottomLeft"
+              "targetRegion": { "type": "rectangle", "bottomLeftX": -820, "bottomLeftY": -560, "topRightX": 580, "topRightY": 440 },
+              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
+              "anchor": "center"
             },
             {
-              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
-              "pose": { "x": 0, "y": -560, "rotationZ": 0 },
-              "anchor": "bottomLeft"
+              "targetRegion": { "type": "rectangle", "bottomLeftX": 0, "bottomLeftY": -560, "topRightX": 1400, "topRightY": 440 },
+              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
+              "anchor": "center"
             },
             {
-              "targetRegion": { "type": "rectangle", "width": 1400, "height": 1000 },
-              "pose": { "x": 820, "y": -560, "rotationZ": 0 },
-              "anchor": "bottomLeft"
+              "targetRegion": { "type": "rectangle", "bottomLeftX": 820, "bottomLeftY": -560, "topRightX": 2220, "topRightY": 440 },
+              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
+              "anchor": "center"
             }
           ]
         }
@@ -166,9 +166,9 @@
         "parameterValues": {
           "placements": [
             {
-              "targetRegion": { "type": "rectangle", "width": 2000, "height": 1600 },
-              "pose": { "x": -1000, "y": -800, "rotationZ": 0 },
-              "anchor": "bottomLeft"
+              "targetRegion": { "type": "rectangle", "bottomLeftX": -1000, "bottomLeftY": -800, "topRightX": 1000, "topRightY": 800 },
+              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
+              "anchor": "center"
             }
           ]
         }

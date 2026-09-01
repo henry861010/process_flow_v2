@@ -12,6 +12,7 @@ source_of_truth:
   - apps/api/src/process_flow_api/fixtures/process-step-templates.json
   - packages/process-step-py/src/process_flow_steps
   - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
+  - docs/architecture/decisions/0009-pnp-absolute-target-coordinates.md
 ---
 
 # Process Step catalog
@@ -38,7 +39,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | tiv | `tiv/tiv` | `main_geometry` | `thk`, `material`, `density` | 在 cursor 上方建立 `+z` via feature |
-| PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `placements` | 依 explicit或primitive-default adapter materialize rectangle/polygon target，再以anchor pose放置 |
+| PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `placements` | 依 explicit或primitive-default adapter materialize absolute rectangle/polygon target |
 
 ## 共同行為
 
@@ -65,7 +66,7 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 bump envelope。 |
 | tiv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
-| PnP | 不變 | 不變 | 依placements order整批adapt，以anchor為pivot rotate；全部成功後attach target-specific child scopes。 |
+| PnP | 不變 | 不變 | 依placements order將absolute target轉為adapter-local frame整批adapt；全部成功後attach到target center。 |
 
 ## 重要 operation 說明
 
@@ -87,16 +88,17 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
   接觸 carrier bottom 的 key=`daf` body：沒有時只移除 carrier，恰好一個時還必須具有相同 primitive
   type 與 XY footprint，多個相連 DAF 或 footprint 不同都會失敗。非相連 DAF 保留；carrier 與 DAF
   可屬於不同 containers。任何 validation 失敗時 geometry、cursor 與 process footprint 都不變。
-- PnP placement將`targetRegion`（rectangle或simple polygon）、required `pose.x/y/rotationZ`與
-  required `anchor`保存在同一item。Target使用local XY；selected anchor是rotation pivot與pose
-  對齊點，bottom Z對齊current cursor。
+- PnP placement將absolute `targetRegion`（rectangle或simple polygon）、required
+  `pose.x/y/rotationZ`與required `anchor`保存在同一item。Rectangle使用`bottomLeftX/Y`與
+  `topRightX/Y`；polygon points也是global XY。Hidden transform固定為zero pose與center anchor，
+  bottom Z對齊current cursor。
 - Missing contract的Box-only subtree使用`box-rescale@1`；exactly one single-loop
   PolygonGeometry使用`polygon-rescale@1`。Mixed、empty、multiple-loop、Cylinder/Cone source
   要求explicit contract。
 - 同一個PnP `placements[]`可交錯rectangle與polygon target。`box-rescale@1`的rectangle target
   維持Box-only全樹additive resize；polygon target將所有root direct body/via/circuit/bump改成
-  exact local polygon並保留各自Z、thickness與metadata。Children不rescale、不檢查containment，
-  只跟placement做rigid transform；anchor以root target為準。
+  exact target polygon並保留各自Z、thickness與metadata。Children不rescale、不檢查containment，
+  只跟absolute target frame做rigid translation。
 - Built-in explicit contracts另有`hbm-package@1`、`dram-package@1`與`rigid@1`。Polygon target
   必須unique、無zero-length edge、non-zero-area且不得self-intersect；HBM/DRAM fixed children
   必須完整位於target內。Unknown adapter id/version明確失敗。

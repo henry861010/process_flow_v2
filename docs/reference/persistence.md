@@ -103,16 +103,17 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "6"
+  "value": "7"
 }
 ```
 
-Database internal marker string `"6"`、Process payload wire marker integer `2` 與
+Database internal marker string `"7"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 
-Version 6移除rectangle-only PnP資料契約，是destructive schema boundary。任何較舊marker或
-無markerdatabase都會清空resource tables並由canonical fixtures重建；未知、非數字或未來marker
-MUST fail。Repository保存explicit `adaptationContract`原值，不依category backfill missing contract。
+Version 7將PnP target改為absolute coordinate contract，是destructive schema boundary。任何
+較舊marker或無markerdatabase都會清空resource tables並由canonical fixtures重建；未知、非數字
+或未來marker MUST fail。Repository保存explicit `adaptationContract`原值，不依category backfill
+missing contract。
 
 ## 3. 邏輯引用
 

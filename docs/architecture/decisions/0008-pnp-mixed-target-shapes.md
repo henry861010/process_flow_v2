@@ -17,6 +17,10 @@ verified_against:
 
 # ADR-0008：PnP 同批混合 target shape
 
+> Target coordinate、pose與anchor規則已由
+> [ADR-0009](./0009-pnp-absolute-target-coordinates.md)取代；mixed-shape adaptation、metadata、
+> child preservation與batch atomicity決策仍有效。
+
 ## 背景
 
 [ADR-0007](./0007-backend-geometry-generation-and-adaptive-pnp.md) 將 rectangle 與 polygon

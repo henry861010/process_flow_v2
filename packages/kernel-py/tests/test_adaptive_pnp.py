@@ -140,14 +140,11 @@ class AdaptivePnpTests(unittest.TestCase):
         result = execute_pnp(
             source,
             [
-                {
-                    "targetRegion": {
-                        "type": "polygon",
-                        "points": [[0, 0], [5, 0], [6, 2], [2, 4], [0, 3]],
-                    },
-                    "pose": {"x": 100, "y": 200, "rotationZ": 90},
-                    "anchor": "bottomLeft",
-                }
+                polygon_placement(
+                    100,
+                    200,
+                    [[0, 0], [5, 0], [6, 2], [2, 4], [0, 3]],
+                )
             ],
         )
 
@@ -161,16 +158,7 @@ class AdaptivePnpTests(unittest.TestCase):
         original = copy.deepcopy(source["structure"])
         target = [[0, 0], [8, 0], [7, 5], [2, 6], [-1, 3]]
 
-        result = execute_pnp(
-            source,
-            [
-                {
-                    "targetRegion": {"type": "polygon", "points": target},
-                    "pose": {"x": 20, "y": 30, "rotationZ": 0},
-                    "anchor": "origin",
-                }
-            ],
-        )
+        result = execute_pnp(source, [polygon_placement(20, 30, target)])
 
         polygon = result.geometry()["root"]["children"][0]["bodies"][0]["geometry"]
         self.assertEqual([point[:2] for point in polygon["polys"][0]], [[x + 20, y + 30] for x, y in target])
@@ -291,13 +279,7 @@ class AdaptivePnpTests(unittest.TestCase):
             source,
             [
                 polygon_placement(30, 40, target),
-                polygon_placement(
-                    100,
-                    200,
-                    target,
-                    rotation_z=90,
-                    anchor="center",
-                ),
+                polygon_placement(100, 200, target),
             ],
         )
 
@@ -319,11 +301,11 @@ class AdaptivePnpTests(unittest.TestCase):
         second_child = second["children"][0]["bodies"][0]["geometry"]
         self.assertEqual(
             [point[:2] for point in second_body["polys"][0]],
-            [[101, 198], [101, 202], [99, 202], [99, 198]],
+            [[100, 200], [104, 200], [104, 202], [100, 202]],
         )
         self.assertEqual(second_child["type"], "BoxGeometry")
-        self.assertEqual(second_child["bottom_left"], [101, 196, 10])
-        self.assertEqual(second_child["top_right"], [102, 197, 10])
+        self.assertEqual(second_child["bottom_left"], [98, 199, 10])
+        self.assertEqual(second_child["top_right"], [99, 200, 10])
         self.assertEqual(second_child["thk"], 1)
         self.assertEqual(source["structure"], original)
 
@@ -372,7 +354,7 @@ class AdaptivePnpTests(unittest.TestCase):
             else None,
         )
 
-        with self.assertRaisesRegex(ValueError, "width must be greater than 0"):
+        with self.assertRaisesRegex(ValueError, "topRightX must be greater"):
             execute_pnp_step(context)
 
         self.assertEqual(state.to_geometry_structure()["root"]["children"], [])
@@ -634,24 +616,26 @@ def edge(id_, flow_input_id, port_id):
 
 def rectangle_placement(x, y, width, height):
     return {
-        "targetRegion": {"type": "rectangle", "width": width, "height": height},
-        "pose": {"x": x, "y": y, "rotationZ": 0},
-        "anchor": "bottomLeft",
+        "targetRegion": {
+            "type": "rectangle",
+            "bottomLeftX": x,
+            "bottomLeftY": y,
+            "topRightX": x + width,
+            "topRightY": y + height,
+        },
+        "pose": {"x": 0, "y": 0, "rotationZ": 0},
+        "anchor": "center",
     }
 
 
-def polygon_placement(
-    x,
-    y,
-    points,
-    *,
-    rotation_z=0,
-    anchor="bottomLeft",
-):
+def polygon_placement(x, y, points):
     return {
-        "targetRegion": {"type": "polygon", "points": points},
-        "pose": {"x": x, "y": y, "rotationZ": rotation_z},
-        "anchor": anchor,
+        "targetRegion": {
+            "type": "polygon",
+            "points": [[point[0] + x, point[1] + y] for point in points],
+        },
+        "pose": {"x": 0, "y": 0, "rotationZ": 0},
+        "anchor": "center",
     }
 
 

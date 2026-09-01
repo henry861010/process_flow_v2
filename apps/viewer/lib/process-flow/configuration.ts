@@ -263,31 +263,28 @@ export function isParameterValueComplete(
     return value.every((placement) => {
       if (!isRecord(placement) || !isRecord(placement.targetRegion)) return false;
       if (!isRecord(placement.pose)) return false;
-      if (
-        !["bottomLeft", "center", "origin"].includes(String(placement.anchor))
-      ) {
-        return false;
-      }
+      if (placement.anchor !== "center") return false;
       const pose = placement.pose;
       if (
-        typeof pose.x !== "number" ||
-        !Number.isFinite(pose.x) ||
-        typeof pose.y !== "number" ||
-        !Number.isFinite(pose.y) ||
-        typeof pose.rotationZ !== "number" ||
-        !Number.isFinite(pose.rotationZ)
+        pose.x !== 0 ||
+        pose.y !== 0 ||
+        pose.rotationZ !== 0
       ) {
         return false;
       }
       const region = placement.targetRegion;
       if (region.type === "rectangle") {
         return (
-          typeof region.width === "number" &&
-          Number.isFinite(region.width) &&
-          region.width > 0 &&
-          typeof region.height === "number" &&
-          Number.isFinite(region.height) &&
-          region.height > 0
+          typeof region.bottomLeftX === "number" &&
+          Number.isFinite(region.bottomLeftX) &&
+          typeof region.bottomLeftY === "number" &&
+          Number.isFinite(region.bottomLeftY) &&
+          typeof region.topRightX === "number" &&
+          Number.isFinite(region.topRightX) &&
+          typeof region.topRightY === "number" &&
+          Number.isFinite(region.topRightY) &&
+          region.topRightX > region.bottomLeftX &&
+          region.topRightY > region.bottomLeftY
         );
       }
       if (region.type !== "polygon" || !Array.isArray(region.points)) return false;

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "6"
+DATABASE_SCHEMA_VERSION = "7"
 
 
 class DuplicateItemError(ValueError):
@@ -123,8 +123,8 @@ class SQLiteStore:
                 f"{row['value']} -> {DATABASE_SCHEMA_VERSION}"
             )
         with self._connection:
-            # Schema v6 intentionally drops the rectangle-only PnP contract. Older
-            # local data cannot be interpreted safely and is rebuilt from fixtures.
+            # Schema v7 switches PnP targets to absolute coordinates. Older local
+            # data cannot be interpreted safely and is rebuilt from fixtures.
             for table in TABLES:
                 self._connection.execute(f"DELETE FROM {table}")
             self._connection.execute(

@@ -961,8 +961,8 @@ class FlowCompilerTests(unittest.TestCase):
                 "type": "polygon",
                 "points": [[0, 0], [10, 0], [10, 12], [0, 0]],
             },
-            "pose": {"x": 1, "y": 2, "rotationZ": 0},
-            "anchor": "bottomLeft",
+            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+            "anchor": "center",
         }
         configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
             placement,
@@ -986,24 +986,53 @@ class FlowCompilerTests(unittest.TestCase):
         configuration = pnp_configuration()
         configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
             {
-                "targetRegion": {"type": "rectangle", "width": 0, "height": 12},
+                "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": 4,
+                    "bottomLeftY": 2,
+                    "topRightX": 4,
+                    "topRightY": 14,
+                },
                 "pose": {"x": 0, "y": 0, "rotationZ": 0},
-                "anchor": "bottomLeft",
+                "anchor": "center",
             }
         ]
 
-        with self.assertRaisesRegex(ValueError, "positive width and height"):
+        with self.assertRaisesRegex(ValueError, "topRightX must be greater"):
             compiler().compile(
                 pnp_template(),
                 configuration,
                 {"step_pnp": pnp_step_template()},
             )
 
-    def test_compiler_requires_placement_rotation_and_valid_anchor(self):
+    def test_compiler_rejects_legacy_rectangle_target_shape(self):
+        configuration = pnp_configuration()
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
+            {
+                "targetRegion": {"type": "rectangle", "width": 10, "height": 12},
+                "pose": {"x": 0, "y": 0, "rotationZ": 0},
+                "anchor": "center",
+            }
+        ]
+
+        with self.assertRaisesRegex(ValueError, "bottomLeftX must be a finite number"):
+            compiler().compile(
+                pnp_template(),
+                configuration,
+                {"step_pnp": pnp_step_template()},
+            )
+
+    def test_compiler_requires_fixed_absolute_target_transform(self):
         placement = {
-            "targetRegion": {"type": "rectangle", "width": 10, "height": 12},
+            "targetRegion": {
+                "type": "rectangle",
+                "bottomLeftX": 0,
+                "bottomLeftY": 0,
+                "topRightX": 10,
+                "topRightY": 12,
+            },
             "pose": {"x": 0, "y": 0},
-            "anchor": "bottomLeft",
+            "anchor": "center",
         }
         configuration = pnp_configuration()
         configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [placement]
@@ -1015,9 +1044,17 @@ class FlowCompilerTests(unittest.TestCase):
                 {"step_pnp": pnp_step_template()},
             )
 
+        placement["pose"]["rotationZ"] = 90
+        with self.assertRaisesRegex(ValueError, "must be zero for absolute targets"):
+            compiler().compile(
+                pnp_template(),
+                configuration,
+                {"step_pnp": pnp_step_template()},
+            )
+
         placement["pose"]["rotationZ"] = 0
         placement["anchor"] = "topLeft"
-        with self.assertRaisesRegex(ValueError, "anchor must be bottomLeft, center, or origin"):
+        with self.assertRaisesRegex(ValueError, "anchor must be center"):
             compiler().compile(
                 pnp_template(),
                 configuration,
@@ -1031,7 +1068,7 @@ class FlowCompilerTests(unittest.TestCase):
                 "points": [[0, 0], [4, 0], [4, 4], [4, 0], [0, 4]],
             },
             "pose": {"x": 0, "y": 0, "rotationZ": 0},
-            "anchor": "origin",
+            "anchor": "center",
         }
         configuration = pnp_configuration()
         configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [placement]
@@ -1969,14 +2006,26 @@ def pnp_configuration():
                 "parameterValues": {
                     "placements": [
                         {
-                            "targetRegion": {"type": "rectangle", "width": 6, "height": 5},
-                            "pose": {"x": 10, "y": 20, "rotationZ": 0},
-                            "anchor": "bottomLeft",
+                            "targetRegion": {
+                                "type": "rectangle",
+                                "bottomLeftX": 10,
+                                "bottomLeftY": 20,
+                                "topRightX": 16,
+                                "topRightY": 25,
+                            },
+                            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+                            "anchor": "center",
                         },
                         {
-                            "targetRegion": {"type": "rectangle", "width": 3, "height": 2.5},
-                            "pose": {"x": -5, "y": 0, "rotationZ": 0},
-                            "anchor": "bottomLeft",
+                            "targetRegion": {
+                                "type": "rectangle",
+                                "bottomLeftX": -5,
+                                "bottomLeftY": 0,
+                                "topRightX": -2,
+                                "topRightY": 2.5,
+                            },
+                            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+                            "anchor": "center",
                         },
                     ]
                 }

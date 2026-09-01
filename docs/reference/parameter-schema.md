@@ -90,11 +90,12 @@ Rules：
 - `integer` MAY 接受 `1.0`，但 normalized value MUST 是 `1`；非 integral number MUST reject。
 - `float` MAY 接受 JSON integer，normalized value MUST 使用 numeric float semantics。
 - NaN 與 positive/negative Infinity 不是合法 JSON/parameter number，MUST reject。
-- Placements 每個 item MUST 同時包含 `targetRegion`、`pose`與`anchor`。Rectangle region使用
-  positive finite`width`/`height`；polygon使用至少三個unique finite`[x,y]`points，closing
+- Placements 每個 item MUST 同時包含 `targetRegion`、`pose`與`anchor`，target coordinates
+  都是global absolute XY。Rectangle使用finite `bottomLeftX/Y`與`topRightX/Y`，且top-right
+  每一軸都必須大於bottom-left；polygon使用至少三個unique finite `[x,y]` points，closing
   duplicate會移除，其他duplicate、zero-length edge、zero area與self-intersection MUST reject。
-  `pose.x/y/rotationZ` MUST finite；`anchor` MUST是`bottomLeft`、`center`或`origin`。Array order
-  MUST preserve；duplicate placements合法。
+  隱藏transform固定為`pose.x = pose.y = pose.rotationZ = 0`與`anchor = "center"`，其他值
+  MUST reject。Array order MUST preserve；duplicate placements合法。
 - Required collection 的 `[]` 是「已提供的空 collection」，不是 missing。若 domain
   至少需要一個 item，definition MUST 使用可表達 cardinality 的 schema；
   `fieldGroupArray` 使用 `minItems`。目前 generic arrays/placements 沒有 `minItems` field。

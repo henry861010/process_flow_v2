@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, CircleAlert, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 import { GdsPlacementImport, type GdsTargetRegion } from "./gds-placement-import";
 import { Button } from "@/components/ui/button";
@@ -9,15 +9,20 @@ import { cn } from "@/lib/utils";
 
 type NumericDraft = number | "";
 type PointDraft = [NumericDraft, NumericDraft];
-type Anchor = "bottomLeft" | "center" | "origin";
 
 type PlacementBase = {
-  pose: { x: NumericDraft; y: NumericDraft; rotationZ: NumericDraft };
-  anchor: Anchor;
+  pose: { x: 0; y: 0; rotationZ: 0 };
+  anchor: "center";
 };
 
 type RectanglePlacement = PlacementBase & {
-  targetRegion: { type: "rectangle"; width: NumericDraft; height: NumericDraft };
+  targetRegion: {
+    type: "rectangle";
+    bottomLeftX: NumericDraft;
+    bottomLeftY: NumericDraft;
+    topRightX: NumericDraft;
+    topRightY: NumericDraft;
+  };
 };
 
 type PolygonPlacement = PlacementBase & {
@@ -174,85 +179,78 @@ function PlacementCard({
       </div>
 
       <div className="space-y-4 p-3">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,4fr)]">
-          <Field label="Shape">
-            <select
-              className={inputClass}
-              value={placement.targetRegion.type}
-              onChange={(event) =>
-                onChange(convertPlacement(placement, event.target.value as "rectangle" | "polygon"))
-              }
-            >
-              <option value="rectangle">Rectangle</option>
-              <option value="polygon">Polygon</option>
-            </select>
-          </Field>
-          <div className="min-w-0">
-            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <span>Pose and anchor</span>
-              <PoseHelp />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <NumericField
-                label={`Pose X${unitSuffix}`}
-                value={placement.pose.x}
-                onChange={(x) => onChange({ ...placement, pose: { ...placement.pose, x } })}
-              />
-              <NumericField
-                label={`Pose Y${unitSuffix}`}
-                value={placement.pose.y}
-                onChange={(y) => onChange({ ...placement, pose: { ...placement.pose, y } })}
-              />
-              <NumericField
-                label="Rotation Z (deg)"
-                value={placement.pose.rotationZ}
-                onChange={(rotationZ) =>
-                  onChange({ ...placement, pose: { ...placement.pose, rotationZ } })
-                }
-              />
-              <Field label="Anchor">
-                <select
-                  className={inputClass}
-                  value={placement.anchor}
-                  onChange={(event) => onChange({ ...placement, anchor: event.target.value as Anchor })}
-                >
-                  <option value="bottomLeft">Bottom-left</option>
-                  <option value="center">Center</option>
-                  <option value="origin">Origin</option>
-                </select>
-              </Field>
-            </div>
+        <fieldset className="min-w-0">
+          <legend className="mb-1.5 text-xs font-medium text-muted-foreground">Shape</legend>
+          <div className="flex flex-wrap gap-4">
+            {(["rectangle", "polygon"] as const).map((type) => (
+              <label
+                key={type}
+                className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium capitalize"
+              >
+                <input
+                  type="radio"
+                  name={`placement-${index}-shape`}
+                  value={type}
+                  checked={placement.targetRegion.type === type}
+                  className="size-4 accent-primary"
+                  onChange={() => onChange(convertPlacement(placement, type))}
+                />
+                {type}
+              </label>
+            ))}
           </div>
-        </div>
+        </fieldset>
 
         {placement.targetRegion.type === "rectangle" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <NumericField
-              label={`Width${unitSuffix}`}
-              value={placement.targetRegion.width}
-              min={0}
-              onChange={(width) =>
+              label={`Bottom-left X${unitSuffix}`}
+              value={placement.targetRegion.bottomLeftX}
+              onChange={(bottomLeftX) =>
                 onChange({
                   ...placement,
                   targetRegion: {
-                    type: "rectangle",
-                    width,
-                    height: (placement as RectanglePlacement).targetRegion.height,
+                    ...(placement as RectanglePlacement).targetRegion,
+                    bottomLeftX,
                   },
                 })
               }
             />
             <NumericField
-              label={`Height${unitSuffix}`}
-              value={placement.targetRegion.height}
-              min={0}
-              onChange={(height) =>
+              label={`Bottom-left Y${unitSuffix}`}
+              value={placement.targetRegion.bottomLeftY}
+              onChange={(bottomLeftY) =>
                 onChange({
                   ...placement,
                   targetRegion: {
-                    type: "rectangle",
-                    width: (placement as RectanglePlacement).targetRegion.width,
-                    height,
+                    ...(placement as RectanglePlacement).targetRegion,
+                    bottomLeftY,
+                  },
+                })
+              }
+            />
+            <NumericField
+              label={`Top-right X${unitSuffix}`}
+              value={placement.targetRegion.topRightX}
+              onChange={(topRightX) =>
+                onChange({
+                  ...placement,
+                  targetRegion: {
+                    ...(placement as RectanglePlacement).targetRegion,
+                    topRightX,
+                  },
+                })
+              }
+            />
+            <NumericField
+              label={`Top-right Y${unitSuffix}`}
+              value={placement.targetRegion.topRightY}
+              onChange={(topRightY) =>
+                onChange({
+                  ...placement,
+                  targetRegion: {
+                    ...(placement as RectanglePlacement).targetRegion,
+                    topRightY,
                   },
                 })
               }
@@ -282,6 +280,16 @@ function PolygonEditor({
   onChange: (placement: PolygonPlacement) => void;
 }) {
   const points = placement.targetRegion.points;
+  const pointsScrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollAfterAddRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!scrollAfterAddRef.current) return;
+    scrollAfterAddRef.current = false;
+    const container = pointsScrollRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [points.length]);
 
   function updatePoints(nextPoints: PointDraft[]) {
     onChange({ ...placement, targetRegion: { ...placement.targetRegion, points: nextPoints } });
@@ -295,64 +303,74 @@ function PolygonEditor({
     updatePoints(next);
   }
 
+  function addPoint() {
+    scrollAfterAddRef.current = true;
+    updatePoints([...points, ["", ""]]);
+  }
+
   return (
     <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
       <div className="min-w-0 overflow-hidden rounded-md border">
         <div className="grid grid-cols-[42px_minmax(0,1fr)_minmax(0,1fr)_112px] gap-2 border-b bg-muted/30 px-2 py-2 text-xs font-medium text-muted-foreground">
           <span>#</span>
-          <span>Local X{unit ? ` (${unit})` : ""}</span>
-          <span>Local Y{unit ? ` (${unit})` : ""}</span>
+          <span>Absolute X{unit ? ` (${unit})` : ""}</span>
+          <span>Absolute Y{unit ? ` (${unit})` : ""}</span>
           <span className="sr-only">Actions</span>
         </div>
-        {points.map((point, index) => {
-          const invalidPoint =
-            !isFiniteNumber(point[0]) || !isFiniteNumber(point[1]);
-          return (
-            <div
-              key={index}
-              className={cn(
-                "grid grid-cols-[42px_minmax(0,1fr)_minmax(0,1fr)_112px] items-center gap-2 border-b px-2 py-2 last:border-b-0",
-                invalidPoint && "bg-destructive/5",
-              )}
-            >
-              <span className="text-xs text-muted-foreground">{index + 1}</span>
-              <NumericInput
-                ariaLabel={`Placement polygon point ${index + 1} X`}
-                value={point[0]}
-                invalid={!isFiniteNumber(point[0])}
-                onChange={(x) =>
-                  updatePoints(points.map((candidate, pointIndex) => (pointIndex === index ? [x, candidate[1]] : candidate)))
-                }
-              />
-              <NumericInput
-                ariaLabel={`Placement polygon point ${index + 1} Y`}
-                value={point[1]}
-                invalid={!isFiniteNumber(point[1])}
-                onChange={(y) =>
-                  updatePoints(points.map((candidate, pointIndex) => (pointIndex === index ? [candidate[0], y] : candidate)))
-                }
-              />
-              <div className="flex justify-end gap-1">
-                <IconButton label={`Move polygon point ${index + 1} up`} disabled={index === 0} onClick={() => movePoint(index, -1)}>
-                  <ArrowUp />
-                </IconButton>
-                <IconButton label={`Move polygon point ${index + 1} down`} disabled={index === points.length - 1} onClick={() => movePoint(index, 1)}>
-                  <ArrowDown />
-                </IconButton>
-                <IconButton label={`Remove polygon point ${index + 1}`} destructive onClick={() => updatePoints(points.filter((_, pointIndex) => pointIndex !== index))}>
-                  <Trash2 />
-                </IconButton>
+        <div
+          ref={pointsScrollRef}
+          className="max-h-[14.625rem] overflow-y-auto overscroll-contain"
+        >
+          {points.map((point, index) => {
+            const invalidPoint =
+              !isFiniteNumber(point[0]) || !isFiniteNumber(point[1]);
+            return (
+              <div
+                key={index}
+                className={cn(
+                  "grid grid-cols-[42px_minmax(0,1fr)_minmax(0,1fr)_112px] items-center gap-2 border-b px-2 py-2 last:border-b-0",
+                  invalidPoint && "bg-destructive/5",
+                )}
+              >
+                <span className="text-xs text-muted-foreground">{index + 1}</span>
+                <NumericInput
+                  ariaLabel={`Placement polygon point ${index + 1} X`}
+                  value={point[0]}
+                  invalid={!isFiniteNumber(point[0])}
+                  onChange={(x) =>
+                    updatePoints(points.map((candidate, pointIndex) => (pointIndex === index ? [x, candidate[1]] : candidate)))
+                  }
+                />
+                <NumericInput
+                  ariaLabel={`Placement polygon point ${index + 1} Y`}
+                  value={point[1]}
+                  invalid={!isFiniteNumber(point[1])}
+                  onChange={(y) =>
+                    updatePoints(points.map((candidate, pointIndex) => (pointIndex === index ? [candidate[0], y] : candidate)))
+                  }
+                />
+                <div className="flex justify-end gap-1">
+                  <IconButton label={`Move polygon point ${index + 1} up`} disabled={index === 0} onClick={() => movePoint(index, -1)}>
+                    <ArrowUp />
+                  </IconButton>
+                  <IconButton label={`Move polygon point ${index + 1} down`} disabled={index === points.length - 1} onClick={() => movePoint(index, 1)}>
+                    <ArrowDown />
+                  </IconButton>
+                  <IconButton label={`Remove polygon point ${index + 1}`} destructive onClick={() => updatePoints(points.filter((_, pointIndex) => pointIndex !== index))}>
+                    <Trash2 />
+                  </IconButton>
+                </div>
+                {invalidPoint ? (
+                  <p role="alert" className="col-start-2 col-span-3 text-[11px] text-destructive">
+                    Point {index + 1} requires finite X and Y values.
+                  </p>
+                ) : null}
               </div>
-              {invalidPoint ? (
-                <p role="alert" className="col-start-2 col-span-3 text-[11px] text-destructive">
-                  Point {index + 1} requires finite X and Y values.
-                </p>
-              ) : null}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
         <div className="flex justify-end border-t bg-muted/10 px-2 py-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => updatePoints([...points, ["", ""]])}>
+          <Button type="button" size="sm" variant="outline" onClick={addPoint}>
             <Plus />
             Add point
           </Button>
@@ -372,19 +390,9 @@ function PolygonPreview({ placement }: { placement: PolygonPlacement }) {
       </div>
     );
   }
-  const pivot = anchorPoint(points, placement.anchor);
-  const angle = typeof placement.pose.rotationZ === "number" ? placement.pose.rotationZ : 0;
-  const radians = (angle * Math.PI) / 180;
-  const cosine = Math.cos(radians);
-  const sine = Math.sin(radians);
-  const rotated = points.map(([x, y]) => {
-    const localX = x - pivot[0];
-    const localY = y - pivot[1];
-    return [localX * cosine - localY * sine, localX * sine + localY * cosine] as [number, number];
-  });
-  const display = rotated.map(([x, y]) => [x, -y] as [number, number]);
-  const xs = [...display.map((point) => point[0]), 0];
-  const ys = [...display.map((point) => point[1]), 0];
+  const display = points.map(([x, y]) => [x, -y] as [number, number]);
+  const xs = display.map((point) => point[0]);
+  const ys = display.map((point) => point[1]);
   const width = Math.max(...xs) - Math.min(...xs);
   const height = Math.max(...ys) - Math.min(...ys);
   const padding = Math.max(width, height, 1) * 0.15;
@@ -398,7 +406,7 @@ function PolygonPreview({ placement }: { placement: PolygonPlacement }) {
   return (
     <svg
       role="img"
-      aria-label={`Polygon target preview with ${points.length} points, rotated ${angle} degrees around ${placement.anchor}`}
+      aria-label={`Absolute polygon target preview with ${points.length} points`}
       className="min-h-40 w-full rounded-md border bg-slate-950"
       viewBox={viewBox}
       preserveAspectRatio="xMidYMid meet"
@@ -425,40 +433,7 @@ function PolygonPreview({ placement }: { placement: PolygonPlacement }) {
           </text>
         </g>
       ))}
-      <circle cx={0} cy={0} r={Math.max(width, height, 1) / 32} fill="rgb(251,191,36)" />
     </svg>
-  );
-}
-
-function PoseHelp() {
-  const tooltipId = React.useId();
-  return (
-    <span className="group relative inline-flex">
-      <button
-        type="button"
-        aria-label="Explain pose and anchor fields"
-        aria-describedby={tooltipId}
-        className="inline-flex size-5 items-center justify-center rounded-full text-amber-600 outline-none transition hover:bg-amber-50 hover:text-amber-700 focus-visible:ring-2 focus-visible:ring-amber-500"
-      >
-        <CircleAlert className="size-4" />
-      </button>
-      <span
-        id={tooltipId}
-        role="tooltip"
-        className="invisible absolute left-1/2 top-full z-50 mt-2 w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-md border bg-popover p-3 text-left text-xs font-normal text-popover-foreground opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-      >
-        <span className="mb-1.5 block font-semibold">Placement pose</span>
-        <span className="block">
-          <span className="font-semibold">Pose X / Y:</span> global position of the selected anchor, in um.
-        </span>
-        <span className="mt-1 block">
-          <span className="font-semibold">Rotation Z:</span> counter-clockwise rotation in the XY plane around the anchor.
-        </span>
-        <span className="mt-1 block">
-          <span className="font-semibold">Anchor:</span> Bottom-left and Center use the shape AABB; Origin uses local (0, 0).
-        </span>
-      </span>
-    </span>
   );
 }
 
@@ -548,9 +523,15 @@ function IconButton({
 
 function emptyRectanglePlacement(): RectanglePlacement {
   return {
-    targetRegion: { type: "rectangle", width: "", height: "" },
+    targetRegion: {
+      type: "rectangle",
+      bottomLeftX: "",
+      bottomLeftY: "",
+      topRightX: "",
+      topRightY: "",
+    },
     pose: { x: 0, y: 0, rotationZ: 0 },
-    anchor: "bottomLeft",
+    anchor: "center",
   };
 }
 
@@ -558,16 +539,12 @@ function normalizePlacements(value: unknown): PlacementDraft[] {
   if (!Array.isArray(value)) return [];
   const result: PlacementDraft[] = [];
   value.forEach((candidate) => {
-    if (!isRecord(candidate) || !isRecord(candidate.targetRegion) || !isRecord(candidate.pose)) {
+    if (!isRecord(candidate) || !isRecord(candidate.targetRegion)) {
       return;
     }
     const base: PlacementBase = {
-      pose: {
-        x: numericDraft(candidate.pose.x),
-        y: numericDraft(candidate.pose.y),
-        rotationZ: numericDraft(candidate.pose.rotationZ),
-      },
-      anchor: isAnchor(candidate.anchor) ? candidate.anchor : "bottomLeft",
+      pose: { x: 0, y: 0, rotationZ: 0 },
+      anchor: "center",
     };
     if (candidate.targetRegion.type === "polygon") {
       const rawPoints = Array.isArray(candidate.targetRegion.points) ? candidate.targetRegion.points : [];
@@ -584,8 +561,10 @@ function normalizePlacements(value: unknown): PlacementDraft[] {
       ...base,
       targetRegion: {
         type: "rectangle",
-        width: numericDraft(candidate.targetRegion.width),
-        height: numericDraft(candidate.targetRegion.height),
+        bottomLeftX: numericDraft(candidate.targetRegion.bottomLeftX),
+        bottomLeftY: numericDraft(candidate.targetRegion.bottomLeftY),
+        topRightX: numericDraft(candidate.targetRegion.topRightX),
+        topRightY: numericDraft(candidate.targetRegion.topRightY),
       },
     });
   });
@@ -598,16 +577,35 @@ function convertPlacement(
 ): PlacementDraft {
   if (placement.targetRegion.type === type) return placement;
   if (type === "polygon" && placement.targetRegion.type === "rectangle") {
-    const { width, height } = placement.targetRegion;
+    const { bottomLeftX, bottomLeftY, topRightX, topRightY } = placement.targetRegion;
     const points: PointDraft[] =
-      isPositiveNumber(width) && isPositiveNumber(height)
-        ? [[0, 0], [width, 0], [width, height], [0, height]]
+      isFiniteNumber(bottomLeftX) &&
+      isFiniteNumber(bottomLeftY) &&
+      isFiniteNumber(topRightX) &&
+      isFiniteNumber(topRightY) &&
+      topRightX > bottomLeftX &&
+      topRightY > bottomLeftY
+        ? [
+            [bottomLeftX, bottomLeftY],
+            [topRightX, bottomLeftY],
+            [topRightX, topRightY],
+            [bottomLeftX, topRightY],
+          ]
         : [["", ""], ["", ""], ["", ""]];
     return { ...placement, targetRegion: { type: "polygon", points } };
   }
   const points = numericPoints((placement as PolygonPlacement).targetRegion.points);
   if (!points || points.length === 0) {
-    return { ...placement, targetRegion: { type: "rectangle", width: "", height: "" } };
+    return {
+      ...placement,
+      targetRegion: {
+        type: "rectangle",
+        bottomLeftX: "",
+        bottomLeftY: "",
+        topRightX: "",
+        topRightY: "",
+      },
+    };
   }
   const xs = points.map((point) => point[0]);
   const ys = points.map((point) => point[1]);
@@ -615,8 +613,10 @@ function convertPlacement(
     ...placement,
     targetRegion: {
       type: "rectangle",
-      width: Math.max(...xs) - Math.min(...xs),
-      height: Math.max(...ys) - Math.min(...ys),
+      bottomLeftX: Math.min(...xs),
+      bottomLeftY: Math.min(...ys),
+      topRightX: Math.max(...xs),
+      topRightY: Math.max(...ys),
     },
   };
 }
@@ -625,36 +625,37 @@ function placementFromGdsRegion(region: GdsTargetRegion): PlacementDraft {
   if (region.type === "rectangle") {
     const [[xMin, yMin], [xMax, yMax]] = region.bounds;
     return {
-      targetRegion: { type: "rectangle", width: xMax - xMin, height: yMax - yMin },
-      pose: { x: xMin, y: yMin, rotationZ: 0 },
-      anchor: "bottomLeft",
+      targetRegion: {
+        type: "rectangle",
+        bottomLeftX: xMin,
+        bottomLeftY: yMin,
+        topRightX: xMax,
+        topRightY: yMax,
+      },
+      pose: { x: 0, y: 0, rotationZ: 0 },
+      anchor: "center",
     };
   }
-  const xMin = Math.min(...region.points.map((point) => point[0]));
-  const yMin = Math.min(...region.points.map((point) => point[1]));
   return {
     targetRegion: {
       type: "polygon",
-      points: region.points.map((point) => [point[0] - xMin, point[1] - yMin]),
+      points: region.points,
     },
-    pose: { x: xMin, y: yMin, rotationZ: 0 },
-    anchor: "bottomLeft",
+    pose: { x: 0, y: 0, rotationZ: 0 },
+    anchor: "center",
   };
 }
 
 function placementDiagnostic(placement: PlacementDraft) {
-  if (
-    !isFiniteNumber(placement.pose.x) ||
-    !isFiniteNumber(placement.pose.y) ||
-    !isFiniteNumber(placement.pose.rotationZ)
-  ) {
-    return "Pose X, Y, and rotation must be finite numbers.";
-  }
   if (placement.targetRegion.type === "rectangle") {
-    return isPositiveNumber(placement.targetRegion.width) &&
-      isPositiveNumber(placement.targetRegion.height)
-      ? null
-      : "Rectangle width and height must be greater than zero.";
+    const { bottomLeftX, bottomLeftY, topRightX, topRightY } = placement.targetRegion;
+    if (![bottomLeftX, bottomLeftY, topRightX, topRightY].every(isFiniteNumber)) {
+      return "Rectangle requires finite bottom-left and top-right coordinates.";
+    }
+    if (topRightX <= bottomLeftX || topRightY <= bottomLeftY) {
+      return "Rectangle top-right coordinates must be greater than bottom-left coordinates.";
+    }
+    return null;
   }
   const points = numericPoints(placement.targetRegion.points);
   if (!points) return "Enter a finite X and Y for every polygon point.";
@@ -672,11 +673,11 @@ function placementDiagnostic(placement: PlacementDraft) {
 
 function placementSummary(placement: PlacementDraft, unit?: string | null) {
   const suffix = unit ? ` ${unit}` : "";
-  const position = `(${draftLabel(placement.pose.x)}, ${draftLabel(placement.pose.y)})${suffix}`;
   if (placement.targetRegion.type === "rectangle") {
-    return `${position} · ${draftLabel(placement.targetRegion.width)} × ${draftLabel(placement.targetRegion.height)}${suffix}`;
+    const region = placement.targetRegion;
+    return `(${draftLabel(region.bottomLeftX)}, ${draftLabel(region.bottomLeftY)})–(${draftLabel(region.topRightX)}, ${draftLabel(region.topRightY)})${suffix}`;
   }
-  return `${position} · polygon ${placement.targetRegion.points.length} points`;
+  return `absolute polygon · ${placement.targetRegion.points.length} points`;
 }
 
 function readOnlyPlacementSummary(
@@ -684,21 +685,11 @@ function readOnlyPlacementSummary(
   unit?: string | null,
 ) {
   const suffix = unit ? ` ${unit}` : "";
-  const pose = `pose (${draftLabel(placement.pose.x)}, ${draftLabel(placement.pose.y)})${suffix}`;
-  const rotation = `rotation ${draftLabel(placement.pose.rotationZ)}°`;
-  const anchor = `anchor ${placement.anchor}`;
   if (placement.targetRegion.type === "rectangle") {
-    return `Rectangle · ${pose} · ${rotation} · ${draftLabel(placement.targetRegion.width)} × ${draftLabel(placement.targetRegion.height)}${suffix} · ${anchor}`;
+    const region = placement.targetRegion;
+    return `Rectangle · (${draftLabel(region.bottomLeftX)}, ${draftLabel(region.bottomLeftY)})–(${draftLabel(region.topRightX)}, ${draftLabel(region.topRightY)})${suffix}`;
   }
-  return `Polygon · ${pose} · ${rotation} · ${placement.targetRegion.points.length} vertices · ${anchor}`;
-}
-
-function anchorPoint(points: [number, number][], anchor: Anchor): [number, number] {
-  if (anchor === "origin") return [0, 0];
-  const xs = points.map((point) => point[0]);
-  const ys = points.map((point) => point[1]);
-  if (anchor === "bottomLeft") return [Math.min(...xs), Math.min(...ys)];
-  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  return `Polygon · ${placement.targetRegion.points.length} absolute vertices${suffix}`;
 }
 
 function numericPoints(points: PointDraft[]): [number, number][] | null {
@@ -753,14 +744,6 @@ function numericDraft(value: unknown): NumericDraft {
 
 function isFiniteNumber(value: NumericDraft): value is number {
   return typeof value === "number" && Number.isFinite(value);
-}
-
-function isPositiveNumber(value: NumericDraft): value is number {
-  return isFiniteNumber(value) && value > 0;
-}
-
-function isAnchor(value: unknown): value is Anchor {
-  return value === "bottomLeft" || value === "center" || value === "origin";
 }
 
 function draftPointsEqual(left: PointDraft, right: PointDraft) {

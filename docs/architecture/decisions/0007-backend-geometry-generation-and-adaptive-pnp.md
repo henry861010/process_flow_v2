@@ -20,6 +20,10 @@ verified_against:
 
 > `box-rescale@1` 的 polygon-target extension 與同批 mixed-shape policy 由
 > [ADR-0008](./0008-pnp-mixed-target-shapes.md) 補充。
+>
+> Placement coordinate與hidden transform contract已由
+> [ADR-0009](./0009-pnp-absolute-target-coordinates.md)取代；adapter selection與geometry
+> generation決策仍有效。
 
 ## 背景
 

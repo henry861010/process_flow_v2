@@ -13,6 +13,7 @@ source_of_truth:
   - docs/architecture/decisions/0003-geometry-units-and-density.md
   - docs/architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md
   - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
+  - docs/architecture/decisions/0009-pnp-absolute-target-coordinates.md
 verified_against:
   - apps/api/src/process_flow_api/models.py
   - apps/api/src/process_flow_api/repository.py
@@ -64,6 +65,7 @@ kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語�
 - [ADR-0003：Geometry Units and Density](./architecture/decisions/0003-geometry-units-and-density.md)
 - [ADR-0007：Backend Geometry Generation and Unified PnP](./architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md)
 - [ADR-0008：PnP Mixed Target Shapes](./architecture/decisions/0008-pnp-mixed-target-shapes.md)
+- [ADR-0009：PnP Absolute Target Coordinates](./architecture/decisions/0009-pnp-absolute-target-coordinates.md)
 
 ### 1.1 範圍與非目標
 
@@ -417,7 +419,8 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 - `embeddedGeometries` 不會由 step 直接查詢；它必須先被 `inputBindings` 以 `localId` 引用。
 
 在 PnP 範例中，`inputBindings` 分別為 `incoming_panel` 與 `incoming_die` 選擇 geometry，
-`stepConfigurations.pnp.parameterValues`以同一筆`placements[]` item保存target region、pose與anchor。
+`stepConfigurations.pnp.parameterValues`以同一筆`placements[]` item保存absolute target region與
+固定的hidden transform（zero pose、center anchor）。
 
 `inputBindings` 中的 `GeometryBinding` 有兩種來源：
 
@@ -447,9 +450,9 @@ reject；value shape 由對應 `ParameterDefinition` 決定。
     "parameterValues": {
       "placements": [
         {
-          "targetRegion": {"type": "rectangle", "width": 1400, "height": 1000},
+          "targetRegion": {"type": "rectangle", "bottomLeftX": -700, "bottomLeftY": -500, "topRightX": 700, "topRightY": 500},
           "pose": {"x": 0, "y": 0, "rotationZ": 0},
-          "anchor": "bottomLeft"
+          "anchor": "center"
         }
       ]
     }
@@ -555,7 +558,7 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"6"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"7"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Resource metadata label | `version` | string | 新 resource 使用 `"current"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 
@@ -755,7 +758,7 @@ Kernel MUST：
     {
       "id": "placements",
       "name": "Placements",
-      "description": "Target region, pose, and anchor for each placed die copy.",
+      "description": "Absolute target region with fixed hidden transform for each placed die copy.",
       "valueType": "placements",
       "controlType": "placementList",
       "required": true,
@@ -856,14 +859,14 @@ Kernel MUST：
       "parameterValues": {
         "placements": [
           {
-            "targetRegion": {"type": "rectangle", "width": 1400, "height": 1000},
-            "pose": {"x": -760, "y": -520, "rotationZ": 0},
-            "anchor": "bottomLeft"
+            "targetRegion": {"type": "rectangle", "bottomLeftX": -760, "bottomLeftY": -520, "topRightX": 640, "topRightY": 480},
+            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+            "anchor": "center"
           },
           {
-            "targetRegion": {"type": "rectangle", "width": 1400, "height": 1000},
-            "pose": {"x": 760, "y": -520, "rotationZ": 0},
-            "anchor": "bottomLeft"
+            "targetRegion": {"type": "rectangle", "bottomLeftX": 760, "bottomLeftY": -520, "topRightX": 2160, "topRightY": 480},
+            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+            "anchor": "center"
           }
         ]
       }
@@ -879,9 +882,9 @@ PnP 依 source 的 explicit adaptation contract或primitive default materialize�
 Box-only source使用`box-rescale@1`；單一、單loop PolygonGeometry使用`polygon-rescale@1`。
 每筆target type獨立處理，因此同一batch可交錯rectangle與polygon；Box-only source的rectangle
 維持全樹additive resize；polygon則將所有root direct body/via/circuit/bump改成exact target shape，
-不rescale或containment-check children。此polygon case以root target bounds作為anchor，children套
-相同rigid transform；其他case維持adapted structure anchor。最後將anchor對齊pose並把Z bottom
-對齊current cursor。任一placement失敗時整個batch不得attach部分結果。
+不rescale或containment-check children。Runtime將absolute target轉入adapter-local frame，children
+套相同rigid translation，再以absolute target bounds center放回global XY並把Z bottom對齊current
+cursor。任一placement失敗時整個batch不得attach部分結果。
 
 ## 15. 已知實作差異
 
