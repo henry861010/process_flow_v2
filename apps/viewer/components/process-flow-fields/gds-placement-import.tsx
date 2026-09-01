@@ -34,7 +34,7 @@ type GdsImportResponse =
   | { type: "error"; requestId: string; message: string };
 
 type ImportSummary = Extract<GdsImportResponse, { type: "success" }>;
-type PropertyFilterMode = "include" | "exclude";
+type CellNameFilterMode = "include" | "exclude";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-2.5 py-1.5 text-sm tabular-nums shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
@@ -50,9 +50,9 @@ export function GdsPlacementImport({
   const [gdsFile, setGdsFile] = React.useState<File | null>(null);
   const [layer, setLayer] = React.useState("");
   const [datatype, setDatatype] = React.useState("");
-  const [propertyFilterMode, setPropertyFilterMode] =
-    React.useState<PropertyFilterMode>("include");
-  const [propertyFilterValue, setPropertyFilterValue] = React.useState("");
+  const [cellNameFilterMode, setCellNameFilterMode] =
+    React.useState<CellNameFilterMode>("include");
+  const [cellNameFilterValue, setCellNameFilterValue] = React.useState("");
   const [isImporting, setIsImporting] = React.useState(false);
   const [summary, setSummary] = React.useState<ImportSummary | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -82,7 +82,7 @@ export function GdsPlacementImport({
     setSummary(null);
     const requestId = crypto.randomUUID();
     activeRequestIdRef.current = requestId;
-    const filterValue = propertyFilterValue.trim();
+    const filterValue = cellNameFilterValue.trim();
     try {
       const buffer = await gdsFile.arrayBuffer();
       if (activeRequestIdRef.current !== requestId) return;
@@ -124,8 +124,8 @@ export function GdsPlacementImport({
           layer: parsedLayer,
           datatype: parsedDatatype,
           unit,
-          propertyFilter: filterValue
-            ? { mode: propertyFilterMode, contains: filterValue }
+          cellNameFilter: filterValue
+            ? { mode: cellNameFilterMode, contains: filterValue }
             : undefined,
         },
         [buffer],
@@ -180,12 +180,12 @@ export function GdsPlacementImport({
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-[150px_minmax(0,1fr)]">
         <label className="text-sm">
-          <span className="mb-1 block font-medium">Property filter</span>
+          <span className="mb-1 block font-medium">Cell name filter</span>
           <select
             className={inputClass}
-            value={propertyFilterMode}
+            value={cellNameFilterMode}
             onChange={(event) => {
-              setPropertyFilterMode(event.target.value as PropertyFilterMode);
+              setCellNameFilterMode(event.target.value as CellNameFilterMode);
               setSummary(null);
               setError(null);
             }}
@@ -195,12 +195,12 @@ export function GdsPlacementImport({
           </select>
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium">Property value contains</span>
+          <span className="mb-1 block font-medium">Cell name contains</span>
           <input
             className={inputClass}
-            value={propertyFilterValue}
+            value={cellNameFilterValue}
             onChange={(event) => {
-              setPropertyFilterValue(event.target.value);
+              setCellNameFilterValue(event.target.value);
               setSummary(null);
               setError(null);
             }}

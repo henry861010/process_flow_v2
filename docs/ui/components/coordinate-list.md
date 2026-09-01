@@ -46,11 +46,12 @@ invalid draft顯示fallback copy且不得throw。Readonly mode顯示summary與po
 ## GDS import
 
 GDS不是required input。Editor初始只顯示小型`Import from GDS`button；button以`aria-expanded`
-控制import panel，使用者展開後才顯示file、layer、datatype與property filter。
+控制import panel，使用者展開後才顯示file、layer、datatype與cell name filter。
 
 Import在dedicated Web Worker執行；新import terminate previous worker。只把指定layer/datatype的
 `BOUNDARY`/`BOX`遞迴展開`SREF/AREF`，套用translation、rotation、magnification、reflection與
-optional inherited property filter。
+optional cell name filter。Cell name來自每個shape所屬structure的`STRNAME`，比對不區分大小寫，
+並支援include/exclude substring。
 
 - Axis-aligned transformed boundary canonicalize為rectangle。
 - 其他boundary保留exact transformed polygon points。

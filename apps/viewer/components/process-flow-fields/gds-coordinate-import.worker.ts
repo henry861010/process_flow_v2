@@ -20,7 +20,7 @@ type GdsImportRequest = {
   layer: number;
   datatype: number;
   unit?: string | null;
-  propertyFilter?: {
+  cellNameFilter?: {
     mode: "include" | "exclude";
     contains: string;
   };
@@ -60,7 +60,6 @@ type GdsElementKind =
 
 type GdsElement = {
   kind: GdsElementKind;
-  properties: GdsProperty[];
   layer?: number;
   datatype?: number;
   xy?: CoordinatePair[];
@@ -71,12 +70,7 @@ type GdsElement = {
   angle?: number;
 };
 
-type GdsProperty = {
-  attribute: number;
-  value: string;
-};
-
-type NormalizedPropertyFilter = {
+type NormalizedCellNameFilter = {
   mode: "include" | "exclude";
   contains: string;
 };
@@ -113,7 +107,7 @@ function importCoordinates(request: GdsImportRequest) {
   const layout = parseLayout(request.buffer);
   const topCellNames = getTopCellNames(layout.structures);
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
-  const propertyFilter = normalizePropertyFilter(request.propertyFilter);
+  const cellNameFilter = normalizeCellNameFilter(request.cellNameFilter);
   const regions: GdsTargetRegion[] = [];
   const regionSignatures = new Set<string>();
   const unsupportedElements: Record<string, number> = {};
@@ -136,7 +130,6 @@ function importCoordinates(request: GdsImportRequest) {
     structureName: string,
     transform: Matrix,
     stack: Set<string>,
-    inheritedProperties: readonly GdsProperty[],
   ) => {
     if (stack.has(structureName)) {
       cyclicReferences += 1;
@@ -156,8 +149,8 @@ function importCoordinates(request: GdsImportRequest) {
             element,
             request.layer,
             request.datatype,
-            inheritedProperties,
-            propertyFilter,
+            structure.name,
+            cellNameFilter,
           )
         ) {
           return;
@@ -198,7 +191,6 @@ function importCoordinates(request: GdsImportRequest) {
           element.sname,
           multiply(transform, referenceTransform(element, origin)),
           stack,
-          [...inheritedProperties, ...element.properties],
         );
         return;
       }
@@ -219,10 +211,6 @@ function importCoordinates(request: GdsImportRequest) {
           (rowEndpoint[0] - origin[0]) / rows,
           (rowEndpoint[1] - origin[1]) / rows,
         ];
-        const referenceProperties = [
-          ...inheritedProperties,
-          ...element.properties,
-        ];
         for (let column = 0; column < columns; column += 1) {
           for (let row = 0; row < rows; row += 1) {
             const placementOrigin: CoordinatePair = [
@@ -233,7 +221,6 @@ function importCoordinates(request: GdsImportRequest) {
               element.sname,
               multiply(transform, referenceTransform(element, placementOrigin)),
               stack,
-              referenceProperties,
             );
           }
         }
@@ -245,8 +232,8 @@ function importCoordinates(request: GdsImportRequest) {
           element,
           request.layer,
           request.datatype,
-          inheritedProperties,
-          propertyFilter,
+          structure.name,
+          cellNameFilter,
         )
       ) {
         unsupportedElements[element.kind] =
@@ -257,7 +244,7 @@ function importCoordinates(request: GdsImportRequest) {
   };
 
   topCellNames.forEach((name) =>
-    visitStructure(name, IDENTITY, new Set(), []),
+    visitStructure(name, IDENTITY, new Set()),
   );
 
   return {
@@ -347,7 +334,6 @@ function parseLayout(buffer: ArrayBuffer) {
   let metersPerDbUnit = 1;
   let currentStructure: GdsStructure | null = null;
   let currentElement: GdsElement | null = null;
-  let currentPropertyAttribute: number | null = null;
 
   for (const record of parseGDS(new Uint8Array(buffer))) {
     switch (record.tag) {
@@ -369,36 +355,28 @@ function parseLayout(buffer: ArrayBuffer) {
         currentStructure = null;
         break;
       case RecordType.BOUNDARY:
-        currentElement = { kind: "BOUNDARY", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "BOUNDARY" };
         break;
       case RecordType.BOX:
-        currentElement = { kind: "BOX", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "BOX" };
         break;
       case RecordType.SREF:
-        currentElement = { kind: "SREF", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "SREF" };
         break;
       case RecordType.AREF:
-        currentElement = { kind: "AREF", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "AREF" };
         break;
       case RecordType.PATH:
-        currentElement = { kind: "PATH", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "PATH" };
         break;
       case RecordType.TEXT:
-        currentElement = { kind: "TEXT", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "TEXT" };
         break;
       case RecordType.NODE:
-        currentElement = { kind: "NODE", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "NODE" };
         break;
       case RecordType.TEXTNODE:
-        currentElement = { kind: "TEXTNODE", properties: [] };
-        currentPropertyAttribute = null;
+        currentElement = { kind: "TEXTNODE" };
         break;
       case RecordType.LAYER:
         if (currentElement) {
@@ -443,26 +421,11 @@ function parseLayout(buffer: ArrayBuffer) {
           currentElement.angle = record.data;
         }
         break;
-      case RecordType.PROPATTR:
-        if (currentElement) {
-          currentPropertyAttribute = record.data;
-        }
-        break;
-      case RecordType.PROPVALUE:
-        if (currentElement && currentPropertyAttribute !== null) {
-          currentElement.properties.push({
-            attribute: currentPropertyAttribute,
-            value: record.data,
-          });
-        }
-        currentPropertyAttribute = null;
-        break;
       case RecordType.ENDEL:
         if (currentStructure && currentElement) {
           currentStructure.elements.push(currentElement);
         }
         currentElement = null;
-        currentPropertyAttribute = null;
         break;
       default:
         break;
@@ -492,39 +455,34 @@ function elementMatches(
   element: GdsElement,
   layer: number,
   datatype: number,
-  inheritedProperties: readonly GdsProperty[],
-  propertyFilter: NormalizedPropertyFilter | null,
+  cellName: string,
+  cellNameFilter: NormalizedCellNameFilter | null,
 ) {
   if (element.layer !== layer || element.datatype !== datatype) {
     return false;
   }
-  return propertiesMatch(
-    [...inheritedProperties, ...element.properties],
-    propertyFilter,
-  );
+  return cellNameMatches(cellName, cellNameFilter);
 }
 
-function normalizePropertyFilter(
-  propertyFilter: GdsImportRequest["propertyFilter"],
-): NormalizedPropertyFilter | null {
-  const contains = propertyFilter?.contains.trim().toLowerCase();
-  if (!propertyFilter || !contains) {
+function normalizeCellNameFilter(
+  cellNameFilter: GdsImportRequest["cellNameFilter"],
+): NormalizedCellNameFilter | null {
+  const contains = cellNameFilter?.contains.trim().toLowerCase();
+  if (!cellNameFilter || !contains) {
     return null;
   }
-  return { mode: propertyFilter.mode, contains };
+  return { mode: cellNameFilter.mode, contains };
 }
 
-function propertiesMatch(
-  properties: readonly GdsProperty[],
-  propertyFilter: NormalizedPropertyFilter | null,
+function cellNameMatches(
+  cellName: string,
+  cellNameFilter: NormalizedCellNameFilter | null,
 ) {
-  if (!propertyFilter) {
+  if (!cellNameFilter) {
     return true;
   }
-  const matched = properties.some((property) =>
-    property.value.toLowerCase().includes(propertyFilter.contains),
-  );
-  return propertyFilter.mode === "include" ? matched : !matched;
+  const matched = cellName.toLowerCase().includes(cellNameFilter.contains);
+  return cellNameFilter.mode === "include" ? matched : !matched;
 }
 
 function unitScale(metersPerDbUnit: number, unit?: string | null) {
