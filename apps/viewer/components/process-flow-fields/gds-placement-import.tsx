@@ -8,16 +8,18 @@ import {
   ChevronUp,
   FileUp,
   Loader2,
+  TriangleAlert,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type {
+  GdsTargetRegion,
+} from "./gds-coordinate-geometry";
 
 export type CoordinatePair = [number, number];
 export type CoordinateBounds = [CoordinatePair, CoordinatePair];
-export type GdsTargetRegion =
-  | { type: "rectangle"; bounds: CoordinateBounds }
-  | { type: "polygon"; points: CoordinatePair[] };
+export type { GdsTargetRegion } from "./gds-coordinate-geometry";
 
 type GdsImportResponse =
   | {
@@ -26,6 +28,8 @@ type GdsImportResponse =
       regions: GdsTargetRegion[];
       matchedElements: number;
       duplicatesRemoved: number;
+      defeaturedElements: number;
+      nonOrthogonalRegions: number;
       topCellNames: string[];
       unsupportedElements: Record<string, number>;
       unresolvedReferences: number;
@@ -53,6 +57,8 @@ export function GdsPlacementImport({
   const [cellNameFilterMode, setCellNameFilterMode] =
     React.useState<CellNameFilterMode>("include");
   const [cellNameFilterValue, setCellNameFilterValue] = React.useState("");
+  const [defeature, setDefeature] = React.useState(false);
+  const [minimumFeatureSize, setMinimumFeatureSize] = React.useState("");
   const [isImporting, setIsImporting] = React.useState(false);
   const [summary, setSummary] = React.useState<ImportSummary | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -70,11 +76,22 @@ export function GdsPlacementImport({
 
   const parsedLayer = parseIntegerInput(layer);
   const parsedDatatype = parseIntegerInput(datatype);
+  const parsedMinimumFeatureSize = parsePositiveNumberInput(minimumFeatureSize);
   const importDisabled =
-    !gdsFile || parsedLayer === null || parsedDatatype === null;
+    !gdsFile ||
+    parsedLayer === null ||
+    parsedDatatype === null ||
+    (defeature && parsedMinimumFeatureSize === null);
 
   async function handleImport() {
-    if (!gdsFile || parsedLayer === null || parsedDatatype === null) return;
+    if (
+      !gdsFile ||
+      parsedLayer === null ||
+      parsedDatatype === null ||
+      (defeature && parsedMinimumFeatureSize === null)
+    ) {
+      return;
+    }
     workerRef.current?.terminate();
     workerRef.current = null;
     setIsImporting(true);
@@ -127,6 +144,10 @@ export function GdsPlacementImport({
           cellNameFilter: filterValue
             ? { mode: cellNameFilterMode, contains: filterValue }
             : undefined,
+          defeature:
+            defeature && parsedMinimumFeatureSize !== null
+              ? { minimumFeatureSize: parsedMinimumFeatureSize }
+              : undefined,
         },
         [buffer],
       );
@@ -207,6 +228,58 @@ export function GdsPlacementImport({
           />
         </label>
       </div>
+      <div className="mt-3 rounded-md border bg-muted/20 p-3">
+        <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 shrink-0 accent-primary"
+            checked={defeature}
+            onChange={(event) => {
+              setDefeature(event.target.checked);
+              setSummary(null);
+              setError(null);
+            }}
+          />
+          <span>
+            <span className="block font-medium">Defeature</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Remove small non-axis-aligned boundaries before creating placements.
+            </span>
+          </span>
+        </label>
+        {defeature ? (
+          <label className="mt-3 block max-w-xs text-sm">
+            <span className="mb-1 block font-medium">
+              Minimum feature size{unit ? ` (${unit})` : ""}
+            </span>
+            <input
+              className={inputClass}
+              type="number"
+              min="0"
+              step="any"
+              value={minimumFeatureSize}
+              aria-invalid={parsedMinimumFeatureSize === null}
+              onChange={(event) => {
+                setMinimumFeatureSize(event.target.value);
+                setSummary(null);
+                setError(null);
+              }}
+            />
+            <span
+              className={cn(
+                "mt-1 block text-xs",
+                parsedMinimumFeatureSize === null
+                  ? "text-destructive"
+                  : "text-muted-foreground",
+              )}
+            >
+              {parsedMinimumFeatureSize === null
+                ? "Enter a finite number greater than zero."
+                : "Non-axis-aligned regions smaller than this in both directions will be removed."}
+            </span>
+          </label>
+        ) : null}
+      </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           {gdsFile?.name ?? "No file selected"}
@@ -230,6 +303,17 @@ export function GdsPlacementImport({
             {summary.duplicatesRemoved > 0
               ? ` ${summary.duplicatesRemoved} duplicates removed.`
               : ""}
+            {summary.defeaturedElements > 0
+              ? ` ${summary.defeaturedElements} small non-axis-aligned elements defeatured.`
+              : ""}
+          </span>
+        </div>
+      ) : null}
+      {summary && summary.nonOrthogonalRegions > 0 ? (
+        <div role="status" className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {summary.nonOrthogonalRegions} imported {summary.nonOrthogonalRegions === 1 ? "region has" : "regions have"} non-axis-aligned edges and may not be supported by the mesher.
           </span>
         </div>
       ) : null}
@@ -273,4 +357,10 @@ function parseIntegerInput(value: string) {
   if (!/^\d+$/.test(value)) return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function parsePositiveNumberInput(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }

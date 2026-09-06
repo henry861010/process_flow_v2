@@ -6,11 +6,14 @@ import {
   type CoordinatePair,
 } from "./coordinate-list-value";
 import {
+  createGdsRegionAccumulator,
   IDENTITY,
   multiply,
   referenceTransform,
   transformedBounds,
   transformedPoints,
+  unitScale,
+  type GdsTargetRegion,
   type Matrix,
 } from "./gds-coordinate-geometry";
 
@@ -24,6 +27,9 @@ type GdsImportRequest = {
     mode: "include" | "exclude";
     contains: string;
   };
+  defeature?: {
+    minimumFeatureSize: number;
+  };
 };
 
 type GdsImportSuccess = {
@@ -32,15 +38,13 @@ type GdsImportSuccess = {
   regions: GdsTargetRegion[];
   matchedElements: number;
   duplicatesRemoved: number;
+  defeaturedElements: number;
+  nonOrthogonalRegions: number;
   topCellNames: string[];
   unsupportedElements: Record<string, number>;
   unresolvedReferences: number;
   cyclicReferences: number;
 };
-
-type GdsTargetRegion =
-  | { type: "rectangle"; bounds: CoordinateBounds }
-  | { type: "polygon"; points: CoordinatePair[] };
 
 type GdsImportFailure = {
   type: "error";
@@ -108,23 +112,12 @@ function importCoordinates(request: GdsImportRequest) {
   const topCellNames = getTopCellNames(layout.structures);
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
   const cellNameFilter = normalizeCellNameFilter(request.cellNameFilter);
-  const regions: GdsTargetRegion[] = [];
-  const regionSignatures = new Set<string>();
+  const minimumFeatureSize = normalizeMinimumFeatureSize(request.defeature);
+  const regionAccumulator = createGdsRegionAccumulator(minimumFeatureSize);
   const unsupportedElements: Record<string, number> = {};
   let matchedElements = 0;
-  let duplicatesRemoved = 0;
   let unresolvedReferences = 0;
   let cyclicReferences = 0;
-
-  const addRegion = (region: GdsTargetRegion) => {
-    const signature = regionSignature(region);
-    if (regionSignatures.has(signature)) {
-      duplicatesRemoved += 1;
-      return;
-    }
-    regionSignatures.add(signature);
-    regions.push(region);
-  };
 
   const visitStructure = (
     structureName: string,
@@ -177,7 +170,7 @@ function importCoordinates(request: GdsImportRequest) {
             scaledCoordinate(point[1], coordinateScale),
           ],
         );
-        addRegion(targetRegion(element.kind, points, scaledBounds));
+        regionAccumulator.add(targetRegion(element.kind, points, scaledBounds));
         return;
       }
 
@@ -247,10 +240,11 @@ function importCoordinates(request: GdsImportRequest) {
     visitStructure(name, IDENTITY, new Set()),
   );
 
+  const regionCollection = regionAccumulator.result();
+
   return {
-    regions,
+    ...regionCollection,
     matchedElements,
-    duplicatesRemoved,
     topCellNames,
     unsupportedElements,
     unresolvedReferences,
@@ -295,23 +289,6 @@ function isAxisAlignedRectangle(
     `${bounds[0][0]}:${bounds[1][1]}`,
   ]);
   return points.every((point) => corners.has(`${point[0]}:${point[1]}`));
-}
-
-function regionSignature(region: GdsTargetRegion) {
-  if (region.type === "rectangle") {
-    return `rectangle:${region.bounds.flat().map(quantized).join(":")}`;
-  }
-  const points = region.points.map(
-    (point) => `${quantized(point[0])}:${quantized(point[1])}`,
-  );
-  const variants: string[] = [];
-  for (const ordered of [points, [...points].reverse()]) {
-    for (let index = 0; index < ordered.length; index += 1) {
-      variants.push([...ordered.slice(index), ...ordered.slice(0, index)].join(";"));
-    }
-  }
-  variants.sort();
-  return `polygon:${variants[0] ?? ""}`;
 }
 
 function quantized(value: number) {
@@ -474,6 +451,17 @@ function normalizeCellNameFilter(
   return { mode: cellNameFilter.mode, contains };
 }
 
+function normalizeMinimumFeatureSize(
+  defeature: GdsImportRequest["defeature"],
+) {
+  if (!defeature) return undefined;
+  const minimumFeatureSize = defeature.minimumFeatureSize;
+  if (!Number.isFinite(minimumFeatureSize) || minimumFeatureSize <= 0) {
+    throw new Error("Minimum feature size must be a finite number greater than zero.");
+  }
+  return minimumFeatureSize;
+}
+
 function cellNameMatches(
   cellName: string,
   cellNameFilter: NormalizedCellNameFilter | null,
@@ -483,31 +471,4 @@ function cellNameMatches(
   }
   const matched = cellName.toLowerCase().includes(cellNameFilter.contains);
   return cellNameFilter.mode === "include" ? matched : !matched;
-}
-
-function unitScale(metersPerDbUnit: number, unit?: string | null) {
-  const normalized = unit?.trim().toLowerCase();
-  if (!normalized) {
-    return 1;
-  }
-  if (normalized === "m" || normalized === "meter" || normalized === "meters") {
-    return metersPerDbUnit;
-  }
-  if (normalized === "mm" || normalized === "millimeter" || normalized === "millimeters") {
-    return metersPerDbUnit * 1e3;
-  }
-  if (
-    normalized === "um" ||
-    normalized === "µm" ||
-    normalized === "micron" ||
-    normalized === "microns" ||
-    normalized === "micrometer" ||
-    normalized === "micrometers"
-  ) {
-    return metersPerDbUnit * 1e6;
-  }
-  if (normalized === "nm" || normalized === "nanometer" || normalized === "nanometers") {
-    return metersPerDbUnit * 1e9;
-  }
-  return 1;
 }

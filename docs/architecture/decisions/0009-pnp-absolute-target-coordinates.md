@@ -8,6 +8,7 @@ audience:
   - 製程與產品負責人
   - QA 與 coding agent
 last_verified: 2026-09-01
+last_verified_commit: ece354a54acd18929fd9337a5398c42a3de39eba
 verified_against:
   - packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py
   - packages/process-step-py/src/process_flow_steps/pnp/pnp.py

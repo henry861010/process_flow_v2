@@ -14,6 +14,9 @@ on:
       - "apps/api/src/process_flow_api/models.py"
       - "apps/api/tests/**"
       - "apps/viewer/components/geometry-preview/file-export-*.ts*"
+      - "apps/viewer/components/process-flow-fields/gds-*"
+      - "apps/viewer/package.json"
+      - "apps/viewer/package-lock.json"
       - "script/geometry_viewer.py"
       - "script/test*.py"
   push:
@@ -29,6 +32,9 @@ on:
       - "apps/api/src/process_flow_api/models.py"
       - "apps/api/tests/**"
       - "apps/viewer/components/geometry-preview/file-export-*.ts*"
+      - "apps/viewer/components/process-flow-fields/gds-*"
+      - "apps/viewer/package.json"
+      - "apps/viewer/package-lock.json"
       - "script/geometry_viewer.py"
       - "script/test*.py"
 
@@ -86,4 +92,5 @@ jobs:
         working-directory: apps/viewer
         run: |
           npm ci
+          npm test
           npm run build
