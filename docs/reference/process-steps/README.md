@@ -75,7 +75,8 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - RDL `layers` 是 repeatable group；每 item 必須含 stable `itemId`，runtime normalized item 另含 `_itemId`/`_index`。
 - Grinding 的 `thk` 是移除厚度，不是 absolute target Z。
 - Saw 不接受 empty/inverted XY box。
-- Saw 對 Box/Polygon 支援 partial clip；Cylinder/Cone 只有全包含或完全分離，partial XY
+- Saw 對 Box/Polygon 支援 partial clip；Polygon 使用 `1e-5 um` precision grid，支援凹形、holes、
+  multiple hulls 與裁切後的 multiple islands。Cylinder/Cone 只有全包含或完全分離，partial XY
   intersection 會 reject。
 - ECL 的 non-zero `koz` 會作為 XY inset；Polygon process footprint 目前不支援此 inset。
 - DAF 要求正的 `thk` 與非空 `material`，使用 current process footprint 在 target overall

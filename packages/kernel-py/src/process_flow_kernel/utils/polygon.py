@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, box
+from shapely.geometry.polygon import orient
+from shapely.ops import unary_union
+
 from .math_utils import math
+
+
+POLYGON_CLIP_PRECISION = 1e-5
+POLYGON_CLIP_MIN_AREA = 1e-5
+POLYGON_CLIP_DECIMAL_PLACES = 5
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,96 @@ def classify_polygon_loops(polys):
     if len(regions) == 0:
         raise ValueError("PolygonGeometry does not contain any hull loop")
     return regions
+
+
+def clip_polygon_loops_to_box(polys, bounds):
+    """Return a deterministic polygon-loop representation of a box intersection."""
+    loops = validate_polygon_loops(polys)
+    z = loops[0][0][2]
+    subject = unary_union(
+        [
+            Polygon(
+                [(point[0], point[1]) for point in region.outer],
+                [
+                    [(point[0], point[1]) for point in hole]
+                    for hole in region.holes
+                ],
+            )
+            for region in classify_polygon_loops(loops)
+        ]
+    )
+    clip = box(bounds["xMin"], bounds["yMin"], bounds["xMax"], bounds["yMax"])
+    intersection = subject.intersection(clip, grid_size=POLYGON_CLIP_PRECISION)
+
+    regions = []
+    for polygon in _polygon_parts(intersection):
+        if polygon.area <= POLYGON_CLIP_MIN_AREA:
+            continue
+        polygon = orient(polygon, sign=1.0)
+        outer = _canonical_loop(polygon.exterior.coords, z=z, clockwise=False)
+        if outer is None:
+            continue
+        holes = []
+        for interior in polygon.interiors:
+            hole = _canonical_loop(interior.coords, z=z, clockwise=True)
+            if hole is not None:
+                holes.append(hole)
+        holes.sort(key=_loop_sort_key)
+        regions.append((outer, holes))
+
+    regions.sort(key=lambda region: _loop_sort_key(region[0]))
+    result = []
+    for outer, holes in regions:
+        result.append(outer)
+        result.extend(holes)
+    if result:
+        validate_polygon_loops(result)
+    return result
+
+
+def _polygon_parts(geometry):
+    if isinstance(geometry, Polygon):
+        yield geometry
+        return
+    if isinstance(geometry, (MultiPolygon, GeometryCollection)):
+        for part in geometry.geoms:
+            yield from _polygon_parts(part)
+
+
+def _canonical_loop(coordinates, *, z, clockwise):
+    points = []
+    for x, y, *_ in coordinates:
+        point = [_snap_coordinate(x), _snap_coordinate(y), z]
+        if not points or not _same_point2(points[-1], point):
+            points.append(point)
+    if len(points) > 1 and _same_point2(points[0], points[-1]):
+        points.pop()
+    if len(points) < 3 or abs(_signed_area(points)) <= POLYGON_CLIP_MIN_AREA:
+        return None
+
+    is_clockwise = _signed_area(points) < 0
+    if is_clockwise != clockwise:
+        points.reverse()
+    start = min(range(len(points)), key=lambda index: (points[index][0], points[index][1]))
+    return points[start:] + points[:start]
+
+
+def _snap_coordinate(value):
+    snapped = round(float(value), POLYGON_CLIP_DECIMAL_PLACES)
+    return 0.0 if abs(snapped) < POLYGON_CLIP_PRECISION else snapped
+
+
+def _loop_sort_key(loop):
+    xs = [point[0] for point in loop]
+    ys = [point[1] for point in loop]
+    return (
+        min(xs),
+        min(ys),
+        max(xs),
+        max(ys),
+        -abs(_signed_area(loop)),
+        tuple((point[0], point[1]) for point in loop),
+    )
 
 
 def _normalize_loop(poly, index):

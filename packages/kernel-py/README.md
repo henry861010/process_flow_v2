@@ -14,7 +14,7 @@ source_of_truth:
 
 # process-flow-kernel
 
-Pure-Python geometry domain、flow compiler 與 execution runtime。Package 不讀 SQLite、不發 HTTP，也不依賴 CadQuery。
+Python geometry domain、flow compiler 與 execution runtime。Package 不讀 SQLite、不發 HTTP，也不依賴 CadQuery。
 
 ## 安裝
 
@@ -22,7 +22,8 @@ Pure-Python geometry domain、flow compiler 與 execution runtime。Package 不�
 venv/bin/pip install -e packages/kernel-py
 ```
 
-Python 3.11+；目前沒有 third-party runtime dependencies。
+Python 3.11+。Polygon boolean clipping 使用 BSD-3-Clause 授權的 Shapely 與其 LGPL-2.1
+GEOS runtime；一般平台安裝時由 Shapely wheel 提供 GEOS。
 
 ## 主要 entry point
 

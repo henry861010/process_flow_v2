@@ -12,6 +12,7 @@ from process_flow_kernel import (
     FlowCompiler,
     GeometryKernel,
     InMemoryGeometryCatalog,
+    PolygonGeometry,
     ProcessGeometryState,
     ProcessStepContext,
     ProcessStepModuleResolver,
@@ -28,6 +29,204 @@ from process_flow_steps.tiv.tiv import execute as execute_tiv
 
 
 class GeometryDomainTests(unittest.TestCase):
+    def test_polygon_xy_clip_splits_concave_result_deterministically(self):
+        polygon = [
+            [0, 0, 7],
+            [4, 0, 7],
+            [4, 4, 7],
+            [3, 4, 7],
+            [3, 1, 7],
+            [1, 1, 7],
+            [1, 4, 7],
+            [0, 4, 7],
+        ]
+        bounds = {"xMin": 0, "xMax": 4, "yMin": 2, "yMax": 4}
+
+        clipped = PolygonGeometry([polygon], 3).clip_xy_to_box(bounds)
+        reversed_clip = PolygonGeometry([list(reversed(polygon))], 3).clip_xy_to_box(
+            bounds
+        )
+
+        expected = {
+            "type": "PolygonGeometry",
+            "polys": [
+                [[0.0, 2.0, 7], [1.0, 2.0, 7], [1.0, 4.0, 7], [0.0, 4.0, 7]],
+                [[3.0, 2.0, 7], [4.0, 2.0, 7], [4.0, 4.0, 7], [3.0, 4.0, 7]],
+            ],
+            "thk": 3,
+        }
+        self.assertEqual(clipped.json(), expected)
+        self.assertEqual(reversed_clip.json(), expected)
+
+    def test_polygon_xy_clip_preserves_and_opens_holes(self):
+        outer = [[0, 0, 2], [10, 0, 2], [10, 10, 2], [0, 10, 2]]
+        hole = [[2, 2, 2], [8, 2, 2], [8, 8, 2], [2, 8, 2]]
+
+        with_hole = PolygonGeometry([outer, hole], 4).clip_xy_to_box(
+            {"xMin": 1, "xMax": 9, "yMin": 1, "yMax": 9}
+        )
+        self.assertEqual(len(with_hole.polygons()), 2)
+        regions = classify_polygon_loops(with_hole.polygons())
+        self.assertEqual(len(regions), 1)
+        self.assertEqual(len(regions[0].holes), 1)
+
+        opened_hole = PolygonGeometry([outer, hole], 4).clip_xy_to_box(
+            {"xMin": 5, "xMax": 10, "yMin": 0, "yMax": 10}
+        )
+        self.assertEqual(len(opened_hole.polygons()), 1)
+        self.assertEqual(
+            opened_hole.polygons()[0],
+            [
+                [5.0, 0.0, 2],
+                [10.0, 0.0, 2],
+                [10.0, 10.0, 2],
+                [5.0, 10.0, 2],
+                [5.0, 8.0, 2],
+                [8.0, 8.0, 2],
+                [8.0, 2.0, 2],
+                [5.0, 2.0, 2],
+            ],
+        )
+
+        without_hole = PolygonGeometry([outer, hole], 4).clip_xy_to_box(
+            {"xMin": 8.5, "xMax": 10, "yMin": 0, "yMax": 10}
+        )
+        self.assertEqual(len(without_hole.polygons()), 1)
+
+    def test_polygon_xy_clip_handles_multiple_hulls_tangency_and_slivers(self):
+        polygons = [
+            [[0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0]],
+            [[4, 0, 0], [6, 0, 0], [6, 2, 0], [4, 2, 0]],
+            [[8, 0, 0], [9, 0, 0], [9, 1, 0], [8, 1, 0]],
+        ]
+        clipped = PolygonGeometry(polygons, 1).clip_xy_to_box(
+            {"xMin": 1, "xMax": 5, "yMin": 0, "yMax": 2}
+        )
+        self.assertEqual(
+            clipped.polygons(),
+            [
+                [[1.0, 0.0, 0], [2.0, 0.0, 0], [2.0, 2.0, 0], [1.0, 2.0, 0]],
+                [[4.0, 0.0, 0], [5.0, 0.0, 0], [5.0, 2.0, 0], [4.0, 2.0, 0]],
+            ],
+        )
+        self.assertIsNone(
+            PolygonGeometry([polygons[0]], 1).clip_xy_to_box(
+                {"xMin": 2, "xMax": 3, "yMin": 0, "yMax": 2}
+            )
+        )
+        self.assertIsNone(
+            PolygonGeometry([polygons[0]], 1).clip_xy_to_box(
+                {"xMin": 1.999996, "xMax": 3, "yMin": 0, "yMax": 2}
+            )
+        )
+
+    def test_polygon_xy_clip_full_containment_preserves_exact_payload(self):
+        polygons = [
+            [
+                [0.1234567, 0.2345678, 6],
+                [4.1234567, 0.2345678, 6],
+                [4.1234567, 3.2345678, 6],
+                [0.1234567, 3.2345678, 6],
+            ]
+        ]
+        geometry = PolygonGeometry(polygons, 2.5)
+        before = geometry.json()
+
+        retained = geometry.clip_xy_to_box(
+            {"xMin": -1, "xMax": 5, "yMin": -1, "yMax": 5}
+        )
+
+        self.assertIs(retained, geometry)
+        self.assertEqual(retained.json(), before)
+
+    def test_container_polygon_saw_preserves_metadata_recursively(self):
+        def u_shape(z):
+            return PolygonGeometry(
+                [
+                    [
+                        [0, 0, z],
+                        [4, 0, z],
+                        [4, 4, z],
+                        [3, 4, z],
+                        [3, 1, z],
+                        [1, 1, z],
+                        [1, 4, z],
+                        [0, 4, z],
+                    ]
+                ],
+                1,
+            )
+
+        root = Container(key="carrier.wafer")
+        root.add_body(Body(u_shape(0), "Si", "carrier"))
+        root.add_via(Via(u_shape(1), 0.5, "Cu", "+z", 2))
+        root.add_circuit(Circuit(u_shape(2), 0.4, "Cu", 3))
+        root.add_bump(Bump(u_shape(3), 0.8, "SnAg", "-z", 4))
+        child = Container(key="soc")
+        child.add_body(Body(u_shape(4), "Si", "envelope"))
+        root.attach_child(child)
+
+        self.assertTrue(
+            root.clip_xy_to_box({"xMin": 0, "xMax": 4, "yMin": 2, "yMax": 4})
+        )
+        output = root.tree_json()
+
+        for collection in ("bodies", "vias", "circuits", "bumps"):
+            self.assertEqual(len(output[collection][0]["geometry"]["polys"]), 2)
+        self.assertEqual(output["bodies"][0]["key"], "carrier")
+        self.assertEqual(output["bodies"][0]["material"], "Si")
+        self.assertEqual(output["vias"][0]["density"], 0.5)
+        self.assertEqual(output["vias"][0]["direction"], "+z")
+        self.assertEqual(output["vias"][0]["koz"], 2)
+        self.assertEqual(output["circuits"][0]["density"], 0.4)
+        self.assertEqual(output["circuits"][0]["koz"], 3)
+        self.assertEqual(output["bumps"][0]["density"], 0.8)
+        self.assertEqual(output["bumps"][0]["direction"], "-z")
+        self.assertEqual(output["bumps"][0]["koz"], 4)
+        self.assertEqual(output["children"][0]["key"], "soc")
+        self.assertEqual(output["children"][0]["bodies"][0]["key"], "envelope")
+
+    def test_saw_to_box_clips_polygon_and_updates_process_footprint(self):
+        state = ProcessGeometryState.create()
+        state.initialize_polygon_layer(
+            material="Si",
+            polygons=[
+                [
+                    [0, 0, 2],
+                    [4, 0, 2],
+                    [4, 4, 2],
+                    [3, 4, 2],
+                    [3, 1, 2],
+                    [1, 1, 2],
+                    [1, 4, 2],
+                    [0, 4, 2],
+                ]
+            ],
+            thickness=5,
+            key="envelope",
+        )
+
+        state.saw_to_box(
+            bottom_left_x=0,
+            bottom_left_y=2,
+            top_right_x=4,
+            top_right_y=4,
+        )
+
+        self.assertEqual(
+            state.process_footprint(),
+            {
+                "type": "box",
+                "bottomLeft": [0.0, 2.0],
+                "topRight": [4.0, 4.0],
+            },
+        )
+        self.assertEqual(state.cursor_z(), 7)
+        body = state.to_geometry_structure()["root"]["bodies"][0]
+        self.assertEqual(body["key"], "envelope")
+        self.assertEqual(body["material"], "Si")
+        self.assertEqual(len(body["geometry"]["polys"]), 2)
+
     def test_cylinder_xy_clip_returns_exact_supported_geometry(self):
         crop_inside_circle = {"xMin": -3, "xMax": 3, "yMin": -4, "yMax": 4}
         clipped = CylinderGeometry([0, 0, 3], 5, 4).clip_xy_to_box(crop_inside_circle)

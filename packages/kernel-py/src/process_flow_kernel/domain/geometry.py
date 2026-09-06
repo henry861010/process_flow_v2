@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ..serialization.schema import deep_copy
 from ..utils.math_utils import math
-from ..utils.polygon import validate_polygon_loops
+from ..utils.polygon import clip_polygon_loops_to_box, validate_polygon_loops
 
 
 class Geometry:
@@ -189,14 +189,18 @@ class PolygonGeometry(Geometry):
 
     def clip_xy_to_box(self, bounds):
         crop = _normalize_crop_box(bounds)
-        clipped = []
-        for poly in self._polys:
-            loop = _clip_loop_to_box(poly, crop)
-            if len(loop) >= 3:
-                clipped.append(loop)
+        if all(
+            math.f_ge(point[0], crop["xMin"])
+            and math.f_le(point[0], crop["xMax"])
+            and math.f_ge(point[1], crop["yMin"])
+            and math.f_le(point[1], crop["yMax"])
+            for poly in self._polys
+            for point in poly
+        ):
+            return self
+        clipped = clip_polygon_loops_to_box(self._polys, crop)
         if len(clipped) == 0:
             return None
-        validate_polygon_loops(clipped)
         self._polys = clipped
         return self
 
@@ -432,109 +436,3 @@ def _box_is_inside_circle(*, crop, center, radius):
             (crop["xMax"], crop["yMax"]),
         )
     )
-
-
-def _clip_loop_to_box(loop, bounds):
-    z = loop[0][2]
-    result = [list(point) for point in loop]
-    result = _clip_loop_against_boundary(result, bounds, _inside_left, _intersect_left)
-    result = _clip_loop_against_boundary(result, bounds, _inside_right, _intersect_right)
-    result = _clip_loop_against_boundary(result, bounds, _inside_bottom, _intersect_bottom)
-    result = _clip_loop_against_boundary(result, bounds, _inside_top, _intersect_top)
-    return _clean_loop([[math.f_zero(x), math.f_zero(y), z] for x, y, _ in result])
-
-
-def _clip_loop_against_boundary(loop, bounds, inside, intersect):
-    if len(loop) == 0:
-        return []
-    result = []
-    previous = loop[-1]
-    previous_inside = inside(previous, bounds)
-    for current in loop:
-        current_inside = inside(current, bounds)
-        if current_inside:
-            if not previous_inside:
-                result.append(intersect(previous, current, bounds))
-            result.append(current)
-        elif previous_inside:
-            result.append(intersect(previous, current, bounds))
-        previous = current
-        previous_inside = current_inside
-    return _clean_adjacent_duplicates(result)
-
-
-def _inside_left(point, bounds):
-    return math.f_ge(point[0], bounds["xMin"])
-
-
-def _inside_right(point, bounds):
-    return math.f_le(point[0], bounds["xMax"])
-
-
-def _inside_bottom(point, bounds):
-    return math.f_ge(point[1], bounds["yMin"])
-
-
-def _inside_top(point, bounds):
-    return math.f_le(point[1], bounds["yMax"])
-
-
-def _intersect_left(start, end, bounds):
-    return _intersect_at_x(start, end, bounds["xMin"])
-
-
-def _intersect_right(start, end, bounds):
-    return _intersect_at_x(start, end, bounds["xMax"])
-
-
-def _intersect_bottom(start, end, bounds):
-    return _intersect_at_y(start, end, bounds["yMin"])
-
-
-def _intersect_top(start, end, bounds):
-    return _intersect_at_y(start, end, bounds["yMax"])
-
-
-def _intersect_at_x(start, end, x):
-    dx = end[0] - start[0]
-    if math.f_eq(dx, 0):
-        return [x, start[1], start[2]]
-    t = (x - start[0]) / dx
-    return [x, start[1] + t * (end[1] - start[1]), start[2]]
-
-
-def _intersect_at_y(start, end, y):
-    dy = end[1] - start[1]
-    if math.f_eq(dy, 0):
-        return [start[0], y, start[2]]
-    t = (y - start[1]) / dy
-    return [start[0] + t * (end[0] - start[0]), y, start[2]]
-
-
-def _clean_loop(loop):
-    cleaned = _clean_adjacent_duplicates(loop)
-    if len(cleaned) > 1 and _same_point2(cleaned[0], cleaned[-1]):
-        cleaned.pop()
-    if len(cleaned) < 3 or math.f_eq(_signed_area2(cleaned), 0):
-        return []
-    return cleaned
-
-
-def _clean_adjacent_duplicates(loop):
-    result = []
-    for point in loop:
-        if len(result) == 0 or not _same_point2(result[-1], point):
-            result.append(point)
-    return result
-
-
-def _signed_area2(loop):
-    area = 0
-    for index, point in enumerate(loop):
-        next_point = loop[(index + 1) % len(loop)]
-        area += point[0] * next_point[1] - next_point[0] * point[1]
-    return area / 2
-
-
-def _same_point2(left, right):
-    return math.f_eq(left[0], right[0]) and math.f_eq(left[1], right[1])
