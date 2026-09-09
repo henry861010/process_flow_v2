@@ -61,13 +61,16 @@ optional cell name filter。Cell name來自每個shape所屬structure的`STRNAME
 - Imported placement使用fixed zero pose與`center` anchor compatibility fields。
 - Success整批取代placements；error保留原值。Shape signature duplicate會移除。
 
-Defeature是import-time-only設定，不寫入placement payload。啟用後，使用者必須輸入positive finite
-`Minimum feature size`，單位與placement unit相同。Worker在unit scaling後、duplicate removal前，
-使用每個獨立region的AABB判斷尺寸；含有非X/Y軸向edge，且AABB width與height都嚴格小於門檻的
-region會被移除。Axis alignment使用`1e-6` coordinate tolerance，因此小型rectangle與Manhattan
-polygon仍保留。達到門檻或較大的非正交polygon繼續匯入，UI以non-blocking warning顯示最終unique
-non-orthogonal region數量，且不得將其改成AABB。成功摘要另顯示defeatured matching element數量；
-若全部被移除，仍依replace semantics產生empty placements。
+Defeature是無尺寸參數的import-time-only設定，不寫入placement payload。Worker在unit scaling後、
+duplicate removal前修復每個含非X/Y軸向edge的polygon。連續非正交edge兩側若為互相垂直的
+水平／垂直edge，會將兩側直線延伸到交點；若兩側平行且共線，則直接連接以填平凹洞或削除凸起。
+修復後會移除重複與共線點，並驗證輪廓必須為finite、non-zero area、non-self-intersecting及完全正交。
+無足夠正交edge、兩側平行但不共線或修復後無效時，該polygon改用axis-aligned bounding box。
+既有rectangle與Manhattan polygon保持不變。成功摘要顯示repaired matching element數量與其中使用
+bounding-box fallback的數量，duplicate signature以修復後的region計算。
+
+Defeature關閉時保留exact transformed polygon；若最終unique regions仍有非正交edge，UI顯示
+non-blocking mesher compatibility warning。Axis alignment共用`1e-6` coordinate tolerance。
 
 ## Validation與accessibility
 
@@ -94,6 +97,6 @@ Pose X/Y是selected anchor的global位置、Rotation Z繞anchor逆時針旋轉�
 | `UI-PLACE-008` | viewport 390px | cards與vertex editor可操作，無page-level horizontal overflow。 |
 | `UI-PLACE-009` | editor初次開啟 | 只顯示`Import from GDS`button；GDS fields保持收合且不暗示required。 |
 | `UI-PLACE-010` | hover或focus pose help驚嘆號 | tooltip完整解釋Pose X/Y、Rotation Z與Anchor。 |
-| `UI-PLACE-011` | Defeature開啟且門檻為空、零、負數或non-finite | Import disabled且顯示inline validation。 |
-| `UI-PLACE-012` | 小型非正交boundary與小型Manhattan boundary同批匯入 | 前者移除、後者保留，success摘要顯示移除數。 |
-| `UI-PLACE-013` | Defeature後仍有大型非正交polygon | exact polygon仍匯入，另顯示mesher compatibility warning。 |
+| `UI-PLACE-011` | Defeature關閉且GDS含非正交polygon | exact polygon匯入並顯示mesher compatibility warning。 |
+| `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | 只修復局部特徵，外框保留且success摘要顯示repair數。 |
+| `UI-PLACE-013` | 純圓形或無法安全局部修復的polygon | 以AABB匯入，摘要顯示bounding-box fallback數且輸出完全正交。 |

@@ -28,7 +28,8 @@ type GdsImportResponse =
       regions: GdsTargetRegion[];
       matchedElements: number;
       duplicatesRemoved: number;
-      defeaturedElements: number;
+      repairedElements: number;
+      boundingBoxFallbacks: number;
       nonOrthogonalRegions: number;
       topCellNames: string[];
       unsupportedElements: Record<string, number>;
@@ -58,7 +59,6 @@ export function GdsPlacementImport({
     React.useState<CellNameFilterMode>("include");
   const [cellNameFilterValue, setCellNameFilterValue] = React.useState("");
   const [defeature, setDefeature] = React.useState(false);
-  const [minimumFeatureSize, setMinimumFeatureSize] = React.useState("");
   const [isImporting, setIsImporting] = React.useState(false);
   const [summary, setSummary] = React.useState<ImportSummary | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -76,19 +76,16 @@ export function GdsPlacementImport({
 
   const parsedLayer = parseIntegerInput(layer);
   const parsedDatatype = parseIntegerInput(datatype);
-  const parsedMinimumFeatureSize = parsePositiveNumberInput(minimumFeatureSize);
   const importDisabled =
     !gdsFile ||
     parsedLayer === null ||
-    parsedDatatype === null ||
-    (defeature && parsedMinimumFeatureSize === null);
+    parsedDatatype === null;
 
   async function handleImport() {
     if (
       !gdsFile ||
       parsedLayer === null ||
-      parsedDatatype === null ||
-      (defeature && parsedMinimumFeatureSize === null)
+      parsedDatatype === null
     ) {
       return;
     }
@@ -144,10 +141,7 @@ export function GdsPlacementImport({
           cellNameFilter: filterValue
             ? { mode: cellNameFilterMode, contains: filterValue }
             : undefined,
-          defeature:
-            defeature && parsedMinimumFeatureSize !== null
-              ? { minimumFeatureSize: parsedMinimumFeatureSize }
-              : undefined,
+          defeature: defeature || undefined,
         },
         [buffer],
       );
@@ -243,42 +237,10 @@ export function GdsPlacementImport({
           <span>
             <span className="block font-medium">Defeature</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              Remove small non-axis-aligned boundaries before creating placements.
+              Repair non-axis-aligned boundaries into orthogonal placement outlines.
             </span>
           </span>
         </label>
-        {defeature ? (
-          <label className="mt-3 block max-w-xs text-sm">
-            <span className="mb-1 block font-medium">
-              Minimum feature size{unit ? ` (${unit})` : ""}
-            </span>
-            <input
-              className={inputClass}
-              type="number"
-              min="0"
-              step="any"
-              value={minimumFeatureSize}
-              aria-invalid={parsedMinimumFeatureSize === null}
-              onChange={(event) => {
-                setMinimumFeatureSize(event.target.value);
-                setSummary(null);
-                setError(null);
-              }}
-            />
-            <span
-              className={cn(
-                "mt-1 block text-xs",
-                parsedMinimumFeatureSize === null
-                  ? "text-destructive"
-                  : "text-muted-foreground",
-              )}
-            >
-              {parsedMinimumFeatureSize === null
-                ? "Enter a finite number greater than zero."
-                : "Non-axis-aligned regions smaller than this in both directions will be removed."}
-            </span>
-          </label>
-        ) : null}
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
         <span className="min-w-0 truncate text-xs text-muted-foreground">
@@ -303,8 +265,11 @@ export function GdsPlacementImport({
             {summary.duplicatesRemoved > 0
               ? ` ${summary.duplicatesRemoved} duplicates removed.`
               : ""}
-            {summary.defeaturedElements > 0
-              ? ` ${summary.defeaturedElements} small non-axis-aligned elements defeatured.`
+            {summary.repairedElements > 0
+              ? ` ${summary.repairedElements} non-axis-aligned elements repaired.`
+              : ""}
+            {summary.boundingBoxFallbacks > 0
+              ? ` ${summary.boundingBoxFallbacks} ${summary.boundingBoxFallbacks === 1 ? "element" : "elements"} used bounding-box fallback.`
               : ""}
           </span>
         </div>
@@ -357,10 +322,4 @@ function parseIntegerInput(value: string) {
   if (!/^\d+$/.test(value)) return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) ? parsed : null;
-}
-
-function parsePositiveNumberInput(value: string) {
-  if (!value.trim()) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }

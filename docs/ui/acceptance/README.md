@@ -107,9 +107,9 @@ Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉
 | `UI-PLACE-004` | GDS rotated/reflected polygon | import | exact local polygon與bottom-left pose取代原placements。 |
 | `UI-PLACE-009` | open placement editor | inspect optional GDS input | 初始只顯示`Import from GDS`button，展開後才顯示fields。 |
 | `UI-PLACE-010` | pose help icon | hover與keyboard focus | tooltip解釋Pose X/Y、Rotation Z與Anchor。 |
-| `UI-PLACE-011` | GDS Defeature enabled且threshold invalid | inspect/click Import | inline error顯示且Import disabled。 |
-| `UI-PLACE-012` | GDS同時含small non-orthogonal與small Manhattan boundaries | import with Defeature | 只移除non-orthogonal feature，摘要顯示defeature count。 |
-| `UI-PLACE-013` | GDS含threshold以上的non-orthogonal polygon | import with Defeature | exact polygon匯入且另顯示non-blocking mesher warning。 |
+| `UI-PLACE-011` | GDS含non-orthogonal polygon | import with Defeature off | exact polygon匯入並顯示non-blocking mesher warning。 |
+| `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | import with Defeature | 局部特徵正交修復、外框保留，摘要顯示repair數。 |
+| `UI-PLACE-013` | GDS含純圓形或無法安全局部修復的polygon | import with Defeature | 以AABB匯入，摘要顯示fallback數且輸出完全正交。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。

@@ -11,8 +11,15 @@ export type GdsTargetRegion =
 export type GdsRegionCollection = {
   regions: GdsTargetRegion[];
   duplicatesRemoved: number;
-  defeaturedElements: number;
+  repairedElements: number;
+  boundingBoxFallbacks: number;
   nonOrthogonalRegions: number;
+};
+
+export type GdsRegionRepair = {
+  region: GdsTargetRegion;
+  repaired: boolean;
+  usedBoundingBoxFallback: boolean;
 };
 
 export type Matrix = [number, number, number, number, number, number];
@@ -25,34 +32,39 @@ export type GdsReferenceTransform = {
 
 export const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
 
-export function createGdsRegionAccumulator(
-  minimumFeatureSize?: number,
-) {
+type EdgeAxis = "horizontal" | "vertical";
+
+export function createGdsRegionAccumulator(defeature = false) {
   const regions: GdsTargetRegion[] = [];
   const regionSignatures = new Set<string>();
   let duplicatesRemoved = 0;
-  let defeaturedElements = 0;
+  let repairedElements = 0;
+  let boundingBoxFallbacks = 0;
   let nonOrthogonalRegions = 0;
 
   return {
     add(region: GdsTargetRegion) {
-      if (
-        minimumFeatureSize !== undefined &&
-        shouldDefeatureRegion(region, minimumFeatureSize)
-      ) {
-        defeaturedElements += 1;
-        return;
+      let outputRegion = region;
+      if (defeature) {
+        const repair = repairGdsRegion(region);
+        outputRegion = repair.region;
+        if (repair.repaired) {
+          repairedElements += 1;
+        }
+        if (repair.usedBoundingBoxFallback) {
+          boundingBoxFallbacks += 1;
+        }
       }
 
-      const signature = regionSignature(region);
+      const signature = regionSignature(outputRegion);
       if (regionSignatures.has(signature)) {
         duplicatesRemoved += 1;
         return;
       }
 
       regionSignatures.add(signature);
-      regions.push(region);
-      if (regionHasNonOrthogonalEdges(region)) {
+      regions.push(outputRegion);
+      if (regionHasNonOrthogonalEdges(outputRegion)) {
         nonOrthogonalRegions += 1;
       }
     },
@@ -60,42 +72,355 @@ export function createGdsRegionAccumulator(
       return {
         regions,
         duplicatesRemoved,
-        defeaturedElements,
+        repairedElements,
+        boundingBoxFallbacks,
         nonOrthogonalRegions,
       };
     },
   };
 }
 
-export function shouldDefeatureRegion(
-  region: GdsTargetRegion,
-  minimumFeatureSize: number,
-) {
-  if (
-    !Number.isFinite(minimumFeatureSize) ||
-    minimumFeatureSize <= 0 ||
-    region.type !== "polygon" ||
-    !regionHasNonOrthogonalEdges(region)
-  ) {
-    return false;
+export function repairGdsRegion(region: GdsTargetRegion): GdsRegionRepair {
+  if (region.type === "rectangle" || !regionHasNonOrthogonalEdges(region)) {
+    return {
+      region,
+      repaired: false,
+      usedBoundingBoxFallback: false,
+    };
   }
 
-  const bounds = transformedBounds(region.points, IDENTITY);
-  if (!bounds) return false;
-  const width = bounds[1][0] - bounds[0][0];
-  const height = bounds[1][1] - bounds[0][1];
-  return width < minimumFeatureSize && height < minimumFeatureSize;
+  const points = removeConsecutiveDuplicatePoints(region.points);
+  const repairedPoints = repairPolygonWithAxisAlignedEdges(points);
+  if (repairedPoints) {
+    const simplifiedPoints = simplifyOrthogonalPolygon(repairedPoints);
+    if (isValidOrthogonalPolygon(simplifiedPoints)) {
+      return {
+        region: canonicalizeOrthogonalPolygon(simplifiedPoints),
+        repaired: true,
+        usedBoundingBoxFallback: false,
+      };
+    }
+  }
+
+  return {
+    region: boundingBoxRegion(region.points),
+    repaired: true,
+    usedBoundingBoxFallback: true,
+  };
 }
 
 export function regionHasNonOrthogonalEdges(region: GdsTargetRegion) {
   if (region.type === "rectangle") return false;
-  return region.points.some((point, index) => {
-    const next = region.points[(index + 1) % region.points.length];
-    return (
-      Math.abs(next[0] - point[0]) > COORDINATE_DUPLICATE_TOLERANCE &&
-      Math.abs(next[1] - point[1]) > COORDINATE_DUPLICATE_TOLERANCE
-    );
+  return region.points.some(
+    (point, index) => edgeAxis(point, region.points[(index + 1) % region.points.length]) === null,
+  );
+}
+
+function repairPolygonWithAxisAlignedEdges(
+  points: CoordinatePair[],
+): CoordinatePair[] | null {
+  const edgeAxes = points.map((point, index) =>
+    edgeAxis(point, points[(index + 1) % points.length]),
+  );
+  const orthogonalEdgeIndices = edgeAxes.flatMap((axis, index) =>
+    axis ? [index] : [],
+  );
+  if (orthogonalEdgeIndices.length < 2) {
+    return null;
+  }
+
+  const supports = orthogonalEdgeIndices.map((edgeIndex) =>
+    edgeSupport(points, edgeIndex, edgeAxes[edgeIndex] as EdgeAxis),
+  );
+  const parents = orthogonalEdgeIndices.map((_, index) => index);
+  const find = (index: number): number => {
+    let root = index;
+    while (parents[root] !== root) root = parents[root];
+    while (parents[index] !== index) {
+      const parent = parents[index];
+      parents[index] = root;
+      index = parent;
+    }
+    return root;
+  };
+  const union = (left: number, right: number) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) parents[rightRoot] = leftRoot;
+  };
+
+  for (let position = 0; position < orthogonalEdgeIndices.length; position += 1) {
+    const nextPosition = (position + 1) % orthogonalEdgeIndices.length;
+    const edgeIndex = orthogonalEdgeIndices[position];
+    const nextEdgeIndex = orthogonalEdgeIndices[nextPosition];
+    const axis = edgeAxes[edgeIndex] as EdgeAxis;
+    const nextAxis = edgeAxes[nextEdgeIndex] as EdgeAxis;
+    if (axis !== nextAxis) continue;
+    if (
+      Math.abs(supports[position] - supports[nextPosition]) >
+      COORDINATE_DUPLICATE_TOLERANCE
+    ) {
+      return null;
+    }
+    union(position, nextPosition);
+  }
+
+  const supportTotals = new Map<number, { total: number; count: number }>();
+  supports.forEach((support, position) => {
+    const root = find(position);
+    const current = supportTotals.get(root) ?? { total: 0, count: 0 };
+    current.total += support;
+    current.count += 1;
+    supportTotals.set(root, current);
   });
+  const normalizedSupports = supports.map((_, position) => {
+    const total = supportTotals.get(find(position));
+    return total ? total.total / total.count : supports[position];
+  });
+
+  const starts = orthogonalEdgeIndices.map((edgeIndex, position) =>
+    projectPointToEdgeSupport(
+      points[edgeIndex],
+      edgeAxes[edgeIndex] as EdgeAxis,
+      normalizedSupports[position],
+    ),
+  );
+  const ends = orthogonalEdgeIndices.map((edgeIndex, position) =>
+    projectPointToEdgeSupport(
+      points[(edgeIndex + 1) % points.length],
+      edgeAxes[edgeIndex] as EdgeAxis,
+      normalizedSupports[position],
+    ),
+  );
+
+  for (let position = 0; position < orthogonalEdgeIndices.length; position += 1) {
+    const nextPosition = (position + 1) % orthogonalEdgeIndices.length;
+    const axis = edgeAxes[orthogonalEdgeIndices[position]] as EdgeAxis;
+    const nextAxis = edgeAxes[orthogonalEdgeIndices[nextPosition]] as EdgeAxis;
+    if (axis === nextAxis) continue;
+    const intersection: CoordinatePair = axis === "horizontal"
+      ? [normalizedSupports[nextPosition], normalizedSupports[position]]
+      : [normalizedSupports[position], normalizedSupports[nextPosition]];
+    ends[position] = intersection;
+    starts[nextPosition] = intersection;
+  }
+
+  return starts.flatMap((start, position) => [start, ends[position]]);
+}
+
+function edgeAxis(start: CoordinatePair, end: CoordinatePair): EdgeAxis | null {
+  if (Math.abs(end[1] - start[1]) <= COORDINATE_DUPLICATE_TOLERANCE) {
+    return "horizontal";
+  }
+  if (Math.abs(end[0] - start[0]) <= COORDINATE_DUPLICATE_TOLERANCE) {
+    return "vertical";
+  }
+  return null;
+}
+
+function edgeSupport(
+  points: CoordinatePair[],
+  edgeIndex: number,
+  axis: EdgeAxis,
+) {
+  const start = points[edgeIndex];
+  const end = points[(edgeIndex + 1) % points.length];
+  return axis === "horizontal"
+    ? (start[1] + end[1]) / 2
+    : (start[0] + end[0]) / 2;
+}
+
+function projectPointToEdgeSupport(
+  point: CoordinatePair,
+  axis: EdgeAxis,
+  support: number,
+): CoordinatePair {
+  return axis === "horizontal" ? [point[0], support] : [support, point[1]];
+}
+
+function removeConsecutiveDuplicatePoints(points: CoordinatePair[]) {
+  const result: CoordinatePair[] = [];
+  points.forEach((point) => {
+    if (!result.length || !pointsEqual(result[result.length - 1], point)) {
+      result.push([...point]);
+    }
+  });
+  if (result.length > 1 && pointsEqual(result[0], result[result.length - 1])) {
+    result.pop();
+  }
+  return result;
+}
+
+function simplifyOrthogonalPolygon(points: CoordinatePair[]) {
+  const result = removeConsecutiveDuplicatePoints(points);
+  let changed = true;
+  while (changed && result.length >= 3) {
+    changed = false;
+    for (let index = 0; index < result.length; index += 1) {
+      const previous = result[(index - 1 + result.length) % result.length];
+      const point = result[index];
+      const next = result[(index + 1) % result.length];
+      if (pointOnAxisAlignedSegment(point, previous, next)) {
+        result.splice(index, 1);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+function pointOnAxisAlignedSegment(
+  point: CoordinatePair,
+  start: CoordinatePair,
+  end: CoordinatePair,
+) {
+  const axis = edgeAxis(start, end);
+  if (!axis) return false;
+  if (axis === "horizontal") {
+    return (
+      Math.abs(point[1] - start[1]) <= COORDINATE_DUPLICATE_TOLERANCE &&
+      point[0] >= Math.min(start[0], end[0]) - COORDINATE_DUPLICATE_TOLERANCE &&
+      point[0] <= Math.max(start[0], end[0]) + COORDINATE_DUPLICATE_TOLERANCE
+    );
+  }
+  return (
+    Math.abs(point[0] - start[0]) <= COORDINATE_DUPLICATE_TOLERANCE &&
+    point[1] >= Math.min(start[1], end[1]) - COORDINATE_DUPLICATE_TOLERANCE &&
+    point[1] <= Math.max(start[1], end[1]) + COORDINATE_DUPLICATE_TOLERANCE
+  );
+}
+
+function isValidOrthogonalPolygon(points: CoordinatePair[]) {
+  if (
+    points.length < 4 ||
+    points.some((point) => !point.every(Number.isFinite)) ||
+    points.some((point, index) =>
+      pointsEqual(point, points[(index + 1) % points.length]),
+    ) ||
+    new Set(points.map((point) => `${quantized(point[0])}:${quantized(point[1])}`)).size !==
+      points.length ||
+    points.some(
+      (point, index) => edgeAxis(point, points[(index + 1) % points.length]) === null,
+    ) ||
+    Math.abs(polygonArea(points)) <= 1e-9
+  ) {
+    return false;
+  }
+  return !polygonSelfIntersects(points);
+}
+
+function polygonArea(points: CoordinatePair[]) {
+  return points.reduce((area, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return area + point[0] * next[1] - next[0] * point[1];
+  }, 0) / 2;
+}
+
+function polygonSelfIntersects(points: CoordinatePair[]) {
+  for (let left = 0; left < points.length; left += 1) {
+    const leftEnd = (left + 1) % points.length;
+    for (let right = left + 1; right < points.length; right += 1) {
+      const rightEnd = (right + 1) % points.length;
+      if (
+        left === right ||
+        left === rightEnd ||
+        leftEnd === right ||
+        leftEnd === rightEnd
+      ) {
+        continue;
+      }
+      if (segmentsIntersect(points[left], points[leftEnd], points[right], points[rightEnd])) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function segmentsIntersect(
+  a: CoordinatePair,
+  b: CoordinatePair,
+  c: CoordinatePair,
+  d: CoordinatePair,
+) {
+  const orientations = [
+    orientation(a, b, c),
+    orientation(a, b, d),
+    orientation(c, d, a),
+    orientation(c, d, b),
+  ];
+  if (
+    orientations[0] * orientations[1] < -1e-9 &&
+    orientations[2] * orientations[3] < -1e-9
+  ) {
+    return true;
+  }
+  return (
+    pointOnSegment(a, c, d) ||
+    pointOnSegment(b, c, d) ||
+    pointOnSegment(c, a, b) ||
+    pointOnSegment(d, a, b)
+  );
+}
+
+function orientation(a: CoordinatePair, b: CoordinatePair, c: CoordinatePair) {
+  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+
+function pointOnSegment(
+  point: CoordinatePair,
+  start: CoordinatePair,
+  end: CoordinatePair,
+) {
+  return (
+    Math.abs(orientation(start, end, point)) <= 1e-9 &&
+    point[0] >= Math.min(start[0], end[0]) - COORDINATE_DUPLICATE_TOLERANCE &&
+    point[0] <= Math.max(start[0], end[0]) + COORDINATE_DUPLICATE_TOLERANCE &&
+    point[1] >= Math.min(start[1], end[1]) - COORDINATE_DUPLICATE_TOLERANCE &&
+    point[1] <= Math.max(start[1], end[1]) + COORDINATE_DUPLICATE_TOLERANCE
+  );
+}
+
+function canonicalizeOrthogonalPolygon(points: CoordinatePair[]): GdsTargetRegion {
+  const bounds = transformedBounds(points, IDENTITY);
+  if (bounds && points.length === 4 && pointsAreRectangleCorners(points, bounds)) {
+    return { type: "rectangle", bounds };
+  }
+  return { type: "polygon", points };
+}
+
+function pointsAreRectangleCorners(
+  points: CoordinatePair[],
+  bounds: CoordinateBounds,
+) {
+  const corners: CoordinatePair[] = [
+    [bounds[0][0], bounds[0][1]],
+    [bounds[1][0], bounds[0][1]],
+    [bounds[1][0], bounds[1][1]],
+    [bounds[0][0], bounds[1][1]],
+  ];
+  return corners.every((corner) => points.some((point) => pointsEqual(point, corner)));
+}
+
+function boundingBoxRegion(points: CoordinatePair[]): GdsTargetRegion {
+  const bounds = transformedBounds(points, IDENTITY);
+  if (
+    !bounds ||
+    !bounds.flat().every(Number.isFinite) ||
+    bounds[1][0] - bounds[0][0] <= COORDINATE_DUPLICATE_TOLERANCE ||
+    bounds[1][1] - bounds[0][1] <= COORDINATE_DUPLICATE_TOLERANCE
+  ) {
+    throw new Error("Non-orthogonal GDS boundary has no valid bounding-box fallback.");
+  }
+  return { type: "rectangle", bounds };
+}
+
+function pointsEqual(left: CoordinatePair, right: CoordinatePair) {
+  return (
+    Math.abs(left[0] - right[0]) <= COORDINATE_DUPLICATE_TOLERANCE &&
+    Math.abs(left[1] - right[1]) <= COORDINATE_DUPLICATE_TOLERANCE
+  );
 }
 
 export function unitScale(metersPerDbUnit: number, unit?: string | null) {

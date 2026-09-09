@@ -27,9 +27,7 @@ type GdsImportRequest = {
     mode: "include" | "exclude";
     contains: string;
   };
-  defeature?: {
-    minimumFeatureSize: number;
-  };
+  defeature?: boolean;
 };
 
 type GdsImportSuccess = {
@@ -38,7 +36,8 @@ type GdsImportSuccess = {
   regions: GdsTargetRegion[];
   matchedElements: number;
   duplicatesRemoved: number;
-  defeaturedElements: number;
+  repairedElements: number;
+  boundingBoxFallbacks: number;
   nonOrthogonalRegions: number;
   topCellNames: string[];
   unsupportedElements: Record<string, number>;
@@ -112,8 +111,7 @@ function importCoordinates(request: GdsImportRequest) {
   const topCellNames = getTopCellNames(layout.structures);
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
   const cellNameFilter = normalizeCellNameFilter(request.cellNameFilter);
-  const minimumFeatureSize = normalizeMinimumFeatureSize(request.defeature);
-  const regionAccumulator = createGdsRegionAccumulator(minimumFeatureSize);
+  const regionAccumulator = createGdsRegionAccumulator(request.defeature === true);
   const unsupportedElements: Record<string, number> = {};
   let matchedElements = 0;
   let unresolvedReferences = 0;
@@ -449,17 +447,6 @@ function normalizeCellNameFilter(
     return null;
   }
   return { mode: cellNameFilter.mode, contains };
-}
-
-function normalizeMinimumFeatureSize(
-  defeature: GdsImportRequest["defeature"],
-) {
-  if (!defeature) return undefined;
-  const minimumFeatureSize = defeature.minimumFeatureSize;
-  if (!Number.isFinite(minimumFeatureSize) || minimumFeatureSize <= 0) {
-    throw new Error("Minimum feature size must be a finite number greater than zero.");
-  }
-  return minimumFeatureSize;
 }
 
 function cellNameMatches(
