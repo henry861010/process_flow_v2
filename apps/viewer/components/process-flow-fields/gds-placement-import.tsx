@@ -8,14 +8,21 @@ import {
   ChevronUp,
   FileUp,
   Loader2,
+  Plus,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type {
-  GdsTargetRegion,
-} from "./gds-coordinate-geometry";
+import type { GdsTargetRegion } from "./gds-coordinate-geometry";
+import {
+  duplicateGdsImportCriterionKeys,
+  gdsImportCriterionKey,
+  parseGdsIntegerInput,
+  type CellNameFilterMode,
+  type GdsImportCriterion,
+} from "./gds-import-criteria";
 
 export type CoordinatePair = [number, number];
 export type CoordinateBounds = [CoordinatePair, CoordinatePair];
@@ -39,7 +46,14 @@ type GdsImportResponse =
   | { type: "error"; requestId: string; message: string };
 
 type ImportSummary = Extract<GdsImportResponse, { type: "success" }>;
-type CellNameFilterMode = "include" | "exclude";
+
+type GdsImportCriterionDraft = {
+  id: number;
+  layer: string;
+  datatype: string;
+  cellNameFilterMode: CellNameFilterMode;
+  cellNameFilterValue: string;
+};
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-2.5 py-1.5 text-sm tabular-nums shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
@@ -53,17 +67,16 @@ export function GdsPlacementImport({
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const [gdsFile, setGdsFile] = React.useState<File | null>(null);
-  const [layer, setLayer] = React.useState("");
-  const [datatype, setDatatype] = React.useState("");
-  const [cellNameFilterMode, setCellNameFilterMode] =
-    React.useState<CellNameFilterMode>("include");
-  const [cellNameFilterValue, setCellNameFilterValue] = React.useState("");
+  const [criteria, setCriteria] = React.useState<GdsImportCriterionDraft[]>(() => [
+    emptyCriterionDraft(0),
+  ]);
   const [defeature, setDefeature] = React.useState(false);
   const [isImporting, setIsImporting] = React.useState(false);
   const [summary, setSummary] = React.useState<ImportSummary | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const workerRef = React.useRef<Worker | null>(null);
   const activeRequestIdRef = React.useRef<string | null>(null);
+  const nextCriterionIdRef = React.useRef(1);
   const panelId = React.useId();
 
   React.useEffect(
@@ -74,19 +87,52 @@ export function GdsPlacementImport({
     [],
   );
 
-  const parsedLayer = parseIntegerInput(layer);
-  const parsedDatatype = parseIntegerInput(datatype);
-  const importDisabled =
-    !gdsFile ||
-    parsedLayer === null ||
-    parsedDatatype === null;
+  const parsedCriteria = criteria.map(parseCriterionDraft);
+  const completeCriteria = parsedCriteria.filter(
+    (criterion): criterion is GdsImportCriterion => criterion !== null,
+  );
+  const duplicateKeys = duplicateGdsImportCriterionKeys(completeCriteria);
+  const importCriteria =
+    completeCriteria.length === criteria.length && duplicateKeys.size === 0
+      ? completeCriteria
+      : null;
+  const importDisabled = !gdsFile || !importCriteria;
+
+  function clearFeedback() {
+    setSummary(null);
+    setError(null);
+  }
+
+  function updateCriterion(
+    id: number,
+    update: Partial<Omit<GdsImportCriterionDraft, "id">>,
+  ) {
+    setCriteria((current) =>
+      current.map((criterion) =>
+        criterion.id === id ? { ...criterion, ...update } : criterion,
+      ),
+    );
+    clearFeedback();
+  }
+
+  function addCriterion() {
+    const id = nextCriterionIdRef.current;
+    nextCriterionIdRef.current += 1;
+    setCriteria((current) => [...current, emptyCriterionDraft(id)]);
+    clearFeedback();
+  }
+
+  function removeCriterion(id: number) {
+    setCriteria((current) =>
+      current.length > 1
+        ? current.filter((criterion) => criterion.id !== id)
+        : current,
+    );
+    clearFeedback();
+  }
 
   async function handleImport() {
-    if (
-      !gdsFile ||
-      parsedLayer === null ||
-      parsedDatatype === null
-    ) {
+    if (!gdsFile || !importCriteria) {
       return;
     }
     workerRef.current?.terminate();
@@ -96,7 +142,6 @@ export function GdsPlacementImport({
     setSummary(null);
     const requestId = crypto.randomUUID();
     activeRequestIdRef.current = requestId;
-    const filterValue = cellNameFilterValue.trim();
     try {
       const buffer = await gdsFile.arrayBuffer();
       if (activeRequestIdRef.current !== requestId) return;
@@ -135,12 +180,8 @@ export function GdsPlacementImport({
         {
           requestId,
           buffer,
-          layer: parsedLayer,
-          datatype: parsedDatatype,
+          criteria: importCriteria,
           unit,
-          cellNameFilter: filterValue
-            ? { mode: cellNameFilterMode, contains: filterValue }
-            : undefined,
           defeature: defeature || undefined,
         },
         [buffer],
@@ -173,54 +214,121 @@ export function GdsPlacementImport({
           className="rounded-md border bg-white p-3"
           aria-label="GDS placement import"
         >
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_110px_110px]">
-        <label className="min-w-0 text-sm">
-          <span className="mb-1 block font-medium">GDS file</span>
-          <input
-            className={cn(
-              inputClass,
-              "h-auto file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium",
-            )}
-            type="file"
-            accept=".gds,.gdsii,.strm,.stream,application/octet-stream"
-            onChange={(event) => {
-              setGdsFile(event.target.files?.[0] ?? null);
-              setSummary(null);
-              setError(null);
-            }}
-          />
-        </label>
-        <NumberField label="Layer" value={layer} onChange={setLayer} />
-        <NumberField label="Datatype" value={datatype} onChange={setDatatype} />
-      </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-[150px_minmax(0,1fr)]">
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Cell name filter</span>
-          <select
-            className={inputClass}
-            value={cellNameFilterMode}
-            onChange={(event) => {
-              setCellNameFilterMode(event.target.value as CellNameFilterMode);
-              setSummary(null);
-              setError(null);
-            }}
-          >
-            <option value="include">Include</option>
-            <option value="exclude">Exclude</option>
-          </select>
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Cell name contains</span>
-          <input
-            className={inputClass}
-            value={cellNameFilterValue}
-            onChange={(event) => {
-              setCellNameFilterValue(event.target.value);
-              setSummary(null);
-              setError(null);
-            }}
-          />
-        </label>
+      <label className="block min-w-0 text-sm">
+        <span className="mb-1 block font-medium">GDS file</span>
+        <input
+          className={cn(
+            inputClass,
+            "h-auto file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium",
+          )}
+          type="file"
+          accept=".gds,.gdsii,.strm,.stream,application/octet-stream"
+          onChange={(event) => {
+            setGdsFile(event.target.files?.[0] ?? null);
+            clearFeedback();
+          }}
+        />
+      </label>
+
+      <div className="mt-3 space-y-2" aria-label="GDS layer and datatype patterns">
+        {criteria.map((criterion, index) => {
+          const parsedLayer = parseGdsIntegerInput(criterion.layer);
+          const parsedDatatype = parseGdsIntegerInput(criterion.datatype);
+          const hasInvalidPair = parsedLayer === null || parsedDatatype === null;
+          const isDuplicate =
+            parsedLayer !== null &&
+            parsedDatatype !== null &&
+            duplicateKeys.has(gdsImportCriterionKey(parsedLayer, parsedDatatype));
+          const diagnostic = hasInvalidPair
+            ? "Layer and datatype must be non-negative integers."
+            : isDuplicate
+              ? "This layer/datatype pattern is duplicated."
+              : null;
+          const patternNumber = index + 1;
+
+          return (
+            <section
+              key={criterion.id}
+              className={cn(
+                "rounded-md border bg-muted/10 p-3",
+                diagnostic && "border-destructive/40",
+              )}
+              aria-label={`Pattern ${patternNumber}`}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">Pattern {patternNumber}</span>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={criteria.length === 1}
+                  aria-label={`Remove pattern ${patternNumber}`}
+                  onClick={() => removeCriterion(criterion.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-[110px_110px_150px_minmax(0,1fr)]">
+                <NumberField
+                  label="Layer"
+                  ariaLabel={`Pattern ${patternNumber} layer`}
+                  value={criterion.layer}
+                  invalid={parsedLayer === null}
+                  onChange={(layer) => updateCriterion(criterion.id, { layer })}
+                />
+                <NumberField
+                  label="Datatype"
+                  ariaLabel={`Pattern ${patternNumber} datatype`}
+                  value={criterion.datatype}
+                  invalid={parsedDatatype === null}
+                  onChange={(datatype) =>
+                    updateCriterion(criterion.id, { datatype })
+                  }
+                />
+                <label className="text-sm">
+                  <span className="mb-1 block font-medium">Cell name filter</span>
+                  <select
+                    className={inputClass}
+                    aria-label={`Pattern ${patternNumber} cell name filter`}
+                    value={criterion.cellNameFilterMode}
+                    onChange={(event) =>
+                      updateCriterion(criterion.id, {
+                        cellNameFilterMode: event.target.value as CellNameFilterMode,
+                      })
+                    }
+                  >
+                    <option value="include">Include</option>
+                    <option value="exclude">Exclude</option>
+                  </select>
+                </label>
+                <label className="min-w-0 text-sm">
+                  <span className="mb-1 block font-medium">Cell name contains</span>
+                  <input
+                    className={inputClass}
+                    aria-label={`Pattern ${patternNumber} cell name contains`}
+                    value={criterion.cellNameFilterValue}
+                    onChange={(event) =>
+                      updateCriterion(criterion.id, {
+                        cellNameFilterValue: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+              </div>
+              {diagnostic ? (
+                <p className="mt-2 text-xs text-destructive" role="alert">
+                  {diagnostic}
+                </p>
+              ) : null}
+            </section>
+          );
+        })}
+        <div className="flex justify-end">
+          <Button type="button" size="sm" variant="outline" onClick={addCriterion}>
+            <Plus />
+            Add pattern
+          </Button>
+        </div>
       </div>
       <div className="mt-3 rounded-md border bg-muted/20 p-3">
         <label className="flex cursor-pointer items-start gap-2.5 text-sm">
@@ -230,8 +338,7 @@ export function GdsPlacementImport({
             checked={defeature}
             onChange={(event) => {
               setDefeature(event.target.checked);
-              setSummary(null);
-              setError(null);
+              clearFeedback();
             }}
           />
           <span>
@@ -296,21 +403,27 @@ export function GdsPlacementImport({
 
 function NumberField({
   label,
+  ariaLabel,
   value,
+  invalid,
   onChange,
 }: {
   label: string;
+  ariaLabel: string;
   value: string;
+  invalid: boolean;
   onChange: (value: string) => void;
 }) {
   return (
     <label className="text-sm">
       <span className="mb-1 block font-medium">{label}</span>
       <input
-        className={inputClass}
+        className={cn(inputClass, invalid && "border-destructive/50")}
         type="number"
         min={0}
         step={1}
+        aria-label={ariaLabel}
+        aria-invalid={invalid}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -318,8 +431,29 @@ function NumberField({
   );
 }
 
-function parseIntegerInput(value: string) {
-  if (!/^\d+$/.test(value)) return null;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : null;
+function emptyCriterionDraft(id: number): GdsImportCriterionDraft {
+  return {
+    id,
+    layer: "",
+    datatype: "",
+    cellNameFilterMode: "include",
+    cellNameFilterValue: "",
+  };
+}
+
+function parseCriterionDraft(
+  criterion: GdsImportCriterionDraft,
+): GdsImportCriterion | null {
+  const layer = parseGdsIntegerInput(criterion.layer);
+  const datatype = parseGdsIntegerInput(criterion.datatype);
+  if (layer === null || datatype === null) return null;
+
+  const contains = criterion.cellNameFilterValue.trim();
+  return {
+    layer,
+    datatype,
+    cellNameFilter: contains
+      ? { mode: criterion.cellNameFilterMode, contains }
+      : undefined,
+  };
 }

@@ -12,6 +12,8 @@ last_verified_commit: 5f262e1a
 source_of_truth:
   - apps/viewer/components/process-flow-fields/placement-list-control.tsx
   - apps/viewer/components/process-flow-fields/gds-placement-import.tsx
+  - apps/viewer/components/process-flow-fields/gds-import-criteria.ts
+  - apps/viewer/components/process-flow-fields/gds-import-criteria.test.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.test.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-import.worker.ts
@@ -47,19 +49,25 @@ invalid draft顯示fallback copy且不得throw。Readonly mode顯示summary與po
 ## GDS import
 
 GDS不是required input。Editor初始只顯示小型`Import from GDS`button；button以`aria-expanded`
-控制import panel，使用者展開後才顯示file、layer、datatype、cell name filter與default-off
-`Defeature`選項。
+控制import panel。使用者展開後選擇一個file，並維護至少一組pattern。每組pattern各自包含
+layer、datatype與optional cell name filter；`Defeature`是default-off且由所有pattern共用。
 
-Import在dedicated Web Worker執行；新import terminate previous worker。只把指定layer/datatype的
-`BOUNDARY`/`BOX`遞迴展開`SREF/AREF`，套用translation、rotation、magnification、reflection與
-optional cell name filter。Cell name來自每個shape所屬structure的`STRNAME`，比對不區分大小寫，
-並支援include/exclude substring。
+Pattern以exact layer/datatype pair做OR比對，不產生layer與datatype的cross product。同一pair不得
+重複；任一pair incomplete、不是non-negative safe integer或重複時，顯示inline diagnostic並停用
+import。Add pattern新增include、empty cell filter的空白列；remove不得刪除最後一列。Pattern order
+不影響結果。
+
+Import在dedicated Web Worker執行；新import terminate previous worker。Worker只解析、遍歷GDS一次，
+把符合任一pattern的`BOUNDARY`/`BOX`遞迴展開`SREF/AREF`，套用translation、rotation、
+magnification、reflection與該pattern的optional cell name filter。Cell name來自每個shape所屬
+structure的`STRNAME`，比對不區分大小寫，並支援include/exclude substring。
 
 - Axis-aligned transformed boundary canonicalize為rectangle。
 - 其他boundary保留exact transformed polygon points。
 - Rectangle bounds與polygon points都保存absolute coordinates；reference transform已烘焙在shape。
 - Imported placement使用fixed zero pose與`center` anchor compatibility fields。
-- Success整批取代placements；error保留原值。Shape signature duplicate會移除。
+- 所有pattern結果使用同一accumulator，Shape signature duplicate跨pattern移除，摘要統計彙總。
+- Success整批取代placements；error保留原值。
 
 Defeature是無尺寸參數的import-time-only設定，不寫入placement payload。Worker在unit scaling後、
 duplicate removal前修復每個含非X/Y軸向edge的polygon。連續非正交edge兩側若為互相垂直的
@@ -100,3 +108,5 @@ Pose X/Y是selected anchor的global位置、Rotation Z繞anchor逆時針旋轉�
 | `UI-PLACE-011` | Defeature關閉且GDS含非正交polygon | exact polygon匯入並顯示mesher compatibility warning。 |
 | `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | 只修復局部特徵，外框保留且success摘要顯示repair數。 |
 | `UI-PLACE-013` | 純圓形或無法安全局部修復的polygon | 以AABB匯入，摘要顯示bounding-box fallback數且輸出完全正交。 |
+| `UI-PLACE-014` | 新增多組GDS pattern並匯入 | exact pair以OR合併、各組cell filter獨立、Defeature共用且結果整批取代placements。 |
+| `UI-PLACE-015` | GDS pattern incomplete、invalid或pair重複 | 對應列顯示diagnostic且Import and replace停用。 |

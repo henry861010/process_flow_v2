@@ -16,17 +16,18 @@ import {
   type GdsTargetRegion,
   type Matrix,
 } from "./gds-coordinate-geometry";
+import {
+  gdsElementMatchesCriteria,
+  normalizeGdsImportCriteria,
+  type GdsImportCriterion,
+  type NormalizedGdsImportCriterion,
+} from "./gds-import-criteria";
 
 type GdsImportRequest = {
   requestId: string;
   buffer: ArrayBuffer;
-  layer: number;
-  datatype: number;
+  criteria: GdsImportCriterion[];
   unit?: string | null;
-  cellNameFilter?: {
-    mode: "include" | "exclude";
-    contains: string;
-  };
   defeature?: boolean;
 };
 
@@ -73,11 +74,6 @@ type GdsElement = {
   angle?: number;
 };
 
-type NormalizedCellNameFilter = {
-  mode: "include" | "exclude";
-  contains: string;
-};
-
 type GdsStructure = {
   name: string;
   elements: GdsElement[];
@@ -107,10 +103,10 @@ workerScope.onmessage = (event: MessageEvent<GdsImportRequest>) => {
 };
 
 function importCoordinates(request: GdsImportRequest) {
+  const criteria = normalizeGdsImportCriteria(request.criteria);
   const layout = parseLayout(request.buffer);
   const topCellNames = getTopCellNames(layout.structures);
   const coordinateScale = unitScale(layout.metersPerDbUnit, request.unit);
-  const cellNameFilter = normalizeCellNameFilter(request.cellNameFilter);
   const regionAccumulator = createGdsRegionAccumulator(request.defeature === true);
   const unsupportedElements: Record<string, number> = {};
   let matchedElements = 0;
@@ -135,15 +131,7 @@ function importCoordinates(request: GdsImportRequest) {
     stack.add(structureName);
     structure.elements.forEach((element) => {
       if (element.kind === "BOUNDARY" || element.kind === "BOX") {
-        if (
-          !elementMatches(
-            element,
-            request.layer,
-            request.datatype,
-            structure.name,
-            cellNameFilter,
-          )
-        ) {
+        if (!elementMatches(element, criteria, structure.name)) {
           return;
         }
         const sourcePoints = element.xy ?? [];
@@ -218,15 +206,7 @@ function importCoordinates(request: GdsImportRequest) {
         return;
       }
 
-      if (
-        elementMatches(
-          element,
-          request.layer,
-          request.datatype,
-          structure.name,
-          cellNameFilter,
-        )
-      ) {
+      if (elementMatches(element, criteria, structure.name)) {
         unsupportedElements[element.kind] =
           (unsupportedElements[element.kind] ?? 0) + 1;
       }
@@ -428,34 +408,13 @@ function getTopCellNames(structures: Map<string, GdsStructure>) {
 
 function elementMatches(
   element: GdsElement,
-  layer: number,
-  datatype: number,
+  criteria: readonly NormalizedGdsImportCriterion[],
   cellName: string,
-  cellNameFilter: NormalizedCellNameFilter | null,
 ) {
-  if (element.layer !== layer || element.datatype !== datatype) {
-    return false;
-  }
-  return cellNameMatches(cellName, cellNameFilter);
-}
-
-function normalizeCellNameFilter(
-  cellNameFilter: GdsImportRequest["cellNameFilter"],
-): NormalizedCellNameFilter | null {
-  const contains = cellNameFilter?.contains.trim().toLowerCase();
-  if (!cellNameFilter || !contains) {
-    return null;
-  }
-  return { mode: cellNameFilter.mode, contains };
-}
-
-function cellNameMatches(
-  cellName: string,
-  cellNameFilter: NormalizedCellNameFilter | null,
-) {
-  if (!cellNameFilter) {
-    return true;
-  }
-  const matched = cellName.toLowerCase().includes(cellNameFilter.contains);
-  return cellNameFilter.mode === "include" ? matched : !matched;
+  return gdsElementMatchesCriteria(
+    criteria,
+    element.layer,
+    element.datatype,
+    cellName,
+  );
 }
