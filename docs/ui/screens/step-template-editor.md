@@ -31,8 +31,8 @@ type。
 2. 確認 top bar、library search、fresh identity fields、Geometry Ports、`No parameters` 與 JSON payload。
 3. click 一個 library row，確認是 deep clone、source identity 出現、draft id 清空。
 4. 依序檢查 auxiliary port、parameter builder、JSON payload 與 immutable save behavior。
-5. Review 時若看到 `schema v2` 或 release-like version label，保留現況證據並引用
-   `DM-020` / `UI-GAP-VERSION-LABEL-001`；不得把它當成 accepted target。
+5. Review 時若看到 `schema v2`，保留現況證據並引用
+   `UI-GAP-VERSION-LABEL-001`；不得把它當成 accepted target。
 
 ## 版面配置
 
@@ -81,7 +81,7 @@ Desktop `md` 兩欄；Description跨兩欄。
 | Field | Required | Default/validation |
 | --- | --- | --- |
 | `Template id` | yes | empty；`^[A-Za-z][A-Za-z0-9_.-]*$`、unique。 |
-| `Version` | yes | `current`；只是 opaque metadata label。 |
+| `Version` | yes | `V0.0.0`；只是 opaque metadata label。 |
 | `Name` | yes | empty。 |
 | `Owner` | yes | empty。 |
 | `Category` | yes | empty。 |

@@ -221,7 +221,7 @@ Fresh capture：reset後開 route，不選 copy、不新增 node，等待 bootst
 
 | Viewport | Asset |
 | --- | --- |
-| `1440×900` | `../assets/reference/flow-template-editor-1440x900.png`（pending：等待 `DM-020`） |
+| `1440×900` | `../assets/reference/flow-template-editor-1440x900.png`（pending：等待零版 fixture reference 重拍） |
 | `1024×768` | `../assets/reference/flow-template-editor-1024x768.png`（pending） |
 | `390×844` | `../assets/reference/flow-template-editor-390x844.png`（pending） |
 

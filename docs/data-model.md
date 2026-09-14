@@ -96,7 +96,7 @@ layers 等 step parameters。設定完整並 commit 後，系統建立 immutable
 | `ProcessFlowTemplate` | 定義一項封裝技術的完整 topology，包括 flow inputs、step references 與 edges。 | AAA flow 將 PnP、molding、RDL 與 C4 依製程順序連接。 | Immutable snapshot |
 | `ProcessFlowWorkspace` | 保存特定產品仍在調整中的 `FlowConfiguration`。 | HBM4 Alpha 開發過程中調整 geometry bindings、placements、材料與厚度。 | 只有 `draft` 可修改 |
 | `ProcessFlowInstance` | 保存已完成並通過完整驗證的產品製程設定。 | HBM4 Alpha Build 的完整 geometry bindings 與各 step parameter values。 | Immutable snapshot |
-| `GeometryEntity` | 保存可被 flow input 引用的 catalog geometry snapshot。 | `panel_v1_0_0` panel 與 `hbm_v1_3_1` HBM die。 | Immutable snapshot |
+| `GeometryEntity` | 保存可被 flow input 引用的 catalog geometry snapshot。 | `panel_plp_310x310mm_glass` panel 與 `hbm3_8hi` HBM die。 | Immutable snapshot |
 
 ```mermaid
 flowchart LR
@@ -123,8 +123,8 @@ auxiliary geometry，`placements` 則是 PnP 的 parameter value。
 
 ```mermaid
 flowchart LR
-  Panel["incoming_panel<br/>catalog: panel_v1_0_0"] --> Main["pnp.main_geometry"]
-  Die["incoming_die<br/>catalog: hbm_v1_3_1"] --> Aux["pnp.die_geometry"]
+  Panel["incoming_panel<br/>catalog: panel_plp_310x310mm_glass"] --> Main["pnp.main_geometry"]
+  Die["incoming_die<br/>catalog: hbm3_8hi"] --> Aux["pnp.die_geometry"]
   Main --> PnP["pnp<br/>placements: targetRegion + pose + anchor"]
   Aux --> PnP
   PnP --> Result["pnp.result_geometry<br/>唯一 terminal output"]
@@ -184,7 +184,7 @@ flowchart TB
 | --- | --- | --- | --- | --- |
 | `schemaVersion` | integer literal | yes | `2` | MUST equal `2`。 |
 | `id` | identifier | yes | none | Immutable snapshot identity。 |
-| `version` | non-empty string | yes | none | Opaque metadata label；未正式發行前 MUST 是 `current`，不得 parse、sort 或驅動行為。 |
+| `version` | non-empty string | yes | none | Opaque metadata label；內建 fixture 與 editor default 使用 `V0.0.0`，不得 parse、sort 或驅動行為。 |
 | `name` | non-empty string | yes | none | Human-facing name。 |
 | `category` | non-empty string | yes | none | Dot-delimited category MAY 表達 hierarchy。 |
 | `program` | string | yes | none | Extensionless relative module path under `process_flow_steps`；每個 segment MUST match `[A-Za-z0-9_-]+`。 |
@@ -235,7 +235,7 @@ values。在 PnP 範例中，它以兩條 edges 將 `incoming_panel` 與 `incomi
 | `schemaVersion` | integer literal | yes | `2` | MUST equal `2`。 |
 | `id` | identifier | persisted: yes; preview draft: no | draft `""` | Persisted template id MUST non-empty。 |
 | `name` | non-empty string | yes | none | Human-facing name。 |
-| `version` | non-empty string | yes | none | Opaque metadata label；未正式發行前 MUST 是 `current`，不得 parse、sort 或驅動行為。 |
+| `version` | non-empty string | yes | none | Opaque metadata label；內建 fixture 與 editor default 使用 `V0.0.0`，不得 parse、sort 或驅動行為。 |
 | `description` | string | no | `""` | Description。 |
 | `owner` | non-empty string | persisted: yes | draft MAY be `""` | Owning team。 |
 | `flowInputs` | `FlowInputDefinition[]` | yes | none | MUST 至少一個。 |
@@ -259,7 +259,7 @@ Instance 的 Configuration 則負責選擇這次實際使用的 geometry。
 | Model | 所屬位置 | 責任 | PnP 範例 |
 | --- | --- | --- | --- |
 | `FlowInputDefinition` | `ProcessFlowTemplate.flowInputs` | 定義 graph 上的外部 geometry source node。 | `incoming_die` |
-| `GeometryBinding` | `FlowConfiguration.inputBindings` | 指定該 flow input 實際使用的 geometry 來源。 | `{ "kind": "catalog", "geometryId": "hbm_v1_3_1" }` |
+| `GeometryBinding` | `FlowConfiguration.inputBindings` | 指定該 flow input 實際使用的 geometry 來源。 | `{ "kind": "catalog", "geometryId": "hbm3_8hi" }` |
 | `GeometryEntity`／`EmbeddedGeometry` | Catalog 或 `embeddedGeometries` | 保存實際的 geometry metadata 與 `GeometryStructure`。 | HBM die geometry |
 | `FlowEdge` | `ProcessFlowTemplate.flowEdges` | 將 flow input 的 geometry 傳到 step input port。 | `incoming_die -> pnp.die_geometry` |
 | Step input port | `ProcessStepTemplate.inputPorts` | 定義 step 可以接收 geometry 的位置。 | `die_geometry` |
@@ -425,7 +425,7 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 `inputBindings` 中的 `GeometryBinding` 有兩種來源：
 
 ```json
-{ "kind": "catalog", "geometryId": "panel_v1_0_0" }
+{ "kind": "catalog", "geometryId": "panel_plp_310x310mm_glass" }
 ```
 
 ```json
@@ -558,14 +558,15 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"7"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
-| Resource metadata label | `version` | string | 新 resource 使用 `"current"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"8"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| Resource metadata label | `version` | string | Template default `"V0.0.0"`；geometry default `"v0.0.0"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 
 `GeometryEntity` 外層不是 Process resource schema，因此不包含 numeric
 `schemaVersion: 2`；其 nested `structure` MUST 包含 geometry format marker。正式發行策略
-確立前，新 resource 的 `version` MUST 是 `current`。Consumer MUST NOT 從 `version` 或 id
-prefix 推導 model kind、release generation 或 runtime behavior。
+確立前，內建 fixture 與 editor 建立新 resource 的 default 使用零版 label；API 仍保留並回傳
+使用者提供的其他 non-empty label。Consumer MUST NOT 從 `version` 或 id prefix 推導 model
+kind、release generation 或 runtime behavior。
 
 ### 10.3 Identifier 格式與唯一範圍
 
@@ -714,10 +715,10 @@ Kernel MUST：
 ## 14. 可完整執行的 PnP golden example
 
 以下三個 documents 是同一個完整 target-contract example。它使用現有 catalog fixtures
-`panel_v1_0_0` 與 `hbm_v1_3_1`；若 catalog records 存在，即可 compile 並執行
+`panel_plp_310x310mm_glass` 與 `hbm3_8hi`；若 catalog records 存在，即可 compile 並執行
 `pnp/pnp`。`workingTemp` 刻意不出現，因為該 id 已棄用，且 PnP 不需要溫度 input。
-這些既有 fixture id 是 opaque identity；其中的數字尾碼不表示產品版本，也不能用來
-選擇 schema 或切換行為。
+這些既有 fixture id 是 descriptive opaque identity；不包含 release 版本，也不能用來選擇
+schema 或切換行為。
 
 ### 14.1 ProcessStepTemplate
 
@@ -725,7 +726,7 @@ Kernel MUST：
 {
   "schemaVersion": 2,
   "id": "step_tpl_pnp_golden",
-  "version": "current",
+  "version": "V0.0.0",
   "name": "PnP",
   "category": "assembly.pnp",
   "program": "pnp/pnp",
@@ -775,7 +776,7 @@ Kernel MUST：
   "schemaVersion": 2,
   "id": "flow_tpl_pnp_golden",
   "name": "PnP Golden Flow",
-  "version": "current",
+  "version": "V0.0.0",
   "description": "Single-terminal PnP reference flow.",
   "owner": "integration.platform",
   "flowInputs": [
@@ -847,11 +848,11 @@ Kernel MUST：
   "inputBindings": {
     "incoming_panel": {
       "kind": "catalog",
-      "geometryId": "panel_v1_0_0"
+      "geometryId": "panel_plp_310x310mm_glass"
     },
     "incoming_die": {
       "kind": "catalog",
-      "geometryId": "hbm_v1_3_1"
+      "geometryId": "hbm3_8hi"
     }
   },
   "stepConfigurations": {

@@ -90,7 +90,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/flow-instance-editor` | 選 `AAA Demo`，不儲存 workspace | bind、edit、preview；確認draft controls/status box隱藏；known workspace URL commit | `UI-FIE-001` 至 `UI-FIE-008` |
 | `/admin/processstepeditor` | fresh step draft | clone、ports、parameters、save immutable template | `UI-PSTE-001` 至 `UI-PSTE-007` |
 | `/cad-viewer` | demo workbench | import、section、camera、reset | `UI-CAD-001` 至 `UI-CAD-006` |
-| Geometry Preview | ready `panel_v1_0_0` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |
+| Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |
 
 每個 entry state 的詳細 setup、操作順序與完成定義見
 [Reconstruction Guide](reconstruction-guide.md)。
@@ -114,10 +114,10 @@ Visual regression 的預設資料狀態稱為 `ui-golden`：
 
 | 資料 | Canonical record |
 | --- | --- |
-| Flow template | `flow_tpl_aaa_demo_3_0_0` / `AAA Demo` |
+| Flow template | `flow_tpl_aaa_demo` / `AAA Demo` |
 | Immutable instance | `flow_inst_aaa_demo_hbm4_alpha` / `HBM4 Alpha Build` |
-| Geometry | `panel_v1_0_0`、`hbm_v1_3_1` |
-| Process step | `step_tpl_molding_2_0_0`，以及 fixture 中其餘 current templates |
+| Geometry | `panel_plp_310x310mm_glass`、`hbm3_8hi` |
+| Process step | `step_tpl_molding`，以及 fixture 中其餘 `V0.0.0` templates |
 | Workspace | Draft UI case不建立workspace；commit case由test setup透過保留的API建立，並以known `workspaceId` URL載入；不得依賴上一個test留下的draft |
 
 表中的 fixture id 是既有資料的 opaque identity；數字尾碼不表示產品版本，也不能用來
@@ -170,7 +170,7 @@ color scheme `light`、locale `en-US`：
 | `UI-GAP-A11Y-001` | 自製 modal 的完整 dialog semantics 與 focus 管理落差；狀態見 [conformance](../conformance.md)。 |
 | `UI-GAP-DRAG-001` | Template Editor 的 Geometry item 缺少 keyboard/touch add command；狀態見 [conformance](../conformance.md)。 |
 | `UI-GAP-RESP-001` | Template Editor 在 `1024px` 的三欄最小寬度可能裁切 right pane；狀態見 [conformance](../conformance.md)。 |
-| `UI-GAP-VERSION-LABEL-001` | Current UI 仍顯示 release-like label／schema generation badge；狀態見 [conformance](../conformance.md)。 |
+| `UI-GAP-VERSION-LABEL-001` | Resource defaults 已歸零；Step editor 仍顯示 schema generation badge。狀態見 [conformance](../conformance.md)。 |
 | `UI-GAP-MODAL-STACK-001` | Export form 的 Escape 會穿透並關閉下層 overlay；狀態見 [conformance](../conformance.md)。 |
 
 產品 visible copy 目前以英文為 current baseline；localization 尚未形成 accepted target，

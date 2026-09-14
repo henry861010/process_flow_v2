@@ -65,7 +65,7 @@ source_of_truth:
 - [ ] fresh library、search、identity、ports、parameters、JSON payload 順序正確。
 - [ ] clone 是 deep clone 並清空 id；既有 template 不可 in-place update。
 - [ ] primary input/output invariant、auxiliary port add/remove、parameter reorder 正確。
-- [ ] schema generation badge 與 release-like version label 若仍存在，引用 `DM-020` / `UI-GAP-VERSION-LABEL-001`。
+- [ ] schema generation badge 若仍存在，引用 `UI-GAP-VERSION-LABEL-001`；內建 resource 若出現非零版 label，視為 `DM-020` regression。
 
 ### CAD Viewer / Geometry Preview
 

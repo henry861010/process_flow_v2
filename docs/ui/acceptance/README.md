@@ -67,8 +67,8 @@ screenshot、gap reproduction 或尚未決定的畫面，必須存於
 [../evidence/README.md](../evidence/README.md) 所定義的 evidence 層，不得直接升格為
 normative reference。
 
-Home 與 editor reference 必須等 `DM-020`／`UI-GAP-VERSION-LABEL-001` 關閉後重拍；不得把
-仍含 release-like label 的 current screenshot 當成 normative baseline。
+Home 與 editor reference 必須使用歸零後 fixtures 重拍；Step Template Editor 另須等
+`UI-GAP-VERSION-LABEL-001` 關閉。仍含舊版 label 的 screenshot 不得當成 normative baseline。
 
 ## 圖片比較門檻
 

@@ -68,9 +68,9 @@ class GeometryFixtureTests(unittest.TestCase):
         fixture_ids = set(ids)
         self.assertTrue(
             {
-                "panel_v1_0_0",
-                "hbm_v1_3_1",
-                "soc_v1_0_0",
+                "panel_plp_310x310mm_glass",
+                "hbm3_8hi",
+                "soc",
                 "test1",
             }
             <= fixture_ids
@@ -142,7 +142,7 @@ class GeometryFixtureTests(unittest.TestCase):
                     self.assertEqual(bodies[0].get("key"), "frame")
 
     def test_frame_tape_fixture_has_requested_circular_dimensions(self):
-        frame = next(item for item in self.geometries if item["id"] == "frame_tape_v1_0_0")
+        frame = next(item for item in self.geometries if item["id"] == "frame_tape")
         root = frame["structure"]["root"]
         body = root["bodies"][0]
 

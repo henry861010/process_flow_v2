@@ -1177,7 +1177,7 @@ function newTemplate(): ProcessStepTemplate {
   return {
     schemaVersion: 2,
     id: "",
-    version: "V2.0.0",
+    version: "V0.0.0",
     name: "",
     category: "",
     program: "",

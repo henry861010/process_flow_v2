@@ -655,7 +655,7 @@ function ProcessFlowTemplateEditorInner() {
             schemaVersion: 2,
             id: "temporary",
             name: "temporary",
-            version: "temporary",
+            version: "V0.0.0",
             flowInputs: [],
             stepRefs: [node.data.stepRef],
             flowEdges: [],
@@ -2184,7 +2184,7 @@ function newMetadata(): TemplateMetadata {
   return {
     id: "",
     name: "",
-    version: "V2.0.0",
+    version: "V0.0.0",
     description: "",
     owner: "",
   };

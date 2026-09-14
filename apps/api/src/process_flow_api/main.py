@@ -58,7 +58,7 @@ from .workspace_service import commit_workspace, create_workspace, update_worksp
 
 
 def create_app(*, db_path: str | Path | None = None) -> FastAPI:
-    app = FastAPI(title="Process Flow API", version="0.2.0", lifespan=app_lifespan)
+    app = FastAPI(title="Process Flow API", version="0.0.0", lifespan=app_lifespan)
     app.state.store = SQLiteStore(db_path or default_db_path())
     app.state.file_export_jobs = FileExportJobManager()
     app.state.preview_sessions = PreviewSessionManager.from_environment()

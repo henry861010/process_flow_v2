@@ -169,7 +169,7 @@ Screen提供的 `statusLabel`優先於fallback。Status不可只靠border color�
 
 ## 測試 fixture
 
-使用 `flow_tpl_aaa_demo_3_0_0`；至少涵蓋一個ready、一個incomplete、一個error、一個
+使用 `flow_tpl_aaa_demo`；至少涵蓋一個ready、一個incomplete、一個error、一個
 neutral node/edge的isolated component fixture。這是既有 fixture 的 opaque id；數字尾碼
 不表示產品版本，也不能用來切換行為。
 

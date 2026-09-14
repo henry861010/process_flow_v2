@@ -42,7 +42,7 @@ source_of_truth:
 | `/flow-instance-editor` | selected AAA configuration | 開 route 後選 `AAA Demo`，不儲存 workspace | graph、default configuration、dirty status、無draft controls/status box |
 | `/admin/processstepeditor` | fresh step draft | reset 後直接開 route，不 clone template | library、empty identity、Geometry Ports、No parameters |
 | `/cad-viewer` | demo workbench | 直接開 route，不 import file | demo model、Section XZ、Grid/Axes on、ISO |
-| Geometry Preview | ready preview | Instance Editor 綁定 `panel_v1_0_0` 後開 Preview | Loading → Ready、viewport、right controls、footer |
+| Geometry Preview | ready preview | Instance Editor 綁定 `panel_plp_310x310mm_glass` 後開 Preview | Loading → Ready、viewport、right controls、footer |
 
 ## 主要操作旅程
 

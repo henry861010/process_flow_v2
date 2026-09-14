@@ -10,9 +10,9 @@ from process_flow_api.repository import DATABASE_SCHEMA_VERSION, SQLiteStore
 
 
 class RepositoryMigrationTests(unittest.TestCase):
-    def test_v6_to_v7_clears_incompatible_resources(self):
+    def test_v7_to_v8_clears_resources_with_retired_fixture_ids(self):
         with tempfile.TemporaryDirectory() as tmp_name:
-            db_path = Path(tmp_name) / "v6.sqlite3"
+            db_path = Path(tmp_name) / "v7.sqlite3"
             connection = sqlite3.connect(db_path)
             connection.executescript(
                 """
@@ -41,7 +41,7 @@ class RepositoryMigrationTests(unittest.TestCase):
                   payload TEXT NOT NULL
                 );
                 INSERT INTO schema_metadata(key, value)
-                VALUES ('databaseSchemaVersion', '6');
+                VALUES ('databaseSchemaVersion', '7');
                 """
             )
             for item in (

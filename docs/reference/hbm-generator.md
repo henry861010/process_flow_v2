@@ -148,7 +148,7 @@ Save 必須用同一份 GeometryStructure 建立 `GeometryEntity`：
 | --- | --- |
 | `id` | `null`，由 server 產生。 |
 | `name` | 使用者輸入，trim 後非空。 |
-| `version` | 使用者輸入，預設 `current`，trim 後非空。 |
+| `version` | 使用者輸入，預設 `v0.0.0`，trim 後非空。 |
 | `owner` | 使用者輸入，trim 後非空。 |
 | `description` | 選填；空字串轉為 `null`。 |
 | `entityType` | `die` |

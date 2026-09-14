@@ -63,7 +63,7 @@ export function BackendGeometryGeneratorDialog({
   const [notice, setNotice] = React.useState<string | null>(null);
   const [saveMetadata, setSaveMetadata] = React.useState<GeneratorSaveMetadata>({
     name: `Generated ${definition.label.replace(/\s+generator$/i, "")}`,
-    version: "current",
+    version: "v0.0.0",
     owner: "",
     description: "",
   });

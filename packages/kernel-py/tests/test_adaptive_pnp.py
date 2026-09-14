@@ -557,7 +557,7 @@ def pnp_step_template():
     return {
         "schemaVersion": 2,
         "id": "adaptive-pnp-step",
-        "version": "V4.0.0",
+        "version": "V0.0.0",
         "name": "PnP",
         "category": "PnP",
         "program": "pnp/pnp",

@@ -134,8 +134,8 @@ Fixture：`ui-golden` reset 後的完整 bootstrap。Reference capture必須等 
 
 | Viewport | Asset |
 | --- | --- |
-| `1440×900` | `../assets/reference/home-1440x900.png`（pending：等待 `DM-020`） |
-| `1024×768` | `../assets/reference/home-1024x768.png`（pending：等待 `DM-020`） |
+| `1440×900` | `../assets/reference/home-1440x900.png`（pending：等待零版 fixture reference 重拍） |
+| `1024×768` | `../assets/reference/home-1024x768.png`（pending：等待零版 fixture reference 重拍） |
 | `390×844` | `../assets/reference/home-390x844.png`（pending） |
 
 ## 驗收案例

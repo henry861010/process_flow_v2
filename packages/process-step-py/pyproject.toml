@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "process-flow-steps"
-version = "0.1.0"
+version = "0.0.0"
 description = "Python process-flow step modules."
 requires-python = ">=3.11"
 dependencies = ["process-flow-kernel"]

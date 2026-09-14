@@ -1,9 +1,9 @@
 [
   {
-    "id": "wafer_v1_0_1",
+    "id": "wafer_150mm_silicon",
     "category": "carrier.wafer",
     "name": "150 mm Silicon Wafer",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "150000 x 150000 x 675 um — Standard 150 mm silicon wafer envelope.",
     "entityType": "wafer",
@@ -16,10 +16,10 @@
     }
   },
   {
-    "id": "wafer_v1_0_2",
+    "id": "wafer_200mm_silicon",
     "category": "carrier.wafer",
     "name": "200 mm Silicon Wafer",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "200000 x 200000 x 725 um — Standard 200 mm silicon wafer envelope.",
     "entityType": "wafer",
@@ -32,10 +32,10 @@
     }
   },
   {
-    "id": "wafer_v1_0_3",
+    "id": "wafer_300mm_silicon",
     "category": "carrier.wafer",
     "name": "300 mm Silicon Wafer",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "300000 x 300000 x 775 um — Standard 300 mm silicon wafer envelope.",
     "entityType": "wafer",
@@ -48,10 +48,10 @@
     }
   },
   {
-    "id": "panel_v1_0_0",
+    "id": "panel_plp_310x310mm_glass",
     "category": "carrier.panel",
     "name": "310 x 310 mm PLP Glass Panel",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "310000 x 310000 x 700 um — Compact panel-level packaging glass carrier.",
     "entityType": "panel",
@@ -64,10 +64,10 @@
     }
   },
   {
-    "id": "panel_v1_0_1",
+    "id": "panel_plp_510x515mm_glass",
     "category": "carrier.panel",
     "name": "510 x 515 mm PLP Glass Panel",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "510000 x 515000 x 700 um — Industry panel-level packaging glass carrier.",
     "entityType": "panel",
@@ -80,10 +80,10 @@
     }
   },
   {
-    "id": "panel_v1_0_2",
+    "id": "panel_plp_600x600mm_glass",
     "category": "carrier.panel",
     "name": "600 x 600 mm PLP Glass Panel",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "600000 x 600000 x 1000 um — Large-format panel-level packaging glass carrier.",
     "entityType": "panel",
@@ -96,11 +96,11 @@
     }
   },
   {
-    "id": "hbm_v1_2_1",
+    "id": "hbm2_4hi",
     "category": "die.hbm",
     "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM2 4-Hi",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "7750 x 11870 x 720 um — Representative HBM2 4-Hi package envelope.",
     "entityType": "die",
@@ -113,11 +113,11 @@
     }
   },
   {
-    "id": "hbm_v1_2e_1",
+    "id": "hbm2e_8hi",
     "category": "die.hbm",
     "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM2E 8-Hi",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "7750 x 11870 x 720 um — Representative HBM2E 8-Hi package envelope.",
     "entityType": "die",
@@ -130,11 +130,11 @@
     }
   },
   {
-    "id": "hbm_v1_3_1",
+    "id": "hbm3_8hi",
     "category": "die.hbm",
     "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM3 8-Hi",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "10975 x 10975 x 720 um — JEDEC-scale HBM3 8-Hi package envelope.",
     "entityType": "die",
@@ -147,11 +147,11 @@
     }
   },
   {
-    "id": "hbm_v1_3e_1",
+    "id": "hbm3e_12hi",
     "category": "die.hbm",
     "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM3E 12-Hi",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "10980 x 10980 x 780 um — Production-scale HBM3E 12-Hi package envelope.",
     "entityType": "die",
@@ -164,11 +164,11 @@
     }
   },
   {
-    "id": "hbm_v1_4_1",
+    "id": "hbm4_12hi",
     "category": "die.hbm",
     "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
     "name": "HBM4 12-Hi",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "10980 x 10980 x 775 um — Representative HBM4 12-Hi package envelope.",
     "entityType": "die",
@@ -181,11 +181,11 @@
     }
   },
   {
-    "id": "dram_ddr3_x8_v1_0_0",
+    "id": "dram_ddr3_x8",
     "category": "die.dram",
     "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "DDR3 x8 FBGA",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "7500 x 11000 x 1100 um — Representative DDR3 x8 FBGA component envelope.",
     "entityType": "die",
@@ -198,11 +198,11 @@
     }
   },
   {
-    "id": "dram_ddr4_x8_v1_0_0",
+    "id": "dram_ddr4_x8",
     "category": "die.dram",
     "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "DDR4 x8 FBGA",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "7500 x 11000 x 1100 um — Representative DDR4 x8 FBGA component envelope.",
     "entityType": "die",
@@ -215,11 +215,11 @@
     }
   },
   {
-    "id": "dram_ddr5_x8_v1_0_0",
+    "id": "dram_ddr5_x8",
     "category": "die.dram",
     "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "DDR5 x8 VFBGA",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "7500 x 11000 x 1000 um — Production-scale DDR5 78-ball VFBGA component envelope.",
     "entityType": "die",
@@ -232,11 +232,11 @@
     }
   },
   {
-    "id": "dram_lpddr4x_v1_0_0",
+    "id": "dram_lpddr4x",
     "category": "die.dram",
     "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "LPDDR4X FBGA",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "12000 x 14500 x 1000 um — Representative LPDDR4X FBGA component envelope.",
     "entityType": "die",
@@ -249,11 +249,11 @@
     }
   },
   {
-    "id": "dram_lpddr5_v1_0_0",
+    "id": "dram_lpddr5",
     "category": "die.dram",
     "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "LPDDR5 TFBGA",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "12400 x 15000 x 1100 um — Production-scale LPDDR5 315-ball TFBGA component envelope.",
     "entityType": "die",
@@ -266,11 +266,11 @@
     }
   },
   {
-    "id": "dram_gddr6_v1_0_0",
+    "id": "dram_gddr6",
     "category": "die.dram",
     "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "GDDR6 FBGA",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "14000 x 12000 x 1100 um — Representative GDDR6 FBGA component envelope.",
     "entityType": "die",
@@ -283,11 +283,11 @@
     }
   },
   {
-    "id": "dram_gddr7_v1_0_0",
+    "id": "dram_gddr7",
     "category": "die.dram",
     "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
     "name": "GDDR7 FBGA",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "14000 x 12000 x 1100 um — Representative GDDR7 FBGA component envelope.",
     "entityType": "die",
@@ -300,10 +300,10 @@
     }
   },
   {
-    "id": "soc_v1_0_0",
+    "id": "soc",
     "category": "die.soc",
     "name": "Mobile SoC Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "8000 x 10000 x 150 um — Representative thinned mobile SoC bare-die envelope.",
     "entityType": "die",
@@ -316,10 +316,10 @@
     }
   },
   {
-    "id": "soc_edge_v1_0_0",
+    "id": "soc_edge",
     "category": "die.soc",
     "name": "Edge SoC Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "10000 x 12000 x 200 um — Representative edge-compute SoC bare-die envelope.",
     "entityType": "die",
@@ -332,10 +332,10 @@
     }
   },
   {
-    "id": "soc_automotive_v1_0_0",
+    "id": "soc_automotive",
     "category": "die.soc",
     "name": "Automotive SoC Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "12000 x 15000 x 250 um — Representative automotive SoC bare-die envelope.",
     "entityType": "die",
@@ -348,10 +348,10 @@
     }
   },
   {
-    "id": "soc_network_v1_0_0",
+    "id": "soc_network",
     "category": "die.soc",
     "name": "Networking SoC Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "16000 x 18000 x 250 um — Representative networking SoC bare-die envelope.",
     "entityType": "die",
@@ -364,10 +364,10 @@
     }
   },
   {
-    "id": "soc_server_v1_0_0",
+    "id": "soc_server",
     "category": "die.soc",
     "name": "Server SoC Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "20000 x 25000 x 300 um — Representative server-class SoC bare-die envelope.",
     "entityType": "die",
@@ -380,10 +380,10 @@
     }
   },
   {
-    "id": "soc_ai_accelerator_v1_0_0",
+    "id": "soc_ai_accelerator",
     "category": "die.soc",
     "name": "Large AI SoC Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "26000 x 32000 x 300 um — Representative near-reticle-limit AI SoC bare-die envelope.",
     "entityType": "die",
@@ -396,10 +396,10 @@
     }
   },
   {
-    "id": "soic_x_mobile_v1_0_0",
+    "id": "soic_x_mobile",
     "category": "die.soic",
     "name": "Compact SoIC-X Stack",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "8000 x 8000 x 300 um — Representative compact bumpless SoIC-X two-die stack envelope.",
     "entityType": "die",
@@ -412,10 +412,10 @@
     }
   },
   {
-    "id": "soic_x_cache_v1_0_0",
+    "id": "soic_x_cache",
     "category": "die.soic",
     "name": "Cache-on-Logic SoIC-X Stack",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "10000 x 10000 x 400 um — Representative cache-on-logic bumpless SoIC-X stack envelope.",
     "entityType": "die",
@@ -428,10 +428,10 @@
     }
   },
   {
-    "id": "soic_x_logic_v1_0_0",
+    "id": "soic_x_logic",
     "category": "die.soic",
     "name": "Logic-on-Logic SoIC-X Stack",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "15000 x 15000 x 500 um — Representative large bumpless SoIC-X logic stack envelope.",
     "entityType": "die",
@@ -444,10 +444,10 @@
     }
   },
   {
-    "id": "soic_p_chiplet_v1_0_0",
+    "id": "soic_p_chiplet",
     "category": "die.soic",
     "name": "Chiplet SoIC-P Stack",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "12000 x 12000 x 600 um — Representative microbump SoIC-P chiplet stack envelope.",
     "entityType": "die",
@@ -460,10 +460,10 @@
     }
   },
   {
-    "id": "soic_p_hpc_v1_0_0",
+    "id": "soic_p_hpc",
     "category": "die.soic",
     "name": "HPC SoIC-P Stack",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "20000 x 20000 x 800 um — Representative large microbump SoIC-P HPC stack envelope.",
     "entityType": "die",
@@ -476,10 +476,10 @@
     }
   },
   {
-    "id": "soic_8n_v1_0_0",
+    "id": "soic_8n",
     "category": "package.soic",
     "name": "SOIC-8 Narrow Body",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "4900 x 3900 x 1750 um — Nominal narrow-body SOIC-8 molded package envelope.",
     "entityType": "package",
@@ -492,10 +492,10 @@
     }
   },
   {
-    "id": "soic_14n_v1_0_0",
+    "id": "soic_14n",
     "category": "package.soic",
     "name": "SOIC-14 Narrow Body",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "8650 x 3900 x 1750 um — Nominal narrow-body SOIC-14 molded package envelope.",
     "entityType": "package",
@@ -508,10 +508,10 @@
     }
   },
   {
-    "id": "soic_16n_v1_0_0",
+    "id": "soic_16n",
     "category": "package.soic",
     "name": "SOIC-16 Narrow Body",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "9900 x 3900 x 1750 um — Nominal narrow-body SOIC-16 molded package envelope.",
     "entityType": "package",
@@ -524,10 +524,10 @@
     }
   },
   {
-    "id": "soic_16w_v1_0_0",
+    "id": "soic_16w",
     "category": "package.soic",
     "name": "SOIC-16 Wide Body",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "10300 x 7500 x 2650 um — Nominal wide-body SOIC-16 molded package envelope.",
     "entityType": "package",
@@ -540,10 +540,10 @@
     }
   },
   {
-    "id": "soic_20w_v1_0_0",
+    "id": "soic_20w",
     "category": "package.soic",
     "name": "SOIC-20 Wide Body",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "12800 x 7500 x 2650 um — Nominal wide-body SOIC-20 molded package envelope.",
     "entityType": "package",
@@ -556,10 +556,10 @@
     }
   },
   {
-    "id": "soic_24w_v1_0_0",
+    "id": "soic_24w",
     "category": "package.soic",
     "name": "SOIC-24 Wide Body",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "15400 x 7500 x 2650 um — Nominal wide-body SOIC-24 molded package envelope.",
     "entityType": "package",
@@ -572,10 +572,10 @@
     }
   },
   {
-    "id": "soic_28w_v1_0_0",
+    "id": "soic_28w",
     "category": "package.soic",
     "name": "SOIC-28 Wide Body",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "17900 x 7500 x 2650 um — Nominal wide-body SOIC-28 molded package envelope.",
     "entityType": "package",
@@ -588,10 +588,10 @@
     }
   },
   {
-    "id": "lsi_mixed_signal_v1_0_0",
+    "id": "lsi_mixed_signal",
     "category": "die.lsi",
     "name": "Small Mixed-Signal LSI Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "3000 x 3000 x 150 um — Representative small mixed-signal LSI bare-die envelope.",
     "entityType": "die",
@@ -604,10 +604,10 @@
     }
   },
   {
-    "id": "lsi_mcu_v1_0_0",
+    "id": "lsi_mcu",
     "category": "die.lsi",
     "name": "MCU-Class LSI Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "5000 x 5000 x 150 um — Representative MCU-class LSI bare-die envelope.",
     "entityType": "die",
@@ -620,10 +620,10 @@
     }
   },
   {
-    "id": "lsi_consumer_asic_v1_0_0",
+    "id": "lsi_consumer_asic",
     "category": "die.lsi",
     "name": "Consumer ASIC LSI Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "8000 x 10000 x 200 um — Representative consumer ASIC LSI bare-die envelope.",
     "entityType": "die",
@@ -636,10 +636,10 @@
     }
   },
   {
-    "id": "lsi_network_asic_v1_0_0",
+    "id": "lsi_network_asic",
     "category": "die.lsi",
     "name": "Networking ASIC LSI Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "12000 x 15000 x 200 um — Representative networking ASIC LSI bare-die envelope.",
     "entityType": "die",
@@ -652,10 +652,10 @@
     }
   },
   {
-    "id": "lsi_hpc_v1_0_0",
+    "id": "lsi_hpc",
     "category": "die.lsi",
     "name": "HPC LSI Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "18000 x 22000 x 250 um — Representative high-performance LSI bare-die envelope.",
     "entityType": "die",
@@ -668,10 +668,10 @@
     }
   },
   {
-    "id": "lsi_reticle_v1_0_0",
+    "id": "lsi_reticle",
     "category": "die.lsi",
     "name": "Large Reticle-Class LSI Die",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "26000 x 32000 x 300 um — Representative near-reticle-limit LSI bare-die envelope.",
     "entityType": "die",
@@ -684,10 +684,10 @@
     }
   },
   {
-    "id": "cpo_optical_io_4ch_v1_0_0",
+    "id": "cpo_optical_io_4ch",
     "category": "die.cpo",
     "name": "4-Channel CPO Optical I/O Chiplet",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "4000 x 6000 x 200 um — Representative compact co-packaged-optics chiplet envelope.",
     "entityType": "die",
@@ -700,10 +700,10 @@
     }
   },
   {
-    "id": "cpo_optical_engine_8ch_v1_0_0",
+    "id": "cpo_optical_engine_8ch",
     "category": "die.cpo",
     "name": "8-Channel CPO Optical Engine",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "6000 x 8000 x 250 um — Representative co-packaged-optics engine envelope.",
     "entityType": "die",
@@ -716,10 +716,10 @@
     }
   },
   {
-    "id": "cpo_optical_engine_16ch_v1_0_0",
+    "id": "cpo_optical_engine_16ch",
     "category": "die.cpo",
     "name": "16-Channel CPO Optical Engine",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "8000 x 10000 x 300 um — Representative high-channel-count co-packaged-optics engine envelope.",
     "entityType": "die",
@@ -732,10 +732,10 @@
     }
   },
   {
-    "id": "cpo_dual_engine_v1_0_0",
+    "id": "cpo_dual_engine",
     "category": "die.cpo",
     "name": "Dual CPO Optical Engine",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "10000 x 12000 x 350 um — Representative dual-engine co-packaged-optics chiplet envelope.",
     "entityType": "die",
@@ -748,10 +748,10 @@
     }
   },
   {
-    "id": "cpo_engine_array_v1_0_0",
+    "id": "cpo_engine_array",
     "category": "die.cpo",
     "name": "CPO Optical Engine Array",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "12000 x 16000 x 500 um — Representative large co-packaged-optics engine-array envelope.",
     "entityType": "die",
@@ -767,7 +767,7 @@
     "id": "test1",
     "category": "test.carrier",
     "name": "carrier",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "5000 x 5000 x 70 um — Simple block placeholder for carrier, centered at 0,0,0.",
     "entityType": "carrier",
@@ -798,10 +798,10 @@
     }
   },
   {
-    "id": "frame_tape_v1_0_0",
+    "id": "frame_tape",
     "category": "frame",
     "name": "350 mm Frame Tape",
-    "version": "v1.0.0",
+    "version": "v0.0.0",
     "owner": "demo.example",
     "description": "350000 x 350000 x 80 um — Circular frame-mount tape centered at 0,0,0; outer frame omitted.",
     "entityType": "frame",

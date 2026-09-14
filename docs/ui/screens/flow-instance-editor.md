@@ -44,7 +44,7 @@ Workspace不保存 topology；graph永遠由 referenced template + current confi
 ## Reconstruction entry
 
 1. reset API data 後開 `/flow-instance-editor`，先確認 `Select a flow template` empty state。
-2. 選擇 `AAA Demo / V3.0.0`，等待 graph、default step configurations 與
+2. 選擇 `AAA Demo / V0.0.0`，等待 graph、default step configurations 與
    `AAA Demo study` 完成 hydration。
 3. 單擊 `Incoming panel` node，開 Geometry inspector；選擇 `Panel1` 後確認 status 變成 `Bound`。
 4. 從 inspector 開 Geometry Preview，驗證 `Loading` → `Ready`，再檢查 footer export actions。
@@ -180,7 +180,7 @@ Reference capture：reset 後開 route，選擇 `AAA Demo`，等待 graph、defa
 
 | Viewport | Asset |
 | --- | --- |
-| `1440×900` | `../assets/reference/flow-instance-editor-1440x900.png`（pending：等待 `DM-020`） |
+| `1440×900` | `../assets/reference/flow-instance-editor-1440x900.png`（pending：等待零版 fixture reference 重拍） |
 | `1024×768` | `../assets/reference/flow-instance-editor-1024x768.png`（pending） |
 | `390×844` | `../assets/reference/flow-instance-editor-390x844.png`（pending） |
 

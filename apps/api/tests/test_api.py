@@ -66,17 +66,55 @@ class ProcessFlowApiTests(unittest.TestCase):
 
     def test_health_and_startup_bootstrap(self):
         self.assertEqual(self.client.get("/api/health").json(), {"status": "ok"})
+        self.assertEqual(
+            self.client.get("/openapi.json").json()["info"]["version"], "0.0.0"
+        )
 
         response = self.client.get("/api/bootstrap")
         self.assertEqual(response.status_code, 200, response.text)
         self.assert_seed_payload_counts(response.json())
+
+    def test_seed_resources_use_unreleased_versions_and_resolvable_ids(self):
+        payload = self.client.get("/api/bootstrap").json()
+        step_templates = {
+            item["id"]: item for item in payload["processStepTemplates"]
+        }
+        flow_templates = {
+            item["id"]: item for item in payload["processFlowTemplates"]
+        }
+        geometries = {item["id"]: item for item in payload["geometries"]}
+
+        self.assertEqual(
+            {item["version"] for item in step_templates.values()}, {"V0.0.0"}
+        )
+        self.assertEqual(
+            {item["version"] for item in flow_templates.values()}, {"V0.0.0"}
+        )
+        self.assertEqual(
+            {item["version"] for item in geometries.values()}, {"v0.0.0"}
+        )
+
+        versioned_id = re.compile(r"_v?\d+_\d+_\d+$")
+        for resource_id in (*step_templates, *flow_templates, *geometries):
+            with self.subTest(resource_id=resource_id):
+                self.assertIsNone(versioned_id.search(resource_id))
+
+        for flow_template in flow_templates.values():
+            for step_ref in flow_template["stepRefs"]:
+                self.assertIn(step_ref["processStepTemplateId"], step_templates)
+
+        for instance in payload["processFlowInstances"]:
+            self.assertIn(instance["processFlowTemplateId"], flow_templates)
+            for binding in instance["inputBindings"].values():
+                if binding["kind"] == "catalog":
+                    self.assertIn(binding["geometryId"], geometries)
 
     def test_carrier_bond_fixture_has_no_daf_parameters(self):
         payload = self.client.get("/api/bootstrap").json()
         carrier_bond = next(
             template
             for template in payload["processStepTemplates"]
-            if template["id"] == "step_tpl_carrier_bond_2_0_0"
+            if template["id"] == "step_tpl_carrier_bond"
         )
 
         self.assertEqual(carrier_bond["program"], "carrier/bond")
@@ -87,10 +125,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         debond = next(
             template
             for template in payload["processStepTemplates"]
-            if template["id"] == "step_tpl_debond_2_0_0"
+            if template["id"] == "step_tpl_debond"
         )
 
-        self.assertEqual(debond["version"], "V2.0.0")
+        self.assertEqual(debond["version"], "V0.0.0")
         self.assertEqual(debond["program"], "carrier/debond")
         self.assertEqual(debond["parameterDefinitions"], [])
         self.assertIn("full geometry top", debond["description"])
@@ -103,10 +141,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         templates = {
             template["id"]: template for template in payload["processStepTemplates"]
         }
-        mount = templates["step_tpl_frame_mount_1_0_0"]
-        demount = templates["step_tpl_frame_demount_1_0_0"]
+        mount = templates["step_tpl_frame_mount"]
+        demount = templates["step_tpl_frame_demount"]
 
-        self.assertEqual(mount["version"], "V1.0.0")
+        self.assertEqual(mount["version"], "V0.0.0")
         self.assertEqual(mount["program"], "frame/mount")
         self.assertEqual(
             [port["portId"] for port in mount["inputPorts"]],
@@ -115,7 +153,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(mount["inputPorts"][1]["role"], "auxiliary")
         self.assertEqual(mount["parameterDefinitions"], [])
 
-        self.assertEqual(demount["version"], "V1.0.0")
+        self.assertEqual(demount["version"], "V0.0.0")
         self.assertEqual(demount["program"], "frame/demount")
         self.assertEqual(
             [port["portId"] for port in demount["inputPorts"]],
@@ -132,10 +170,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         daf = next(
             template
             for template in payload["processStepTemplates"]
-            if template["id"] == "step_tpl_daf_1_0_0"
+            if template["id"] == "step_tpl_daf"
         )
 
-        self.assertEqual(daf["version"], "V1.0.0")
+        self.assertEqual(daf["version"], "V0.0.0")
         self.assertEqual(daf["name"], "DAF")
         self.assertEqual(daf["category"], "layer")
         self.assertEqual(daf["program"], "layer/daf")
@@ -161,10 +199,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         tiv = next(
             template
             for template in payload["processStepTemplates"]
-            if template["id"] == "step_tpl_tiv_1_0_0"
+            if template["id"] == "step_tpl_tiv"
         )
 
-        self.assertEqual(tiv["version"], "V1.0.0")
+        self.assertEqual(tiv["version"], "V0.0.0")
         self.assertEqual(tiv["name"], "tiv")
         self.assertEqual(tiv["category"], "tiv")
         self.assertEqual(tiv["program"], "tiv/tiv")
@@ -285,6 +323,7 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         created = self.client.post("/api/process-step-templates", json=template)
         self.assertEqual(created.status_code, 201, created.text)
+        self.assertEqual(created.json()["version"], "V2.0.0")
         duplicate = self.client.post("/api/process-step-templates", json=template)
         self.assertEqual(duplicate.status_code, 409, duplicate.text)
         deleted = self.client.delete("/api/process-step-templates/custom_step")
@@ -312,7 +351,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         template = {
             "schemaVersion": 2,
             "id": "legacy_geometry_step",
-            "version": "V2.0.0",
+            "version": "V0.0.0",
             "name": "Legacy geometry step",
             "category": "custom",
             "program": "layer/molding",
@@ -393,11 +432,11 @@ class ProcessFlowApiTests(unittest.TestCase):
         hbm = next(
             geometry
             for geometry in bootstrap["geometries"]
-            if geometry["id"] == "hbm_v1_3_1"
+            if geometry["id"] == "hbm3_8hi"
         )
         embedded = {key: value for key, value in hbm.items() if key != "id"}
         embedded["name"] = "HBM generated for direct instance"
-        embedded["version"] = "v2.0.0"
+        embedded["version"] = "v0.0.0"
         embedded["owner"] = "test-owner"
         embedded["generation"] = {
             "generatorId": "hbm",
@@ -433,7 +472,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         hbm = next(
             geometry
             for geometry in bootstrap["geometries"]
-            if geometry["id"] == "hbm_v1_3_1"
+            if geometry["id"] == "hbm3_8hi"
         )
         embedded = {key: value for key, value in hbm.items() if key != "id"}
         bindings = dict(source["inputBindings"])
@@ -463,11 +502,11 @@ class ProcessFlowApiTests(unittest.TestCase):
         panel = next(
             geometry
             for geometry in bootstrap["geometries"]
-            if geometry["id"] == "panel_v1_0_0"
+            if geometry["id"] == "panel_plp_310x310mm_glass"
         )
         embedded_panel = {key: value for key, value in panel.items() if key != "id"}
         embedded_panel["name"] = "Generated transaction panel"
-        embedded_panel["version"] = "v2.0.0"
+        embedded_panel["version"] = "v0.0.0"
         embedded_panel["owner"] = "test-owner"
         embedded_panel["generation"] = {
             "generatorId": "test-panel",
@@ -478,7 +517,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             "schemaVersion": 2,
             "id": "flow_tpl_transaction_test",
             "name": "Transaction Test",
-            "version": "V2.0.0",
+            "version": "V0.0.0",
             "description": "",
             "owner": "test",
             "flowInputs": [
@@ -493,7 +532,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 {
                     "stepRefId": "molding",
                     "stepLabel": "molding",
-                    "processStepTemplateId": "step_tpl_molding_2_0_0",
+                    "processStepTemplateId": "step_tpl_molding",
                 }
             ],
             "flowEdges": [
@@ -1021,7 +1060,7 @@ class ProcessFlowApiTests(unittest.TestCase):
     def test_workspace_commit_materializes_embedded_geometry(self):
         bootstrap = self.reset_poc_data()
         source = bootstrap["processFlowInstances"][0]
-        hbm = next(geometry for geometry in bootstrap["geometries"] if geometry["id"] == "hbm_v1_3_1")
+        hbm = next(geometry for geometry in bootstrap["geometries"] if geometry["id"] == "hbm3_8hi")
         bindings = dict(source["inputBindings"])
         bindings["incoming_hbm"] = {"kind": "embedded", "localId": "draft_hbm"}
         embedded_geometry = {key: value for key, value in hbm.items() if key != "id"}

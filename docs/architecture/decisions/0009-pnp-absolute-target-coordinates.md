@@ -38,6 +38,10 @@ global XY描述die target，額外transform不應成為UI或payload中的自由�
 5. PnP template維持`step_tpl_pnp_4_0_0`／`V4.0.0`。Database schema marker升為7並清除舊
    placement資料後由canonical fixtures重建，不提供舊contract migration。
 
+後續未發布版本歸零工作已將 current fixture identity 改為 `step_tpl_pnp`，metadata 改為
+`V0.0.0`，並將 database schema marker 升為8。上述第5點保留為本決策當時的歷史記錄；
+PnP absolute-coordinate contract 本身不變。
+
 ## 驗證
 
 Compiler與runtime tests MUST覆蓋合法absolute rectangle/polygon、反向或空bounds、legacy

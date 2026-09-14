@@ -6,8 +6,8 @@ audience:
   - 產品與架構負責人
   - 開發者
   - QA
-last_verified: 2026-09-01
-last_verified_commit: b5da397ad81f5225e6d7e01128d7cb0e58bd5c94
+last_verified: 2026-09-14
+last_verified_commit: 790c6c9847a1cee550ba0cb7440462213d2003a2
 source_of_truth:
   - docs/data-model.md
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
@@ -46,7 +46,7 @@ UI normative reference 為準。本頁的 `Open` 不會降低 target contract �
 | DM-017 | Stored read/list payload 在離開 repository 前重新通過 response model | Repository 直接 `json.loads(payload)` 回傳，corrupt/raw資料可略過 model。`apps/api/src/process_flow_api/repository.py` | integration.platform | Open |
 | DM-018 | Non-empty names/category/program/owner、positive `iconScale`、opaque non-empty `version`、`structureFormat: "standard"` 等 metadata constraints 一致 | 多數欄位仍是 unconstrained `str`／`float`；空字串、負 scale 與任意 format 可通過 Pydantic。`apps/api/src/process_flow_api/models.py` | integration.platform | Open |
 | DM-019 | Normalized structure-local ids 保留或 deterministic 產生，且全 structure 唯一 | Hydration/serialization 未完整保留 explicit ids，也未一致驗 uniqueness。`packages/kernel-py/src/process_flow_kernel/serialization` | integration.platform | Open |
-| DM-020 | 未正式發行前，新 resource 的 `version` metadata label 固定為 `current`，不表示 release generation | Current fixtures 與 editor defaults 仍使用 release-like numbered labels。`apps/api/src/process_flow_api/fixtures`、`apps/viewer/components/process-step-template-editor/process-step-template-editor.tsx`、`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |
+| DM-020 | 未正式發行前，內建 template fixture/default 使用 `V0.0.0`、geometry fixture/default 使用 `v0.0.0`，且 label 不驅動行為 | Fixtures、editor defaults 與 generator save default 已歸零；API 仍保留使用者提供的 opaque non-empty label。Evidence：`apps/api/tests/test_api.py` 的 `test_seed_resources_use_unreleased_versions_and_resolvable_ids` 與 `test_step_template_create_duplicate_and_delete` | integration.platform | Closed |
 | DM-021 | 同一PnP batch可交錯absolute rectangle與polygon target；Box source的所有root direct features可轉exact polygon，children維持relative rigid translation | Runtime逐筆將absolute target轉成adapter-local frame並以absolute center放回；compiler固定zero pose／center anchor。測試覆蓋mixed order、root bump metadata、突出child translation、source immutability與atomic rejection。`packages/process-step-py/src/process_flow_steps/pnp/pnp.py`、`packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py`、`packages/kernel-py/tests/test_adaptive_pnp.py` | integration.platform | Closed |
 
 ## Semantic preview session
@@ -71,7 +71,7 @@ session path與仍保留的legacy single-GLB path；文件不得把下列Open項
 | UI-GAP-A11Y-001 | Modal 有 dialog semantics、focus trap、initial focus 與 focus restore | 多個自製 overlay 只有 Escape/backdrop/close button，缺完整 ARIA/focus lifecycle。`apps/viewer/components` | integration.platform | Open |
 | UI-GAP-DRAG-001 | Geometry Input 可由 keyboard/touch command 新增 | Flow Template Editor 的 geometry palette 只有 HTML drag；touch-only mobile 無 fallback。`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |
 | UI-GAP-RESP-001 | Compact viewport 不遺失 command 或 pane | `lg` 三欄最小寬約 1140px，1024px viewport 可能裁切右 pane。`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |
-| UI-GAP-VERSION-LABEL-001 | UI 不把 internal schema marker 當成產品 generation badge，new-resource default 顯示 `current` | Step editor 仍顯示 schema generation badge；step/flow editors 預填 release-like numbered label。`apps/viewer/components/process-step-template-editor/process-step-template-editor.tsx`、`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |
+| UI-GAP-VERSION-LABEL-001 | UI 不把 internal schema marker 當成產品 generation badge；template/geometry defaults 分別顯示 `V0.0.0`／`v0.0.0` | Resource defaults 已歸零；Step editor 仍顯示 schema generation badge。`apps/viewer/components/process-step-template-editor/process-step-template-editor.tsx` | integration.platform | Open |
 | UI-GAP-MODAL-STACK-001 | Nested modal 的 Escape/backdrop/close 只作用於最上層 overlay | Export form 沒有自己的 Escape lifecycle；document-level Preview/Node Editor listeners 會在 Export form 內收到 Escape，導致下層 overlay 一起關閉。`apps/viewer/components/geometry-preview/file-export-dialog.tsx`、`apps/viewer/components/geometry-preview/geometry-preview-panel.tsx`、`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |
 
 ## 維護方式
