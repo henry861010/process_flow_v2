@@ -1827,7 +1827,7 @@ def geometry_entity(id_, structure, *, include_id=True):
         "category": "test.geometry",
         "entityType": "test",
         "name": id_,
-        "version": "v1",
+        "dim": "",
         "owner": "test",
         "description": "test geometry",
         "structureFormat": "standard",

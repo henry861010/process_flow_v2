@@ -148,7 +148,10 @@ Save 必須用同一份 GeometryStructure 建立 `GeometryEntity`：
 | --- | --- |
 | `id` | `null`，由 server 產生。 |
 | `name` | 使用者輸入，trim 後非空。 |
-| `version` | 使用者輸入，預設 `v0.0.0`，trim 後非空。 |
+| `dim` | Backend依package X/Y與total thickness產生的`X x Y x Z um`。 |
+| `vendor` | 使用者在Save dialog輸入；trim後非空才寫入。 |
+| `type1` | 使用者在Save dialog輸入；optional。 |
+| `type2` | 使用者在Save dialog輸入；optional。 |
 | `owner` | 使用者輸入，trim 後非空。 |
 | `description` | 選填；空字串轉為 `null`。 |
 | `entityType` | `die` |
@@ -162,11 +165,14 @@ Catalog record MUST 同時保存通用`generation` metadata：`generatorId = "hb
 schema version與建立structure所用的完整parameters。此metadata供authoring UI重新載入參數；
 GeometryStructure仍是compiler與kernel使用的authoritative geometry。
 
+`name`、`vendor`、`type1`、`type2`、`owner`與`description`都是Save階段的catalog metadata，
+不得出現在generator engineering parameter editor；該editor只描述dimensions、materials與結構。
+
 ### Define Flow Input
 
 Flow Template Editor使用同一generator的flow-input mode。此模式不得顯示Generate JSON或
 Save to DB；`Define`回傳draft-local EmbeddedGeometry，使用暫存metadata
-`name = "HBM generator"`、`version = "v0.0.0"`、`owner = null`，並附完整generation與
+`name = "HBM generator"`、backend-produced `dim`、`owner = null`，並附完整generation與
 adaptation metadata。Define本身不得寫DB；只有後續instance save materialization可以建立
 catalog record。
 

@@ -80,6 +80,10 @@ class GeometryGeneratorRegistry:
             "name": definition["label"],
             "entityType": definition["entityType"],
             "category": definition.get("category"),
+            "dim": _dimension_label(
+                evaluation.normalized_parameters,
+                evaluation.computed_parameters,
+            ),
             "icon": definition.get("icon"),
             "structureFormat": "standard",
             "structure": evaluation.geometry_structure,
@@ -140,3 +144,17 @@ def _geometry_hash(structure: JsonObject) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+
+
+def _dimension_label(parameters: JsonObject, computed: JsonObject) -> str:
+    values = (
+        parameters.get("packageX"),
+        parameters.get("packageY"),
+        computed.get("totalThickness"),
+    )
+    if not all(
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        for value in values
+    ):
+        return ""
+    return " x ".join(format(float(value), ".15g") for value in values) + " um"

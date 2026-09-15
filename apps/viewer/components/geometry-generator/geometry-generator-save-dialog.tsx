@@ -12,7 +12,9 @@ const textareaClass =
 
 export type GeneratorSaveMetadata = {
   name: string;
-  version: string;
+  vendor: string;
+  type1: string;
+  type2: string;
   owner: string;
   description: string;
 };
@@ -112,24 +114,36 @@ export function GeometryGeneratorSaveDialog({
             <MetadataInput
               autoFocus
               label="Name"
+              required
               value={metadata.name}
               disabled={saving}
               onChange={(value) => onChange({ name: value })}
             />
             <MetadataInput
-              label="Version"
-              value={metadata.version}
+              label="Owner"
+              required
+              value={metadata.owner}
               disabled={saving}
-              onChange={(value) => onChange({ version: value })}
+              onChange={(value) => onChange({ owner: value })}
             />
-            <div className="sm:col-span-2">
-              <MetadataInput
-                label="Owner"
-                value={metadata.owner}
-                disabled={saving}
-                onChange={(value) => onChange({ owner: value })}
-              />
-            </div>
+            <MetadataInput
+              label="Vendor (optional)"
+              value={metadata.vendor}
+              disabled={saving}
+              onChange={(value) => onChange({ vendor: value })}
+            />
+            <MetadataInput
+              label="Type 1 (optional)"
+              value={metadata.type1}
+              disabled={saving}
+              onChange={(value) => onChange({ type1: value })}
+            />
+            <MetadataInput
+              label="Type 2 (optional)"
+              value={metadata.type2}
+              disabled={saving}
+              onChange={(value) => onChange({ type2: value })}
+            />
           </div>
           <label className="grid gap-1.5 text-sm font-medium">
             <span>Description</span>
@@ -172,9 +186,7 @@ export function GeometryGeneratorSaveDialog({
 }
 
 export function generatorSaveMetadataIsValid(metadata: GeneratorSaveMetadata) {
-  return Boolean(
-    metadata.name.trim() && metadata.version.trim() && metadata.owner.trim(),
-  );
+  return Boolean(metadata.name.trim() && metadata.owner.trim());
 }
 
 function MetadataInput({
@@ -182,12 +194,14 @@ function MetadataInput({
   value,
   disabled,
   autoFocus,
+  required = false,
   onChange,
 }: {
   label: string;
   value: string;
   disabled: boolean;
   autoFocus?: boolean;
+  required?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -197,7 +211,7 @@ function MetadataInput({
         autoFocus={autoFocus}
         className={inputClass}
         disabled={disabled}
-        required
+        required={required}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

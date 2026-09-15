@@ -38,7 +38,7 @@ source_of_truth:
 | Preview closure | 為產生指定 step output 而必須執行的所有 upstream steps 與 inputs。 |
 | `ExecutionPlan` | Compiler 產生的 runtime-only、已排序且已解析外部 geometry 的執行計畫。 |
 | `program` | `process_flow_steps` package 下不含副檔名的 Python module path。 |
-| Resource `version` | Template 或 catalog record 的 opaque metadata label；正式發行前內建 template default 使用 `V0.0.0`、geometry default 使用 `v0.0.0`，不代表 release，也不驅動行為差異。 |
+| Resource `version` | Process template、step或instance的opaque metadata label；正式發行前內建default使用`V0.0.0`，不代表release，也不驅動行為差異；GeometryEntity沒有此欄位。 |
 | `schemaVersion` | Payload 或 geometry document 的固定格式標記；不同 domain 不可混用，也不是產品版本。 |
 | Workspace `revision` | Optimistic concurrency counter；不是 template business version。 |
 | Density | Feature coverage 百分比，target contract 為 `0..100`，含兩端點。 |

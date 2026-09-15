@@ -30,11 +30,10 @@ export function geometryGeneration(
 }
 
 export function generatedGeometryDraft(
-  geometry: Omit<EmbeddedGeometry, "version" | "owner" | "description">,
+  geometry: Omit<EmbeddedGeometry, "owner" | "description">,
 ): EmbeddedGeometry {
   return {
     ...geometry,
-    version: "v0.0.0",
     owner: null,
     description: null,
   };

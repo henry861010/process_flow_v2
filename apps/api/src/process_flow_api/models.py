@@ -229,7 +229,10 @@ class EmbeddedGeometry(StrictModel):
     name: str
     entityType: str
     category: str | None = None
-    version: str | None = None
+    dim: str
+    vendor: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    type1: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    type2: str | None = Field(default=None, exclude_if=lambda value: value is None)
     owner: str | None = None
     description: str | None = None
     icon: str | None = None
@@ -304,7 +307,10 @@ class GeometryEntity(StrictModel):
     category: str | None = None
     entityType: str
     name: str
-    version: str | None = None
+    dim: str
+    vendor: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    type1: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    type2: str | None = Field(default=None, exclude_if=lambda value: value is None)
     owner: str | None = None
     description: str | None = None
     icon: str | None = None

@@ -40,6 +40,10 @@ import {
   FlowInputAdvancedReadOnly,
   FlowInputBindingControl,
 } from "@/components/process-flow-fields/flow-input-controls";
+import {
+  GeometryCardDetails,
+  geometrySearchText,
+} from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import {
   SaveInformationDialog,
@@ -811,9 +815,7 @@ function ProcessFlowTemplateEditorInner() {
               emptyLabel="No geometry entities from API."
               noSearchResultsLabel="No geometry matched the search."
               noCategoryItemsLabel="No geometry in this category."
-              getSearchText={(geometry) =>
-                [geometry.name, geometry.id, geometry.category, geometry.entityType].join(" ")
-              }
+              getSearchText={geometrySearchText}
               itemKey={(geometry) => geometry.id}
               renderItem={(geometry, { showCategoryPath }) => (
                 <GeometryPaletteItem
@@ -1005,23 +1007,11 @@ function GeometryPaletteItem({
     >
       <div className="flex items-start gap-2">
         <Box className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-        <div className="min-w-0">
-          <div className="line-clamp-2 font-medium leading-snug">{geometry.name}</div>
-          {showCategoryPath ? (
-            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-              {formatCategoryPath(geometry.category)}
-            </div>
-          ) : null}
-          <div className="mt-1 truncate text-xs text-muted-foreground">
-            {geometry.entityType} / {geometry.id}
-          </div>
-        </div>
+        <GeometryCardDetails
+          geometry={geometry}
+          categoryPath={showCategoryPath ? formatCategoryPath(geometry.category) : null}
+        />
       </div>
-      {geometry.description ? (
-        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-          {geometry.description}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -1444,11 +1434,9 @@ function GeometryPickerDialog({
             emptyLabel="No matching geometry"
             noSearchResultsLabel="No geometry matched the search"
             noCategoryItemsLabel="No geometry in this category"
-            getSearchText={(geometry) =>
-              [geometry.name, geometry.id, geometry.category, geometry.entityType].join(" ")
-            }
+            getSearchText={geometrySearchText}
             itemKey={(geometry) => geometry.id}
-            itemListClassName="grid gap-2 md:grid-cols-2"
+            itemListClassName="grid gap-2"
             renderItem={(geometry, { showCategoryPath }) => (
               <button
                 type="button"
@@ -1460,19 +1448,12 @@ function GeometryPickerDialog({
                 )}
                 onClick={() => onSelect(geometry.id)}
               >
-                <div className="font-medium">{geometry.name}</div>
-                {showCategoryPath ? (
-                  <div className="mt-1 truncate text-[11px] text-muted-foreground">
-                    {formatCategoryPath(geometry.category)}
-                  </div>
-                ) : null}
-                <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-                  {geometry.id}
-                </div>
-                <div className="mt-2 flex gap-1">
-                  <Badge variant="outline">{geometry.entityType}</Badge>
-                  <Badge variant="outline">{geometry.version}</Badge>
-                </div>
+                <GeometryCardDetails
+                  geometry={geometry}
+                  categoryPath={
+                    showCategoryPath ? formatCategoryPath(geometry.category) : null
+                  }
+                />
               </button>
             )}
             onPathChange={setCategoryPath}

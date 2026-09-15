@@ -29,7 +29,9 @@ export type InstanceSaveInformation = {
 export type EmbeddedGeometrySaveInformation = {
   localId: string;
   name: string;
-  version: string;
+  vendor: string;
+  type1: string;
+  type2: string;
   owner: string;
   description: string;
 };
@@ -305,34 +307,55 @@ export function SaveInformationDialog({
                           }
                         />
                       </FormField>
-                      <FormField label="Geometry version" required>
+                      <FormField label="Geometry owner" required>
                         <input
                           className={inputClass}
-                          value={geometry.version}
+                          value={geometry.owner}
                           disabled={submitting}
                           required
                           onChange={(event) =>
                             onEmbeddedGeometryChange(geometry.localId, {
-                              version: event.target.value,
+                              owner: event.target.value,
                             })
                           }
                         />
                       </FormField>
-                      <div className="sm:col-span-2">
-                        <FormField label="Geometry owner" required>
-                          <input
-                            className={inputClass}
-                            value={geometry.owner}
-                            disabled={submitting}
-                            required
-                            onChange={(event) =>
-                              onEmbeddedGeometryChange(geometry.localId, {
-                                owner: event.target.value,
-                              })
-                            }
-                          />
-                        </FormField>
-                      </div>
+                      <FormField label="Geometry vendor">
+                        <input
+                          className={inputClass}
+                          value={geometry.vendor}
+                          disabled={submitting}
+                          onChange={(event) =>
+                            onEmbeddedGeometryChange(geometry.localId, {
+                              vendor: event.target.value,
+                            })
+                          }
+                        />
+                      </FormField>
+                      <FormField label="Geometry type 1">
+                        <input
+                          className={inputClass}
+                          value={geometry.type1}
+                          disabled={submitting}
+                          onChange={(event) =>
+                            onEmbeddedGeometryChange(geometry.localId, {
+                              type1: event.target.value,
+                            })
+                          }
+                        />
+                      </FormField>
+                      <FormField label="Geometry type 2">
+                        <input
+                          className={inputClass}
+                          value={geometry.type2}
+                          disabled={submitting}
+                          onChange={(event) =>
+                            onEmbeddedGeometryChange(geometry.localId, {
+                              type2: event.target.value,
+                            })
+                          }
+                        />
+                      </FormField>
                     </div>
                     <FormField label="Geometry description">
                       <textarea

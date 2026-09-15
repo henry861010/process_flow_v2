@@ -76,6 +76,18 @@ class GeometryFixtureTests(unittest.TestCase):
             <= fixture_ids
         )
 
+    def test_geometry_metadata_uses_dimensions_and_scoped_vendor(self):
+        for item in self.geometries:
+            with self.subTest(geometry_id=item["id"]):
+                self.assertNotIn("version", item)
+                self.assertIsInstance(item["dim"], str)
+                if item["category"] in {"die.hbm", "die.dram"}:
+                    self.assertEqual(item.get("vendor"), "Generic")
+                else:
+                    self.assertNotIn("vendor", item)
+                self.assertNotIn("type1", item)
+                self.assertNotIn("type2", item)
+
     def test_semantic_keys_follow_catalog_vocabulary_and_scope(self):
         self.assertEqual(
             CONTAINER_KEYS,
@@ -167,6 +179,7 @@ class GeometryFixtureTests(unittest.TestCase):
                 dimension_text, separator, _ = item["description"].partition(" um — ")
 
                 self.assertEqual(separator, " um — ")
+                self.assertEqual(item["dim"], f"{dimension_text} um")
                 described_dimensions = tuple(
                     float(value) for value in dimension_text.split(" x ")
                 )

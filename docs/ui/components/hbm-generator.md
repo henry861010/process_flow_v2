@@ -36,6 +36,10 @@ Viewer 從 `GET /api/geometry-generators` 取得 `id="hbm"` 的 label、defaults
 [HBM Geometry Generator](../../reference/hbm-generator.md#參數)。Number/material controls依通用
 parameter editor渲染，所有dimension使用`um`。
 
+Name、Vendor、Type 1與Type 2不是engineering parameters，只在使用者按Save後的catalog
+metadata dialog收集；optional空白欄位不寫入。Materialized GeometryEntity的`dim`由backend以
+package X/Y與total thickness產生。
+
 ## Preview
 
 參數修改後UI debounce呼叫HBM preview endpoint。Valid response顯示backend提供的Top與Cross

@@ -65,7 +65,9 @@ export function BackendGeometryGeneratorDialog({
   const [notice, setNotice] = React.useState<string | null>(null);
   const [saveMetadata, setSaveMetadata] = React.useState<GeneratorSaveMetadata>({
     name: `Generated ${definition.label.replace(/\s+generator$/i, "")}`,
-    version: "v0.0.0",
+    vendor: "",
+    type1: "",
+    type2: "",
     owner: "",
     description: "",
   });
@@ -153,7 +155,9 @@ export function BackendGeometryGeneratorDialog({
         ...entity,
         id: null,
         name: saveMetadata.name.trim(),
-        version: saveMetadata.version.trim(),
+        vendor: saveMetadata.vendor.trim() || null,
+        type1: saveMetadata.type1.trim() || null,
+        type2: saveMetadata.type2.trim() || null,
         owner: saveMetadata.owner.trim(),
         description: saveMetadata.description.trim() || null,
       });
@@ -342,7 +346,6 @@ function embeddedGeometryFromEntity(
   const { id: _id, ...geometry } = entity;
   return {
     ...geometry,
-    version: geometry.version ?? "v0.0.0",
     owner: geometry.owner ?? null,
     description: geometry.description ?? null,
   };

@@ -25,7 +25,10 @@ export type GeometryEntityDownload = {
   category: string | null;
   entityType: string;
   name: string;
-  version: null;
+  dim: string;
+  vendor?: string | null;
+  type1?: string | null;
+  type2?: string | null;
   owner: null;
   description: string | null;
   structureFormat: "standard";

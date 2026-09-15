@@ -181,7 +181,10 @@ export type EmbeddedGeometry = {
   name: string;
   entityType: string;
   category?: string | null;
-  version?: string | null;
+  dim: string;
+  vendor?: string | null;
+  type1?: string | null;
+  type2?: string | null;
   owner?: string | null;
   description?: string | null;
   icon?: string;
@@ -232,7 +235,10 @@ export type GeometryEntity = {
   id: string;
   category: string;
   name: string;
-  version: string;
+  dim: string;
+  vendor?: string | null;
+  type1?: string | null;
+  type2?: string | null;
   owner: string;
   description: string;
   entityType: string;

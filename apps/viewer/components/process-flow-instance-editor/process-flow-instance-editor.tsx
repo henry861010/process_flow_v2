@@ -26,6 +26,10 @@ import {
   FlowInputAdvancedReadOnly,
   FlowInputBindingControl,
 } from "@/components/process-flow-fields/flow-input-controls";
+import {
+  GeometryCardDetails,
+  geometrySearchText,
+} from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import {
   SaveInformationDialog,
@@ -885,11 +889,9 @@ function GeometryPickerDialog({
             emptyLabel="No matching geometry"
             noSearchResultsLabel="No geometry matched the search"
             noCategoryItemsLabel="No geometry in this category"
-            getSearchText={(geometry) =>
-              [geometry.name, geometry.id, geometry.category, geometry.entityType].join(" ")
-            }
+            getSearchText={geometrySearchText}
             itemKey={(geometry) => geometry.id}
-            itemListClassName="grid gap-2 md:grid-cols-2"
+            itemListClassName="grid gap-2"
             renderItem={(geometry, { showCategoryPath }) => (
               <button
                 type="button"
@@ -900,19 +902,12 @@ function GeometryPickerDialog({
                 )}
                 onClick={() => onSelect(geometry.id)}
               >
-                <div className="font-medium">{geometry.name}</div>
-                {showCategoryPath ? (
-                  <div className="mt-1 truncate text-[11px] text-muted-foreground">
-                    {formatCategoryPath(geometry.category)}
-                  </div>
-                ) : null}
-                <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-                  {geometry.id}
-                </div>
-                <div className="mt-2 flex gap-1">
-                  <Badge variant="outline">{geometry.entityType}</Badge>
-                  <Badge variant="outline">{geometry.version}</Badge>
-                </div>
+                <GeometryCardDetails
+                  geometry={geometry}
+                  categoryPath={
+                    showCategoryPath ? formatCategoryPath(geometry.category) : null
+                  }
+                />
               </button>
             )}
             onPathChange={setCategoryPath}

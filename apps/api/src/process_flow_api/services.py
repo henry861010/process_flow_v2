@@ -384,7 +384,7 @@ def build_geometry_entity_download(
         "category": "preview.generated",
         "entityType": "preview",
         "name": f"Preview - {label}",
-        "version": None,
+        "dim": "",
         "owner": None,
         "description": f"Generated geometry preview for {preview_id}; source kind {source_kind}.",
         "structureFormat": "standard",

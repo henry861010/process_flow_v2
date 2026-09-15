@@ -90,9 +90,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(
             {item["version"] for item in flow_templates.values()}, {"V0.0.0"}
         )
-        self.assertEqual(
-            {item["version"] for item in geometries.values()}, {"v0.0.0"}
-        )
+        self.assertTrue(all("version" not in item for item in geometries.values()))
+        self.assertTrue(all(isinstance(item["dim"], str) for item in geometries.values()))
 
         versioned_id = re.compile(r"_v?\d+_\d+_\d+$")
         for resource_id in (*step_templates, *flow_templates, *geometries):
@@ -382,7 +381,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             "category": "preview.generated",
             "entityType": "preview",
             "name": "Preview Artifact",
-            "version": None,
+            "dim": "",
             "owner": None,
             "description": "generated",
             "structureFormat": "standard",
@@ -393,6 +392,35 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201, response.text)
         self.assertTrue(response.json()["id"].startswith("geom_preview_artifact_"))
+        self.assertNotIn("vendor", response.json())
+        self.assertNotIn("type1", response.json())
+        self.assertNotIn("type2", response.json())
+
+    def test_geometry_import_persists_optional_catalog_metadata(self):
+        geometry = {
+            **preview_geometry_entity(),
+            "vendor": "Generic",
+            "type1": "memory",
+            "type2": "stacked",
+        }
+
+        response = self.client.post("/api/geometries", json=geometry)
+
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["vendor"], "Generic")
+        self.assertEqual(response.json()["type1"], "memory")
+        self.assertEqual(response.json()["type2"], "stacked")
+
+    def test_geometry_import_requires_dim_and_rejects_retired_version(self):
+        missing_dim = preview_geometry_entity()
+        missing_dim.pop("dim")
+        retired_version = {**preview_geometry_entity(), "version": "v0.0.0"}
+
+        missing_response = self.client.post("/api/geometries", json=missing_dim)
+        retired_response = self.client.post("/api/geometries", json=retired_version)
+
+        self.assertEqual(missing_response.status_code, 422, missing_response.text)
+        self.assertEqual(retired_response.status_code, 422, retired_response.text)
 
     def test_geometry_import_rejects_invalid_explicit_semantic_keys(self):
         invalid_cases = (
@@ -447,7 +475,6 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         embedded = {key: value for key, value in hbm.items() if key != "id"}
         embedded["name"] = "HBM generated for direct instance"
-        embedded["version"] = "v0.0.0"
         embedded["owner"] = "test-owner"
         embedded["generation"] = {
             "generatorId": "hbm",
@@ -517,7 +544,6 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         embedded_panel = {key: value for key, value in panel.items() if key != "id"}
         embedded_panel["name"] = "Generated transaction panel"
-        embedded_panel["version"] = "v0.0.0"
         embedded_panel["owner"] = "test-owner"
         embedded_panel["generation"] = {
             "generatorId": "test-panel",
@@ -1652,7 +1678,7 @@ def preview_geometry_entity():
         "category": "preview.generated",
         "entityType": "preview",
         "name": "Preview - unit output",
-        "version": None,
+        "dim": "",
         "owner": None,
         "description": "generated",
         "structureFormat": "standard",

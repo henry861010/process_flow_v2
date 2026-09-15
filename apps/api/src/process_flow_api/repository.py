@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "9"
+DATABASE_SCHEMA_VERSION = "10"
 
 
 class DuplicateItemError(ValueError):
@@ -97,7 +97,10 @@ class SQLiteStore:
               name TEXT NOT NULL,
               category TEXT,
               entity_type TEXT NOT NULL,
-              version TEXT,
+              dim TEXT NOT NULL,
+              vendor TEXT,
+              type1 TEXT,
+              type2 TEXT,
               owner TEXT,
               payload TEXT NOT NULL
             );
@@ -123,30 +126,33 @@ class SQLiteStore:
                 f"{row['value']} -> {DATABASE_SCHEMA_VERSION}"
             )
         with self._connection:
-            if row is not None and row["value"] == "8":
+            current_version = int(row["value"]) if row is not None else None
+            if current_version == 8:
                 self._migrate_v8_to_v9()
-                self._connection.execute(
-                    """
-                    INSERT INTO schema_metadata(key, value)
-                    VALUES ('databaseSchemaVersion', ?)
-                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                    """,
-                    (DATABASE_SCHEMA_VERSION,),
-                )
+                current_version = 9
+            if current_version == 9:
+                self._migrate_v9_to_v10()
+                current_version = 10
+            if current_version == 10:
+                self._set_schema_version()
                 return
-            # Schema v8 resets unreleased resource versions and replaces versioned
-            # fixture identifiers. Older local data is rebuilt from fixtures so no
-            # stale references to the retired identifiers remain.
+            # Older local data is rebuilt from fixtures so no stale references to
+            # retired identifiers remain. Rebuild the geometry table before seeding.
             for table in TABLES:
                 self._connection.execute(f"DELETE FROM {table}")
-            self._connection.execute(
-                """
-                INSERT INTO schema_metadata(key, value)
-                VALUES ('databaseSchemaVersion', ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                """,
-                (DATABASE_SCHEMA_VERSION,),
-            )
+            if current_version is not None:
+                self._migrate_v9_to_v10()
+            self._set_schema_version()
+
+    def _set_schema_version(self) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO schema_metadata(key, value)
+            VALUES ('databaseSchemaVersion', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (DATABASE_SCHEMA_VERSION,),
+        )
 
     def _migrate_v8_to_v9(self) -> None:
         template_owners: dict[str, str] = {}
@@ -170,6 +176,45 @@ class SQLiteStore:
                 "UPDATE process_flow_instances SET payload = ? WHERE id = ?",
                 (_json(payload), row["id"]),
             )
+
+    def _migrate_v9_to_v10(self) -> None:
+        self._connection.execute(
+            """
+            CREATE TABLE geometries_v10 (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              category TEXT,
+              entity_type TEXT NOT NULL,
+              dim TEXT NOT NULL,
+              vendor TEXT,
+              type1 TEXT,
+              type2 TEXT,
+              owner TEXT,
+              payload TEXT NOT NULL
+            )
+            """
+        )
+        rows = self._connection.execute("SELECT payload FROM geometries").fetchall()
+        for row in rows:
+            payload = json.loads(row["payload"])
+            payload.pop("version", None)
+            if not isinstance(payload.get("dim"), str):
+                payload["dim"] = _legacy_geometry_dim(payload.get("description"))
+            values = _geometry_values(payload)
+            columns = list(values)
+            self._connection.execute(
+                f"INSERT INTO geometries_v10 ({', '.join(columns)}) "
+                f"VALUES ({', '.join('?' for _ in columns)})",
+                [values[column] for column in columns],
+            )
+        self._connection.execute("DROP TABLE geometries")
+        self._connection.execute("ALTER TABLE geometries_v10 RENAME TO geometries")
+        self._connection.execute(
+            "CREATE INDEX idx_geometries_category ON geometries(category)"
+        )
+        self._connection.execute(
+            "CREATE INDEX idx_geometries_entity_type ON geometries(entity_type)"
+        )
 
     def reset(self) -> None:
         with self._connection:
@@ -222,18 +267,7 @@ class SQLiteStore:
         self._delete("process_step_templates", id_)
 
     def insert_geometry(self, payload: JsonObject) -> JsonObject:
-        return self._insert(
-            "geometries",
-            {
-                "id": payload["id"],
-                "name": payload.get("name", ""),
-                "category": payload.get("category"),
-                "entity_type": payload.get("entityType", ""),
-                "version": payload.get("version"),
-                "owner": payload.get("owner"),
-                "payload": _json(payload),
-            },
-        )
+        return self._insert("geometries", _geometry_values(payload))
 
     def list_geometries(
         self,
@@ -497,18 +531,7 @@ class SQLiteStore:
         )
 
     def _insert_geometry_in_transaction(self, payload: JsonObject) -> None:
-        self._insert_values(
-            "geometries",
-            {
-                "id": payload["id"],
-                "name": payload.get("name", ""),
-                "category": payload.get("category"),
-                "entity_type": payload.get("entityType", ""),
-                "version": payload.get("version"),
-                "owner": payload.get("owner"),
-                "payload": _json(payload),
-            },
-        )
+        self._insert_values("geometries", _geometry_values(payload))
 
     def _list(self, table: str, clauses: list[str], params: list[Any], order_by: str) -> list[JsonObject]:
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
@@ -561,3 +584,25 @@ def _workspace_values(payload: JsonObject) -> dict[str, Any]:
         "updated_at": payload.get("updatedAt", utc_now()),
         "payload": _json(payload),
     }
+
+
+def _geometry_values(payload: JsonObject) -> dict[str, Any]:
+    return {
+        "id": payload["id"],
+        "name": payload.get("name", ""),
+        "category": payload.get("category"),
+        "entity_type": payload.get("entityType", ""),
+        "dim": payload.get("dim", ""),
+        "vendor": payload.get("vendor"),
+        "type1": payload.get("type1"),
+        "type2": payload.get("type2"),
+        "owner": payload.get("owner"),
+        "payload": _json(payload),
+    }
+
+
+def _legacy_geometry_dim(description: Any) -> str:
+    if not isinstance(description, str):
+        return ""
+    dimension, separator, _ = description.partition(" — ")
+    return dimension if separator and dimension.endswith(" um") else ""

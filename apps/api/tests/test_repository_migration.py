@@ -154,6 +154,70 @@ class RepositoryMigrationTests(unittest.TestCase):
             finally:
                 migrated_store.close()
 
+    def test_v9_to_v10_preserves_geometry_and_replaces_metadata_columns(self):
+        with tempfile.TemporaryDirectory() as tmp_name:
+            db_path = Path(tmp_name) / "v9.sqlite3"
+            connection = sqlite3.connect(db_path)
+            connection.executescript(
+                """
+                CREATE TABLE schema_metadata (
+                  key TEXT PRIMARY KEY,
+                  value TEXT NOT NULL
+                );
+                CREATE TABLE geometries (
+                  id TEXT PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  category TEXT,
+                  entity_type TEXT NOT NULL,
+                  version TEXT,
+                  owner TEXT,
+                  payload TEXT NOT NULL
+                );
+                INSERT INTO schema_metadata(key, value)
+                VALUES ('databaseSchemaVersion', '9');
+                """
+            )
+            first = {
+                **geometry("geometry-with-dim", "die.hbm"),
+                "version": "v0.0.0",
+                "description": "10 x 10 x 1 um — legacy geometry.",
+            }
+            second = {
+                **geometry("geometry-without-dim", "die.soc"),
+                "version": "v0.0.0",
+                "description": "No dimension prefix",
+            }
+            for item in (first, second):
+                connection.execute(
+                    "INSERT INTO geometries VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        item["id"],
+                        item["name"],
+                        item["category"],
+                        item["entityType"],
+                        item["version"],
+                        item.get("owner"),
+                        json.dumps(item),
+                    ),
+                )
+            connection.commit()
+            connection.close()
+
+            store = SQLiteStore(db_path)
+            try:
+                migrated = store.get_geometry("geometry-with-dim")
+                self.assertNotIn("version", migrated)
+                self.assertEqual(migrated["dim"], "10 x 10 x 1 um")
+                self.assertEqual(store.get_geometry("geometry-without-dim")["dim"], "")
+                columns = {
+                    row["name"]
+                    for row in store._connection.execute("PRAGMA table_info(geometries)")
+                }
+                self.assertNotIn("version", columns)
+                self.assertTrue({"dim", "vendor", "type1", "type2"} <= columns)
+            finally:
+                store.close()
+
     def test_future_schema_version_is_rejected_without_deleting_rows(self):
         with tempfile.TemporaryDirectory() as tmp_name:
             db_path = Path(tmp_name) / "future.sqlite3"

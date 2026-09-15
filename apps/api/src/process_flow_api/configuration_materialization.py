@@ -45,7 +45,7 @@ def materialize_embedded_bindings(
 
 
 def _validate_persisted_metadata(local_id: str, geometry: JsonObject) -> None:
-    for field in ("name", "version", "owner"):
+    for field in ("name", "owner"):
         value = geometry.get(field)
         if not isinstance(value, str) or not value.strip():
             raise ValueError(

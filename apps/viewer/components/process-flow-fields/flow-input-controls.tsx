@@ -4,9 +4,11 @@ import * as React from "react";
 import { ChevronDown, Eye, Pencil, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { FlowInputDefinition, GeometryEntity } from "@/lib/process-flow/types";
-
-type GeometrySummary = Pick<GeometryEntity, "id" | "name">;
+import type { FlowInputDefinition } from "@/lib/process-flow/types";
+import {
+  GeometryCardDetails,
+  type GeometryCardValue,
+} from "@/components/process-flow-fields/geometry-card-details";
 
 export function FlowInputBindingControl({
   geometry,
@@ -14,7 +16,7 @@ export function FlowInputBindingControl({
   onPick,
   onPreview,
 }: {
-  geometry: GeometrySummary | null | undefined;
+  geometry: GeometryCardValue | null | undefined;
   canEdit: boolean;
   onPick: () => void;
   onPreview: () => void;
@@ -43,10 +45,7 @@ export function FlowInputBindingControl({
   return (
     <div className="flex min-h-14 items-center gap-3 rounded-md border bg-white px-3 py-2 shadow-sm">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{geometry.name}</div>
-        <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
-          {geometry.id}
-        </div>
+        <GeometryCardDetails geometry={geometry} />
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <Button

@@ -24,7 +24,15 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in definitions], ["hbm", "dram"])
         hbm = definitions[0]
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
-        self.assertIn("coreDieCount", [item["id"] for item in hbm["parameterDefinitions"]])
+        self.assertIn(
+            "coreDieCount",
+            [item["id"] for item in hbm["parameterDefinitions"]],
+        )
+        for definition in definitions:
+            self.assertNotIn(
+                "vendor",
+                [item["id"] for item in definition["parameterDefinitions"]],
+            )
         self.assertEqual(hbm["previewViews"], ["top", "cross-section-x"])
 
     def test_hbm_preview_materializes_geometry_and_engineering_views(self):
@@ -67,6 +75,8 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         )
         entity = preview["geometryEntityJson"]
         self.assertEqual(entity["adaptationContract"]["adapterId"], "hbm-package")
+        self.assertEqual(entity["dim"], "1400 x 1000 x 340 um")
+        self.assertNotIn("vendor", entity)
         root = entity["structure"]["root"]
         self.assertEqual(root["bodies"][0]["geometry"]["bottom_left"], [-700, -500, 0])
         self.assertEqual(root["bodies"][0]["geometry"]["top_right"], [700, 500, 0])
@@ -113,6 +123,10 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(len(root["circuits"]), 4)
         self.assertEqual(preview["computedParameters"]["sbtThickness"], 340)
         self.assertEqual(preview["computedParameters"]["totalThickness"], 650)
+        self.assertEqual(
+            preview["geometryEntityJson"]["dim"],
+            "12000 x 8000 x 650 um",
+        )
         top_view, section_view = preview["engineeringPreview"]["views"]
         self.assertEqual(_dimension_values(top_view)["Core die X"], 8000)
         self.assertEqual(_dimension_values(top_view)["Core die Y"], 6000)

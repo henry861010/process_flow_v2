@@ -67,7 +67,10 @@ Canonical structure wrapper：
 | `name` | non-empty string | required | Human-facing name。 |
 | `entityType` | non-empty string | required | Exact-match external form/type，例如 `panel`、`wafer`、`die`；不承載 `hbm`／`dram` 等 process semantic role。 |
 | `category` | string or omitted | optional | Dot-delimited classification，例如 `die.hbm`。 |
-| `version` | non-empty string or omitted | optional | Opaque metadata label；內建 fixture 與 editor default 使用 `v0.0.0`，不得 parse、sort 或驅動行為。 |
+| `dim` | string | required | Human-facing dimension label；可為空字串，不參與geometry運算。 |
+| `vendor` | string or omitted | optional | Vendor label。 |
+| `type1` | string or omitted | optional | Optional external classification label。 |
+| `type2` | string or omitted | optional | Optional secondary classification label。 |
 | `owner` | string or omitted | optional | Owning team/domain。 |
 | `description` | string or omitted | optional | Description。 |
 | `icon` | string or omitted | optional | Viewer icon key；不是 geometry semantics。 |
@@ -298,7 +301,7 @@ Compiler resolve `FlowInputDefinition.geometryConstraints` 時：
   "category": "carrier.panel",
   "entityType": "panel",
   "name": "Reference Panel",
-  "version": "v0.0.0",
+  "dim": "20 x 20 x 5 um",
   "owner": "integration.platform",
   "description": "20 x 20 x 5 um reference panel.",
   "structureFormat": "standard",

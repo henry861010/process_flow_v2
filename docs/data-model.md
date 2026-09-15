@@ -562,14 +562,14 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"9"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
-| Resource metadata label | `version` | string | Template default `"V0.0.0"`；geometry default `"v0.0.0"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"10"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| Process resource metadata label | `version` | string | Default `"V0.0.0"` | Template、step與instance的opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 
 `GeometryEntity` 外層不是 Process resource schema，因此不包含 numeric
 `schemaVersion: 2`；其 nested `structure` MUST 包含 geometry format marker。正式發行策略
-確立前，內建 fixture 與 editor 建立新 resource 的 default 使用零版 label；API 仍保留並回傳
-使用者提供的其他 non-empty label。Consumer MUST NOT 從 `version` 或 id prefix 推導 model
+確立前，內建 Process resource fixture 與 editor default 使用零版 label。GeometryEntity不包含
+resource `version`。Consumer MUST NOT 從 Process resource `version` 或 id prefix 推導 model
 kind、release generation 或 runtime behavior。
 
 ### 10.3 Identifier 格式與唯一範圍

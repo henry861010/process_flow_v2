@@ -652,6 +652,7 @@ def geometry_entity(
         "name": id_,
         "entityType": "die",
         "category": category,
+        "dim": "",
         "structureFormat": "standard",
         "structure": structure,
     }

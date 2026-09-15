@@ -87,7 +87,10 @@ transaction 保持一致。Direct database edits 不屬於 supported API。
 | `name` | `TEXT` | not null | `name` |
 | `category` | `TEXT` | nullable, indexed | `category` |
 | `entity_type` | `TEXT` | not null, indexed | `entityType` |
-| `version` | `TEXT` | nullable | `version` |
+| `dim` | `TEXT` | not null | `dim` |
+| `vendor` | `TEXT` | nullable | `vendor` |
+| `type1` | `TEXT` | nullable | `type1` |
+| `type2` | `TEXT` | nullable | `type2` |
 | `owner` | `TEXT` | nullable | `owner` |
 | `payload` | `TEXT` | not null | complete JSON |
 
@@ -103,16 +106,20 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "9"
+  "value": "10"
 }
 ```
 
-Database internal marker string `"9"`、Process payload wire marker integer `2` 與
+Database internal marker string `"10"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 
 Version 9原地補齊v8 instance JSON payload metadata：`version="V0.0.0"`、
 `description=""`，owner優先沿用referenced flow template owner；broken template reference使用
 `legacy.import`。Configuration payload在migration中不得改變，也不新增physical columns。
+
+Version 10原地保留v9 geometry catalog，移除geometry payload與physical table的`version`，加入
+`dim`、`vendor`、`type1`、`type2`。若舊payload沒有`dim`，優先使用description中` — `之前且以
+` um`結尾的尺寸前綴，否則回填空字串；optional classification metadata不自動推導。
 Version 8仍是移除舊fixture identity的destructive boundary；v8以前或無markerdatabase會清空
 resource tables並由canonical fixtures重建。未知、非數字或未來marker MUST fail。Repository保存explicit
 `adaptationContract`原值，不依category backfill missing contract。

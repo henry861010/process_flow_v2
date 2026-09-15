@@ -180,13 +180,27 @@ export default function ManagementPage() {
           </TabsContent>
 
           <TabsContent value="geometries">
-            <ResourceTable headings={["Geometry", "Type", "Category", "Version", "Owner"]}>
+            <ResourceTable
+              headings={[
+                "Geometry",
+                "Entity type",
+                "Category",
+                "Dimensions",
+                "Vendor",
+                "Type 1",
+                "Type 2",
+                "Owner",
+              ]}
+            >
               {data.geometries.map((geometry) => (
                 <tr key={geometry.id} className="border-b last:border-b-0">
                   <IdentityCell name={geometry.name} id={geometry.id} description={geometry.description} />
                   <Cell><Badge variant="outline">{geometry.entityType}</Badge></Cell>
                   <Cell>{geometry.category}</Cell>
-                  <Cell>{geometry.version}</Cell>
+                  <Cell>{geometry.dim || "—"}</Cell>
+                  <Cell>{geometry.vendor || "—"}</Cell>
+                  <Cell>{geometry.type1 || "—"}</Cell>
+                  <Cell>{geometry.type2 || "—"}</Cell>
                   <Cell>{geometry.owner}</Cell>
                 </tr>
               ))}

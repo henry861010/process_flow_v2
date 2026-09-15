@@ -35,6 +35,10 @@ HBM/DRAM目前在Top View提供overall與core die X/Y dimensions，Cross Section
 thickness。Renderer依dimension axis各自配置callout offset，新增horizontal或vertical dimension
 不得使另一axis的label產生不必要位移。
 
+Generator parameter editor只放dimensions、materials與其他結構參數；geometry `dim`固定由
+package X/Y與total thickness產生。Name、Vendor、Type 1與Type 2只在使用者按Save後的catalog
+metadata dialog收集，optional欄位trim後為空時不寫入GeometryEntity。
+
 共用層負責modal lifecycle、catalog metadata save UI、兩種action mode與Define result contract：
 
 | Mode | Actions | Persistence |
