@@ -78,6 +78,13 @@ class CadExporterTests(unittest.TestCase):
 
         self.assertIn("ISO-10303-21", step)
 
+    def test_polygon_hole_tangent_to_outer_loop_exports(self):
+        bodies = convert_cad_bodies(polygon_with_tangent_hole_structure())
+
+        self.assertEqual(len(bodies), 1)
+        self.assertTrue(bodies[0].shape.isValid())
+        self.assertEqual(bodies[0].shape.Volume(), 720)
+
     def test_cross_material_sibling_overlap_raises(self):
         with self.assertRaisesRegex(CadExportError, "Overlapping sibling bodies"):
             convert_cad_bodies(cross_material_overlap_structure())
@@ -357,6 +364,36 @@ def polygon_with_hole_structure():
             "children": [],
         },
     }
+
+
+def polygon_with_tangent_hole_structure():
+    structure = polygon_with_hole_structure()
+    structure["root"]["bodies"][0]["geometry"] = {
+        "type": "PolygonGeometry",
+        "polys": [
+            [
+                [0, 6, 0],
+                [0, 10, 0],
+                [6, 10, 0],
+                [6, 16, 0],
+                [10, 16, 0],
+                [10, 20, 0],
+                [16, 20, 0],
+                [16, 26, 0],
+                [20, 26, 0],
+                [20, 20, 0],
+                [26, 20, 0],
+                [26, 6, 0],
+                [20, 6, 0],
+                [20, 0, 0],
+                [6, 0, 0],
+                [6, 6, 0],
+            ],
+            [[10, 10, 0], [16, 10, 0], [16, 16, 0], [10, 16, 0]],
+        ],
+        "thk": 2,
+    }
+    return structure
 
 
 def cross_material_overlap_structure():

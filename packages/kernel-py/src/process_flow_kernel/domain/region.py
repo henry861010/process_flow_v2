@@ -179,7 +179,7 @@ class Region:
 
     def get_outline(self, target_mask=TYPE_TARGET, is_detail=False):
         loops = [
-            _remove_collinear_points(loop)
+            _remove_collinear_points(simple_loop)
             for loop in _boundary_loops_from_cells(
                 cell_type=self.cell_type,
                 cell_num_x=self.cell_num_x,
@@ -188,6 +188,7 @@ class Region:
                 table_y_dim=self.table_y_dim,
                 target_mask=target_mask,
             )
+            for simple_loop in _split_loop_at_repeated_points(loop)
         ]
         valid_loops = [loop for loop in loops if len(loop) >= 3]
         oriented = _orient_nested_loops(valid_loops, self)
@@ -330,10 +331,49 @@ def _choose_next_edge(previous, candidates):
     )[0]
 
 
+def _split_loop_at_repeated_points(loop):
+    """Split a pinched cell boundary into simple rings.
+
+    A target region can surround a non-target cell whose corner touches the
+    exterior.  The edge walker then returns one figure-eight ring containing
+    the touching vertex twice.  PolygonGeometry requires simple rings, so
+    split each repeated vertex into the two rings that meet there.
+    """
+    pending = [loop]
+    result = []
+    while pending:
+        current = pending.pop(0)
+        repeated = None
+        for left_index, left in enumerate(current):
+            for right_index in range(left_index + 1, len(current)):
+                if _same_point2(left, current[right_index]):
+                    repeated = (left_index, right_index)
+                    break
+            if repeated is not None:
+                break
+
+        if repeated is None:
+            result.append(current)
+            continue
+
+        left_index, right_index = repeated
+        parts = [
+            current[left_index:right_index],
+            current[right_index:] + current[:left_index],
+        ]
+        pending[0:0] = [part for part in parts if len(part) >= 3]
+    return result
+
+
 def _orient_nested_loops(loops, region):
     result = []
     for loop in loops:
-        depth = sum(1 for other in loops if other is not loop and _point_in_loop(loop[0], other))
+        depth = sum(
+            1
+            for other in loops
+            if other is not loop
+            and any(_point_strictly_in_loop(point, other) for point in loop)
+        )
         result.append(region._ensure_orientation(loop, depth % 2 == 0))
     return result
 
@@ -369,6 +409,15 @@ def _point_in_loop(point, loop):
                 inside = not inside
         previous = current
     return inside
+
+
+def _point_strictly_in_loop(point, loop):
+    previous = loop[-1]
+    for current in loop:
+        if _point_on_segment(previous, point, current):
+            return False
+        previous = current
+    return _point_in_loop(point, loop)
 
 
 def _point_on_segment(a, b, c):

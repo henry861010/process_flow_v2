@@ -476,6 +476,34 @@ class GeometryDomainTests(unittest.TestCase):
             [[[10, 10], [14, 10], [14, 0], [10, 0]]],
         )
 
+    def test_region_set_gap_splits_pinched_outline_into_tangent_rings(self):
+        region = Region(
+            [
+                {"type": "BOX", "dim": bounds}
+                for bounds in (
+                    [0, 0, 6, 6],
+                    [0, 10, 6, 16],
+                    [10, 10, 16, 16],
+                    [10, 20, 16, 26],
+                    [20, 0, 26, 6],
+                    [20, 20, 26, 26],
+                )
+            ]
+        )
+
+        self.assertTrue(region.set_gap(14, is_recursive=True))
+        loops = region.get_outline(TYPE_TARGET)
+        geometry = PolygonGeometry(
+            [[[x, y, 0] for x, y in loop] for loop in loops],
+            1,
+        )
+        regions = classify_polygon_loops(geometry.polygons())
+
+        self.assertEqual(len(loops), 2)
+        self.assertTrue(all(len(set(map(tuple, loop))) == len(loop) for loop in loops))
+        self.assertEqual(len(regions), 1)
+        self.assertEqual(len(regions[0].holes), 1)
+
     def test_process_geometry_state_deposit_and_placement_track_cursor(self):
         state = ProcessGeometryState.create()
         state.initialize_box_layer(
@@ -556,6 +584,46 @@ class GeometryDomainTests(unittest.TestCase):
         output = state.to_geometry_structure()
         self.assertNotIn("key", output["root"]["children"][2])
         self.assertNotIn("key", output["root"]["children"][2]["bodies"][0])
+
+    def test_underfill_accepts_multi_die_gap_with_tangent_hole(self):
+        state = ProcessGeometryState.create()
+        state.initialize_box_layer(
+            material="base",
+            bottom_left=[0, 0, 0],
+            top_right=[26, 26, 0],
+            thickness=4,
+        )
+        for x_min, y_min, x_max, y_max in (
+            [0, 0, 6, 6],
+            [0, 10, 6, 16],
+            [10, 10, 16, 16],
+            [10, 20, 16, 26],
+            [20, 0, 26, 6],
+            [20, 20, 26, 26],
+        ):
+            die = ProcessGeometryState.create({"key": "dram"})
+            die.initialize_box_layer(
+                material="Si",
+                bottom_left=[0, 0, 0],
+                top_right=[x_max - x_min, y_max - y_min, 0],
+                thickness=6,
+                set_footprint=False,
+            )
+            state.place_geometry_state(
+                die,
+                x=x_min,
+                y=y_min,
+                bottom_z=4,
+                anchor="bottomLeft",
+            )
+
+        result = state.apply_under_fill(material="UF-A", thk=6, gap=14)
+        output = state.to_geometry_structure()
+        gap_body = output["root"]["children"][-1]["bodies"][0]
+
+        self.assertEqual(result["gapBodyCount"], 1)
+        self.assertEqual(gap_body["geometry"]["type"], "PolygonGeometry")
+        self.assertEqual(len(gap_body["geometry"]["polys"]), 2)
 
     def test_carrier_bond_preserves_source_keys_after_daf_and_flip(self):
         state = process_state_with_derived_footprint(main_geometry(material="substrate"))

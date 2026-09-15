@@ -43,9 +43,12 @@ def classify_polygon_loops(polys):
     loops = validate_polygon_loops(polys)
     depths = []
     for loop in loops:
-        probe = loop[0]
         depths.append(
-            sum(1 for other in loops if other is not loop and _point_strictly_in_loop(probe, other))
+            sum(
+                1
+                for other in loops
+                if other is not loop and _loop_strictly_inside(loop, other)
+            )
         )
 
     regions = []
@@ -57,7 +60,7 @@ def classify_polygon_loops(polys):
         for hole_index, hole in enumerate(loops):
             if depths[hole_index] != depths[index] + 1:
                 continue
-            if _point_in_loop(hole[0], loop):
+            if _loop_strictly_inside(hole, loop):
                 holes.append(hole)
 
         regions.append(PolygonRegion(loop, holes, loop[0][2]))
@@ -209,20 +212,14 @@ def _validate_loop_boundaries_do_not_cross(loops):
         for right_index, right in enumerate(loops):
             if right_index <= left_index:
                 continue
-            has_point_touch = False
             for a1, a2 in _edges(left):
                 for b1, b2 in _edges(right):
                     if _segments_intersect(a1, a2, b1, b2):
                         if _segments_touch_only_at_endpoints(a1, a2, b1, b2):
-                            has_point_touch = True
                             continue
                         raise ValueError(
                             f"PolygonGeometry loops intersect or touch (loops {left_index} and {right_index})"
                         )
-            if has_point_touch and _loops_are_nested(left, right):
-                raise ValueError(
-                    f"PolygonGeometry loops intersect or touch (loops {left_index} and {right_index})"
-                )
 
 
 def _edges(loop):
@@ -277,10 +274,8 @@ def _segments_touch_only_at_endpoints(a1, a2, b1, b2):
     )
 
 
-def _loops_are_nested(left, right):
-    return any(_point_strictly_in_loop(point, right) for point in left) or any(
-        _point_strictly_in_loop(point, left) for point in right
-    )
+def _loop_strictly_inside(inner, outer):
+    return any(_point_strictly_in_loop(point, outer) for point in inner)
 
 
 def _orientation(a, b, c):
