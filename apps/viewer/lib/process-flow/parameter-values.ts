@@ -3,7 +3,7 @@ import type {
   RepeatableGroupValue,
   ValidationRule,
   ValueType,
-} from "@/lib/process-flow/types";
+} from "./types";
 
 export function getParameterValue(
   values: Record<string, unknown>,

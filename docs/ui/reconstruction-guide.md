@@ -37,9 +37,11 @@ source_of_truth:
 
 | Route | Entry state | 主要 fixture / setup | 第一個檢查點 |
 | --- | --- | --- | --- |
-| `/` | Home ready | reset 後完整 bootstrap | instance rows 與 template-only rows 同時存在 |
-| `/flow-template-editor` | fresh template draft | reset 後直接開 route，不選 template | header、雙 palette、空 graph 與 disabled save |
-| `/flow-instance-editor` | selected AAA configuration | 開 route 後選 `AAA Demo`，不儲存 workspace | graph、default configuration、dirty status、無draft controls/status box |
+| `/` | Home ready | reset 後完整 bootstrap | template cards、instance counts與create routes |
+| `/flow-template-editor` | fresh template draft | reset 後直接開 route，不選 template | catalog/step palettes、空 graph與單一save command |
+| `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA configuration | 由Home點AAA template card | fixed template、From instance、default configuration與Save |
+| `/hbm-editor`、`/dram-editor` | generator defaults | 由Home create command進入 | matching registry definition、preview與Save to DB |
+| `/management` | resource overview | reset 後完整 bootstrap | 四類count、tabs與唯讀rows |
 | `/admin/processstepeditor` | fresh step draft | reset 後直接開 route，不 clone template | library、empty identity、Geometry Ports、No parameters |
 | `/cad-viewer` | demo workbench | 直接開 route，不 import file | demo model、Section XZ、Grid/Axes on、ISO |
 | Geometry Preview | ready preview | Instance Editor 綁定 `panel_plp_310x310mm_glass` 後開 Preview | Loading → Ready、viewport、right controls、footer |
@@ -71,31 +73,31 @@ fresh draft
 
 對應驗收：`UI-FTE-001`、`UI-FTE-002`、`UI-FTE-003`、`UI-FTE-004`、`UI-GRAPH-001`。
 
-### Instance workspace
+### Instance configuration
 
 ```text
-no selected template
-  -> select AAA Demo
+Home AAA template card
+  -> templateId route
   -> default configuration created
+  -> optionally load From instance values
   -> bind geometry / edit parameters
   -> Preview a ready target
-
-known clean complete workspaceId URL
-  -> Commit Instance
-  -> enter immutable identity in commit dialog
-  -> committed read-only workspace
+  -> Save
+  -> enter id/name/version/owner/description
+  -> create immutable instance
+  -> return Home
 ```
 
 必要結果：
 
-- Select template 會建立 `<template.name> study` workspace name。
-- `Save Draft`、`Reload`、draft/committed badge與workspace ID/status box不得render。
-- Workspace persistence API與既有`workspaceId`載入路徑仍保留；UI隱藏不得刪除API。
-- dirty時Commit disabled，並啟用`beforeunload` protection。
-- Commit仍只接受saved、clean、complete workspace，因此以known workspace URL驗證commit dialog。
-- committed 後 configuration controls locked，但 ready Geometry Preview 仍可開啟。
+- Template只能由route決定；不得render selector。
+- From instance只列同template records，只copy values並重設new identity。
+- dirty時啟用離頁與source-replacement protection。
+- complete configuration才可Save；duplicate/invalid identity留在dialog顯示error。
+- Save使用direct create且不得修改source instance；成功後返回Home。
+- `workspaceId`顯示unsupported message；backend workspace API保留。
 
-對應驗收：`UI-FIE-001` 至 `UI-FIE-008`。
+對應驗收：`UI-FIE-001` 至 `UI-FIE-007`。
 
 ### Preview 與 Export
 

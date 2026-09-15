@@ -515,13 +515,17 @@ PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完�
 | `schemaVersion` | integer literal `2` | yes | Process resource schema。 |
 | `id` | identifier | yes | Client-selected immutable identity，table-local unique。 |
 | `name` | non-empty string | yes | Immutable display name。 |
+| `version` | non-empty string | yes | Opaque immutable metadata label；editor default `V0.0.0`。 |
+| `owner` | non-empty string | yes | Owning product、RD team或domain。 |
+| `description` | string | yes | Human-facing description；default `""`。 |
 | `processFlowTemplateId` | identifier | yes | Existing immutable template。 |
 | `inputBindings` | map of catalog bindings | yes | Embedded binding MUST NOT appear；optional inputs MAY be absent。 |
 | `stepConfigurations` | map | yes | Required values complete；steps without values MAY be absent。 |
 
 API MUST NOT provide in-place instance update。新產品、study result 或 recipe change MUST
-建立新的 instance id。目前模型不保存 instance lineage、source workspace、created timestamp 或
-revision；`committedInstanceId` 是 workspace retry pointer，不是 lineage relation。
+建立新的 instance id。目前模型保存通用identity metadata，但不保存 instance lineage、source
+workspace、created timestamp 或revision；`committedInstanceId` 是 workspace retry pointer，
+不是 lineage relation。
 
 ## 10. 共用欄位與格式規則
 
@@ -558,7 +562,7 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"8"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"9"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Resource metadata label | `version` | string | Template default `"V0.0.0"`；geometry default `"v0.0.0"` | Opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 
@@ -844,6 +848,9 @@ schema 或切換行為。
   "schemaVersion": 2,
   "id": "flow_inst_pnp_golden",
   "name": "PnP Golden Instance",
+  "version": "V0.0.0",
+  "owner": "integration.platform",
+  "description": "Golden PnP process configuration.",
   "processFlowTemplateId": "flow_tpl_pnp_golden",
   "inputBindings": {
     "incoming_panel": {

@@ -425,6 +425,17 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.json()["id"], "flow_inst_test_copy")
+        self.assertEqual(response.json()["version"], source["version"])
+        self.assertEqual(response.json()["owner"], source["owner"])
+        self.assertEqual(response.json()["description"], source["description"])
+
+        missing_owner = {**instance, "id": "flow_inst_missing_owner"}
+        missing_owner.pop("owner")
+        rejected = self.client.post("/api/process-flow-instances", json=missing_owner)
+        self.assertEqual(rejected.status_code, 422, rejected.text)
+        blank_owner = {**instance, "id": "flow_inst_blank_owner", "owner": "   "}
+        rejected = self.client.post("/api/process-flow-instances", json=blank_owner)
+        self.assertEqual(rejected.status_code, 422, rejected.text)
 
     def test_direct_instance_create_materializes_generated_geometry(self):
         bootstrap = self.reset_poc_data()
@@ -547,6 +558,9 @@ class ProcessFlowApiTests(unittest.TestCase):
             "schemaVersion": 2,
             "id": "flow_inst_transaction_test",
             "name": "Transaction Test Instance",
+            "version": "V0.0.0",
+            "owner": "test-owner",
+            "description": "Combined create transaction fixture.",
             "processFlowTemplateId": "flow_tpl_transaction_test",
             "inputBindings": {
                 "incoming_panel": {
@@ -580,6 +594,12 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         created_instance = response.json()["processFlowInstance"]
         self.assertEqual(created_instance["id"], instance["id"])
+        self.assertEqual(created_instance["version"], "V0.0.0")
+        self.assertEqual(created_instance["owner"], "test-owner")
+        self.assertEqual(
+            created_instance["description"],
+            "Combined create transaction fixture.",
+        )
         created_binding = created_instance["inputBindings"]["incoming_panel"]
         self.assertEqual(created_binding["kind"], "catalog")
         self.assertNotIn("embeddedGeometries", created_instance)
@@ -1033,6 +1053,9 @@ class ProcessFlowApiTests(unittest.TestCase):
             json={
                 "instanceId": "flow_inst_workspace_commit",
                 "instanceName": "Workspace Commit",
+                "instanceVersion": "V0.0.0",
+                "instanceOwner": "test-owner",
+                "instanceDescription": "Workspace commit fixture.",
                 "revision": 2,
             },
         )
@@ -1042,12 +1065,20 @@ class ProcessFlowApiTests(unittest.TestCase):
             committed.json()["processFlowInstance"]["id"],
             "flow_inst_workspace_commit",
         )
+        self.assertEqual(committed.json()["processFlowInstance"]["owner"], "test-owner")
+        self.assertEqual(
+            committed.json()["processFlowInstance"]["description"],
+            "Workspace commit fixture.",
+        )
 
         retried = self.client.post(
             f"/api/process-flow-workspaces/{workspace['id']}/commit",
             json={
                 "instanceId": "ignored_retry_id",
                 "instanceName": "Ignored retry",
+                "instanceVersion": "V0.0.0",
+                "instanceOwner": "test-owner",
+                "instanceDescription": "Ignored retry metadata.",
                 "revision": 2,
             },
         )
@@ -1082,6 +1113,9 @@ class ProcessFlowApiTests(unittest.TestCase):
             json={
                 "instanceId": "flow_inst_embedded_commit",
                 "instanceName": "Embedded Commit",
+                "instanceVersion": "V0.0.0",
+                "instanceOwner": "test-owner",
+                "instanceDescription": "Embedded workspace commit fixture.",
                 "revision": 1,
             },
         )

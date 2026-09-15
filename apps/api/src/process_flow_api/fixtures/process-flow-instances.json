@@ -3,6 +3,9 @@
     "schemaVersion": 2,
     "id": "flow_inst_aaa_demo_hbm4_alpha",
     "name": "HBM4 Alpha Build",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Reference HBM4 alpha process configuration.",
     "processFlowTemplateId": "flow_tpl_aaa_demo",
     "inputBindings": {
       "incoming_panel": {
@@ -79,6 +82,9 @@
     "schemaVersion": 2,
     "id": "flow_inst_aaa_demo_hbm4_beta",
     "name": "HBM4 Beta Reliability",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Reliability-focused HBM4 beta process configuration.",
     "processFlowTemplateId": "flow_tpl_aaa_demo",
     "inputBindings": {
       "incoming_panel": {
@@ -150,6 +156,9 @@
     "schemaVersion": 2,
     "id": "flow_inst_fanout_demo_soc_ev1",
     "name": "SoC EV1",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Fan-out SoC engineering validation configuration.",
     "processFlowTemplateId": "flow_tpl_fanout_demo",
     "inputBindings": {
       "incoming_panel": {

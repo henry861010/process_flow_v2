@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Boxes, Database, Download, Loader2, X } from "lucide-react";
+import { ArrowLeft, Boxes, Database, Download, Loader2, X } from "lucide-react";
 
 import type {
   GeometryGeneratorDefinition,
@@ -34,12 +34,14 @@ import {
 export function BackendGeometryGeneratorDialog({
   definition,
   mode = "catalog",
+  presentation = "dialog",
   initialParameters,
   onClose,
   onDefine,
 }: {
   definition: GeometryGeneratorDefinition;
   mode?: GeometryGeneratorMode;
+  presentation?: "dialog" | "page";
   initialParameters?: Record<string, unknown>;
   onClose: () => void;
   onDefine?: (result: GeometryGeneratorDefineResult) => void;
@@ -108,12 +110,13 @@ export function BackendGeometryGeneratorDialog({
   }, [definition.id, definition.version, parameters, parametersKey]);
 
   React.useEffect(() => {
+    if (presentation !== "dialog") return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [presentation]);
 
   async function resolveMaterializedGeometry() {
     if (!canMaterialize || !latestPreview?.previewToken) {
@@ -184,13 +187,25 @@ export function BackendGeometryGeneratorDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-5">
-      <div aria-hidden="true" className="absolute inset-0 bg-foreground/45 backdrop-blur-[1px]" />
+    <div
+      className={
+        presentation === "dialog"
+          ? "fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-5"
+          : "flex min-h-screen justify-center bg-muted/20"
+      }
+    >
+      {presentation === "dialog" ? (
+        <div aria-hidden="true" className="absolute inset-0 bg-foreground/45 backdrop-blur-[1px]" />
+      ) : null}
       <section
         aria-label={`${definition.label} dialog`}
-        aria-modal="true"
-        className="relative z-10 flex max-h-[calc(100vh-24px)] w-[min(1240px,calc(100vw-24px))] flex-col overflow-hidden rounded-lg border bg-background shadow-viewport sm:max-h-[calc(100vh-40px)]"
-        role="dialog"
+        aria-modal={presentation === "dialog" ? true : undefined}
+        className={
+          presentation === "dialog"
+            ? "relative z-10 flex max-h-[calc(100vh-24px)] w-[min(1240px,calc(100vw-24px))] flex-col overflow-hidden rounded-lg border bg-background shadow-viewport sm:max-h-[calc(100vh-40px)]"
+            : "flex min-h-screen w-full flex-col bg-background md:w-[70%] md:border-x"
+        }
+        role={presentation === "dialog" ? "dialog" : undefined}
       >
         <header className="flex items-start justify-between gap-4 border-b bg-white px-5 py-4">
           <div className="min-w-0">
@@ -201,16 +216,22 @@ export function BackendGeometryGeneratorDialog({
             </div>
             <p className="mt-1 text-sm text-muted-foreground">{definition.description}</p>
           </div>
-          <Button
-            aria-label="Close generator"
-            size="icon"
-            title="Close"
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-          >
-            <X />
-          </Button>
+          {presentation === "dialog" ? (
+            <Button
+              aria-label="Close generator"
+              size="icon"
+              title="Close"
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+            >
+              <X />
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              <ArrowLeft />Home
+            </Button>
+          )}
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">

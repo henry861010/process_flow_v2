@@ -5,8 +5,8 @@ import type {
   ProcessFlowTemplate,
   ProcessStepTemplate,
   StepConfiguration,
-} from "@/lib/process-flow/types";
-import { createDefaultParameterValues } from "@/lib/process-flow/parameter-values";
+} from "./types";
+import { createDefaultParameterValues } from "./parameter-values";
 
 export function createEmptyFlowConfiguration(
   template: ProcessFlowTemplate,

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "8"
+DATABASE_SCHEMA_VERSION = "9"
 
 
 class DuplicateItemError(ValueError):
@@ -123,6 +123,17 @@ class SQLiteStore:
                 f"{row['value']} -> {DATABASE_SCHEMA_VERSION}"
             )
         with self._connection:
+            if row is not None and row["value"] == "8":
+                self._migrate_v8_to_v9()
+                self._connection.execute(
+                    """
+                    INSERT INTO schema_metadata(key, value)
+                    VALUES ('databaseSchemaVersion', ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                    """,
+                    (DATABASE_SCHEMA_VERSION,),
+                )
+                return
             # Schema v8 resets unreleased resource versions and replaces versioned
             # fixture identifiers. Older local data is rebuilt from fixtures so no
             # stale references to the retired identifiers remain.
@@ -135,6 +146,29 @@ class SQLiteStore:
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
                 """,
                 (DATABASE_SCHEMA_VERSION,),
+            )
+
+    def _migrate_v8_to_v9(self) -> None:
+        template_owners: dict[str, str] = {}
+        for row in self._connection.execute(
+            "SELECT id, payload FROM process_flow_templates"
+        ).fetchall():
+            payload = json.loads(row["payload"])
+            owner = payload.get("owner")
+            if isinstance(owner, str) and owner.strip():
+                template_owners[row["id"]] = owner
+
+        for row in self._connection.execute(
+            "SELECT id, payload FROM process_flow_instances"
+        ).fetchall():
+            payload = json.loads(row["payload"])
+            template_id = payload.get("processFlowTemplateId")
+            payload["version"] = "V0.0.0"
+            payload["owner"] = template_owners.get(template_id) or "legacy.import"
+            payload["description"] = ""
+            self._connection.execute(
+                "UPDATE process_flow_instances SET payload = ? WHERE id = ?",
+                (_json(payload), row["id"]),
             )
 
     def reset(self) -> None:

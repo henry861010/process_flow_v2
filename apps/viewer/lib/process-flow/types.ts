@@ -214,6 +214,9 @@ export type ProcessFlowInstance = {
   schemaVersion: 2;
   id: string;
   name: string;
+  version: string;
+  owner: string;
+  description: string;
   processFlowTemplateId: string;
   inputBindings: Record<string, CatalogGeometryBinding>;
   stepConfigurations: Record<string, StepConfiguration>;

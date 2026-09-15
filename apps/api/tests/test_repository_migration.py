@@ -90,6 +90,70 @@ class RepositoryMigrationTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_v8_to_v9_backfills_instance_metadata_without_changing_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp_name:
+            db_path = Path(tmp_name) / "v8.sqlite3"
+            store = SQLiteStore(db_path)
+            store.close()
+
+            template = {
+                "schemaVersion": 2,
+                "id": "flow-template",
+                "name": "Flow template",
+                "version": "V0.0.0",
+                "owner": "template.owner",
+                "description": "",
+                "flowInputs": [],
+                "stepRefs": [],
+                "flowEdges": [],
+            }
+            referenced = legacy_instance("instance-referenced", "flow-template")
+            orphan = legacy_instance("instance-orphan", "missing-template")
+            connection = sqlite3.connect(db_path)
+            connection.execute(
+                "UPDATE schema_metadata SET value = '8' WHERE key = 'databaseSchemaVersion'"
+            )
+            connection.execute(
+                "INSERT INTO process_flow_templates VALUES (?, ?, ?, ?, ?)",
+                (
+                    template["id"],
+                    template["name"],
+                    template["version"],
+                    template["owner"],
+                    json.dumps(template),
+                ),
+            )
+            for instance in (referenced, orphan):
+                connection.execute(
+                    "INSERT INTO process_flow_instances VALUES (?, ?, ?, ?)",
+                    (
+                        instance["id"],
+                        instance["name"],
+                        instance["processFlowTemplateId"],
+                        json.dumps(instance),
+                    ),
+                )
+            connection.commit()
+            connection.close()
+
+            migrated_store = SQLiteStore(db_path)
+            try:
+                migrated = migrated_store.get_process_flow_instance("instance-referenced")
+                self.assertEqual(migrated["version"], "V0.0.0")
+                self.assertEqual(migrated["owner"], "template.owner")
+                self.assertEqual(migrated["description"], "")
+                self.assertEqual(migrated["inputBindings"], referenced["inputBindings"])
+                self.assertEqual(
+                    migrated["stepConfigurations"],
+                    referenced["stepConfigurations"],
+                )
+                self.assertEqual(
+                    migrated_store.get_process_flow_instance("instance-orphan")["owner"],
+                    "legacy.import",
+                )
+            finally:
+                migrated_store.close()
+
     def test_future_schema_version_is_rejected_without_deleting_rows(self):
         with tempfile.TemporaryDirectory() as tmp_name:
             db_path = Path(tmp_name) / "future.sqlite3"
@@ -155,6 +219,17 @@ def workspace_payload():
         "embeddedGeometries": {
             "vrm-local": embedded_geometry("VRM local", "die.vrm")
         },
+    }
+
+
+def legacy_instance(id_: str, template_id: str):
+    return {
+        "schemaVersion": 2,
+        "id": id_,
+        "name": id_,
+        "processFlowTemplateId": template_id,
+        "inputBindings": {"incoming": {"kind": "catalog", "geometryId": "geometry"}},
+        "stepConfigurations": {"step": {"parameterValues": {"thickness": 10}}},
     }
 
 

@@ -25,7 +25,7 @@ UI-<AREA>-<三位數>
 ```
 
 `AREA` 只使用 `HOME`、`FTE`、`FIE`、`PSTE`、`CAD`、`GRAPH`、`LIB`、`PARAM`、
-`PLACE`、`PREVIEW`、`EXPORT`、`HBM`。Case ID 不因 test framework 或檔名改變。
+`PLACE`、`PREVIEW`、`EXPORT`、`HBM`、`GEN`、`MGMT`。Case ID 不因 test framework 或檔名改變。
 
 ## 環境契約
 
@@ -52,7 +52,8 @@ assertion為主。
 | Screen/state | 1440×900 | 1024×768 | 390×844 |
 | --- | --- | --- | --- |
 | Home ready | `home-1440x900.png` pending | `home-1024x768.png` pending | `home-390x844.png` pending |
-| HBM Generator default | `hbm-generator-1440x900.png` pending | `hbm-generator-1024x768.png` pending | `hbm-generator-390x844.png` pending |
+| HBM Editor default | `hbm-editor-1440x900.png` pending | `hbm-editor-1024x768.png` pending | `hbm-editor-390x844.png` pending |
+| Management ready | `management-1440x900.png` pending | `management-1024x768.png` pending | `management-390x844.png` pending |
 | Flow Template fresh | `flow-template-editor-1440x900.png` pending | `flow-template-editor-1024x768.png` pending | `flow-template-editor-390x844.png` pending |
 | Flow Instance / AAA selected | `flow-instance-editor-1440x900.png` pending | `flow-instance-editor-1024x768.png` pending | `flow-instance-editor-390x844.png` pending |
 | Step Template fresh | `step-template-editor-1440x900.png` pending | `step-template-editor-1024x768.png` pending | `step-template-editor-390x844.png` pending |
@@ -83,15 +84,16 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；Step Template 
 
 | ID | Given | When | Then |
 | --- | --- | --- | --- |
-| `UI-HOME-001` | reset fixtures loaded | open `/` | table同時顯示 instances與 template-only rows，header counts正確。 |
-| `UI-HBM-001` | Home ready | click `HBM Generator` | 不navigate，Generator dialog顯示Top View、Cross Section與三組parameters。 |
+| `UI-HOME-001` | reset fixtures loaded | open `/` | 每個template顯示一張card，metadata與instance count正確。 |
+| `UI-GEN-001` | Home ready | click `Create HBM`或`Create DRAM` | navigate至專用editor並載入正確generator definition。 |
 | `UI-HBM-004` | valid HBM parameters | click Generate JSON | 下載合法純GeometryStructure，root molding與child dies符合HBM mapping。 |
 | `UI-HBM-007` | valid HBM parameters與metadata | click Save to DB | catalog建立`die.hbm` immutable geometry並回報server id。 |
 | `UI-FTE-001` | fresh Template draft | add step by click | step出現在 graph，Node Editor以單擊可開啟。 |
 | `UI-FTE-002` | topology valid、configuration incomplete | Save Template → complete save dialog | metadata不在editor常駐顯示；template保存、topology locked、configuration仍可編輯。 |
-| `UI-FIE-001` | no selected template | select AAA | read-only topology出現、default configuration建立。 |
-| `UI-FIE-002` | fresh或known workspace URL | inspect header | `Save Draft`、`Reload`與workspace badge/status box都不render。 |
-| `UI-FIE-003` | known saved clean complete workspace | Commit Instance → enter identity | workspace成為committed，configuration controls locked。 |
+| `UI-FIE-001` | Home ready | click AAA template | fixed AAA topology與default configuration出現，沒有template selector。 |
+| `UI-FIE-002` | AAA route | inspect From instance | 只列AAA instances；選擇後copy values但identity保持new draft。 |
+| `UI-FIE-003` | complete configuration | Save → enter full metadata | 建立新的immutable instance並返回Home，source保持不變。 |
+| `UI-MGMT-001` | bootstrap ready | open Management tabs | 四類resource count與唯讀rows符合bootstrap。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |
@@ -123,7 +125,8 @@ Review 不只驗證單一 component，還 MUST 依下列順序走完跨 screen j
 | Journey | Entry | Required transition | Completion evidence |
 | --- | --- | --- | --- |
 | Template topology | fresh `/flow-template-editor` | Step add → Geometry add → valid connect → Save Template → save dialog | metadata只在dialog顯示、topology locked、configuration仍可編 |
-| Instance configuration | `/flow-instance-editor` + AAA；另備known clean workspace URL | bind → edit → Preview；known workspace → Commit dialog | draft UI保持隱藏、dirty與committed state正確 |
+| Instance configuration | Home AAA template card | blank/source values → edit → Preview → Save dialog | full metadata建立新instance並返回Home |
+| Catalog geometry | Home Create HBM/DRAM | parameters → Preview → Save to DB | success留在editor並顯示new geometry id |
 | Preview/export | ready input/step target | Loading → Ready → Export form → job terminal | Preview不被下層 overlay close path 誤關 |
 | CAD workbench | `/cad-viewer` demo | import/section/camera → Reset | model/error清理且 camera view保留 |
 

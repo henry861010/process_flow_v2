@@ -118,31 +118,21 @@ blocking reason；API error 不得清空 draft。
 使用者輸入造成 state 改變時，舊 success/error message SHOULD 清除，避免把過期結果顯示為
 仍然有效。
 
-## Dirty、save、reload、commit 流程
-
-Flow Instance Workspace的底層狀態轉移仍存在，但目前draft persistence UI暫時隱藏：
+## Instance copy、dirty 與 save 流程
 
 ```text
-fresh route -> template selected -> local dirty configuration
-                                |
-                                v
-                  Save Draft / Reload not rendered
-
-known workspaceId -> saved clean workspace -> dirty after edit
-                           |
-                           v
-             complete + clean -> Commit dialog -> committed
+Home template card -> templateId route -> blank defaults
+                                      -> From instance -> copied values
+                                                        -> edit -> Save dialog
+                                                                -> create immutable instance -> Home
 ```
 
-- `dirty` 時註冊 `beforeunload` protection。
-- `SHOW_DRAFT_WORKSPACE_UI=false`時，`Save Draft`、`Reload`與workspace status box MUST NOT render。
-- Workspace POST/GET/PUT API、frontend client與save/reload handlers仍保留；這是UI visibility
-  change，不是API deprecation。
-- 已知`workspaceId` URL仍可載入draft或committed workspace。
-- `Commit Instance` toolbar必須是saved、clean、complete；identity valid與ID unique在dialog submit驗證。
-- 因draft save入口隱藏，fresh route目前無法只靠可見UI滿足saved precondition；commit journey須以
-  已存在的clean complete workspace URL作setup。
-- committed 後 configuration controls read-only；Preview 仍可由已綁定 geometry/ready output 開啟。
+- Instance Editor不render template selector、workspace、draft、reload或commit controls。
+- `From instance`只列同template records；copy configuration但重設所有new-instance metadata。
+- 切換source、返回Home或關閉dirty頁面前必須保護未儲存內容。
+- `Save`要求complete configuration；dialog submit另驗證id grammar/uniqueness以及name、version、owner。
+- Save使用direct immutable create；不提供in-place update。
+- `workspaceId` frontend entry顯示recoverable unsupported message；backend workspace APIs不因此刪除。
 
 ## Modal 與 overlay 層級
 

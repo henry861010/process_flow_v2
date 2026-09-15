@@ -1,18 +1,16 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MarkerType, ReactFlowProvider, type Edge, type Node } from "@xyflow/react";
 import {
   ArrowLeft,
-  Check,
   CircleDot,
   Eye,
   GitBranch,
   Layers3,
-  RefreshCw,
   Save,
+  Workflow,
   X,
 } from "lucide-react";
 
@@ -32,7 +30,6 @@ import { ParameterValueEditor } from "@/components/process-flow-parameters/param
 import {
   SaveInformationDialog,
   type InstanceSaveInformation,
-  type SaveInformationMode,
 } from "@/components/process-flow-save/save-information-dialog";
 import {
   ProcessFlowGraph,
@@ -57,33 +54,31 @@ import {
   stepReadinessStatusLabel,
 } from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
+import {
+  buildProcessFlowInstanceCreate,
+  configurationFromInstance,
+  instanceEditorEntry,
+  instancesForTemplate,
+  newInstanceIdentity,
+  validateInstanceIdentity,
+} from "@/lib/process-flow/instance-editor";
 import type {
   FlowConfiguration,
   FlowInputDefinition,
   GeometryEntity,
+  ProcessFlowInstance,
   ProcessFlowTemplate,
-  ProcessFlowWorkspace,
   ProcessStepTemplate,
   StepRef,
 } from "@/lib/process-flow/types";
 import { normalizeStepLabel } from "@/lib/process-flow/utils";
-import {
-  commitProcessFlowWorkspace,
-  createProcessFlowWorkspace,
-  getProcessFlowWorkspace,
-  loadBootstrap,
-  updateProcessFlowWorkspace,
-} from "@/lib/process-flow-api";
+import { createProcessFlowInstance, loadBootstrap } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 const selectClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-
-// Draft persistence remains implemented for existing workspace URLs and can be
-// restored later without changing the workspace APIs.
-const SHOW_DRAFT_WORKSPACE_UI = false;
 
 type FlowInputNodeData = ProcessFlowGraphNodeData & {
   nodeKind: "flowInput";
@@ -112,24 +107,22 @@ export function ProcessFlowInstanceEditor() {
 function ProcessFlowInstanceEditorInner() {
   const router = useRouter();
   const [hydrated, setHydrated] = React.useState(false);
-  const [templates, setTemplates] = React.useState<ProcessFlowTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = React.useState<ProcessFlowTemplate | null>(null);
   const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>([]);
   const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
-  const [instanceIds, setInstanceIds] = React.useState<Set<string>>(new Set());
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState("");
-  const [workspace, setWorkspace] = React.useState<ProcessFlowWorkspace | null>(null);
-  const [workspaceName, setWorkspaceName] = React.useState("");
-  const [instanceIdentity, setInstanceIdentity] = React.useState({ id: "", name: "" });
+  const [instances, setInstances] = React.useState<ProcessFlowInstance[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = React.useState("");
+  const [instanceIdentity, setInstanceIdentity] = React.useState<InstanceSaveInformation>(
+    newInstanceIdentity(),
+  );
   const [configuration, setConfiguration] = React.useState<FlowConfiguration>(emptyConfiguration());
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
   const [pickerFlowInputId, setPickerFlowInputId] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
   const [dirty, setDirty] = React.useState(false);
-  const [busyAction, setBusyAction] = React.useState<"save" | "commit" | "reload" | null>(null);
-  const [saveDialogMode, setSaveDialogMode] = React.useState<
-    Extract<SaveInformationMode, "workspace" | "instance"> | null
-  >(null);
+  const [saving, setSaving] = React.useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = React.useState(false);
   const [saveDialogError, setSaveDialogError] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<
     { kind: "success" | "error"; text: string } | null
@@ -137,81 +130,41 @@ function ProcessFlowInstanceEditorInner() {
   const [fileExportJobsRefreshKey, setFileExportJobsRefreshKey] = React.useState(0);
   const [seedFileExportJob, setSeedFileExportJob] = React.useState<FileExportJob | null>(null);
 
-  const selectedTemplate =
-    templates.find((template) => template.id === selectedTemplateId) ?? null;
-  const committed = workspace?.status === "committed";
-
-  const applyLoadedWorkspace = React.useCallback(
-    (
-      loadedWorkspace: ProcessFlowWorkspace,
-      availableTemplates: ProcessFlowTemplate[],
-      availableStepTemplates: ProcessStepTemplate[],
-      committedInstanceName?: string,
-    ) => {
-      const template = availableTemplates.find(
-        (item) => item.id === loadedWorkspace.processFlowTemplateId,
-      );
-      if (!template) {
-        throw new Error(
-          `Process flow template not found: ${loadedWorkspace.processFlowTemplateId}`,
-        );
-      }
-      const defaults = createEmptyFlowConfiguration(template, availableStepTemplates);
-      setSelectedTemplateId(template.id);
-      setWorkspace(loadedWorkspace);
-      setWorkspaceName(loadedWorkspace.name);
-      setConfiguration({
-        inputBindings: { ...loadedWorkspace.inputBindings },
-        stepConfigurations: {
-          ...defaults.stepConfigurations,
-          ...loadedWorkspace.stepConfigurations,
-        },
-        embeddedGeometries: { ...loadedWorkspace.embeddedGeometries },
-      });
-      setInstanceIdentity({
-        id: loadedWorkspace.committedInstanceId ?? "",
-        name: loadedWorkspace.status === "committed" ? committedInstanceName ?? "" : "",
-      });
-      setSelectedNodeId(null);
-      setEditingNodeId(null);
-      setDirty(false);
-      setSaveDialogMode(null);
-      setSaveDialogError(null);
-      setMessage({
-        kind: "success",
-        text:
-          loadedWorkspace.status === "committed"
-            ? `Workspace committed as ${loadedWorkspace.committedInstanceId}.`
-            : `Workspace ${loadedWorkspace.id} loaded at revision ${loadedWorkspace.revision}.`,
-      });
-    },
-    [],
-  );
-
   React.useEffect(() => {
     let active = true;
-    const workspaceId = new URLSearchParams(window.location.search).get("workspaceId");
-    Promise.all([
-      loadBootstrap(),
-      workspaceId ? getProcessFlowWorkspace(workspaceId) : Promise.resolve(null),
-    ])
-      .then(([bootstrap, loadedWorkspace]) => {
+    const { templateId, workspaceUnsupported } = instanceEditorEntry(window.location.search);
+
+    loadBootstrap()
+      .then((bootstrap) => {
         if (!active) return;
-        setTemplates(bootstrap.processFlowTemplates);
         setStepTemplates(bootstrap.processStepTemplates);
         setGeometries(bootstrap.geometries);
-        setInstanceIds(new Set(bootstrap.processFlowInstances.map((instance) => instance.id)));
-        if (loadedWorkspace) {
-          const committedInstanceName = bootstrap.processFlowInstances.find(
-            (instance) => instance.id === loadedWorkspace.committedInstanceId,
-          )?.name;
-          applyLoadedWorkspace(
-            loadedWorkspace,
-            bootstrap.processFlowTemplates,
-            bootstrap.processStepTemplates,
-            committedInstanceName,
-          );
+        setInstances(bootstrap.processFlowInstances);
+
+        if (workspaceUnsupported) {
+          setMessage({
+            kind: "error",
+            text: "Workspace links are no longer supported. Choose a template from Home.",
+          });
+          return;
         }
+        if (!templateId) {
+          setMessage({
+            kind: "error",
+            text: "No process flow template was selected. Choose a template from Home.",
+          });
+          return;
+        }
+        const template = bootstrap.processFlowTemplates.find((item) => item.id === templateId);
+        if (!template) {
+          setMessage({
+            kind: "error",
+            text: `Process flow template not found: ${templateId}`,
+          });
+          return;
+        }
+        setSelectedTemplate(template);
+        setConfiguration(configurationFromInstance(template, bootstrap.processStepTemplates));
       })
       .catch((error) => {
         if (!active) return;
@@ -226,7 +179,7 @@ function ProcessFlowInstanceEditorInner() {
     return () => {
       active = false;
     };
-  }, [applyLoadedWorkspace]);
+  }, []);
 
   React.useEffect(() => {
     if (!dirty) return;
@@ -238,6 +191,12 @@ function ProcessFlowInstanceEditorInner() {
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [dirty]);
 
+  const sourceInstances = React.useMemo(
+    () =>
+      selectedTemplate ? instancesForTemplate(instances, selectedTemplate.id) : [],
+    [instances, selectedTemplate],
+  );
+
   const graph = selectedTemplate
     ? graphForInstance(
         selectedTemplate,
@@ -245,7 +204,7 @@ function ProcessFlowInstanceEditorInner() {
         configuration,
         geometries,
         selectedNodeId,
-        committed,
+        false,
         (nodeId) => {
           setSelectedNodeId(nodeId);
           setEditingNodeId(nodeId);
@@ -254,7 +213,6 @@ function ProcessFlowInstanceEditorInner() {
         openStepPreview,
       )
     : { nodes: [] as FlowNode[], edges: [] as FlowEdge[] };
-
   const editingNode = graph.nodes.find((node) => node.id === editingNodeId) ?? null;
   const pickerInput = selectedTemplate?.flowInputs.find(
     (input) => input.flowInputId === pickerFlowInputId,
@@ -263,87 +221,43 @@ function ProcessFlowInstanceEditorInner() {
     selectedTemplate &&
       isConfigurationComplete(selectedTemplate, stepTemplates, configuration, geometries),
   );
-  const canSaveDraft = Boolean(
-    hydrated &&
-      selectedTemplate &&
-      !committed &&
-      busyAction === null &&
-      (dirty || !workspace),
-  );
-  const canCommit = Boolean(
-    workspace &&
-      !committed &&
-      !dirty &&
-      configurationComplete &&
-      busyAction === null,
-  );
+  const canSave = hydrated && Boolean(selectedTemplate) && configurationComplete && !saving;
 
-  function openSaveDialog(mode: Extract<SaveInformationMode, "workspace" | "instance">) {
-    setSaveDialogError(null);
-    setMessage(null);
-    setSaveDialogMode(mode);
+  function navigateHome() {
+    if (dirty && !window.confirm("Discard this unsaved instance?")) return;
+    router.push("/");
   }
 
-  function closeSaveDialog() {
-    if (busyAction) return;
-    setSaveDialogMode(null);
-    setSaveDialogError(null);
-  }
-
-  function updateInstanceIdentity(patch: Partial<InstanceSaveInformation>) {
-    setInstanceIdentity((current) => ({ ...current, ...patch }));
-    setSaveDialogError(null);
-    setMessage(null);
-  }
-
-  function selectTemplate(templateId: string) {
-    if (workspace || dirty) {
-      const confirmed = window.confirm("Discard the current workspace draft?");
-      if (!confirmed) return;
-    }
-    const template = templates.find((item) => item.id === templateId);
-    setSelectedTemplateId(templateId);
-    setWorkspace(null);
-    setWorkspaceName(template ? `${template.name} study` : "");
-    setInstanceIdentity({ id: "", name: "" });
-    setConfiguration(
-      template ? createEmptyFlowConfiguration(template, stepTemplates) : emptyConfiguration(),
-    );
+  function selectSource(instanceId: string) {
+    if (instanceId === selectedSourceId) return;
+    if (dirty && !window.confirm("Discard the current unsaved instance values?")) return;
+    const source = sourceInstances.find((instance) => instance.id === instanceId);
+    if (!selectedTemplate) return;
+    setConfiguration(configurationFromInstance(selectedTemplate, stepTemplates, source));
+    setSelectedSourceId(source?.id ?? "");
+    setInstanceIdentity(newInstanceIdentity());
     setSelectedNodeId(null);
     setEditingNodeId(null);
-    setDirty(Boolean(template));
-    setSaveDialogMode(null);
-    setSaveDialogError(null);
-    setMessage(null);
-    router.replace("/flow-instance-editor");
-  }
-
-  function updateWorkspaceName(name: string) {
-    if (committed) return;
-    setWorkspaceName(name);
-    setDirty(true);
+    setPickerFlowInputId(null);
+    setDirty(Boolean(source));
     setSaveDialogError(null);
     setMessage(null);
   }
 
   function updateInputBinding(flowInputId: string, geometryId: string) {
-    if (committed) return;
-    setConfiguration((current) => {
-      return {
-        ...current,
-        inputBindings: {
-          ...current.inputBindings,
-          [flowInputId]: { kind: "catalog", geometryId },
-        },
-      };
-    });
+    setConfiguration((current) => ({
+      ...current,
+      inputBindings: {
+        ...current.inputBindings,
+        [flowInputId]: { kind: "catalog", geometryId },
+      },
+    }));
     setPickerFlowInputId(null);
     setDirty(true);
     setMessage(null);
   }
 
   function updateStepValues(stepRefId: string, parameterValues: Record<string, unknown>) {
-    if (committed) return;
     setConfiguration((current) => ({
       ...current,
       stepConfigurations: {
@@ -355,108 +269,31 @@ function ProcessFlowInstanceEditorInner() {
     setMessage(null);
   }
 
-  async function saveDraft() {
-    if (!canSaveDraft || !selectedTemplate) return;
-    const firstSave = workspace === null;
-    if (firstSave && !workspaceName.trim()) {
-      setSaveDialogError("Workspace name is required.");
-      return;
-    }
-    setBusyAction("save");
+  function updateInstanceIdentity(patch: Partial<InstanceSaveInformation>) {
+    setInstanceIdentity((current) => ({ ...current, ...patch }));
     setSaveDialogError(null);
-    setMessage(null);
-    try {
-      const saved = workspace
-        ? await updateProcessFlowWorkspace(workspace.id, {
-            name: workspaceName.trim(),
-            revision: workspace.revision,
-            ...configuration,
-          })
-        : await createProcessFlowWorkspace({
-            name: workspaceName.trim(),
-            processFlowTemplateId: selectedTemplate.id,
-            ...configuration,
-          });
-      setWorkspace(saved);
-      setWorkspaceName(saved.name);
-      setDirty(false);
-      setSaveDialogMode(null);
-      router.replace(`/flow-instance-editor?workspaceId=${encodeURIComponent(saved.id)}`);
-      setMessage({
-        kind: "success",
-        text: `Draft saved at revision ${saved.revision}.`,
-      });
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "Unable to save workspace.";
-      if (firstSave) {
-        setSaveDialogError(text);
-      } else {
-        setMessage({ kind: "error", text });
-      }
-    } finally {
-      setBusyAction(null);
-    }
   }
 
-  async function reloadWorkspace() {
-    if (!workspace) return;
-    setBusyAction("reload");
-    setMessage(null);
-    try {
-      const loaded = await getProcessFlowWorkspace(workspace.id);
-      applyLoadedWorkspace(loaded, templates, stepTemplates);
-    } catch (error) {
-      setMessage({
-        kind: "error",
-        text: error instanceof Error ? error.message : "Unable to reload workspace.",
-      });
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function commitWorkspace() {
-    if (!canCommit || !workspace) return;
-    if (!instanceIdentity.name.trim()) {
-      setSaveDialogError("Instance name is required.");
+  async function saveInstance() {
+    if (!canSave || !selectedTemplate) return;
+    const validationError = validateInstanceIdentity(instanceIdentity, instances);
+    if (validationError) {
+      setSaveDialogError(validationError);
       return;
     }
-    if (!instanceIdentity.id.trim()) {
-      setSaveDialogError("Instance id is required.");
-      return;
-    }
-    if (instanceIds.has(instanceIdentity.id.trim())) {
-      setSaveDialogError("Instance id already exists.");
-      return;
-    }
-    setBusyAction("commit");
+    setSaving(true);
     setSaveDialogError(null);
-    setMessage(null);
     try {
-      const result = await commitProcessFlowWorkspace(workspace.id, {
-        instanceId: instanceIdentity.id.trim(),
-        instanceName: instanceIdentity.name.trim(),
-        revision: workspace.revision,
-      });
-      setWorkspace(result.workspace);
-      setConfiguration({
-        inputBindings: { ...result.workspace.inputBindings },
-        stepConfigurations: { ...result.workspace.stepConfigurations },
-        embeddedGeometries: { ...result.workspace.embeddedGeometries },
-      });
-      setInstanceIds((current) => new Set(current).add(result.processFlowInstance.id));
-      setDirty(false);
-      setSaveDialogMode(null);
-      setMessage({
-        kind: "success",
-        text: `Committed immutable instance ${result.processFlowInstance.id}.`,
-      });
-    } catch (error) {
-      setSaveDialogError(
-        error instanceof Error ? error.message : "Unable to commit workspace.",
+      await createProcessFlowInstance(
+        buildProcessFlowInstanceCreate(selectedTemplate.id, instanceIdentity, configuration),
       );
+      setDirty(false);
+      setSaveDialogOpen(false);
+      router.push("/");
+    } catch (error) {
+      setSaveDialogError(error instanceof Error ? error.message : "Unable to save instance.");
     } finally {
-      setBusyAction(null);
+      setSaving(false);
     }
   }
 
@@ -503,15 +340,17 @@ function ProcessFlowInstanceEditorInner() {
     setFileExportJobsRefreshKey((current) => current + 1);
   }
 
-  const statusText = !selectedTemplate
-    ? "Select a process flow template."
-    : committed
-      ? `Workspace committed as ${workspace?.committedInstanceId}.`
-      : dirty
-        ? "Workspace has unsaved changes."
-        : !configurationComplete
-          ? "Draft saved; configuration is incomplete."
-          : "Workspace is ready to commit.";
+  const statusText = !hydrated
+    ? "Loading process flow template..."
+    : !selectedTemplate
+      ? "Choose a process flow template from Home."
+      : !configurationComplete
+        ? "Complete the required geometry bindings and process values before saving."
+        : selectedSourceId
+          ? "Instance values loaded. Save with a new immutable identity."
+          : dirty
+            ? "Instance has unsaved changes."
+            : "Start from blank or load values from an existing instance.";
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-background text-foreground">
@@ -520,91 +359,53 @@ function ProcessFlowInstanceEditorInner() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <GitBranch className="h-5 w-5 text-primary" />
-              <h1 className="text-xl font-semibold tracking-normal">
-                Process Flow Instance Editor
-              </h1>
+              <h1 className="text-xl font-semibold tracking-normal">Process Flow Instance Editor</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create a product instance from an immutable flow template.
+              Create a new immutable instance from a process flow template.
             </p>
           </div>
-
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/">
-                <ArrowLeft />
-                Home
-              </Link>
+            <Button type="button" variant="outline" size="sm" onClick={navigateHome}>
+              <ArrowLeft />Home
             </Button>
-            {SHOW_DRAFT_WORKSPACE_UI && workspace && !committed ? (
-              <Button
-                variant="outline"
-                disabled={busyAction !== null}
-                title="Reload saved revision"
-                onClick={() => void reloadWorkspace()}
-              >
-                <RefreshCw />
-                Reload
-              </Button>
-            ) : null}
-            {SHOW_DRAFT_WORKSPACE_UI ? (
-              <Button
-                variant="outline"
-                disabled={!canSaveDraft}
-                onClick={() =>
-                  workspace ? void saveDraft() : openSaveDialog("workspace")
-                }
-              >
-                <Save />
-                Save Draft
-              </Button>
-            ) : null}
             <Button
-              disabled={!canCommit}
-              onClick={() => openSaveDialog("instance")}
+              type="button"
+              disabled={!canSave}
+              onClick={() => {
+                setSaveDialogError(null);
+                setSaveDialogOpen(true);
+              }}
             >
-              <Check />
-              Commit Instance
+              <Save />Save
             </Button>
           </div>
         </div>
 
-        <div
-          className={cn(
-            "mt-3 grid grid-cols-1 items-end gap-3",
-            SHOW_DRAFT_WORKSPACE_UI &&
-              "md:grid-cols-[minmax(260px,1fr)_minmax(220px,auto)]",
-          )}
-        >
-          <FormField label="Process flow template" required>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <FormField label="Process flow template">
+            <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/20 px-3 text-sm">
+              <Workflow className="h-4 w-4 shrink-0 text-primary" />
+              <span className="truncate font-medium">
+                {selectedTemplate ? `${selectedTemplate.name} / ${selectedTemplate.version}` : "No template selected"}
+              </span>
+            </div>
+          </FormField>
+          <FormField label="From instance">
             <select
               className={selectClass}
-              value={selectedTemplateId}
-              disabled={Boolean(workspace) || committed || busyAction !== null}
-              onChange={(event) => selectTemplate(event.target.value)}
+              value={selectedSourceId}
+              disabled={!selectedTemplate || saving}
+              onChange={(event) => selectSource(event.target.value)}
             >
-              <option value="">
-                {templates.length === 0 ? "No process flow templates" : "Select template"}
-              </option>
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name} / {template.version}
+              <option value="">Start from blank</option>
+              {sourceInstances.map((instance) => (
+                <option key={instance.id} value={instance.id}>
+                  {instance.name} / {instance.version}
                 </option>
               ))}
             </select>
           </FormField>
-          {SHOW_DRAFT_WORKSPACE_UI ? (
-            <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm">
-              <Badge variant={committed ? "signal" : "outline"}>
-                {committed ? "committed" : "draft"}
-              </Badge>
-              <span className="truncate font-mono text-xs">
-                {workspace
-                  ? `${workspace.id} / r${workspace.revision}`
-                  : "Unsaved workspace"}
-              </span>
-            </div>
-          ) : null}
         </div>
       </header>
 
@@ -613,12 +414,10 @@ function ProcessFlowInstanceEditorInner() {
           "flex min-h-9 items-center gap-2 border-b px-4 py-2 text-sm",
           message?.kind === "error"
             ? "border-destructive/30 bg-destructive/5 text-destructive"
-            : message?.kind === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "bg-muted/25 text-muted-foreground",
+            : "bg-muted/25 text-muted-foreground",
         )}
       >
-        {message?.kind === "success" ? <Check className="h-4 w-4" /> : <CircleDot className="h-4 w-4" />}
+        <CircleDot className="h-4 w-4 shrink-0" />
         <span className="truncate">{message?.text ?? statusText}</span>
       </div>
 
@@ -645,9 +444,9 @@ function ProcessFlowInstanceEditorInner() {
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="max-w-md rounded-md border border-dashed bg-white/90 px-5 py-4 text-center shadow-sm">
                 <Layers3 className="mx-auto h-6 w-6 text-primary" />
-                <h2 className="mt-3 text-sm font-semibold">Select a flow template</h2>
+                <h2 className="mt-3 text-sm font-semibold">No template selected</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  The graph appears here after a process flow template is selected.
+                  Return Home and choose a process flow template to begin.
                 </p>
               </div>
             </div>
@@ -655,17 +454,17 @@ function ProcessFlowInstanceEditorInner() {
         }
       />
 
-      {saveDialogMode ? (
+      {saveDialogOpen ? (
         <SaveInformationDialog
-          mode={saveDialogMode}
+          mode="instance"
           instance={instanceIdentity}
-          workspaceName={workspaceName}
           error={saveDialogError}
-          submitting={busyAction !== null}
+          submitting={saving}
           onInstanceChange={updateInstanceIdentity}
-          onWorkspaceNameChange={updateWorkspaceName}
-          onClose={closeSaveDialog}
-          onSubmit={saveDialogMode === "workspace" ? saveDraft : commitWorkspace}
+          onClose={() => {
+            if (!saving) setSaveDialogOpen(false);
+          }}
+          onSubmit={saveInstance}
         />
       ) : null}
 
@@ -674,30 +473,18 @@ function ProcessFlowInstanceEditorInner() {
           node={editingNode}
           configuration={configuration}
           geometries={geometries}
-          disabled={committed}
+          disabled={false}
           onClose={() => setEditingNodeId(null)}
-          onPick={() =>
-            isFlowInputNode(editingNode) &&
-            setPickerFlowInputId(editingNode.data.definition.flowInputId)
-          }
-          onPreview={() =>
-            isFlowInputNode(editingNode) && openInputPreview(editingNode.data.definition)
-          }
-          onStepChange={(values) =>
-            isStepNode(editingNode) &&
-            updateStepValues(editingNode.data.stepRef.stepRefId, values)
-          }
+          onPick={() => isFlowInputNode(editingNode) && setPickerFlowInputId(editingNode.data.definition.flowInputId)}
+          onPreview={() => isFlowInputNode(editingNode) && openInputPreview(editingNode.data.definition)}
+          onStepChange={(values) => isStepNode(editingNode) && updateStepValues(editingNode.data.stepRef.stepRefId, values)}
         />
       ) : null}
 
       {pickerInput ? (
         <GeometryPickerDialog
           flowInput={pickerInput}
-          selectedGeometry={geometryForFlowInput(
-            configuration,
-            pickerInput.flowInputId,
-            geometries,
-          )}
+          selectedGeometry={geometryForFlowInput(configuration, pickerInput.flowInputId, geometries)}
           geometries={geometries}
           onClose={() => setPickerFlowInputId(null)}
           onSelect={(geometryId) => updateInputBinding(pickerInput.flowInputId, geometryId)}
@@ -712,10 +499,7 @@ function ProcessFlowInstanceEditorInner() {
         />
       ) : null}
 
-      <FileExportJobsPanel
-        refreshKey={fileExportJobsRefreshKey}
-        seedJob={seedFileExportJob}
-      />
+      <FileExportJobsPanel refreshKey={fileExportJobsRefreshKey} seedJob={seedFileExportJob} />
     </main>
   );
 }

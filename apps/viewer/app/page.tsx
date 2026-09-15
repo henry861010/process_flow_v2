@@ -3,485 +3,152 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Filter,
-  GitBranch,
-  ListChecks,
-  RotateCcw,
-  Table2,
+  Boxes,
+  Layers3,
+  Plus,
+  Settings,
   Workflow,
 } from "lucide-react";
 
-import {
-  GeometryGeneratorCatalogDialogLauncher,
-  GeometryGeneratorIcon,
-  type GeometryGeneratorDefinition,
-  type GeometryGeneratorId,
-} from "@/components/geometry-generator/geometry-generator-registry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type {
-  ProcessFlowInstance,
-  ProcessFlowTemplate,
-  ProcessStepTemplate,
-} from "@/lib/process-flow/types";
-import { loadBootstrap, resetPocData } from "@/lib/process-flow-api";
-
-const ALL_TEMPLATE_TYPES = "__all_template_types__";
-
-const selectClass =
-  "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+import type { ProcessFlowTemplate } from "@/lib/process-flow/types";
+import { loadBootstrap } from "@/lib/process-flow-api";
 
 type HomeData = {
   flowTemplates: ProcessFlowTemplate[];
-  flowInstances: ProcessFlowInstance[];
-  stepTemplates: ProcessStepTemplate[];
-  geometryGenerators: GeometryGeneratorDefinition[];
 };
 
-type FlowInstanceRow = {
-  key: string;
-  rowKind: "instance" | "template";
-  templateType: string;
-  templateId: string;
-  templateVersion: string | null;
-  flowInstanceName: string | null;
-  flowInstanceId: string | null;
-  populatedFieldCount: number;
-  expectedFieldCount: number;
-  referenceStatus:
-    | "resolved"
-    | "template-only"
-    | "missing-template"
-    | "missing-step-template";
-};
-
-const emptyHomeData: HomeData = {
-  flowTemplates: [],
-  flowInstances: [],
-  stepTemplates: [],
-  geometryGenerators: [],
-};
+const emptyHomeData: HomeData = { flowTemplates: [] };
 
 export default function Home() {
   const [homeData, setHomeData] = React.useState<HomeData>(emptyHomeData);
-  const [selectedTemplateType, setSelectedTemplateType] =
-    React.useState(ALL_TEMPLATE_TYPES);
-  const [hydrated, setHydrated] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [openGeneratorId, setOpenGeneratorId] =
-    React.useState<GeometryGeneratorId | null>(null);
 
-  React.useEffect(() => {
-    let active = true;
-    loadBootstrap()
-      .then((payload) => {
-        if (!active) return;
-        setHomeData({
-          flowTemplates: payload.processFlowTemplates as ProcessFlowTemplate[],
-          flowInstances: payload.processFlowInstances as ProcessFlowInstance[],
-          stepTemplates: payload.processStepTemplates as ProcessStepTemplate[],
-          geometryGenerators: payload.geometryGenerators,
-        });
-        setLoadError(null);
-      })
-      .catch((error) => {
-        if (!active) return;
-        setLoadError(error instanceof Error ? error.message : "Unable to load API data.");
-      })
-      .finally(() => {
-        if (active) setHydrated(true);
+  const loadHomeData = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const payload = await loadBootstrap();
+      setHomeData({
+        flowTemplates: payload.processFlowTemplates,
       });
-    return () => {
-      active = false;
-    };
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load API data.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const flowRows = React.useMemo(() => buildFlowInstanceRows(homeData), [homeData]);
-
-  const templateTypeOptions = React.useMemo(
-    () =>
-      Array.from(new Set(flowRows.map((row) => row.templateType))).sort((left, right) =>
-        left.localeCompare(right),
-      ),
-    [flowRows],
-  );
-
   React.useEffect(() => {
-    if (
-      selectedTemplateType !== ALL_TEMPLATE_TYPES &&
-      !templateTypeOptions.includes(selectedTemplateType)
-    ) {
-      setSelectedTemplateType(ALL_TEMPLATE_TYPES);
-    }
-  }, [selectedTemplateType, templateTypeOptions]);
-
-  const filteredFlowRows = React.useMemo(
-    () =>
-      selectedTemplateType === ALL_TEMPLATE_TYPES
-        ? flowRows
-        : flowRows.filter((row) => row.templateType === selectedTemplateType),
-    [selectedTemplateType, flowRows],
-  );
-
-  const templateCount = homeData.flowTemplates.length;
-  const openGenerator = homeData.geometryGenerators.find(
-    (generator) => generator.id === openGeneratorId,
-  );
-
-  async function handlePocReset() {
-    const payload = await resetPocData();
-    setHomeData({
-      flowTemplates: payload.processFlowTemplates as ProcessFlowTemplate[],
-      flowInstances: payload.processFlowInstances as ProcessFlowInstance[],
-      stepTemplates: payload.processStepTemplates as ProcessStepTemplate[],
-      geometryGenerators: payload.geometryGenerators,
-    });
-    setSelectedTemplateType(ALL_TEMPLATE_TYPES);
-  }
+    void loadHomeData();
+  }, [loadHomeData]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-5 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-5 sm:px-6 lg:px-8">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-5">
           <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <Table2 className="h-5 w-5 shrink-0 text-primary" />
-              <h1 className="truncate text-xl font-semibold tracking-normal">
-                Process Flows
-              </h1>
+            <div className="flex items-center gap-2">
+              <Workflow className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold tracking-normal">Process Flow Workspace</h1>
             </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="outline">
-                {homeData.flowInstances.length} flow instances
-              </Badge>
-              <Badge variant="outline">{templateCount} flow templates</Badge>
-            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose a template to create a process flow instance.
+            </p>
           </div>
-
-          <nav aria-label="Process flow tools" className="flex flex-wrap gap-2">
-            {homeData.geometryGenerators.map((generator) => (
-              <Button
-                key={generator.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setOpenGeneratorId(generator.id)}
-              >
-                <GeometryGeneratorIcon definition={generator} />
-                {generator.label}
-              </Button>
-            ))}
-            <Button asChild variant="outline" size="sm">
-              <Link href="/flow-template-editor" prefetch={false}>
-                <Workflow />
-                Flow Template
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/flow-instance-editor">
-                <GitBranch />
-                Flow Instance
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/admin/processstepeditor">
-                <ListChecks />
-                Process Step
-              </Link>
-            </Button>
-          </nav>
+          <Button asChild size="sm" variant="ghost" className="text-muted-foreground">
+            <Link href="/management">
+              <Settings />
+              Management
+            </Link>
+          </Button>
         </header>
 
-        <section className="overflow-hidden rounded-md border bg-white shadow-sm">
-          {loadError ? (
-            <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {loadError}
+        <section className="flex-1 py-6" aria-labelledby="templates-heading">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="templates-heading" className="text-sm font-semibold">
+                Process flow templates
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Each template opens a new instance editor.
+              </p>
             </div>
-          ) : null}
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b bg-white px-4 py-3">
-            <label className="grid min-w-[240px] flex-1 max-w-md gap-1 text-sm font-medium">
-              <span className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                Template type
-              </span>
-              <select
-                className={selectClass}
-                value={selectedTemplateType}
-                disabled={!hydrated || templateTypeOptions.length === 0}
-                onChange={(event) => setSelectedTemplateType(event.target.value)}
-              >
-                <option value={ALL_TEMPLATE_TYPES}>All template types</option>
-                {templateTypeOptions.map((templateType) => (
-                  <option key={templateType} value={templateType}>
-                    {templateType}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="text-sm text-muted-foreground">
-              {filteredFlowRows.length} shown
-            </div>
+            {!loading ? <Badge variant="outline">{homeData.flowTemplates.length} templates</Badge> : null}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] border-collapse text-sm">
-              <thead className="bg-muted/50">
-                <tr className="border-b">
-                  <th className="w-[28%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                    Template type
-                  </th>
-                  <th className="w-[42%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                    Flow instance
-                  </th>
-                  <th className="w-[15%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                    Values
-                  </th>
-                  <th className="w-[15%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFlowRows.length > 0 ? (
-                  filteredFlowRows.map((row) => (
-                    <tr key={row.key} className="border-b last:border-b-0">
-                      <td className="px-4 py-3 align-top">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium" title={row.templateType}>
-                            {row.templateType}
-                          </div>
-                          <div
-                            className="mt-1 truncate text-xs text-muted-foreground"
-                            title={row.templateId}
-                          >
-                            {row.templateVersion
-                              ? `version ${row.templateVersion}`
-                              : row.templateId}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <div className="min-w-0">
-                          {row.rowKind === "instance" ? (
-                            <>
-                              <div
-                                className="truncate font-medium"
-                                title={row.flowInstanceName ?? undefined}
-                              >
-                                {row.flowInstanceName}
-                              </div>
-                              <div
-                                className="mt-1 truncate font-mono text-xs text-muted-foreground"
-                                title={row.flowInstanceId ?? undefined}
-                              >
-                                {row.flowInstanceId}
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="font-medium text-muted-foreground">
-                                No instance
-                              </div>
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                Template saved
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        {row.rowKind === "instance" ? (
-                          <span className="font-mono text-xs">
-                            {row.populatedFieldCount}/{row.expectedFieldCount}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <Badge
-                          variant={
-                            row.referenceStatus === "resolved" ? "signal" : "outline"
-                          }
-                        >
-                          {statusLabel(row.referenceStatus)}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="h-52 px-4 py-8 text-center">
-                      <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
-                        <div className="text-sm font-medium">
-                          No process flows
-                        </div>
-                        <Button asChild size="sm">
-                          <Link href="/flow-instance-editor">
-                            <GitBranch />
-                            Create instance
-                          </Link>
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          {loadError ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <span>{loadError}</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => void loadHomeData()}>
+                Retry
+              </Button>
+            </div>
+          ) : null}
+
+          {loading ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading templates">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="h-28 animate-pulse rounded-md border bg-white/60" />
+              ))}
+            </div>
+          ) : homeData.flowTemplates.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {homeData.flowTemplates.map((template) => (
+                <Link
+                  key={template.id}
+                  href={`/flow-instance-editor?templateId=${encodeURIComponent(template.id)}`}
+                  className="group grid min-h-28 grid-cols-[minmax(0,7fr)_minmax(0,3fr)] items-center rounded-md border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <div className="min-w-0 pr-4">
+                    <h3 className="truncate text-base font-semibold" title={template.name}>
+                      {template.name}
+                    </h3>
+                  </div>
+                  <div className="min-w-0 text-right">
+                    <Badge variant="outline">{template.version}</Badge>
+                    <p className="mt-2 truncate text-xs text-muted-foreground" title={template.owner}>
+                      {template.owner || "Unassigned"}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="grid min-h-56 place-items-center rounded-md border border-dashed bg-white/70 px-6 text-center">
+              <div>
+                <Workflow className="mx-auto h-7 w-7 text-primary" />
+                <h3 className="mt-3 text-sm font-semibold">No process flow templates</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Create a template to start defining process flow instances.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="border-t py-5" aria-labelledby="create-heading">
+          <div className="mb-3">
+            <h2 id="create-heading" className="text-sm font-semibold">Create resources</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Author reusable topology and catalog geometry before using them in instances.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href="/flow-template-editor"><Plus />Create Template</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/hbm-editor"><Layers3 />Create HBM</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/dram-editor"><Boxes />Create DRAM</Link>
+            </Button>
           </div>
         </section>
       </div>
-
-      <button
-        type="button"
-        aria-label="Reset POC Data"
-        title="Reset API data and restore default JSON"
-        className="fixed bottom-3 left-3 inline-flex h-7 items-center gap-1 rounded border border-foreground/20 bg-background/70 px-2 font-mono text-[11px] text-muted-foreground shadow-none backdrop-blur-sm transition hover:border-foreground/35 hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        onClick={handlePocReset}
-      >
-        <RotateCcw className="h-3 w-3" />
-        cmd: reset-poc-data
-      </button>
-
-      {openGenerator ? (
-        <GeometryGeneratorCatalogDialogLauncher
-          definition={openGenerator}
-          onClose={() => setOpenGeneratorId(null)}
-        />
-      ) : null}
     </main>
   );
-}
-
-function buildFlowInstanceRows(data: HomeData): FlowInstanceRow[] {
-  const flowTemplateById = new Map(
-    data.flowTemplates.map((template) => [template.id, template]),
-  );
-  const stepTemplateById = new Map(
-    data.stepTemplates.map((template) => [template.id, template]),
-  );
-
-  const instanceRows = data.flowInstances.map((instance) => {
-    const flowTemplate = flowTemplateById.get(instance.processFlowTemplateId);
-    const templateType = flowTemplate?.name ?? "Unknown template";
-    const templateId = flowTemplate?.id ?? instance.processFlowTemplateId;
-    let populatedFieldCount = 0;
-    let expectedFieldCount = 0;
-    let hasMissingStepTemplate = false;
-
-    expectedFieldCount += flowTemplate?.flowInputs.length ?? 0;
-    populatedFieldCount += Object.values(instance.inputBindings).filter(
-      (binding) => binding.kind === "catalog" && binding.geometryId.trim().length > 0,
-    ).length;
-
-    for (const stepRef of flowTemplate?.stepRefs ?? []) {
-      const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
-      if (!stepTemplate) {
-        hasMissingStepTemplate = true;
-        continue;
-      }
-      const values =
-        instance.stepConfigurations[stepRef.stepRefId]?.parameterValues ?? {};
-      expectedFieldCount += stepTemplate.parameterDefinitions.length;
-      populatedFieldCount += stepTemplate.parameterDefinitions.filter((parameter) =>
-        isMeaningfulValue(values[parameter.id]),
-      ).length;
-    }
-
-    const referenceStatus: FlowInstanceRow["referenceStatus"] = !flowTemplate
-      ? "missing-template"
-      : hasMissingStepTemplate
-        ? "missing-step-template"
-        : "resolved";
-
-    return {
-      key: instance.id,
-      rowKind: "instance" as const,
-      templateType,
-      templateId,
-      templateVersion: flowTemplate?.version ?? null,
-      flowInstanceName: instance.name,
-      flowInstanceId: instance.id,
-      populatedFieldCount,
-      expectedFieldCount,
-      referenceStatus,
-    };
-  });
-
-  const referencedTemplateIds = new Set(
-    data.flowInstances.map((instance) => instance.processFlowTemplateId),
-  );
-  const templateOnlyRows = data.flowTemplates
-    .filter((template) => !referencedTemplateIds.has(template.id))
-    .map((template) => {
-      let expectedFieldCount = template.flowInputs.length;
-      let hasMissingStepTemplate = false;
-      for (const stepRef of template.stepRefs) {
-        const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
-        if (!stepTemplate) {
-          hasMissingStepTemplate = true;
-          continue;
-        }
-        expectedFieldCount += stepTemplate.parameterDefinitions.length;
-      }
-      return {
-        key: `template:${template.id}`,
-        rowKind: "template" as const,
-        templateType: template.name,
-        templateId: template.id,
-        templateVersion: template.version,
-        flowInstanceName: null,
-        flowInstanceId: null,
-        populatedFieldCount: 0,
-        expectedFieldCount,
-        referenceStatus: hasMissingStepTemplate
-          ? ("missing-step-template" as const)
-          : ("template-only" as const),
-      };
-    });
-
-  return [...instanceRows, ...templateOnlyRows];
-}
-
-function isMeaningfulValue(value: unknown): boolean {
-  if (value === null) {
-    return true;
-  }
-  if (value === undefined) {
-    return false;
-  }
-  if (typeof value === "string") {
-    return value.trim().length > 0;
-  }
-  if (typeof value === "number") {
-    return Number.isFinite(value);
-  }
-  if (typeof value === "boolean") {
-    return true;
-  }
-  if (Array.isArray(value)) {
-    return value.length > 0;
-  }
-  if (typeof value === "object") {
-    const candidate = value as { items?: unknown[] };
-    if (Array.isArray(candidate.items)) {
-      return candidate.items.length > 0;
-    }
-    return Object.keys(value).length > 0;
-  }
-  return false;
-}
-
-function statusLabel(status: FlowInstanceRow["referenceStatus"]) {
-  if (status === "template-only") {
-    return "Template only";
-  }
-  if (status === "missing-template") {
-    return "Missing template";
-  }
-  if (status === "missing-step-template") {
-    return "Missing step";
-  }
-  return "Resolved";
 }

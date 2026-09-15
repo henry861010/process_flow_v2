@@ -68,6 +68,7 @@ session path與仍保留的legacy single-GLB path；文件不得把下列Open項
 
 | ID | Target | Current implementation / evidence | Owner | 狀態 |
 | --- | --- | --- | --- | --- |
+| UI-IA-001 | Home以template為主入口；Instance Editor由templateId啟動、同template source copy後direct create；Template Editor只保存template；generator與management使用dedicated routes | 已實作template cards、instance helper tests、catalog-only Template UI、HBM/DRAM pages與唯讀Management。Evidence：`apps/viewer/app/page.tsx`、`apps/viewer/lib/process-flow/instance-editor.test.ts`、`apps/viewer/app/management/page.tsx` | Process Flow UI | Closed |
 | UI-GAP-A11Y-001 | Modal 有 dialog semantics、focus trap、initial focus 與 focus restore | 多個自製 overlay 只有 Escape/backdrop/close button，缺完整 ARIA/focus lifecycle。`apps/viewer/components` | integration.platform | Open |
 | UI-GAP-DRAG-001 | Geometry Input 可由 keyboard/touch command 新增 | Flow Template Editor 的 geometry palette 只有 HTML drag；touch-only mobile 無 fallback。`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |
 | UI-GAP-RESP-001 | Compact viewport 不遺失 command 或 pane | `lg` 三欄最小寬約 1140px，1024px viewport 可能裁切右 pane。`apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx` | integration.platform | Open |

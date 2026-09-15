@@ -226,7 +226,14 @@ export async function updateProcessFlowWorkspace(
 
 export async function commitProcessFlowWorkspace(
   workspaceId: string,
-  request: { instanceId: string; instanceName: string; revision: number },
+  request: {
+    instanceId: string;
+    instanceName: string;
+    instanceVersion: string;
+    instanceOwner: string;
+    instanceDescription: string;
+    revision: number;
+  },
 ) {
   return apiFetch<{
     workspace: ProcessFlowWorkspace;

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 
 JsonObject = dict[str, Any]
@@ -20,6 +20,7 @@ SYMMETRY_MODES: tuple[SymmetryMode, ...] = (
 )
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 PositiveFiniteFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
+NonBlankString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 SectionPoint = tuple[FiniteFloat, FiniteFloat]
 SectionLoop = Annotated[list[SectionPoint], Field(min_length=4)]
 
@@ -249,6 +250,9 @@ class ProcessFlowInstance(StrictModel):
     schemaVersion: Literal[2] = 2
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
+    version: NonBlankString
+    owner: NonBlankString
+    description: str = ""
     processFlowTemplateId: str = Field(min_length=1)
     inputBindings: dict[str, CatalogGeometryBinding]
     stepConfigurations: dict[str, StepConfiguration]
@@ -258,6 +262,9 @@ class ProcessFlowInstanceCreate(FlowConfiguration):
     schemaVersion: Literal[2] = 2
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
+    version: NonBlankString
+    owner: NonBlankString
+    description: str = ""
     processFlowTemplateId: str = Field(min_length=1)
 
 
@@ -286,6 +293,9 @@ class ProcessFlowWorkspaceUpdate(FlowConfiguration):
 class WorkspaceCommitRequest(StrictModel):
     instanceId: str = Field(min_length=1)
     instanceName: str = Field(min_length=1)
+    instanceVersion: NonBlankString
+    instanceOwner: NonBlankString
+    instanceDescription: str = ""
     revision: int = Field(ge=1)
 
 

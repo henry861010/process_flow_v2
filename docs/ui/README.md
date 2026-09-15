@@ -57,6 +57,8 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/` | [Home](screens/home.md) |
 | `/flow-template-editor` | [Flow Template Editor](screens/flow-template-editor.md) |
 | `/flow-instance-editor` | [Flow Instance Editor](screens/flow-instance-editor.md) |
+| `/hbm-editor`、`/dram-editor` | [Geometry Generator Editors](screens/geometry-generator-editor.md) |
+| `/management` | [Management](screens/management.md) |
 | `/admin/processstepeditor` | [Process Step Template Editor](screens/step-template-editor.md) |
 | `/cad-viewer` | [CAD Viewer](screens/cad-viewer.md) |
 
@@ -85,9 +87,11 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 
 | Route | Canonical entry state | 操作旅程 | Acceptance |
 | --- | --- | --- | --- |
-| `/` | reset 後 Home ready | filter、table、reset、開啟 HBM Generator | `UI-HOME-001` 至 `UI-HOME-006`、`UI-HBM-001` 至 `UI-HBM-009` |
-| `/flow-template-editor` | fresh draft | click-add step、drag geometry、connect、save、preview | `UI-FTE-001` 至 `UI-FTE-008` |
-| `/flow-instance-editor` | 選 `AAA Demo`，不儲存 workspace | bind、edit、preview；確認draft controls/status box隱藏；known workspace URL commit | `UI-FIE-001` 至 `UI-FIE-008` |
+| `/` | reset 後 Home ready | template card navigation、create routes、reset | `UI-HOME-001` 至 `UI-HOME-005` |
+| `/flow-template-editor` | fresh draft | click-add step、drag catalog geometry、connect、save、preview | `UI-FTE-001` 至 `UI-FTE-005` |
+| `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA instance | load source instance、edit、preview、save immutable copy | `UI-FIE-001` 至 `UI-FIE-007` |
+| `/hbm-editor`、`/dram-editor` | generator defaults | preview、download、Save to DB | `UI-GEN-001` 至 `UI-GEN-003` |
+| `/management` | bootstrap ready | inspect resource tabs、open authoring routes | `UI-MGMT-001` 至 `UI-MGMT-003` |
 | `/admin/processstepeditor` | fresh step draft | clone、ports、parameters、save immutable template | `UI-PSTE-001` 至 `UI-PSTE-007` |
 | `/cad-viewer` | demo workbench | import、section、camera、reset | `UI-CAD-001` 至 `UI-CAD-006` |
 | Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |

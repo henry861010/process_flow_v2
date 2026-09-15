@@ -21,6 +21,9 @@ export type TemplateSaveInformation = {
 export type InstanceSaveInformation = {
   id: string;
   name: string;
+  version: string;
+  owner: string;
+  description: string;
 };
 
 export type EmbeddedGeometrySaveInformation = {
@@ -244,7 +247,31 @@ export function SaveInformationDialog({
                     onChange={(event) => onInstanceChange({ id: event.target.value })}
                   />
                 </FormField>
+                <FormField label="Version" required>
+                  <input
+                    className={inputClass}
+                    value={instance.version}
+                    disabled={submitting}
+                    onChange={(event) => onInstanceChange({ version: event.target.value })}
+                  />
+                </FormField>
+                <FormField label="Owner" required>
+                  <input
+                    className={inputClass}
+                    value={instance.owner}
+                    disabled={submitting}
+                    onChange={(event) => onInstanceChange({ owner: event.target.value })}
+                  />
+                </FormField>
               </div>
+              <FormField label="Description">
+                <textarea
+                  className={textareaClass}
+                  value={instance.description}
+                  disabled={submitting}
+                  onChange={(event) => onInstanceChange({ description: event.target.value })}
+                />
+              </FormField>
             </section>
           ) : null}
 
