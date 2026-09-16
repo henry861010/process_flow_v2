@@ -456,6 +456,8 @@ function ProcessFlowTemplateEditorInner() {
         },
       };
     });
+    setGeometrySearch("");
+    setGeometryCategoryPath([]);
   }
 
   function addStepTemplate(
@@ -492,6 +494,8 @@ function ProcessFlowTemplateEditorInner() {
       },
     }));
     setSelectedNodeId(node.id);
+    setStepSearch("");
+    setStepCategoryPath([]);
   }
 
   function deleteNode(nodeId: string) {
