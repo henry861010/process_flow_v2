@@ -18,6 +18,8 @@ import { clone } from "@/lib/process-flow/utils";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+const textareaClass =
+  "min-h-[88px] w-full resize-y rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:resize-none disabled:bg-muted disabled:text-muted-foreground";
 
 export function ProcessStepEditDialog({
   template,
@@ -147,10 +149,19 @@ export function ProcessStepEditDialog({
             <div>
               <h3 className="text-sm font-semibold">Metadata</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Identity, version, ports, and parameter definitions remain locked.
+                Locked fields are shown for reference and cannot be changed.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
+              <MetadataInput label="ID" value={draft.id} disabled locked mono />
+              <MetadataInput
+                label="Schema version"
+                value={String(draft.schemaVersion)}
+                disabled
+                locked
+              />
+              <MetadataInput label="Version" value={draft.version} disabled locked />
+              <MetadataInput label="Name" value={draft.name} disabled locked />
               <MetadataInput
                 autoFocus
                 label="Owner"
@@ -173,14 +184,40 @@ export function ProcessStepEditDialog({
                   onChange={(program) => patchMetadata({ program })}
                 />
               </div>
+              <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
+                <span className="flex items-center justify-between gap-2">
+                  Description
+                  <LockedLabel />
+                </span>
+                <textarea
+                  className={textareaClass}
+                  disabled
+                  value={draft.description}
+                  readOnly
+                />
+              </label>
             </div>
           </section>
 
           <section className="space-y-3 border-t pt-5">
             <div>
-              <h3 className="text-sm font-semibold">Parameter defaults</h3>
+              <h3 className="text-sm font-semibold">Ports</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Defaults apply only when future process flows are created.
+                Input and output port definitions are locked.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <PortList title="Input ports" ports={draft.inputPorts} kind="input" />
+              <PortList title="Output ports" ports={draft.outputPorts} kind="output" />
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t pt-5">
+            <div>
+              <h3 className="text-sm font-semibold">Parameter definitions and defaults</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Definitions are locked. Default values apply only when future process flows are
+                created.
               </p>
             </div>
             {draft.parameterDefinitions.length > 0 ? (
@@ -206,6 +243,7 @@ export function ProcessStepEditDialog({
                           Use default value
                         </label>
                       </div>
+                      <ParameterDefinitionDetails definition={definition} />
                       <ParameterValueEditor
                         definitions={[definition]}
                         values={enabled ? { [definition.id]: definition.defaultValue } : {}}
@@ -251,6 +289,7 @@ function MetadataInput({
   label,
   value,
   disabled,
+  locked = false,
   autoFocus,
   mono = false,
   onChange,
@@ -258,21 +297,153 @@ function MetadataInput({
   label: string;
   value: string;
   disabled: boolean;
+  locked?: boolean;
   autoFocus?: boolean;
   mono?: boolean;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
 }) {
   return (
     <label className="grid gap-1.5 text-sm font-medium">
-      <span>{label}</span>
+      <span className="flex items-center justify-between gap-2">
+        {label}
+        {locked ? <LockedLabel /> : null}
+      </span>
       <input
         autoFocus={autoFocus}
         className={`${inputClass} ${mono ? "font-mono text-xs" : ""}`}
         disabled={disabled}
-        required
+        readOnly={locked}
+        required={!locked}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange ? (event) => onChange(event.target.value) : undefined}
       />
     </label>
+  );
+}
+
+function LockedLabel() {
+  return (
+    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      Locked
+    </span>
+  );
+}
+
+type PortDefinition =
+  | ProcessStepTemplate["inputPorts"][number]
+  | ProcessStepTemplate["outputPorts"][number];
+
+function PortList({
+  title,
+  ports,
+  kind,
+}: {
+  title: string;
+  ports: PortDefinition[];
+  kind: "input" | "output";
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+        <span>{title}</span>
+        <Badge variant="outline">{ports.length}</Badge>
+      </div>
+      {ports.length > 0 ? (
+        <div className="space-y-3">
+          {ports.map((port) => (
+            <div key={port.portId} className="space-y-3 rounded-md border bg-white p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ReadOnlyField label="Port ID" value={port.portId} mono />
+                <ReadOnlyField label="Name" value={port.name} />
+                <ReadOnlyField label="Data type" value={port.dataType} />
+                {kind === "input" && "role" in port ? (
+                  <ReadOnlyField label="Role" value={port.role} />
+                ) : null}
+              </div>
+              {kind === "input" && "required" in port ? (
+                <ReadOnlyBoolean label="Required" value={port.required} />
+              ) : null}
+              <ReadOnlyTextArea label="Description" value={port.description ?? ""} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+          No {title.toLowerCase()}.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ParameterDefinitionDetails({ definition }: { definition: ParameterDefinition }) {
+  return (
+    <div className="space-y-3 border-b bg-muted/10 px-4 py-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ReadOnlyField label="Value type" value={definition.valueType} />
+        <ReadOnlyField label="Control type" value={definition.controlType ?? "—"} />
+        <ReadOnlyField label="Selection mode" value={definition.selectionMode ?? "—"} />
+        <ReadOnlyField label="Unit" value={definition.unit ?? "—"} />
+      </div>
+      <ReadOnlyBoolean label="Required" value={definition.required ?? false} />
+      <ReadOnlyTextArea label="Description" value={definition.description ?? ""} />
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ReadOnlyJson label="Validation" value={definition.validation} />
+        <ReadOnlyJson label="Options" value={definition.optionSource} />
+        <ReadOnlyJson label="Repeat definition" value={definition.repeatDefinition} />
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyField({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <label className="grid gap-1.5 text-xs font-medium">
+      <span>{label}</span>
+      <input
+        className={`${inputClass} ${mono ? "font-mono text-xs" : ""}`}
+        disabled
+        readOnly
+        value={value}
+      />
+    </label>
+  );
+}
+
+function ReadOnlyTextArea({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="grid gap-1.5 text-xs font-medium">
+      <span>{label}</span>
+      <textarea className={textareaClass} disabled readOnly value={value || "—"} />
+    </label>
+  );
+}
+
+function ReadOnlyBoolean({ label, value }: { label: string; value: boolean }) {
+  return (
+    <label className="flex items-center gap-2 text-xs font-medium">
+      <input checked={value} disabled readOnly type="checkbox" />
+      {label}
+    </label>
+  );
+}
+
+function ReadOnlyJson({ label, value }: { label: string; value: unknown }) {
+  if (value === undefined) return null;
+  return (
+    <div className="grid gap-1.5 text-xs font-medium">
+      <span>{label}</span>
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted px-3 py-2 font-mono text-[11px] font-normal text-muted-foreground">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </div>
   );
 }

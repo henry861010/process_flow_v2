@@ -25,7 +25,7 @@ import { updateProcessFlowTemplate } from "@/lib/process-flow-api";
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 const textareaClass =
-  "min-h-[88px] w-full resize-y rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+  "min-h-[88px] w-full resize-y rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:resize-none disabled:bg-muted disabled:text-muted-foreground";
 
 export function ProcessFlowTemplateEditDialog({
   template,
@@ -172,10 +172,18 @@ export function ProcessFlowTemplateEditDialog({
             <div>
               <h3 className="text-sm font-semibold">Metadata</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Identity, version, flow inputs, steps, and topology remain locked.
+                Locked fields are shown for reference and cannot be changed.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
+              <MetadataInput label="ID" value={draft.id} disabled locked mono />
+              <MetadataInput
+                label="Schema version"
+                value={String(draft.schemaVersion)}
+                disabled
+                locked
+              />
+              <MetadataInput label="Version" value={draft.version} disabled locked />
               <MetadataInput
                 autoFocus
                 disabled={saving}
@@ -203,10 +211,40 @@ export function ProcessFlowTemplateEditDialog({
 
           <section className="space-y-3 border-t pt-5">
             <div>
-              <h3 className="text-sm font-semibold">Flow parameter defaults</h3>
+              <h3 className="text-sm font-semibold">Flow inputs</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Only affects future instances created from blank. Existing instances and instances
-                copied from another instance are unchanged.
+                Flow input definitions and geometry constraints are locked.
+              </p>
+            </div>
+            {draft.flowInputs.length > 0 ? (
+              <div className="space-y-3">
+                {draft.flowInputs.map((flowInput) => (
+                  <section
+                    key={flowInput.flowInputId}
+                    className="space-y-3 rounded-md border bg-white p-4"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ReadOnlyField label="Flow input ID" value={flowInput.flowInputId} mono />
+                      <ReadOnlyField label="Name" value={flowInput.name} />
+                      <ReadOnlyField label="Data type" value={flowInput.dataType} />
+                    </div>
+                    <ReadOnlyBoolean label="Required" value={flowInput.required} />
+                    <ReadOnlyTextArea label="Description" value={flowInput.description ?? ""} />
+                    <GeometryConstraintsDetails constraints={flowInput.geometryConstraints} />
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <EmptyLockedCollection>No flow inputs.</EmptyLockedCollection>
+            )}
+          </section>
+
+          <section className="space-y-3 border-t pt-5">
+            <div>
+              <h3 className="text-sm font-semibold">Steps and flow parameter defaults</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Step definitions are locked. Defaults only affect future instances created from
+                blank. Existing instances and instances copied from another instance are unchanged.
               </p>
             </div>
             <div className="space-y-4">
@@ -258,6 +296,18 @@ export function ProcessFlowTemplateEditDialog({
                         <RotateCcw />
                         Reset to process-step defaults
                       </Button>
+                    </div>
+                    <div className="grid gap-3 border-b bg-muted/10 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <ReadOnlyField label="Step ref ID" value={stepRef.stepRefId} mono />
+                      <ReadOnlyField
+                        label="Step label"
+                        value={stepRef.stepLabel?.trim() || "—"}
+                      />
+                      <ReadOnlyField
+                        label="Process step template ID"
+                        value={stepRef.processStepTemplateId}
+                        mono
+                      />
                     </div>
                     {definitions.length > 0 ? (
                       <div className="divide-y">
@@ -318,6 +368,35 @@ export function ProcessFlowTemplateEditDialog({
             </div>
           </section>
 
+          <section className="space-y-3 border-t pt-5">
+            <div>
+              <h3 className="text-sm font-semibold">Topology</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Connections between flow inputs and process steps are locked.
+              </p>
+            </div>
+            {draft.flowEdges.length > 0 ? (
+              <div className="space-y-3">
+                {draft.flowEdges.map((edge) => (
+                  <section
+                    key={edge.edgeId}
+                    className="grid gap-3 rounded-md border bg-white p-4 lg:grid-cols-3"
+                  >
+                    <ReadOnlyField label="Edge ID" value={edge.edgeId} mono />
+                    <ReadOnlyField label="Source" value={formatEdgeSource(edge.source)} mono />
+                    <ReadOnlyField
+                      label="Target"
+                      value={`${edge.target.stepRefId}.${edge.target.inputPortId}`}
+                      mono
+                    />
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <EmptyLockedCollection>No topology connections.</EmptyLockedCollection>
+            )}
+          </section>
+
           {error ? (
             <p
               aria-live="polite"
@@ -346,26 +425,132 @@ function MetadataInput({
   label,
   value,
   disabled,
+  locked = false,
   autoFocus,
+  mono = false,
   onChange,
 }: {
   label: string;
   value: string;
   disabled: boolean;
+  locked?: boolean;
   autoFocus?: boolean;
-  onChange: (value: string) => void;
+  mono?: boolean;
+  onChange?: (value: string) => void;
 }) {
   return (
     <label className="grid gap-1.5 text-sm font-medium">
-      <span>{label}</span>
+      <span className="flex items-center justify-between gap-2">
+        {label}
+        {locked ? <LockedLabel /> : null}
+      </span>
       <input
         autoFocus={autoFocus}
-        className={inputClass}
+        className={`${inputClass} ${mono ? "font-mono text-xs" : ""}`}
         disabled={disabled}
-        required
+        readOnly={locked}
+        required={!locked}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange ? (event) => onChange(event.target.value) : undefined}
       />
     </label>
   );
+}
+
+function LockedLabel() {
+  return (
+    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      Locked
+    </span>
+  );
+}
+
+function ReadOnlyField({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <label className="grid gap-1.5 text-xs font-medium">
+      <span>{label}</span>
+      <input
+        className={`${inputClass} ${mono ? "font-mono text-xs" : ""}`}
+        disabled
+        readOnly
+        value={value}
+      />
+    </label>
+  );
+}
+
+function ReadOnlyTextArea({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="grid gap-1.5 text-xs font-medium">
+      <span>{label}</span>
+      <textarea className={textareaClass} disabled readOnly value={value || "—"} />
+    </label>
+  );
+}
+
+function ReadOnlyBoolean({ label, value }: { label: string; value: boolean }) {
+  return (
+    <label className="flex items-center gap-2 text-xs font-medium">
+      <input checked={value} disabled readOnly type="checkbox" />
+      {label}
+    </label>
+  );
+}
+
+function GeometryConstraintsDetails({
+  constraints,
+}: {
+  constraints: ProcessFlowTemplate["flowInputs"][number]["geometryConstraints"];
+}) {
+  if (!constraints) {
+    return <EmptyLockedCollection>No geometry constraints.</EmptyLockedCollection>;
+  }
+  return (
+    <div className="grid gap-3 rounded-md border bg-muted/10 p-3 sm:grid-cols-3">
+      <ReadOnlyList label="Entity types" values={constraints.entityTypes} />
+      <ReadOnlyList label="Categories" values={constraints.categories} />
+      <ReadOnlyList label="Structure formats" values={constraints.structureFormats} />
+    </div>
+  );
+}
+
+function ReadOnlyList({ label, values }: { label: string; values?: string[] }) {
+  return (
+    <div className="space-y-1.5 text-xs font-medium">
+      <div>{label}</div>
+      <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border bg-muted px-3 py-2 text-muted-foreground">
+        {values?.length ? (
+          values.map((value) => (
+            <Badge key={value} variant="outline">
+              {value}
+            </Badge>
+          ))
+        ) : (
+          <span>Any</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EmptyLockedCollection({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+function formatEdgeSource(source: ProcessFlowTemplate["flowEdges"][number]["source"]) {
+  return source.kind === "flowInput"
+    ? `flowInput.${source.flowInputId}`
+    : `${source.stepRefId}.${source.outputPortId}`;
 }

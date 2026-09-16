@@ -164,7 +164,7 @@ export default function ManagementPage() {
                   <Cell>{template.owner}</Cell>
                   <Cell>{instanceCountByTemplate.get(template.id) ?? 0}</Cell>
                   <td className="px-4 py-3 align-top">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end">
                       <Button
                         type="button"
                         size="sm"
@@ -172,9 +172,6 @@ export default function ManagementPage() {
                         onClick={() => setEditingTemplate(template)}
                       >
                         Edit
-                      </Button>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/flow-instance-editor?templateId=${encodeURIComponent(template.id)}`}>Open</Link>
                       </Button>
                     </div>
                   </td>
