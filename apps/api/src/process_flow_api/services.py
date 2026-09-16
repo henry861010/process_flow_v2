@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 from process_flow_kernel import (
     ExecuteOptions,
@@ -25,9 +26,10 @@ from .models import (
     GeometryPreviewStepRequest,
     ProcessFlowInstanceCreate,
     ProcessFlowTemplate,
+    ProcessStepTemplate,
     TemplateInstanceCreateRequest,
 )
-from .repository import NotFoundError, SQLiteStore
+from .repository import NotFoundError, ResourceConflictError, SQLiteStore
 
 
 JsonObject = dict[str, Any]
@@ -81,6 +83,80 @@ def require_item(item: JsonObject | None, id_: str) -> JsonObject:
 
 def validate_process_step_template(template: JsonObject) -> None:
     validate_step_contract(template)
+
+
+def update_process_step_template(
+    store: SQLiteStore,
+    template_id: str,
+    body: ProcessStepTemplate,
+) -> JsonObject:
+    payload = body.payload()
+    if payload["id"] != template_id:
+        raise ValueError("ProcessStepTemplate.id must match the route id")
+
+    current = require_item(store.get_process_step_template(template_id), template_id)
+    normalized_current = ProcessStepTemplate.model_validate(current).payload()
+    if _locked_process_step_template(normalized_current) != _locked_process_step_template(payload):
+        raise ResourceConflictError(
+            "Only owner, category, program, and parameter defaultValue fields can be updated"
+        )
+
+    validate_process_step_template(payload)
+    updated = copy.deepcopy(current)
+    for field in ("owner", "category", "program"):
+        updated[field] = payload[field]
+    _apply_parameter_defaults(
+        updated.get("parameterDefinitions", []),
+        payload.get("parameterDefinitions", []),
+    )
+    return store.update_process_step_template(updated)
+
+
+def _locked_process_step_template(template: JsonObject) -> JsonObject:
+    locked = copy.deepcopy(template)
+    for field in ("owner", "category", "program"):
+        locked.pop(field, None)
+    _remove_parameter_defaults(locked.get("parameterDefinitions", []))
+    return locked
+
+
+def _remove_parameter_defaults(definitions: Any) -> None:
+    if not isinstance(definitions, list):
+        return
+    for definition in definitions:
+        if not isinstance(definition, Mapping):
+            continue
+        definition.pop("defaultValue", None)
+        repeat = definition.get("repeatDefinition")
+        if isinstance(repeat, Mapping):
+            _remove_parameter_defaults(repeat.get("itemParameterDefinitions", []))
+
+
+def _apply_parameter_defaults(target_definitions: Any, source_definitions: Any) -> None:
+    if not isinstance(target_definitions, list) or not isinstance(source_definitions, list):
+        return
+    source_by_id = {
+        definition.get("id"): definition
+        for definition in source_definitions
+        if isinstance(definition, Mapping)
+    }
+    for target in target_definitions:
+        if not isinstance(target, dict):
+            continue
+        source = source_by_id.get(target.get("id"))
+        if not isinstance(source, Mapping):
+            continue
+        if "defaultValue" in source:
+            target["defaultValue"] = copy.deepcopy(source["defaultValue"])
+        else:
+            target.pop("defaultValue", None)
+        target_repeat = target.get("repeatDefinition")
+        source_repeat = source.get("repeatDefinition")
+        if isinstance(target_repeat, Mapping) and isinstance(source_repeat, Mapping):
+            _apply_parameter_defaults(
+                target_repeat.get("itemParameterDefinitions", []),
+                source_repeat.get("itemParameterDefinitions", []),
+            )
 
 
 def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplate) -> JsonObject:

@@ -61,7 +61,8 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | --- | --- | --- |
 | `GET` | `/api/process-step-templates` | List；支援 `search`、`category` |
 | `GET` | `/api/process-step-templates/{id}` | Detail |
-| `POST` | `/api/process-step-templates` | Validate and insert immutable template |
+| `POST` | `/api/process-step-templates` | Validate and insert template |
+| `PUT` | `/api/process-step-templates/{id}` | Update owner、category、program 與 parameter defaults |
 | `DELETE` | `/api/process-step-templates/{id}` | Delete only when no flow template references it |
 
 ### Geometry catalog

@@ -138,6 +138,19 @@ export async function createProcessStepTemplate<T>(template: T): Promise<T> {
   });
 }
 
+export async function updateProcessStepTemplate<T>(
+  templateId: string,
+  template: T,
+): Promise<T> {
+  return apiFetch<T>(
+    `/api/process-step-templates/${encodeURIComponent(templateId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(template),
+    },
+  );
+}
+
 export async function deleteProcessStepTemplate(templateId: string): Promise<void> {
   await apiFetch<unknown>(`/api/process-step-templates/${encodeURIComponent(templateId)}`, {
     method: "DELETE",

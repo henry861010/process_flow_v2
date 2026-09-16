@@ -41,8 +41,7 @@ source_of_truth:
 | `/flow-template-editor` | fresh template draft | reset 後直接開 route，不選 template | catalog/step palettes、空 graph與單一save command |
 | `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA configuration | 由Home點AAA template card | fixed template、From instance、default configuration與Save |
 | `/hbm-editor`、`/dram-editor` | generator defaults | 由Home create command進入 | matching registry definition、preview與Save to DB |
-| `/management` | resource overview | reset 後完整 bootstrap | 四類count、tabs與唯讀rows |
-| `/admin/processstepeditor` | fresh step draft | reset 後直接開 route，不 clone template | library、empty identity、Geometry Ports、No parameters |
+| `/management` | resource overview | reset 後完整 bootstrap | 四類count、tabs、process-step Edit modal |
 | `/cad-viewer` | demo workbench | 直接開 route，不 import file | demo model、Section XZ、Grid/Axes on、ISO |
 | Geometry Preview | ready preview | Instance Editor 綁定 `panel_plp_310x310mm_glass` 後開 Preview | Loading → Ready、viewport、right controls、footer |
 

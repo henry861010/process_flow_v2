@@ -144,23 +144,29 @@ Normative service rules：
 - Delete MUST reject while a protected reference exists。
 - Read/execute encountering a broken reference MUST return a domain not-found/conflict error，不得
   silently substitute another resource。
-- A `ProcessFlowTemplate` references immutable step snapshots；a `ProcessFlowInstance` references
-  immutable template and geometry snapshots。因此 valid references MUST NOT drift in place。
+- A `ProcessFlowTemplate` references a stable process-step id and snapshots its own scalar
+  `parameterDefaults`。Step owner、category、program 與 definition defaults MAY update in place；
+  existing flow defaults MUST NOT be rewritten by that update。
+- A `ProcessFlowInstance` references immutable flow-template and geometry snapshots；those references
+  MUST NOT drift in place。
 - Physical foreign keys MAY 在 future schema 加入，但不得改變 JSON reference contract。
 
-## 4. Immutable policy
+## 4. Mutability policy
 
 | Resource | Create | Update | Delete |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | yes | no | MAY delete only when no flow template references it。 |
+| `ProcessStepTemplate` | yes | restricted full replace | MAY delete only when no flow template references it。 |
 | `ProcessFlowTemplate` | yes | no | Not part of current public lifecycle。 |
 | `ProcessFlowInstance` | yes | no | Not part of current public lifecycle。 |
 | `GeometryEntity` | yes | no | Not part of current public lifecycle。 |
 | Draft `ProcessFlowWorkspace` | yes | revision-checked full replace | Not part of current public lifecycle。 |
 | Committed workspace | no new identity | no | Not part of current public lifecycle。 |
 
-Immutable 是 API/domain guarantee，而不只是 UI disabled state。Repository layer SHOULD 提供
-resource-specific methods，MUST NOT expose generic overwrite/upsert for immutable rows。
+`ProcessStepTemplate` update只允許`owner`、`category`、`program`與recursive parameter
+`defaultValue`改變；id、version、name、description、ports與parameter definition contract MUST
+保持相同。其他 immutable resource 的不可更新性是 API/domain guarantee，而不只是 UI
+disabled state。Repository layer SHOULD 提供 resource-specific methods，MUST NOT expose generic
+overwrite/upsert。
 
 ## 5. ID 產生規則
 

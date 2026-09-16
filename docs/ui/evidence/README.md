@@ -36,7 +36,6 @@ source_of_truth:
 - CAD Viewer 的 `1440×900` desktop reference 與目前 demo workbench 對齊；`390×844` viewport-first 且無整頁 horizontal overflow。
 - Flow Template Editor 在 `1024×768` 裁切 right pane，引用 `UI-GAP-RESP-001`。
 - Flow Template Editor 的 Geometry palette 仍是 drag-only，引用 `UI-GAP-DRAG-001`。
-- Step Template Editor 仍顯示 `schema v2`，引用 `UI-GAP-VERSION-LABEL-001`。
 - 自製 modal 缺少完整 dialog semantics/focus lifecycle，引用 `UI-GAP-A11Y-001`。
 - Export form 的 Escape 會穿透多層 overlay；引用 `UI-GAP-MODAL-STACK-001`。
 

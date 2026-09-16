@@ -374,6 +374,140 @@ class ProcessFlowApiTests(unittest.TestCase):
         missing = self.client.get("/api/process-step-templates/custom_step")
         self.assertEqual(missing.status_code, 404, missing.text)
 
+    def test_step_template_update_is_restricted_and_preserves_existing_flow_defaults(self):
+        bootstrap = self.reset_poc_data()
+        original = next(
+            item
+            for item in bootstrap["processStepTemplates"]
+            if item["id"] == "step_tpl_molding"
+        )
+        existing_flow = next(
+            item
+            for item in bootstrap["processFlowTemplates"]
+            if item["id"] == "flow_tpl_aaa_demo"
+        )
+        existing_molding_ref = next(
+            step_ref
+            for step_ref in existing_flow["stepRefs"]
+            if step_ref["processStepTemplateId"] == original["id"]
+        )
+        self.assertEqual(existing_molding_ref["parameterDefaults"]["thickness"], 180)
+
+        updated = copy.deepcopy(original)
+        updated["owner"] = "process.integration"
+        updated["category"] = "layer.updated"
+        updated["program"] = "layer/molding_v2"
+        updated["parameterDefinitions"][0]["defaultValue"] = "EMC-UPDATED"
+        updated["parameterDefinitions"][1]["defaultValue"] = 210
+
+        response = self.client.put(
+            "/api/process-step-templates/step_tpl_molding",
+            json=updated,
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["owner"], updated["owner"])
+        self.assertEqual(response.json()["category"], updated["category"])
+        self.assertEqual(response.json()["program"], updated["program"])
+        detail = self.client.get("/api/process-step-templates/step_tpl_molding")
+        self.assertEqual(detail.json()["owner"], "process.integration")
+        listed = next(
+            item
+            for item in self.client.get("/api/process-step-templates").json()
+            if item["id"] == "step_tpl_molding"
+        )
+        self.assertEqual(listed["category"], "layer.updated")
+        refreshed_bootstrap = self.client.get("/api/bootstrap").json()
+        refreshed = next(
+            item
+            for item in refreshed_bootstrap["processStepTemplates"]
+            if item["id"] == "step_tpl_molding"
+        )
+        self.assertEqual(refreshed["program"], "layer/molding_v2")
+
+        persisted_existing_flow = self.client.get(
+            "/api/process-flow-templates/flow_tpl_aaa_demo"
+        ).json()
+        persisted_molding_ref = next(
+            step_ref
+            for step_ref in persisted_existing_flow["stepRefs"]
+            if step_ref["processStepTemplateId"] == original["id"]
+        )
+        self.assertEqual(persisted_molding_ref["parameterDefaults"]["thickness"], 180)
+
+        future_flow = copy.deepcopy(existing_flow)
+        future_flow["id"] = "flow_tpl_updated_step_defaults"
+        for step_ref in future_flow["stepRefs"]:
+            step_ref.pop("parameterDefaults", None)
+        created_flow = self.client.post("/api/process-flow-templates", json=future_flow)
+        self.assertEqual(created_flow.status_code, 201, created_flow.text)
+        future_molding_ref = next(
+            step_ref
+            for step_ref in created_flow.json()["stepRefs"]
+            if step_ref["processStepTemplateId"] == original["id"]
+        )
+        self.assertEqual(
+            future_molding_ref["parameterDefaults"],
+            {"material": "EMC-UPDATED", "thickness": 210},
+        )
+
+    def test_step_template_update_rejects_identity_contract_and_invalid_defaults(self):
+        bootstrap = self.reset_poc_data()
+        original = next(
+            item
+            for item in bootstrap["processStepTemplates"]
+            if item["id"] == "step_tpl_molding"
+        )
+
+        mismatch = copy.deepcopy(original)
+        mismatch["id"] = "step_tpl_other"
+        mismatch_response = self.client.put(
+            "/api/process-step-templates/step_tpl_molding",
+            json=mismatch,
+        )
+        self.assertEqual(mismatch_response.status_code, 400, mismatch_response.text)
+
+        missing = copy.deepcopy(original)
+        missing["id"] = "step_tpl_missing"
+        missing_response = self.client.put(
+            "/api/process-step-templates/step_tpl_missing",
+            json=missing,
+        )
+        self.assertEqual(missing_response.status_code, 404, missing_response.text)
+
+        disallowed_updates = []
+        renamed = copy.deepcopy(original)
+        renamed["name"] = "Renamed molding"
+        disallowed_updates.append(renamed)
+        changed_port = copy.deepcopy(original)
+        changed_port["inputPorts"][0]["name"] = "Changed input"
+        disallowed_updates.append(changed_port)
+        changed_parameter = copy.deepcopy(original)
+        changed_parameter["parameterDefinitions"][0]["name"] = "Changed material"
+        disallowed_updates.append(changed_parameter)
+
+        for candidate in disallowed_updates:
+            with self.subTest(candidate=candidate):
+                rejected = self.client.put(
+                    "/api/process-step-templates/step_tpl_molding",
+                    json=candidate,
+                )
+                self.assertEqual(rejected.status_code, 409, rejected.text)
+                self.assertIn("Only owner, category, program", rejected.json()["message"])
+
+        invalid_default = copy.deepcopy(original)
+        invalid_default["parameterDefinitions"][1]["defaultValue"] = -1
+        invalid_response = self.client.put(
+            "/api/process-step-templates/step_tpl_molding",
+            json=invalid_default,
+        )
+        self.assertEqual(invalid_response.status_code, 400, invalid_response.text)
+        self.assertIn("defaultValue", invalid_response.json()["message"])
+        self.assertEqual(
+            self.client.get("/api/process-step-templates/step_tpl_molding").json(),
+            original,
+        )
+
     def test_step_template_defaults_are_validated_and_persisted(self):
         bootstrap = self.reset_poc_data()
         source = next(

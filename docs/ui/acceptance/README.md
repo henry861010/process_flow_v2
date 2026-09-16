@@ -56,7 +56,6 @@ assertion為主。
 | Management ready | `management-1440x900.png` pending | `management-1024x768.png` pending | `management-390x844.png` pending |
 | Flow Template fresh | `flow-template-editor-1440x900.png` pending | `flow-template-editor-1024x768.png` pending | `flow-template-editor-390x844.png` pending |
 | Flow Instance / AAA selected | `flow-instance-editor-1440x900.png` pending | `flow-instance-editor-1024x768.png` pending | `flow-instance-editor-390x844.png` pending |
-| Step Template fresh | `step-template-editor-1440x900.png` pending | `step-template-editor-1024x768.png` pending | `step-template-editor-390x844.png` pending |
 | CAD demo | [cad-viewer-1440x900.png](../assets/reference/cad-viewer-1440x900.png) | `cad-viewer-1024x768.png` pending | `cad-viewer-390x844.png` pending |
 | Geometry Preview ready | `geometry-preview-1440x900.png` pending | `geometry-preview-1024x768.png` pending | `geometry-preview-390x844.png` pending |
 
@@ -68,8 +67,8 @@ screenshot、gap reproduction 或尚未決定的畫面，必須存於
 [../evidence/README.md](../evidence/README.md) 所定義的 evidence 層，不得直接升格為
 normative reference。
 
-Home 與 editor reference 必須使用歸零後 fixtures 重拍；Step Template Editor 另須等
-`UI-GAP-VERSION-LABEL-001` 關閉。仍含舊版 label 的 screenshot 不得當成 normative baseline。
+Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 label 的 screenshot
+不得當成 normative baseline。
 
 ## 圖片比較門檻
 
@@ -94,6 +93,7 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；Step Template 
 | `UI-FIE-002` | AAA route | inspect From instance | 只列AAA instances；選擇後copy values但identity保持new draft。 |
 | `UI-FIE-003` | complete configuration | Save → enter full metadata | 建立新的immutable instance並返回Home，source保持不變。 |
 | `UI-MGMT-001` | bootstrap ready | open Management tabs | 四類resource count與唯讀rows符合bootstrap。 |
+| `UI-MGMT-002` | Process steps tab | click row Edit、change allowed fields/default、Save | 頁內modal只暴露允許欄位；成功後row即時更新且不導頁。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |

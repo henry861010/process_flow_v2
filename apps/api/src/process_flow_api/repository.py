@@ -255,6 +255,35 @@ class SQLiteStore:
     def get_process_step_template(self, id_: str) -> JsonObject | None:
         return self._get("process_step_templates", id_)
 
+    def update_process_step_template(self, payload: JsonObject) -> JsonObject:
+        values = {
+            "name": payload.get("name", ""),
+            "category": payload.get("category", ""),
+            "version": payload.get("version", ""),
+            "owner": payload.get("owner", ""),
+            "payload": _json(payload),
+            "id": payload["id"],
+        }
+        with self._connection:
+            cursor = self._connection.execute(
+                """
+                UPDATE process_step_templates
+                SET name = ?, category = ?, version = ?, owner = ?, payload = ?
+                WHERE id = ?
+                """,
+                (
+                    values["name"],
+                    values["category"],
+                    values["version"],
+                    values["owner"],
+                    values["payload"],
+                    values["id"],
+                ),
+            )
+        if cursor.rowcount == 0:
+            raise NotFoundError(payload["id"])
+        return payload
+
     def delete_process_step_template(self, id_: str) -> None:
         for flow_template in self.list_process_flow_templates():
             if any(

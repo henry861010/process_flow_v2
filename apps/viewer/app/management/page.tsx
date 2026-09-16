@@ -13,9 +13,11 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { ProcessStepEditDialog } from "@/components/process-step-edit/process-step-edit-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { ProcessStepTemplate } from "@/lib/process-flow/types";
 import type { BootstrapPayload } from "@/lib/process-flow-api";
 import { loadBootstrap, resetPocData } from "@/lib/process-flow-api";
 
@@ -32,6 +34,7 @@ export default function ManagementPage() {
   const [loading, setLoading] = React.useState(true);
   const [resetting, setResetting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [editingStep, setEditingStep] = React.useState<ProcessStepTemplate | null>(null);
 
   React.useEffect(() => {
     let active = true;
@@ -77,6 +80,7 @@ export default function ManagementPage() {
     setResetting(true);
     try {
       setData(await resetPocData());
+      setEditingStep(null);
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to reset the database.");
@@ -95,7 +99,7 @@ export default function ManagementPage() {
               <h1 className="text-xl font-semibold">Management</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Review immutable process resources and open their authoring tools.
+              Review process resources and manage process step settings.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -208,10 +212,7 @@ export default function ManagementPage() {
           </TabsContent>
 
           <TabsContent value="steps">
-            <div className="mb-3 flex justify-end">
-              <Button asChild size="sm"><Link href="/admin/processstepeditor"><Braces />Open Process Step Editor</Link></Button>
-            </div>
-            <ResourceTable headings={["Process step", "Category", "Version", "Owner", "Program"]}>
+            <ResourceTable headings={["Process step", "Category", "Version", "Owner", "Program", "Actions"]}>
               {data.processStepTemplates.map((step) => (
                 <tr key={step.id} className="border-b last:border-b-0">
                   <IdentityCell name={step.name} id={step.id} description={step.description} />
@@ -219,12 +220,38 @@ export default function ManagementPage() {
                   <Cell>{step.version}</Cell>
                   <Cell>{step.owner}</Cell>
                   <Cell><span className="font-mono text-xs">{step.program}</span></Cell>
+                  <td className="px-4 py-3 text-right align-top">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingStep(step)}
+                    >
+                      Edit
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </ResourceTable>
           </TabsContent>
         </Tabs>
       </div>
+      {editingStep ? (
+        <ProcessStepEditDialog
+          key={editingStep.id}
+          template={editingStep}
+          onClose={() => setEditingStep(null)}
+          onSaved={(saved) => {
+            setData((current) => ({
+              ...current,
+              processStepTemplates: current.processStepTemplates.map((step) =>
+                step.id === saved.id ? saved : step,
+              ),
+            }));
+            setEditingStep(null);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

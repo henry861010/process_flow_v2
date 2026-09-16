@@ -60,12 +60,12 @@ source_of_truth:
 - [ ] Workspace API與`workspaceId`載入仍可用；UI隱藏沒有刪除或改寫API契約。
 - [ ] committed 後 configuration read-only，但 ready Preview 仍可用。
 
-### Process Step Template Editor
+### Management process-step editing
 
-- [ ] fresh library、search、identity、ports、parameters、JSON payload 順序正確。
-- [ ] clone 是 deep clone 並清空 id；既有 template 不可 in-place update。
-- [ ] primary input/output invariant、auxiliary port add/remove、parameter reorder 正確。
-- [ ] schema generation badge 若仍存在，引用 `UI-GAP-VERSION-LABEL-001`；內建 resource 若出現非零版 label，視為 `DM-020` regression。
+- [ ] 每個 process-step row 顯示 Edit，且沒有 standalone editor link。
+- [ ] modal identity/contract read-only，只能改 owner、category、program 與 defaults。
+- [ ] default enable/clear、Save error、Cancel/Escape/backdrop 與 focus restore 正確。
+- [ ] 保存成功後同一個 Management row 即時更新，不切換 route。
 
 ### CAD Viewer / Geometry Preview
 

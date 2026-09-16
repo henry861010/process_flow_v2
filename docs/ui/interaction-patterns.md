@@ -12,7 +12,7 @@ last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx
   - apps/viewer/components/process-flow-instance-editor/process-flow-instance-editor.tsx
-  - apps/viewer/components/process-step-template-editor/process-step-template-editor.tsx
+  - apps/viewer/components/process-step-edit/process-step-edit-dialog.tsx
   - apps/viewer/components/geometry-preview
 ---
 
@@ -56,7 +56,7 @@ Template/Instance screen MUST 綁 `onNodeClick` 作 primary behavior。Shared gr
 
 ### Dialog 契約（target）
 
-Node Editor、Geometry Catalog、Geometry Preview、Export form 都是 modal dialog，MUST：
+Node Editor、Geometry Catalog、Geometry Preview、Process Step Edit、Export form 都是 modal dialog，MUST：
 
 1. 開啟後把 focus 放在 dialog heading 或第一個可操作 control。
 2. 設定 `role="dialog"`、`aria-modal="true"`、`aria-labelledby`。
@@ -142,6 +142,7 @@ Home template card -> templateId route -> blank defaults
 | Geometry Catalog | Close、Escape、outside | `foreground/40` | `50` |
 | Geometry Preview | Close、Escape、outside | `foreground/45` | `50` |
 | Save Information | Close、Cancel、Escape、outside when idle | `foreground/40` | `90` |
+| Process Step Edit | Close、Cancel、Escape、outside when idle | `foreground/45` | `90` |
 | Export requests | collapse button | none | `80` |
 | Export form | Cancel、Close、Escape、outside when idle | `foreground/35` | `100` |
 

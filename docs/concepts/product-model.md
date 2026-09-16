@@ -23,7 +23,7 @@ Process Flow 把「可重用的製程定義」、「研究中的配置」與「�
 
 | 資源 | 用途 | 可變性 | 主要 owner |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | 定義一個 process operation 的 geometry ports、parameters 與 `program` | 建立後 immutable | Process developer |
+| `ProcessStepTemplate` | 定義一個 process operation 的 geometry ports、parameters 與 `program` | identity/contract locked；owner/category/program/defaults 可更新 | Process developer |
 | `ProcessFlowTemplate` | 定義 flow inputs、step references 與 directed topology | 建立後 immutable | Process developer |
 | `ProcessFlowWorkspace` | 保存未完成的 geometry bindings 與 parameter values | Draft 可修改；以 `revision` optimistic concurrency 控制 | Product / RD engineer |
 | `ProcessFlowInstance` | 保存完整且可執行的產品配置 | Immutable | Product / RD engineer |
@@ -46,6 +46,10 @@ flowchart LR
 ### Template 編輯
 
 Flow template 的 step reference 綁定既有 step template。Topology 的執行順序由 `flowEdges` 推導，而不是由 `stepRefs` array order 決定。建立 template 前，API 會解析所有 referenced step templates 並驗證 graph。
+
+Process step update 保留相同 identity、ports 與 parameter definition contract，只允許管理 metadata、
+program path 與 parameter defaults。Flow template 在建立時保存自己的 scalar defaults，因此 step
+default update 只影響之後建立的 flow；program update 則會由相同 step id 的後續執行直接解析。
 
 ### Workspace 研究流程
 

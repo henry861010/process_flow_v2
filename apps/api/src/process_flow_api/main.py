@@ -52,6 +52,7 @@ from .services import (
     preview_geometry,
     preview_step_geometry,
     require_item,
+    update_process_step_template,
     validate_process_step_template,
 )
 from .workspace_service import commit_workspace, create_workspace, update_workspace
@@ -130,6 +131,14 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         payload = body.payload()
         validate_process_step_template(payload)
         return get_store(request).insert_process_step_template(payload)
+
+    @app.put("/api/process-step-templates/{template_id}")
+    async def replace_process_step_template(
+        request: Request,
+        template_id: str,
+        body: ProcessStepTemplate,
+    ):
+        return update_process_step_template(get_store(request), template_id, body)
 
     @app.delete("/api/process-step-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_process_step_template(request: Request, template_id: str):

@@ -139,8 +139,9 @@ flowchart LR
 2. `ProcessFlowTemplate` 定義 topology；`ProcessFlowWorkspace` 保存可修改的研究設定；
    `ProcessFlowInstance` 保存完整且不可修改的產品設定。
 3. Geometry 只經由 typed ports 與 `inputBindings` 傳遞，不屬於 parameter value union。
-4. Template、instance 與 catalog geometry 都是 immutable snapshots。Immutable 表示不得
-   in-place update；是否允許 delete 由 persistence policy 另行規定。
+4. Flow template、instance 與 catalog geometry 是 immutable snapshots。Process step 的
+   identity、ports 與 parameter definition contract locked，但 owner、category、program 與
+   parameter defaults 可受限地 in-place update；delete policy 另見 persistence specification。
 5. Compiler 負責解析跨 resource references、驗證 graph 與 configuration，並建立
    `ExecutionPlan`；kernel 不查 repository。
 6. Resource reference MUST 使用穩定的 persisted id。空字串、id prefix 或 sentinel value
@@ -163,15 +164,16 @@ flowchart TB
 
 | Model | 擁有 | 不擁有 | 可變性 |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Immutable snapshot |
+| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Contract locked；metadata/program/defaults 可更新 |
 | `ProcessFlowTemplate` | Flow inputs、step refs、edges | 產品設定值、geometry bindings | Immutable snapshot |
 | `ProcessFlowWorkspace` | Bindings、parameter values、embedded geometries、commit state | Topology | 只有 `draft` 可修改 |
 | `ProcessFlowInstance` | 完整產品設定 | Embedded geometries、topology、instance lineage | Immutable snapshot |
 | `GeometryEntity` | Catalog metadata 與完整 `GeometryStructure` | Flow-specific role | Immutable snapshot |
 | `ExecutionPlan` | 已解析 structures、排序後 steps、明確 input routing | Repository handle 或尚待解析的 repository id | 僅存在於 runtime；nested mappings MUST 視為 read-only |
 
-每個 template id 代表一份 immutable snapshot；需要另一份 snapshot 時 MUST 使用新的
-`id`。`version` label、identifier 與未採用欄位的完整規則見
+每個 flow template id 代表一份 immutable snapshot；需要另一份 snapshot 時 MUST 使用新的
+`id`。Process step id 是 stable reference，受限 update 不得改變 identity、ports 或 parameter
+definition contract。`version` label、identifier 與未採用欄位的完整規則見
 [共用欄位與格式規則](#10-共用欄位與格式規則)。
 
 ## 5. ProcessStepTemplate
@@ -310,7 +312,7 @@ Geometry constraint matching：
 | --- | --- | --- | --- | --- |
 | `stepRefId` | identifier | yes | none | Flow-local identity。 |
 | `stepLabel` | string or `null` | no | omitted | Optional display override；empty/`null` 都表示使用 step-template name。 |
-| `processStepTemplateId` | identifier | yes | none | Existing immutable step-template reference。 |
+| `processStepTemplateId` | identifier | yes | none | Existing stable step-template reference。 |
 | `parameterDefaults` | parameter-id keyed object | no | 建立時複製 referenced step template 的 eligible scalar defaults | Flow-specific default snapshot；明確 `{}` 表示沒有 defaults。只允許 `string`、`integer`、`float`、`boolean`、`materialRef`，unknown ids 與 collection values MUST reject。 |
 
 Flow template editor 儲存目前已填的 eligible scalar step values 到 `parameterDefaults`。
