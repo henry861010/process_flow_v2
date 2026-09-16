@@ -391,6 +391,12 @@ class EngineeringPreviewDocument(StrictModel):
     views: list[EngineeringPreviewView] = Field(min_length=1)
 
 
+class GeometryGeneratorParameterGroup(StrictModel):
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    parameterIds: list[str] = Field(min_length=1)
+
+
 class GeometryGeneratorDefinition(StrictModel):
     schemaVersion: Literal[1] = 1
     id: str = Field(min_length=1)
@@ -403,6 +409,7 @@ class GeometryGeneratorDefinition(StrictModel):
     adaptationContract: GeometryAdaptationContract
     defaultParameters: JsonObject
     parameterDefinitions: list[ParameterDefinition]
+    parameterGroups: list[GeometryGeneratorParameterGroup] = Field(default_factory=list)
     previewViews: list[str] = Field(default_factory=list)
 
 

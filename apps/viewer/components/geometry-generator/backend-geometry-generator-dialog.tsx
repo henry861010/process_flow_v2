@@ -282,6 +282,7 @@ export function BackendGeometryGeneratorDialog({
             <section aria-label="Geometry generator parameters">
               <ParameterValueEditor
                 definitions={definition.parameterDefinitions}
+                groups={definition.parameterGroups}
                 values={editorValues}
                 errors={latestPreview?.errors}
                 onChange={(values) => {

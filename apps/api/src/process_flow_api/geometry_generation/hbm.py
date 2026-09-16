@@ -63,6 +63,40 @@ class HbmGenerator:
                 _number("coreCoreGap", "Core-core gap", minimum=0),
                 _text("dieMaterial", "Die material", material=True),
             ],
+            "parameterGroups": [
+                {
+                    "id": "package-core-size",
+                    "label": "Package & core die size",
+                    "parameterIds": [
+                        "packageX",
+                        "packageY",
+                        "coreDieX",
+                        "coreDieY",
+                    ],
+                },
+                {
+                    "id": "core-die-count",
+                    "label": "Core die count",
+                    "parameterIds": ["coreDieCount"],
+                },
+                {
+                    "id": "thickness-gap",
+                    "label": "Thickness & gap",
+                    "parameterIds": [
+                        "hbmThickness",
+                        "baseDieThickness",
+                        "coreBaseGap",
+                        "coreDieThickness",
+                        "coreCoreGap",
+                        "topCoreDieThickness",
+                    ],
+                },
+                {
+                    "id": "material",
+                    "label": "Material",
+                    "parameterIds": ["moldingMaterial", "dieMaterial"],
+                },
+            ],
             "previewViews": ["top", "cross-section-x"],
         }
 

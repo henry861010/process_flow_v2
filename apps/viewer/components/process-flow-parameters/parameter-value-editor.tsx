@@ -7,6 +7,7 @@ import { PlacementListControl } from "@/components/process-flow-fields/placement
 import { Button } from "@/components/ui/button";
 import type {
   ParameterDefinition,
+  ParameterDefinitionGroup,
   RepeatableGroupValue,
 } from "@/lib/process-flow/types";
 import {
@@ -32,12 +33,14 @@ export function ParameterValueEditor({
   values,
   errors = {},
   disabled = false,
+  groups = [],
   onChange,
 }: {
   definitions: ParameterDefinition[];
   values: Record<string, unknown>;
   errors?: Record<string, string>;
   disabled?: boolean;
+  groups?: ParameterDefinitionGroup[];
   onChange: (values: Record<string, unknown>) => void;
 }) {
   if (definitions.length === 0) {
@@ -48,20 +51,96 @@ export function ParameterValueEditor({
     );
   }
 
+  const definitionsById = new Map(
+    definitions.map((definition) => [definition.id, definition]),
+  );
+  const groupedParameterIds = new Set(groups.flatMap((group) => group.parameterIds));
+  const resolvedGroups = groups
+    .map((group) => ({
+      ...group,
+      definitions: group.parameterIds
+        .map((parameterId) => definitionsById.get(parameterId))
+        .filter((definition): definition is ParameterDefinition => definition != null),
+    }))
+    .filter((group) => group.definitions.length > 0);
+  const ungroupedDefinitions = definitions.filter(
+    (definition) => !groupedParameterIds.has(definition.id),
+  );
+
+  if (resolvedGroups.length > 0) {
+    return (
+      <div className="space-y-4">
+        {resolvedGroups.map((group) => (
+          <section
+            key={group.id}
+            aria-label={group.label}
+            className="overflow-hidden rounded-md border bg-white"
+          >
+            <div className="border-b bg-muted/30 px-4 py-3">
+              <h3 className="text-sm font-semibold text-foreground">{group.label}</h3>
+            </div>
+            <div className="divide-y">
+              <ParameterRows
+                definitions={group.definitions}
+                values={values}
+                errors={errors}
+                disabled={disabled}
+                onChange={onChange}
+              />
+            </div>
+          </section>
+        ))}
+        {ungroupedDefinitions.length > 0 ? (
+          <div className="divide-y rounded-md border bg-white">
+            <ParameterRows
+              definitions={ungroupedDefinitions}
+              values={values}
+              errors={errors}
+              disabled={disabled}
+              onChange={onChange}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="divide-y rounded-md border bg-white">
-      {definitions.map((definition) => (
-        <ParameterRow
-          key={definition.id}
-          definition={definition}
-          value={values[definition.id]}
-          error={errors[definition.id]}
-          disabled={disabled}
-          onChange={(value) => onChange({ ...values, [definition.id]: value })}
-        />
-      ))}
+      <ParameterRows
+        definitions={definitions}
+        values={values}
+        errors={errors}
+        disabled={disabled}
+        onChange={onChange}
+      />
     </div>
   );
+}
+
+function ParameterRows({
+  definitions,
+  values,
+  errors,
+  disabled,
+  onChange,
+}: {
+  definitions: ParameterDefinition[];
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+  disabled: boolean;
+  onChange: (values: Record<string, unknown>) => void;
+}) {
+  return definitions.map((definition) => (
+    <ParameterRow
+      key={definition.id}
+      definition={definition}
+      value={values[definition.id]}
+      error={errors[definition.id]}
+      disabled={disabled}
+      onChange={(value) => onChange({ ...values, [definition.id]: value })}
+    />
+  ));
 }
 
 function ParameterRow({

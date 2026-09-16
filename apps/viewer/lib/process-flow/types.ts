@@ -65,6 +65,12 @@ export type ParameterDefinition = {
   repeatDefinition?: RepeatDefinition;
 };
 
+export type ParameterDefinitionGroup = {
+  id: string;
+  label: string;
+  parameterIds: string[];
+};
+
 export type RepeatableGroupValue = {
   items: Array<{
     itemId: string;

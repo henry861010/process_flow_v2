@@ -33,6 +33,10 @@ Primitive row desktop grid：`minmax(180px,.8fr) minmax(240px,1.2fr)`、gap16、
 bounds values 被 description column 壓縮。Label顯示 name、required `*`（`required !== false`）、monospace
 `id / unit`、非compact時description。
 
+呼叫端可傳入 ordered parameter groups。每個非空 group render成獨立 bordered card，header使用
+muted background，rows依group的`parameterIds`順序排列；未被group引用的definitions必須保留並在
+groups後方以一般card顯示。沒有groups時版面維持單一flat card。
+
 ## Control 解析矩陣
 
 判斷順序 MUST 與下表一致：

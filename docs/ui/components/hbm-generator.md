@@ -41,6 +41,16 @@ error 對應 `hbmThickness` 欄位，所有 materialize actions 維持 disabled�
 [HBM Geometry Generator](../../reference/hbm-generator.md#參數)。Number/material controls依通用
 parameter editor渲染，所有dimension使用`um`。
 
+HBM manifest將parameter editor排成四個card，且card與欄位順序皆由`parameterGroups`決定：
+
+1. `Package & core die size`：Package X、Package Y、Core die X、Core die Y。
+2. `Core die count`：Core die count。
+3. `Thickness & gap`：HBM thickness，接著依stack由下而上排列 Base die
+   thickness、Core-base gap、Core die thickness、Core-core gap、Top core die thickness。
+4. `Material`：Molding material、Die material。
+
+Viewer不得依`generatorId`自行重排欄位；未來版面調整應修改backend manifest。
+
 Name、Vendor、Type 1與Type 2不是engineering parameters，只在使用者按Save後的catalog
 metadata dialog收集；optional空白欄位不寫入。Materialized GeometryEntity的`dim`由backend以
 package X/Y與total thickness產生。

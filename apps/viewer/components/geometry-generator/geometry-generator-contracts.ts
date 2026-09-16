@@ -2,6 +2,7 @@ import type {
   EmbeddedGeometry,
   GeometryAdaptationContract,
   ParameterDefinition,
+  ParameterDefinitionGroup,
 } from "@/lib/process-flow/types";
 
 export type GeometryGeneratorDefinition = {
@@ -16,6 +17,7 @@ export type GeometryGeneratorDefinition = {
   adaptationContract: GeometryAdaptationContract;
   defaultParameters: Record<string, unknown>;
   parameterDefinitions: ParameterDefinition[];
+  parameterGroups: ParameterDefinitionGroup[];
   previewViews: string[];
 };
 

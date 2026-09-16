@@ -24,11 +24,12 @@ def _default_layers(side: str, count: int = 5) -> list[JsonObject]:
 DEFAULT_PARAMETERS: JsonObject = {
     "packageX": 12000,
     "packageY": 8000,
-    "topMoldingThickness": 100,
+    "dramThickness": 650,
     "moldingMaterial": "EMC",
     "coreDieX": 8000,
     "coreDieY": 6000,
     "coreDieThickness": 50,
+    "topCoreDieThickness": 50,
     "coreDieCount": 3,
     "dieGapThickness": 20,
     "dieMaterial": "Si-DRAM",
@@ -49,7 +50,7 @@ class DramGenerator:
         return {
             "schemaVersion": 1,
             "id": "dram",
-            "version": 1,
+            "version": 2,
             "label": "DRAM generator",
             "description": "Build a molded DRAM stack on a configurable SBT buildup.",
             "entityType": "die",
@@ -63,11 +64,14 @@ class DramGenerator:
             "parameterDefinitions": [
                 _number("packageX", "Package X", positive=True),
                 _number("packageY", "Package Y", positive=True),
-                _number("topMoldingThickness", "Top molding thickness", minimum=0),
+                _number("dramThickness", "DRAM thickness", positive=True),
                 _text("moldingMaterial", "Molding material"),
                 _number("coreDieX", "Core die X", positive=True),
                 _number("coreDieY", "Core die Y", positive=True),
                 _number("coreDieThickness", "Core die thickness", positive=True),
+                _number(
+                    "topCoreDieThickness", "Top core die thickness", positive=True
+                ),
                 _integer(
                     "coreDieCount",
                     "Core die count",
@@ -92,6 +96,56 @@ class DramGenerator:
                     "bottomBuildupLayers", "Bottom buildup layers", "bottom"
                 ),
             ],
+            "parameterGroups": [
+                {
+                    "id": "package-core-size",
+                    "label": "Package & core die size",
+                    "parameterIds": [
+                        "packageX",
+                        "packageY",
+                        "coreDieX",
+                        "coreDieY",
+                    ],
+                },
+                {
+                    "id": "core-die-count",
+                    "label": "Core die count",
+                    "parameterIds": ["coreDieCount"],
+                },
+                {
+                    "id": "thickness-gap",
+                    "label": "Thickness & gap",
+                    "parameterIds": [
+                        "dramThickness",
+                        "dieGapThickness",
+                        "coreDieThickness",
+                        "topCoreDieThickness",
+                    ],
+                },
+                {
+                    "id": "substrate",
+                    "label": "Substrate",
+                    "parameterIds": [
+                        "topSolderMaskThickness",
+                        "bottomSolderMaskThickness",
+                        "sbtCoreLayerThickness",
+                        "topBuildupLayers",
+                        "bottomBuildupLayers",
+                    ],
+                },
+                {
+                    "id": "material",
+                    "label": "Material",
+                    "parameterIds": [
+                        "moldingMaterial",
+                        "dieMaterial",
+                        "solderMaskMaterial",
+                        "sbtCoreMaterial",
+                        "buildupDielectricMaterial",
+                        "buildupConductiveMaterial",
+                    ],
+                },
+            ],
             "previewViews": ["top", "cross-section-x"],
         }
 
@@ -100,18 +154,17 @@ class DramGenerator:
         positive_fields = (
             ("packageX", "Package X"),
             ("packageY", "Package Y"),
+            ("dramThickness", "DRAM thickness"),
             ("coreDieX", "Core die X"),
             ("coreDieY", "Core die Y"),
             ("coreDieThickness", "Core die thickness"),
+            ("topCoreDieThickness", "Top core die thickness"),
             ("topSolderMaskThickness", "Top solder mask thickness"),
             ("bottomSolderMaskThickness", "Bottom solder mask thickness"),
             ("sbtCoreLayerThickness", "SBT core layer thickness"),
         )
         for key, label in positive_fields:
             _require_positive(parameters, key, label, errors)
-        _require_non_negative(
-            parameters, "topMoldingThickness", "Top molding thickness", errors
-        )
         _require_non_negative(parameters, "dieGapThickness", "Die gap thickness", errors)
         for key, label in (
             ("moldingMaterial", "Molding material"),
@@ -150,6 +203,30 @@ class DramGenerator:
 
         _validate_layers("top", parameters.get("topBuildupLayers"), errors)
         _validate_layers("bottom", parameters.get("bottomBuildupLayers"), errors)
+        thickness_fields = (
+            "dramThickness",
+            "coreDieThickness",
+            "topCoreDieThickness",
+            "coreDieCount",
+            "dieGapThickness",
+            "topSolderMaskThickness",
+            "bottomSolderMaskThickness",
+            "sbtCoreLayerThickness",
+        )
+        layer_errors = any(
+            key.startswith(("topBuildupLayers", "bottomBuildupLayers"))
+            for key in errors
+        )
+        if not layer_errors and all(field not in errors for field in thickness_fields):
+            minimum_thickness = _sbt_thickness(parameters) + _occupied_molded_thickness(
+                parameters
+            )
+            if float(parameters["dramThickness"]) < minimum_thickness:
+                errors["dramThickness"] = (
+                    "DRAM thickness must be at least the substrate and occupied "
+                    "molded stack thickness "
+                    f"of {format(minimum_thickness, '.15g')} um."
+                )
         return errors
 
     def evaluate(self, parameters: JsonObject) -> GeneratorEvaluation:
@@ -168,25 +245,16 @@ class DramGenerator:
 def derive_dimensions(parameters: JsonObject) -> JsonObject:
     top_buildup = _sum_layer_thickness(parameters["topBuildupLayers"])
     bottom_buildup = _sum_layer_thickness(parameters["bottomBuildupLayers"])
-    sbt_thickness = (
-        float(parameters["bottomSolderMaskThickness"])
-        + bottom_buildup
-        + float(parameters["sbtCoreLayerThickness"])
-        + top_buildup
-        + float(parameters["topSolderMaskThickness"])
-    )
-    core_count = int(parameters["coreDieCount"])
-    molded_body = (
-        core_count * float(parameters["coreDieThickness"])
-        + core_count * float(parameters["dieGapThickness"])
-        + float(parameters["topMoldingThickness"])
-    )
+    sbt_thickness = _sbt_thickness(parameters)
+    molded_body = float(parameters["dramThickness"]) - sbt_thickness
+    occupied_molded = _occupied_molded_thickness(parameters)
     return {
         "topBuildupThickness": top_buildup,
         "bottomBuildupThickness": bottom_buildup,
         "sbtThickness": sbt_thickness,
         "moldedBodyThickness": molded_body,
-        "totalThickness": sbt_thickness + molded_body,
+        "topMoldingThickness": molded_body - occupied_molded,
+        "totalThickness": float(parameters["dramThickness"]),
         "sideMoldingX": (
             float(parameters["packageX"]) - float(parameters["coreDieX"])
         )
@@ -277,7 +345,8 @@ def build_geometry(parameters: JsonObject, dimensions: JsonObject | None = None)
         circuit for layer in sbt_layers for circuit in layer["circuits"]
     ]
     children = []
-    for index in range(int(parameters["coreDieCount"])):
+    core_count = int(parameters["coreDieCount"])
+    for index in range(core_count):
         sequence = str(index + 1).zfill(2)
         bottom_z = (
             float(values["sbtThickness"])
@@ -293,7 +362,13 @@ def build_geometry(parameters: JsonObject, dimensions: JsonObject | None = None)
                 f"core-die-{sequence}",
                 core_bounds,
                 bottom_z,
-                float(parameters["coreDieThickness"]),
+                float(
+                    parameters[
+                        "topCoreDieThickness"
+                        if index == core_count - 1
+                        else "coreDieThickness"
+                    ]
+                ),
                 str(parameters["dieMaterial"]),
             )
         )
@@ -405,7 +480,9 @@ def _box(
 
 def _normalized_parameters(parameters: JsonObject) -> JsonObject:
     result = _copy_parameters(DEFAULT_PARAMETERS)
-    result.update(parameters)
+    for key in DEFAULT_PARAMETERS:
+        if key in parameters:
+            result[key] = parameters[key]
     for key, value in list(result.items()):
         if key in {"topBuildupLayers", "bottomBuildupLayers"}:
             continue
@@ -435,6 +512,26 @@ def _normalized_parameters(parameters: JsonObject) -> JsonObject:
                 for index, layer in enumerate(layers)
             ]
     return result
+
+
+def _sbt_thickness(parameters: JsonObject) -> float:
+    return (
+        float(parameters["bottomSolderMaskThickness"])
+        + _sum_layer_thickness(parameters["bottomBuildupLayers"])
+        + float(parameters["sbtCoreLayerThickness"])
+        + _sum_layer_thickness(parameters["topBuildupLayers"])
+        + float(parameters["topSolderMaskThickness"])
+    )
+
+
+def _occupied_molded_thickness(parameters: JsonObject) -> float:
+    core_count = int(parameters["coreDieCount"])
+    regular_core_count = max(0, core_count - 1)
+    return (
+        regular_core_count * float(parameters["coreDieThickness"])
+        + float(parameters["topCoreDieThickness"])
+        + core_count * float(parameters["dieGapThickness"])
+    )
 
 
 def _copy_parameters(parameters: JsonObject) -> JsonObject:

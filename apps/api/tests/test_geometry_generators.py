@@ -32,6 +32,104 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertNotIn("topMoldingThickness", hbm_parameter_ids)
         self.assertEqual(hbm["defaultParameters"]["hbmThickness"], 480)
         self.assertEqual(hbm["defaultParameters"]["topCoreDieThickness"], 50)
+        self.assertEqual(
+            hbm["parameterGroups"],
+            [
+                {
+                    "id": "package-core-size",
+                    "label": "Package & core die size",
+                    "parameterIds": [
+                        "packageX",
+                        "packageY",
+                        "coreDieX",
+                        "coreDieY",
+                    ],
+                },
+                {
+                    "id": "core-die-count",
+                    "label": "Core die count",
+                    "parameterIds": ["coreDieCount"],
+                },
+                {
+                    "id": "thickness-gap",
+                    "label": "Thickness & gap",
+                    "parameterIds": [
+                        "hbmThickness",
+                        "baseDieThickness",
+                        "coreBaseGap",
+                        "coreDieThickness",
+                        "coreCoreGap",
+                        "topCoreDieThickness",
+                    ],
+                },
+                {
+                    "id": "material",
+                    "label": "Material",
+                    "parameterIds": ["moldingMaterial", "dieMaterial"],
+                },
+            ],
+        )
+        dram = definitions[1]
+        dram_parameter_ids = [item["id"] for item in dram["parameterDefinitions"]]
+        self.assertEqual(dram["version"], 2)
+        self.assertIn("dramThickness", dram_parameter_ids)
+        self.assertIn("topCoreDieThickness", dram_parameter_ids)
+        self.assertNotIn("topMoldingThickness", dram_parameter_ids)
+        self.assertEqual(dram["defaultParameters"]["dramThickness"], 650)
+        self.assertEqual(dram["defaultParameters"]["topCoreDieThickness"], 50)
+        self.assertEqual(
+            dram["parameterGroups"],
+            [
+                {
+                    "id": "package-core-size",
+                    "label": "Package & core die size",
+                    "parameterIds": [
+                        "packageX",
+                        "packageY",
+                        "coreDieX",
+                        "coreDieY",
+                    ],
+                },
+                {
+                    "id": "core-die-count",
+                    "label": "Core die count",
+                    "parameterIds": ["coreDieCount"],
+                },
+                {
+                    "id": "thickness-gap",
+                    "label": "Thickness & gap",
+                    "parameterIds": [
+                        "dramThickness",
+                        "dieGapThickness",
+                        "coreDieThickness",
+                        "topCoreDieThickness",
+                    ],
+                },
+                {
+                    "id": "substrate",
+                    "label": "Substrate",
+                    "parameterIds": [
+                        "topSolderMaskThickness",
+                        "bottomSolderMaskThickness",
+                        "sbtCoreLayerThickness",
+                        "topBuildupLayers",
+                        "bottomBuildupLayers",
+                    ],
+                },
+                {
+                    "id": "material",
+                    "label": "Material",
+                    "parameterIds": [
+                        "moldingMaterial",
+                        "dieMaterial",
+                        "solderMaskMaterial",
+                        "sbtCoreMaterial",
+                        "buildupDielectricMaterial",
+                        "buildupConductiveMaterial",
+                    ],
+                },
+            ],
+        )
         for definition in definitions:
             self.assertNotIn(
                 "vendor",
@@ -193,7 +291,14 @@ class GeometryGeneratorApiTests(unittest.TestCase):
     def test_dram_preview_preserves_buildup_and_core_stack(self):
         response = self.client.post(
             "/api/geometry-generators/dram/preview",
-            json={"parameters": {}},
+            json={
+                "generatorVersion": 2,
+                "parameters": {
+                    "dramThickness": 670,
+                    "topCoreDieThickness": 70,
+                    "topMoldingThickness": 999,
+                },
+            },
         )
 
         self.assertEqual(response.status_code, 200, response.text)
@@ -204,10 +309,32 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(len(root["children"]), 3)
         self.assertEqual(len(root["circuits"]), 4)
         self.assertEqual(preview["computedParameters"]["sbtThickness"], 340)
-        self.assertEqual(preview["computedParameters"]["totalThickness"], 650)
+        self.assertEqual(preview["computedParameters"]["moldedBodyThickness"], 330)
+        self.assertEqual(preview["computedParameters"]["topMoldingThickness"], 100)
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 670)
+        self.assertNotIn("topMoldingThickness", preview["normalizedParameters"])
         self.assertEqual(
             preview["geometryEntityJson"]["dim"],
-            "12000 x 8000 x 650 um",
+            "12000 x 8000 x 670 um",
+        )
+        self.assertEqual(
+            preview["geometryEntityJson"]["generation"]["schemaVersion"], 2
+        )
+        self.assertNotIn(
+            "topMoldingThickness",
+            preview["geometryEntityJson"]["generation"]["parameters"],
+        )
+        molding_geometry = root["bodies"][0]["geometry"]
+        self.assertEqual(molding_geometry["bottom_left"][2], 340)
+        self.assertEqual(molding_geometry["thk"], 330)
+        core_geometries = [child["bodies"][0]["geometry"] for child in root["children"]]
+        self.assertEqual(
+            [geometry["bottom_left"][2] for geometry in core_geometries],
+            [360, 430, 500],
+        )
+        self.assertEqual(
+            [geometry["thk"] for geometry in core_geometries],
+            [50, 50, 70],
         )
         top_view, section_view = preview["engineeringPreview"]["views"]
         self.assertEqual(_dimension_values(top_view)["Core die X"], 8000)
@@ -216,6 +343,60 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             _dimension_values(section_view)["Core die thickness"],
             50,
         )
+        self.assertEqual(_dimension_values(section_view)["Total thickness"], 670)
+
+    def test_dram_single_core_uses_top_thickness_and_allows_zero_top_molding(self):
+        response = self.client.post(
+            "/api/geometry-generators/dram/preview",
+            json={
+                "generatorVersion": 2,
+                "parameters": {
+                    "dramThickness": 410,
+                    "coreDieThickness": 40,
+                    "topCoreDieThickness": 50,
+                    "coreDieCount": 1,
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"])
+        self.assertEqual(preview["computedParameters"]["sbtThickness"], 340)
+        self.assertEqual(preview["computedParameters"]["topMoldingThickness"], 0)
+        root = preview["geometryEntityJson"]["structure"]["root"]
+        self.assertEqual(len(root["children"]), 1)
+        only_core = root["children"][0]["bodies"][0]["geometry"]
+        self.assertEqual(only_core["bottom_left"][2], 360)
+        self.assertEqual(only_core["thk"], 50)
+        section_view = preview["engineeringPreview"]["views"][1]
+        self.assertEqual(
+            _dimension_values(section_view)["Core die thickness"],
+            50,
+        )
+
+    def test_dram_rejects_thickness_smaller_than_substrate_and_die_stack(self):
+        response = self.client.post(
+            "/api/geometry-generators/dram/preview",
+            json={"generatorVersion": 2, "parameters": {"dramThickness": 549}},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertFalse(preview["valid"])
+        self.assertIn("dramThickness", preview["errors"])
+        self.assertEqual(preview["computedParameters"], {})
+        self.assertIsNone(preview["previewToken"])
+        self.assertIsNone(preview["geometryEntityJson"])
+
+    def test_dram_v1_preview_is_no_longer_available(self):
+        response = self.client.post(
+            "/api/geometry-generators/dram/preview",
+            json={"generatorVersion": 1, "parameters": {}},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("version 1 is not available", response.json()["message"])
 
     def test_unknown_or_expired_generator_resources_return_not_found(self):
         unknown_generator = self.client.post(
