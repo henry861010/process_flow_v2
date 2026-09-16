@@ -519,7 +519,7 @@ function graphForInstance(
   onPickInput: (flowInputId: string) => void,
   onPreviewStep: (node: StepNode) => void,
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const layout = computeTemplateLayout(template);
+  const layout = computeTemplateLayout(template, stepTemplates);
   const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
   const flowInputNodes = new Map<string, FlowInputNode>();
   const stepNodes = new Map<string, StepNode>();

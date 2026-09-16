@@ -101,6 +101,7 @@ type ProcessFlowGraphProps<
   edgesReconnectable?: boolean;
   reconnectRadius?: number;
   showMiniMap?: boolean;
+  topRightOverlay?: React.ReactNode;
   emptyState?: React.ReactNode;
   defaultEdgeOptions?: ReactFlowBaseProps["defaultEdgeOptions"];
   onNodesChange?: (changes: NodeChange<TNode>[]) => void;
@@ -147,6 +148,7 @@ export function ProcessFlowGraph<
   edgesReconnectable,
   reconnectRadius,
   showMiniMap = true,
+  topRightOverlay,
   emptyState,
   defaultEdgeOptions,
   onNodesChange,
@@ -216,6 +218,9 @@ export function ProcessFlowGraph<
           />
         ) : null}
       </ReactFlow>
+      {topRightOverlay ? (
+        <div className="absolute right-3 top-3 z-10">{topRightOverlay}</div>
+      ) : null}
       {emptyState}
     </section>
   );

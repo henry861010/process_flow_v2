@@ -144,9 +144,18 @@ API/compiler仍是authoritative。Persist時不得保存 React Flow internal nod
 
 ## 自動版面配置
 
-Immutable template重新開啟時用 `computeTemplateLayout()`：rank依 step-output edges、longest path
-作main lane、branches上下分配、flow inputs放第一個target左側、最後normalize正座標。新增/拖動
-期間使用local position；不把position存進domain model。
+Immutable template重新開啟時用 `computeTemplateLayout(template, stepTemplates)`：從唯一terminal
+反向沿geometry input edges展開。`ProcessStepTemplate.inputPorts[].role`是唯一的lane判斷依據；
+primary上游維持同一排；primary chain先完整回溯，再於回程時配置auxiliary lanes，因此離
+terminal越遠的branch越靠近main geometry，較晚匯入的branch依序往下。同一step的auxiliary
+上游依port宣告順序配置。每個upstream source放在target左側一個column，所有flow inputs使用
+不同排，最後normalize正座標。Layout不得依step id、name、category、program或其他step種類
+資訊特判。新增/拖動期間使用local position；不把position存進domain model。
+
+Template editor graph右上角的`Arrange` action MUST 對目前尚未儲存的nodes與edges重新執行相同
+layout，並在完成後fit view。若畫布包含多個互不相連的flow components，依最長upstream path
+由長到短排列；最長component使用第一排，其餘components在前一個component所占lanes之後依序
+往下排列。
 
 ## 狀態矩陣
 

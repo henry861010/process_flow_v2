@@ -22,6 +22,7 @@ import {
   CircleDot,
   Eye,
   FileJson,
+  LayoutGrid,
   Save,
   Trash2,
   Workflow,
@@ -402,6 +403,22 @@ function ProcessFlowTemplateEditorInner() {
     setSaveDialogError(null);
     setMessage(null);
     requestAnimationFrame(() => reactFlow.fitView({ padding: 0.18, duration: 250 }));
+  }
+
+  function arrangeFlow() {
+    if (nodes.length === 0) return;
+    const layout = computeTemplateLayout(draftTemplate, stepTemplates);
+    setNodes((current) =>
+      current.map((node) => {
+        const position = isFlowInputNode(node)
+          ? layout.flowInputPositions.get(node.data.definition.flowInputId)
+          : layout.stepPositions.get(node.data.stepRef.stepRefId);
+        return position ? { ...node, position } : node;
+      }),
+    );
+    requestAnimationFrame(() =>
+      reactFlow.fitView({ padding: 0.18, duration: 250 }),
+    );
   }
 
   function addFlowInput(
@@ -835,6 +852,18 @@ function ProcessFlowTemplateEditorInner() {
           fitView
           edgesReconnectable
           reconnectRadius={12}
+          topRightOverlay={
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-white shadow-sm"
+              disabled={nodes.length === 0 || busyAction !== null}
+              onClick={arrangeFlow}
+            >
+              <LayoutGrid />
+              Arrange
+            </Button>
+          }
           defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
@@ -1532,7 +1561,7 @@ function graphFromTemplate(
   template: ProcessFlowTemplate,
   stepTemplates: ProcessStepTemplate[],
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const layout = computeTemplateLayout(template);
+  const layout = computeTemplateLayout(template, stepTemplates);
   const stepTemplatesById = new Map(stepTemplates.map((item) => [item.id, item]));
   const flowInputNodeById = new Map<string, FlowInputNode>();
   const stepNodeById = new Map<string, StepNode>();
