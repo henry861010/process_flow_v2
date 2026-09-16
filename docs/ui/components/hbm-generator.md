@@ -65,6 +65,11 @@ Download、Save與Define。
 Preview是schematic；dimension labels與materialized geometry才是authoritative。Out-of-order HTTP
 response不得取代較新的parameter state；dialog close時必須cancel pending request。
 
+Cross Section預設會改善過扁封裝的可讀性：真實長寬比超過6:3時，只放大厚度方向至6:3；
+Top View維持真實比例。使用者勾選「Show original aspect ratio」後，Cross Section也使用相同的水平與垂直
+scale。這項切換只影響schematic renderer，不得改變dimension labels、preview token或
+materialized geometry。
+
 Top View必須同時顯示`Overall X/Y`與代表性stack body的`Core die X/Y`；Cross Section必須顯示
 `Total thickness`與`Core die thickness`。這些值直接取自backend產生的core geometry bounds，
 不得由viewer從input parameter重新計算。多層 HBM 的 `Core die thickness` 維持代表第一層的一般
@@ -92,3 +97,4 @@ preview，不可在browser fallback build HBM。
 | `UI-HBM-005` | Flow-input mode Define | Result保存normalized generation parameters與`hbm-package@1`。 |
 | `UI-HBM-006` | 新增另一個backend generator manifest | 不修改viewer registry即可出現在共用入口並渲染fields/preview。 |
 | `UI-HBM-007` | HBM thickness小於base、gaps與core stack總厚度 | `hbmThickness`顯示field error，Download、Save與Define皆disabled。 |
+| `UI-HBM-008` | Cross Section真實長寬比超過6:3 | 預設放大厚度至6:3；勾選「Show original aspect ratio」後恢復真實比例，Top View不變。 |

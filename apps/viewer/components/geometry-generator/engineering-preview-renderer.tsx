@@ -7,10 +7,16 @@ import type {
   EngineeringPreviewEntity,
   EngineeringPreviewView,
 } from "@/components/geometry-generator/geometry-generator-contracts";
+import {
+  createEngineeringPreviewDrawingTransform,
+  type EngineeringPreviewDrawingTransform,
+} from "@/components/geometry-generator/engineering-preview-transform";
 
 const WIDTH = 560;
 const HEIGHT = 330;
 const PLOT = { left: 70, right: 78, top: 30, bottom: 72 };
+const DIMENSION_LANE_GAP = 22;
+const DIMENSION_LABEL_HALO = "#fbfdff";
 
 const roleColors: Record<string, { fill: string; stroke: string }> = {
   mold: { fill: "#dcefeb", stroke: "#0f766e" },
@@ -25,12 +31,20 @@ const roleColors: Record<string, { fill: string; stroke: string }> = {
 export function EngineeringPreviewRenderer({
   view,
   unit,
+  maxRenderedAspectRatio,
 }: {
   view: EngineeringPreviewView;
   unit: string;
+  maxRenderedAspectRatio?: number;
 }) {
   const markerId = React.useId().replaceAll(":", "");
-  const transform = drawingTransform(view);
+  const transform = createEngineeringPreviewDrawingTransform({
+    bounds: view.bounds,
+    width: WIDTH,
+    height: HEIGHT,
+    padding: PLOT,
+    maxRenderedAspectRatio,
+  });
   const roles = Array.from(new Set(view.entities.map((entity) => entity.role)));
 
   return (
@@ -117,14 +131,12 @@ export function EngineeringPreviewRenderer({
   );
 }
 
-type DrawingTransform = ReturnType<typeof drawingTransform>;
-
 function PreviewEntity({
   entity,
   transform,
 }: {
   entity: EngineeringPreviewEntity;
-  transform: DrawingTransform;
+  transform: EngineeringPreviewDrawingTransform;
 }) {
   const color = colorForRole(entity.role);
   const common = {
@@ -156,14 +168,15 @@ function PreviewEntity({
   }
   if (entity.kind === "circle" && entity.center && entity.radius != null) {
     return (
-      <circle
+      <ellipse
         {...common}
         cx={transform.u(entity.center[0])}
         cy={transform.v(entity.center[1])}
-        r={Math.max(0.8, entity.radius * transform.scale)}
+        rx={Math.max(0.8, entity.radius * transform.scaleU)}
+        ry={Math.max(0.8, entity.radius * transform.scaleV)}
       >
         <title>{entity.sourceId}</title>
-      </circle>
+      </ellipse>
     );
   }
   if (entity.kind === "polygon" && entity.loops) {
@@ -198,7 +211,7 @@ function PreviewDimension({
   dimension: EngineeringPreviewDimension;
   axisIndex: number;
   markerId: string;
-  transform: DrawingTransform;
+  transform: EngineeringPreviewDrawingTransform;
   unit: string;
 }) {
   const stroke = "#334155";
@@ -206,7 +219,7 @@ function PreviewDimension({
     const x1 = transform.u(dimension.from[0]);
     const x2 = transform.u(dimension.to[0]);
     const sourceY = transform.v(dimension.from[1]);
-    const y = HEIGHT - 40 + axisIndex * 13;
+    const y = HEIGHT - 46 + axisIndex * DIMENSION_LANE_GAP;
     return (
       <g fill="none" stroke={stroke} strokeWidth="0.9">
         <line x1={x1} x2={x1} y1={sourceY} y2={y} />
@@ -219,7 +232,17 @@ function PreviewDimension({
           y1={y}
           y2={y}
         />
-        <text fill={stroke} fontSize="10" stroke="none" textAnchor="middle" x={(x1 + x2) / 2} y={y - 6}>
+        <text
+          fill={stroke}
+          fontSize="10"
+          paintOrder="stroke"
+          stroke={DIMENSION_LABEL_HALO}
+          strokeLinejoin="round"
+          strokeWidth="3"
+          textAnchor="middle"
+          x={(x1 + x2) / 2}
+          y={y - 6}
+        >
           {`${dimension.label} ${formatNumber(dimension.value)} ${unit}`}
         </text>
       </g>
@@ -228,7 +251,7 @@ function PreviewDimension({
   const y1 = transform.v(dimension.from[1]);
   const y2 = transform.v(dimension.to[1]);
   const sourceX = transform.u(dimension.from[0]);
-  const x = WIDTH - 43 + axisIndex * 13;
+  const x = WIDTH - 62 + axisIndex * DIMENSION_LANE_GAP;
   return (
     <g fill="none" stroke={stroke} strokeWidth="0.9">
       <line x1={sourceX} x2={x} y1={y1} y2={y1} />
@@ -244,33 +267,19 @@ function PreviewDimension({
       <text
         fill={stroke}
         fontSize="10"
-        stroke="none"
+        paintOrder="stroke"
+        stroke={DIMENSION_LABEL_HALO}
+        strokeLinejoin="round"
+        strokeWidth="3"
         textAnchor="middle"
-        transform={`rotate(-90 ${x + 15} ${(y1 + y2) / 2})`}
-        x={x + 15}
+        transform={`rotate(-90 ${x + 11} ${(y1 + y2) / 2})`}
+        x={x + 11}
         y={(y1 + y2) / 2}
       >
         {`${dimension.label} ${formatNumber(dimension.value)} ${unit}`}
       </text>
     </g>
   );
-}
-
-function drawingTransform(view: EngineeringPreviewView) {
-  const uSpan = Math.max(1e-9, view.bounds.uMax - view.bounds.uMin);
-  const vSpan = Math.max(1e-9, view.bounds.vMax - view.bounds.vMin);
-  const plotWidth = WIDTH - PLOT.left - PLOT.right;
-  const plotHeight = HEIGHT - PLOT.top - PLOT.bottom;
-  const scale = Math.min(plotWidth / uSpan, plotHeight / vSpan);
-  const renderedWidth = uSpan * scale;
-  const renderedHeight = vSpan * scale;
-  const xOffset = PLOT.left + (plotWidth - renderedWidth) / 2;
-  const yOffset = PLOT.top + (plotHeight - renderedHeight) / 2;
-  return {
-    scale,
-    u: (value: number) => xOffset + (value - view.bounds.uMin) * scale,
-    v: (value: number) => yOffset + renderedHeight - (value - view.bounds.vMin) * scale,
-  };
 }
 
 function colorForRole(role: string) {

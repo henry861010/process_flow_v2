@@ -9,6 +9,9 @@ import type {
 } from "@/components/geometry-generator/geometry-generator-contracts";
 import { EngineeringPreviewRenderer } from "@/components/geometry-generator/engineering-preview-renderer";
 import {
+  engineeringPreviewAspectRatioLimit,
+} from "@/components/geometry-generator/engineering-preview-transform";
+import {
   GeometryGeneratorSaveDialog,
   generatorSaveMetadataIsValid,
   type GeneratorSaveMetadata,
@@ -59,6 +62,8 @@ export function BackendGeometryGeneratorDialog({
   const [previewKey, setPreviewKey] = React.useState<string | null>(null);
   const [previewing, setPreviewing] = React.useState(false);
   const [requestError, setRequestError] = React.useState<string | null>(null);
+  const [showOriginalAspectRatio, setShowOriginalAspectRatio] =
+    React.useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -241,14 +246,33 @@ export function BackendGeometryGeneratorDialog({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="space-y-5 px-4 py-5 sm:px-5">
             {preview?.engineeringPreview ? (
-              <section className="grid gap-4 lg:grid-cols-2">
-                {preview.engineeringPreview.views.map((view) => (
-                  <EngineeringPreviewRenderer
-                    key={view.id}
-                    view={view}
-                    unit={preview.engineeringPreview!.unit}
-                  />
-                ))}
+              <section aria-label="Engineering preview" className="space-y-3">
+                <div className="flex justify-end">
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                    <input
+                      checked={showOriginalAspectRatio}
+                      className="h-4 w-4 rounded border-input accent-primary"
+                      type="checkbox"
+                      onChange={(event) =>
+                        setShowOriginalAspectRatio(event.target.checked)
+                      }
+                    />
+                    Show original aspect ratio
+                  </label>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {preview.engineeringPreview.views.map((view) => (
+                    <EngineeringPreviewRenderer
+                      key={view.id}
+                      maxRenderedAspectRatio={engineeringPreviewAspectRatioLimit(
+                        view.id,
+                        showOriginalAspectRatio,
+                      )}
+                      view={view}
+                      unit={preview.engineeringPreview!.unit}
+                    />
+                  ))}
+                </div>
               </section>
             ) : (
               <div className="grid min-h-56 place-items-center rounded-md border border-dashed bg-muted/10 text-sm text-muted-foreground">
