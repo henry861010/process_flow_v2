@@ -6,7 +6,7 @@ import type {
   ProcessStepTemplate,
   StepConfiguration,
 } from "./types";
-import { createDefaultParameterValues } from "./parameter-values";
+import { resolveFlowParameterDefaults } from "./parameter-values";
 
 export function createEmptyFlowConfiguration(
   template: ProcessFlowTemplate,
@@ -17,7 +17,8 @@ export function createEmptyFlowConfiguration(
   template.stepRefs.forEach((stepRef) => {
     const stepTemplate = templatesById.get(stepRef.processStepTemplateId);
     stepConfigurations[stepRef.stepRefId] = {
-      parameterValues: createDefaultParameterValues(
+      parameterValues: resolveFlowParameterDefaults(
+        stepRef,
         stepTemplate?.parameterDefinitions ?? [],
       ),
     };

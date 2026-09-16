@@ -29,18 +29,20 @@ The left library contains only geometry records already persisted in the DB. HBM
 commands do not appear in the palette, geometry picker, inspector, or header. Generated geometry
 must first be created from `/hbm-editor` or `/dram-editor`.
 
-Catalog bindings and step parameter values remain as preview-only working state so authors can
-validate topology and run Geometry Preview. They are never persisted by `Save Template`.
+Catalog bindings remain preview-only working state. Step parameter values initialize from the
+step template's `defaultValue`; `Save Template` snapshots currently populated scalar values into
+the corresponding `StepRef.parameterDefaults`. Array values, repeat groups, and placements remain
+preview-only and are never persisted by `Save Template`.
 `Save Instance` and `Save Template & Instance`, their dialogs, and their materialization flows are
 not part of this screen.
 
 Saving validates template name, id, version, owner, topology, and uniqueness. Success locks
-topology while preview-only catalog bindings and test values remain usable.
+topology while preview-only catalog bindings and collection test values remain usable.
 
 ## Acceptance
 
 - `UI-FTE-001`: fresh editor provides catalog geometry, process steps, graph, and one save command.
 - `UI-FTE-002`: no instance-save or HBM/DRAM generator command is rendered in any template flow.
 - `UI-FTE-003`: valid topology can save while preview-only configuration is incomplete.
-- `UI-FTE-004`: selecting catalog geometry and test values supports Preview without changing the template payload.
+- `UI-FTE-004`: scalar step values are saved as flow defaults; catalog geometry and collection values support Preview without entering the template payload.
 - `UI-FTE-005`: successful save locks topology and reports the immutable template id.

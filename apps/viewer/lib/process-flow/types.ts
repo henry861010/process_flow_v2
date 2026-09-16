@@ -63,6 +63,7 @@ export type ParameterDefinition = {
   optionSource?: OptionSource;
   validation?: ValidationRule;
   repeatDefinition?: RepeatDefinition;
+  defaultValue?: unknown;
 };
 
 export type ParameterDefinitionGroup = {
@@ -141,6 +142,7 @@ export type StepRef = {
   stepRefId: string;
   stepLabel?: string;
   processStepTemplateId: string;
+  parameterDefaults?: Record<string, unknown>;
 };
 
 export type ProcessFlowTemplate = {

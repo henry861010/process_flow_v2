@@ -61,6 +61,12 @@ canonical payload 必須使用 materialized value。
 | `optionSource` | `OptionSource` | conditional | none | Static enum；values MUST belong to its options。 |
 | `validation` | `ValidationRule` | no | none | Additional value constraints。 |
 | `repeatDefinition` | `RepeatDefinition` | conditional | none | MUST exist only for `fieldGroupArray`。 |
+| `defaultValue` | value matching `valueType` | no | none | Step-authoring 起始值；MUST 符合本文件所有 value/validation 規則，且不得是 `null` 或空字串。 |
+
+`defaultValue` 適用於 scalar、array、`placements` 與 recursive `fieldGroupArray`，但只會被
+複製到 authoring draft；compiler 不會隱式補值。Flow-level
+`StepRef.parameterDefaults` 是另一個 scalar-only snapshot：只允許 `string`、`integer`、
+`float`、`boolean`、`materialRef`。Collection 與 placement parameters 不得保存 flow default。
 
 Parameter ids、nested item parameter ids 與 repeat `itemId` MUST 符合：
 

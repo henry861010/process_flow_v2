@@ -221,6 +221,10 @@ Geometry MUST NOT 出現在 parameter value union。`controlType` 是 rendering 
 提供時 values MUST 屬於 options。完整規則見
 [Parameter Schema](./reference/parameter-schema.md)。
 
+每個 `ParameterDefinition` MAY 提供 `defaultValue`。它使用與 persisted
+`parameterValues` 相同的 shape 與 validation，且不得是 `null` 或空字串；省略表示沒有
+step-level default。此值只用於初始化 authoring draft，不會由 compiler 隱式套用。
+
 `workingTemp` 等 legacy 欄位的禁止規則集中在
 [Legacy 與禁止欄位](#105-legacy-與禁止欄位)。
 
@@ -307,6 +311,12 @@ Geometry constraint matching：
 | `stepRefId` | identifier | yes | none | Flow-local identity。 |
 | `stepLabel` | string or `null` | no | omitted | Optional display override；empty/`null` 都表示使用 step-template name。 |
 | `processStepTemplateId` | identifier | yes | none | Existing immutable step-template reference。 |
+| `parameterDefaults` | parameter-id keyed object | no | 建立時複製 referenced step template 的 eligible scalar defaults | Flow-specific default snapshot；明確 `{}` 表示沒有 defaults。只允許 `string`、`integer`、`float`、`boolean`、`materialRef`，unknown ids 與 collection values MUST reject。 |
+
+Flow template editor 儲存目前已填的 eligible scalar step values 到 `parameterDefaults`。
+`placements`、`fieldGroupArray` 與所有 `[]` value types 即使在 preview draft 已有值也 MUST NOT
+保存為 flow defaults。Instance editor 只有在未匯入既有 instance 時才將 flow defaults 複製成
+`parameterValues`；compiler 不直接讀取 `parameterDefaults`。
 
 `FlowEdge`：
 
@@ -324,9 +334,13 @@ Geometry constraint matching：
 
 ```json
 {
-  "stepRefId": "pnp",
-  "stepLabel": "PnP",
-  "processStepTemplateId": "step_tpl_pnp"
+  "stepRefId": "molding",
+  "stepLabel": "Molding",
+  "processStepTemplateId": "step_tpl_molding",
+  "parameterDefaults": {
+    "material": "EMC-G700",
+    "thickness": 180
+  }
 }
 ```
 

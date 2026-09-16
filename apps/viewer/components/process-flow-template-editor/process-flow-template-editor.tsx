@@ -73,6 +73,10 @@ import {
   stepReadinessStatusLabel,
 } from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
+import {
+  createDefaultParameterValues,
+  createFlowParameterDefaults,
+} from "@/lib/process-flow/parameter-values";
 import type {
   FlowConfiguration,
   FlowInputDefinition,
@@ -195,8 +199,8 @@ function ProcessFlowTemplateEditorInner() {
 
   const topologyLocked = savedTemplate !== null;
   const draftTemplate = React.useMemo(
-    () => buildTemplate(metadata, nodes, edges),
-    [edges, metadata, nodes],
+    () => buildTemplate(metadata, nodes, edges, configuration),
+    [configuration, edges, metadata, nodes],
   );
   const analysis = React.useMemo(
     () => analyzeTemplate(draftTemplate, stepTemplates),
@@ -463,18 +467,11 @@ function ProcessFlowTemplateEditorInner() {
       ...current,
       stepConfigurations: {
         ...current.stepConfigurations,
-        [stepRefId]: createEmptyFlowConfiguration(
-          {
-            schemaVersion: 2,
-            id: "temporary",
-            name: "temporary",
-            version: "V0.0.0",
-            flowInputs: [],
-            stepRefs: [node.data.stepRef],
-            flowEdges: [],
-          },
-          [template],
-        ).stepConfigurations[stepRefId],
+        [stepRefId]: {
+          parameterValues: createDefaultParameterValues(
+            template.parameterDefinitions,
+          ),
+        },
       },
     }));
     setSelectedNodeId(node.id);
@@ -739,7 +736,7 @@ function ProcessFlowTemplateEditorInner() {
     analysis.error ??
     (topologyLocked
       ? `Template ${savedTemplate.id} is saved and topology is locked.`
-      : "Template topology is ready to save. Catalog bindings and test values are preview-only.");
+      : "Template topology is ready to save. Scalar step values become defaults; geometry bindings and collection values are preview-only.");
 
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground lg:h-screen lg:min-h-[760px] lg:overflow-hidden">
@@ -1489,12 +1486,20 @@ function buildTemplate(
   metadata: TemplateMetadata,
   nodes: FlowNode[],
   edges: FlowEdge[],
+  configuration: FlowConfiguration,
 ): ProcessFlowTemplate {
   return {
     schemaVersion: 2,
     ...metadata,
     flowInputs: nodes.filter(isFlowInputNode).map((node) => clone(node.data.definition)),
-    stepRefs: nodes.filter(isStepNode).map((node) => clone(node.data.stepRef)),
+    stepRefs: nodes.filter(isStepNode).map((node) => ({
+      ...clone(node.data.stepRef),
+      parameterDefaults: createFlowParameterDefaults(
+        node.data.stepTemplate.parameterDefinitions,
+        configuration.stepConfigurations[node.data.stepRef.stepRefId]
+          ?.parameterValues ?? {},
+      ),
+    })),
     flowEdges: edges.flatMap((edge) => {
       const sourceNode = nodes.find((node) => node.id === edge.source);
       const targetNode = nodes.find((node): node is StepNode => node.id === edge.target && isStepNode(node));

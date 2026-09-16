@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import math
 import re
 from collections.abc import Mapping
@@ -13,6 +14,61 @@ from ..serialization.schema import normalize_geometry_structure
 
 
 _MISSING = object()
+FLOW_DEFAULT_VALUE_TYPES = frozenset(
+    {"string", "integer", "float", "boolean", "materialRef"}
+)
+
+
+def flow_default_values_for_step_template(step_template: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the scalar definition defaults that may be snapshotted by a flow."""
+
+    return {
+        definition["id"]: copy.deepcopy(definition["defaultValue"])
+        for definition in step_template.get("parameterDefinitions", [])
+        if definition.get("valueType") in FLOW_DEFAULT_VALUE_TYPES
+        and "defaultValue" in definition
+    }
+
+
+def validate_parameter_default_values(step_template: Mapping[str, Any]) -> None:
+    _validate_parameter_definition_defaults(
+        step_template.get("parameterDefinitions", []),
+        f"ProcessStepTemplate {step_template.get('id')}.parameterDefinitions",
+    )
+
+
+def validate_flow_parameter_defaults(process_flow_template, step_templates) -> None:
+    analysis = analyze_flow_graph(process_flow_template, step_templates)
+    for step_ref_id, step_ref in analysis.step_refs_by_id.items():
+        if "parameterDefaults" not in step_ref:
+            continue
+        defaults = step_ref["parameterDefaults"]
+        if not isinstance(defaults, Mapping):
+            raise ValueError(
+                f"ProcessFlowTemplate step {step_ref_id} parameterDefaults must be an object"
+            )
+        definitions = {
+            definition["id"]: definition
+            for definition in analysis.step_templates_by_ref_id[step_ref_id].get(
+                "parameterDefinitions", []
+            )
+        }
+        unknown = set(defaults) - set(definitions)
+        if unknown:
+            raise ValueError(
+                f"Unknown parameter default for step {step_ref_id}: {sorted(unknown)[0]}"
+            )
+        for parameter_id, value in defaults.items():
+            definition = definitions[parameter_id]
+            if definition.get("valueType") not in FLOW_DEFAULT_VALUE_TYPES:
+                raise ValueError(
+                    f"Flow default for {step_ref_id}.{parameter_id} must use a scalar valueType"
+                )
+            _validate_present_default_value(
+                definition,
+                value,
+                f"Flow default for {step_ref_id}.{parameter_id}",
+            )
 
 
 class FlowCompiler:
@@ -236,6 +292,32 @@ def _validate_step_configurations(configuration, analysis, included, *, require_
         )
 
 
+def _validate_parameter_definition_defaults(definitions, label):
+    for definition in definitions:
+        parameter_id = definition.get("id")
+        if "defaultValue" in definition:
+            _validate_present_default_value(
+                definition,
+                definition["defaultValue"],
+                f"{label}.{parameter_id}.defaultValue",
+            )
+        repeat_definition = definition.get("repeatDefinition")
+        if isinstance(repeat_definition, Mapping):
+            _validate_parameter_definition_defaults(
+                repeat_definition.get("itemParameterDefinitions", []),
+                f"{label}.{parameter_id}.itemParameterDefinitions",
+            )
+
+
+def _validate_present_default_value(definition, value, label):
+    if _is_empty_value(value):
+        raise ValueError(f"{label} cannot be null or an empty string")
+    try:
+        _normalize_parameter_value(definition, value, require_complete=True)
+    except ValueError as error:
+        raise ValueError(f"Invalid {label}: {error}") from error
+
+
 def _normalize_parameter_values(definitions, values, *, require_complete):
     definitions_by_id = {definition["id"]: definition for definition in definitions}
     unknown = set(values) - set(definitions_by_id)
@@ -290,14 +372,19 @@ def _normalize_parameter_value(definition, value, *, require_complete):
             raise ValueError(f"Parameter {definition['id']} must be an array")
         scalar_type = value_type[:-2]
         child_definition = {**definition, "valueType": scalar_type}
-        normalized = [
-            _normalize_parameter_value(
-                child_definition,
-                item,
-                require_complete=require_complete,
+        normalized = []
+        for item in value:
+            if _is_empty_value(item):
+                raise ValueError(
+                    f"Parameter {definition['id']} array items cannot be null or empty"
+                )
+            normalized.append(
+                _normalize_parameter_value(
+                    child_definition,
+                    item,
+                    require_complete=require_complete,
+                )
             )
-            for item in value
-        ]
     elif value_type == "placements":
         normalized = _normalize_placements(definition["id"], value)
     elif value_type == "fieldGroupArray":
@@ -582,6 +669,24 @@ def _validate_parameter_rule(definition, value):
             raise ValueError(f"Parameter {definition['id']} is too long")
         if validation.get("regex") and re.fullmatch(validation["regex"], value) is None:
             raise ValueError(f"Parameter {definition['id']} does not match its required pattern")
+    option_source = definition.get("optionSource") or {}
+    options = option_source.get("options") or []
+    if options:
+        candidates = value if definition.get("valueType", "").endswith("[]") else [value]
+        allowed = [option.get("value") for option in options]
+        for candidate in candidates:
+            if not any(_json_scalar_equal(candidate, option) for option in allowed):
+                raise ValueError(
+                    f"Parameter {definition['id']} contains a value outside optionSource"
+                )
+
+
+def _json_scalar_equal(left, right):
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return left == right
+    return type(left) is type(right) and left == right
 
 
 def _validate_binding_shape(flow_input_id, binding, embedded_geometries):

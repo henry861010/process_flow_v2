@@ -11,7 +11,9 @@ from process_flow_kernel import (
     FlowCompiler,
     GeometryKernel,
     InMemoryGeometryCatalog,
+    flow_default_values_for_step_template,
     validate_flow_graph,
+    validate_flow_parameter_defaults,
     validate_process_step_template as validate_step_contract,
 )
 
@@ -84,8 +86,24 @@ def validate_process_step_template(template: JsonObject) -> None:
 def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplate) -> JsonObject:
     payload = body.payload()
     step_templates = load_step_templates_for_template(store, payload)
+    materialize_flow_parameter_defaults(payload, step_templates)
     validate_flow_graph(payload, step_templates)
+    validate_flow_parameter_defaults(payload, step_templates)
     return store.insert_process_flow_template(payload)
+
+
+def materialize_flow_parameter_defaults(
+    template: JsonObject,
+    step_templates: list[JsonObject] | tuple[JsonObject, ...],
+) -> None:
+    step_templates_by_id = {item["id"]: item for item in step_templates}
+    for step_ref in template.get("stepRefs", []):
+        if "parameterDefaults" in step_ref:
+            continue
+        step_template = step_templates_by_id[step_ref["processStepTemplateId"]]
+        step_ref["parameterDefaults"] = flow_default_values_for_step_template(
+            step_template
+        )
 
 
 def load_step_templates_for_template(
@@ -112,7 +130,9 @@ def create_template_instance(
     if instance.get("processFlowTemplateId") != template.get("id"):
         raise ValueError("ProcessFlowInstance.processFlowTemplateId must match ProcessFlowTemplate.id")
     step_templates = load_step_templates_for_template(store, template)
+    materialize_flow_parameter_defaults(template, step_templates)
     validate_flow_graph(template, step_templates)
+    validate_flow_parameter_defaults(template, step_templates)
     _compiler(store).compile(template, instance, step_templates)
     geometries, catalog_bindings = materialize_embedded_bindings(instance)
     persisted_instance = _persisted_instance(instance, catalog_bindings)

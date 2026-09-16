@@ -20,9 +20,12 @@ from process_flow_kernel import (
     TYPE_TARGET,
     Via,
     classify_polygon_loops,
+    flow_default_values_for_step_template,
     normalize_geometry_structure,
     stable_id,
     validate_flow_graph,
+    validate_flow_parameter_defaults,
+    validate_parameter_default_values,
 )
 from process_flow_steps.layer.daf import execute as execute_daf
 from process_flow_steps.tiv.tiv import execute as execute_tiv
@@ -1198,6 +1201,56 @@ class FlowCompilerTests(unittest.TestCase):
         step_template["parameterDefinitions"][0]["validation"] = {"regex": "["}
         with self.assertRaisesRegex(ValueError, "invalid regex"):
             validate_flow_graph(single_step_template(), {"step_molding": step_template})
+
+    def test_parameter_definition_defaults_follow_parameter_validation(self):
+        step_template = molding_step_template()
+        step_template["parameterDefinitions"][0]["defaultValue"] = "EMC"
+        step_template["parameterDefinitions"][1]["validation"] = {
+            "min": 0,
+            "exclusiveMin": True,
+        }
+        step_template["parameterDefinitions"][1]["defaultValue"] = 25
+        step_template["parameterDefinitions"].extend(
+            [
+                {**parameter("count", "integer"), "defaultValue": 0},
+                {**parameter("enabled", "boolean"), "defaultValue": False},
+            ]
+        )
+        validate_parameter_default_values(step_template)
+        self.assertEqual(
+            flow_default_values_for_step_template(step_template),
+            {
+                "material": "EMC",
+                "thickness": 25,
+                "count": 0,
+                "enabled": False,
+            },
+        )
+
+        step_template["parameterDefinitions"][1]["defaultValue"] = -1
+        with self.assertRaisesRegex(ValueError, "defaultValue"):
+            validate_parameter_default_values(step_template)
+
+    def test_flow_parameter_defaults_reject_collections_and_unknown_ids(self):
+        template = single_step_template()
+        step_template = molding_step_template()
+        template["stepRefs"][0]["parameterDefaults"] = {"thickness": 25}
+        validate_flow_parameter_defaults(template, {"step_molding": step_template})
+
+        template["stepRefs"][0]["parameterDefaults"] = {"unknown": 1}
+        with self.assertRaisesRegex(ValueError, "Unknown parameter default"):
+            validate_flow_parameter_defaults(template, {"step_molding": step_template})
+
+        collection_step = copy.deepcopy(step_template)
+        collection_step["parameterDefinitions"] = [
+            parameter("items", "string[]")
+        ]
+        template["stepRefs"][0]["parameterDefaults"] = {"items": []}
+        with self.assertRaisesRegex(ValueError, "scalar valueType"):
+            validate_flow_parameter_defaults(
+                template,
+                {"step_molding": collection_step},
+            )
 
     def test_compiler_rejects_unknown_parameter(self):
         configuration = single_step_configuration()

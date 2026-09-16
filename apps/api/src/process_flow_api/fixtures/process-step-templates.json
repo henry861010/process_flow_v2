@@ -34,7 +34,8 @@
         "valueType": "materialRef",
         "controlType": "text",
         "selectionMode": null,
-        "unit": null
+        "unit": null,
+        "defaultValue": "EMC-G700"
       },
       {
         "id": "thickness",
@@ -47,7 +48,8 @@
         "validation": {
           "min": 0,
           "exclusiveMin": true
-        }
+        },
+        "defaultValue": 180
       }
     ]
   },
@@ -297,6 +299,30 @@
               "validation": {
                 "min": 0,
                 "max": 100
+              }
+            }
+          ]
+        },
+        "defaultValue": {
+          "items": [
+            {
+              "itemId": "layers_item_1",
+              "index": 1,
+              "values": {
+                "Dielectric": "PI-2611",
+                "Conductivity": "Cu",
+                "thk": 8,
+                "density": 62
+              }
+            },
+            {
+              "itemId": "layers_item_2",
+              "index": 2,
+              "values": {
+                "Dielectric": "PI-2611",
+                "Conductivity": "Cu",
+                "thk": 6,
+                "density": 48
               }
             }
           ]
@@ -607,7 +633,8 @@
         "valueType": "materialRef",
         "controlType": "text",
         "selectionMode": null,
-        "unit": null
+        "unit": null,
+        "defaultValue": "Cu/Ni/SnAg"
       },
       {
         "id": "thk",
@@ -620,7 +647,8 @@
         "validation": {
           "min": 0,
           "exclusiveMin": true
-        }
+        },
+        "defaultValue": 28
       },
       {
         "id": "density",
@@ -633,7 +661,8 @@
         "validation": {
           "min": 0,
           "max": 100
-        }
+        },
+        "defaultValue": 42
       },
       {
         "id": "koz",
@@ -645,7 +674,8 @@
         "unit": "um",
         "validation": {
           "min": 0
-        }
+        },
+        "defaultValue": 12
       }
     ]
   },
@@ -684,7 +714,8 @@
         "valueType": "materialRef",
         "controlType": "text",
         "selectionMode": null,
-        "unit": null
+        "unit": null,
+        "defaultValue": "SAC305"
       },
       {
         "id": "thk",
@@ -697,7 +728,8 @@
         "validation": {
           "min": 0,
           "exclusiveMin": true
-        }
+        },
+        "defaultValue": 240
       },
       {
         "id": "density",
@@ -710,7 +742,8 @@
         "validation": {
           "min": 0,
           "max": 100
-        }
+        },
+        "defaultValue": 36
       },
       {
         "id": "koz",
@@ -722,7 +755,8 @@
         "unit": "um",
         "validation": {
           "min": 0
-        }
+        },
+        "defaultValue": 35
       }
     ]
   },
@@ -761,7 +795,8 @@
         "valueType": "materialRef",
         "controlType": "text",
         "selectionMode": null,
-        "unit": null
+        "unit": null,
+        "defaultValue": "SAC305"
       },
       {
         "id": "thk",
@@ -774,7 +809,8 @@
         "validation": {
           "min": 0,
           "exclusiveMin": true
-        }
+        },
+        "defaultValue": 65
       },
       {
         "id": "density",
@@ -787,7 +823,8 @@
         "validation": {
           "min": 0,
           "max": 100
-        }
+        },
+        "defaultValue": 58
       },
       {
         "id": "koz",
@@ -799,7 +836,8 @@
         "unit": "um",
         "validation": {
           "min": 0
-        }
+        },
+        "defaultValue": 18
       }
     ]
   },

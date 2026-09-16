@@ -216,6 +216,10 @@ def _validate_step_template_ports(step_template: Mapping[str, Any]) -> None:
         step_template.get("parameterDefinitions", []),
         f"ProcessStepTemplate {template_id}.parameterDefinitions",
     )
+    # Imported lazily to keep the compiler's dependency on graph analysis acyclic.
+    from .flow_compiler import validate_parameter_default_values
+
+    validate_parameter_default_values(step_template)
 
 
 def _validate_parameter_definitions(parameters, label):

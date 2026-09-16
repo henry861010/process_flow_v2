@@ -1,7 +1,13 @@
 from .application.context import ProcessStepContext
 from .application.execution_plan import ExecutionPlan, PlannedGeometryInput, PlannedStep
 from .application.execution_result import GeometryKernelExecutionResult
-from .application.flow_compiler import FlowCompiler
+from .application.flow_compiler import (
+    FLOW_DEFAULT_VALUE_TYPES,
+    FlowCompiler,
+    flow_default_values_for_step_template,
+    validate_flow_parameter_defaults,
+    validate_parameter_default_values,
+)
 from .application.geometry_artifact import (
     GeometryArtifact,
     effective_adaptation_contract,
@@ -51,6 +57,7 @@ __all__ = [
     "ExecuteOptions",
     "ExecutionPlan",
     "FlowCompiler",
+    "FLOW_DEFAULT_VALUE_TYPES",
     "GEOMETRY_SCHEMA_VERSION",
     "Geometry",
     "GeometryArtifact",
@@ -76,13 +83,16 @@ __all__ = [
     "container_key_matches",
     "geometry_structure_to_process_geometry_state",
     "effective_adaptation_contract",
+    "flow_default_values_for_step_template",
     "normalize_geometry_structure",
     "process_geometry_state_to_geometry_structure",
     "stable_id",
     "validate_flow_graph",
+    "validate_flow_parameter_defaults",
     "validate_body_key",
     "validate_container_key",
     "validate_geometry_semantic_keys",
     "validate_process_step_template",
+    "validate_parameter_default_values",
     "validate_polygon_loops",
 ]

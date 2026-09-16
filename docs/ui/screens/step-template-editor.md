@@ -120,6 +120,10 @@ Definition builder MUST 支援：
 - numeric min/max + exclusive flags；string min/max length + regex；
 - repeat item name、index base、min/max items、nested definitions。
 
+`ParameterDefinition.defaultValue` 是 schema 的一部分，clone 與 JSON payload MUST 保留；本版
+不新增專用 default 編輯控制。Fixture 或 API 提供的 default 仍須符合 parameter value 與
+validation 契約。
+
 完整 control matrix見 [Parameter Editor](../components/parameter-editor.md)。`optionSource` 是
 enum contract；重複/空/非法 ID、invalid ranges/regex/repeat range都阻止 save。
 

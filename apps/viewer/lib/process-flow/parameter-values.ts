@@ -1,9 +1,18 @@
 import type {
   ParameterDefinition,
   RepeatableGroupValue,
+  StepRef,
   ValidationRule,
   ValueType,
 } from "./types";
+
+const FLOW_DEFAULT_VALUE_TYPES = new Set<ValueType>([
+  "string",
+  "integer",
+  "float",
+  "boolean",
+  "materialRef",
+]);
 
 export function getParameterValue(
   values: Record<string, unknown>,
@@ -40,10 +49,44 @@ export function createDefaultParameterValue(parameter: ParameterDefinition): unk
 
 export function createDefaultParameterValues(definitions: ParameterDefinition[]) {
   return Object.fromEntries(
-    definitions.map((parameter) => [
-      parameter.id,
-      createDefaultParameterValue(parameter),
-    ]),
+    definitions.flatMap((parameter) =>
+      hasOwn(parameter, "defaultValue") && isPresentDefault(parameter.defaultValue)
+        ? [[parameter.id, structuredClone(parameter.defaultValue)] as const]
+        : [],
+    ),
+  );
+}
+
+export function isFlowDefaultValueType(valueType: ValueType) {
+  return FLOW_DEFAULT_VALUE_TYPES.has(valueType);
+}
+
+export function createFlowParameterDefaults(
+  definitions: ParameterDefinition[],
+  values: Record<string, unknown>,
+) {
+  return Object.fromEntries(
+    definitions.flatMap((definition) => {
+      if (!isFlowDefaultValueType(definition.valueType)) return [];
+      if (!hasOwn(values, definition.id)) return [];
+      const value = values[definition.id];
+      return isPresentDefault(value)
+        ? [[definition.id, structuredClone(value)] as const]
+        : [];
+    }),
+  );
+}
+
+export function resolveFlowParameterDefaults(
+  stepRef: StepRef,
+  definitions: ParameterDefinition[],
+) {
+  if (hasOwn(stepRef, "parameterDefaults")) {
+    return createFlowParameterDefaults(definitions, stepRef.parameterDefaults ?? {});
+  }
+  return createFlowParameterDefaults(
+    definitions,
+    createDefaultParameterValues(definitions),
   );
 }
 
@@ -159,4 +202,12 @@ function createItemId(parameterId: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: object, key: PropertyKey) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function isPresentDefault(value: unknown) {
+  return value !== undefined && value !== null && value !== "";
 }

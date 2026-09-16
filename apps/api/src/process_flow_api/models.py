@@ -88,6 +88,14 @@ class ParameterDefinition(StrictModel):
     optionSource: OptionSource | None = None
     validation: ValidationRule | None = None
     repeatDefinition: RepeatDefinition | None = None
+    defaultValue: Any = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_default_value(cls, data):
+        if isinstance(data, dict) and "defaultValue" in data and data["defaultValue"] is None:
+            raise ValueError("defaultValue cannot be null; omit it when no default exists")
+        return data
 
 
 class RepeatDefinition(StrictModel):
@@ -175,6 +183,14 @@ class StepRef(StrictModel):
     stepRefId: str = Field(min_length=1)
     stepLabel: str | None = None
     processStepTemplateId: str = Field(min_length=1)
+    parameterDefaults: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_parameter_defaults(cls, data):
+        if isinstance(data, dict) and "parameterDefaults" in data and data["parameterDefaults"] is None:
+            raise ValueError("parameterDefaults cannot be null; omit it when unspecified")
+        return data
 
 
 class ProcessFlowTemplateDraft(StrictModel):

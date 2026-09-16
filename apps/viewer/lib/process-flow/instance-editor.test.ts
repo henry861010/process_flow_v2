@@ -20,7 +20,13 @@ const template: ProcessFlowTemplate = {
   version: "V0.0.0",
   owner: "test",
   flowInputs: [],
-  stepRefs: [{ stepRefId: "step", processStepTemplateId: "step-template" }],
+  stepRefs: [
+    {
+      stepRefId: "step",
+      processStepTemplateId: "step-template",
+      parameterDefaults: { value: "flow" },
+    },
+  ],
   flowEdges: [],
 };
 const stepTemplate: ProcessStepTemplate = {
@@ -34,7 +40,22 @@ const stepTemplate: ProcessStepTemplate = {
   owner: "test",
   inputPorts: [],
   outputPorts: [],
-  parameterDefinitions: [{ id: "value", name: "Value", valueType: "string", required: false }],
+  parameterDefinitions: [
+    {
+      id: "value",
+      name: "Value",
+      valueType: "string",
+      required: false,
+      defaultValue: "step",
+    },
+    {
+      id: "items",
+      name: "Items",
+      valueType: "string[]",
+      required: false,
+      defaultValue: ["step"],
+    },
+  ],
 };
 
 function instance(id: string, templateId = template.id): ProcessFlowInstance {
@@ -64,13 +85,38 @@ describe("instance editor helpers", () => {
     expect(instancesForTemplate([instance("b"), instance("a"), instance("other", "other")], template.id).map((item) => item.id)).toEqual(["a", "b"]);
   });
 
-  it("copies values, fills defaults, and does not carry embedded geometry", () => {
+  it("copies imported values without carrying embedded geometry", () => {
     const source = instance("source");
     const copied = configurationFromInstance(template, [stepTemplate], source);
     expect(copied.stepConfigurations.step.parameterValues.value).toBe("source");
     expect(copied.embeddedGeometries).toEqual({});
     copied.stepConfigurations.step.parameterValues.value = "changed";
     expect(source.stepConfigurations.step.parameterValues.value).toBe("source");
+  });
+
+  it("uses flow scalar defaults only when no instance is imported", () => {
+    const configuration = configurationFromInstance(template, [stepTemplate]);
+    expect(configuration.stepConfigurations.step.parameterValues).toEqual({
+      value: "flow",
+    });
+
+    const imported = configurationFromInstance(
+      template,
+      [stepTemplate],
+      instance("source"),
+    );
+    expect(imported.stepConfigurations.step.parameterValues).toEqual({
+      value: "source",
+    });
+  });
+
+  it("falls back to legacy step scalar defaults but excludes collections", () => {
+    const legacyTemplate = structuredClone(template);
+    delete legacyTemplate.stepRefs[0].parameterDefaults;
+    const configuration = configurationFromInstance(legacyTemplate, [stepTemplate]);
+    expect(configuration.stepConfigurations.step.parameterValues).toEqual({
+      value: "step",
+    });
   });
 
   it("builds a trimmed create payload without copying source identity", () => {

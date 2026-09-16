@@ -48,22 +48,34 @@
       {
         "stepRefId": "pnp_hbm",
         "stepLabel": "PnP",
-        "processStepTemplateId": "step_tpl_pnp"
+        "processStepTemplateId": "step_tpl_pnp",
+        "parameterDefaults": {}
       },
       {
         "stepRefId": "mold_cap",
         "stepLabel": "molding",
-        "processStepTemplateId": "step_tpl_molding"
+        "processStepTemplateId": "step_tpl_molding",
+        "parameterDefaults": {
+          "material": "EMC-G700",
+          "thickness": 180
+        }
       },
       {
         "stepRefId": "rdl_build",
         "stepLabel": "RDL layer",
-        "processStepTemplateId": "step_tpl_rdl"
+        "processStepTemplateId": "step_tpl_rdl",
+        "parameterDefaults": {}
       },
       {
         "stepRefId": "c4_bump",
         "stepLabel": "C4 Bump",
-        "processStepTemplateId": "step_tpl_c4_bump_formation"
+        "processStepTemplateId": "step_tpl_c4_bump_formation",
+        "parameterDefaults": {
+          "material": "SAC305",
+          "thk": 65,
+          "density": 58,
+          "koz": 18
+        }
       }
     ],
     "flowEdges": [
@@ -176,22 +188,36 @@
       {
         "stepRefId": "pnp_soc",
         "stepLabel": "PnP",
-        "processStepTemplateId": "step_tpl_pnp"
+        "processStepTemplateId": "step_tpl_pnp",
+        "parameterDefaults": {}
       },
       {
         "stepRefId": "micro_bump",
         "stepLabel": "Micro Bump",
-        "processStepTemplateId": "step_tpl_ubump_formation"
+        "processStepTemplateId": "step_tpl_ubump_formation",
+        "parameterDefaults": {
+          "material": "Cu/Ni/SnAg",
+          "thk": 28,
+          "density": 42,
+          "koz": 12
+        }
       },
       {
         "stepRefId": "flip_package",
         "stepLabel": "Flip",
-        "processStepTemplateId": "step_tpl_flip"
+        "processStepTemplateId": "step_tpl_flip",
+        "parameterDefaults": {}
       },
       {
         "stepRefId": "bga_array",
         "stepLabel": "BGA Bump",
-        "processStepTemplateId": "step_tpl_bga_bump_formation"
+        "processStepTemplateId": "step_tpl_bga_bump_formation",
+        "parameterDefaults": {
+          "material": "SAC305",
+          "thk": 240,
+          "density": 36,
+          "koz": 35
+        }
       }
     ],
     "flowEdges": [

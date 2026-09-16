@@ -34,14 +34,10 @@ export function configurationFromInstance(
   stepTemplates: ProcessStepTemplate[],
   instance?: ProcessFlowInstance,
 ): FlowConfiguration {
-  const defaults = createEmptyFlowConfiguration(template, stepTemplates);
-  if (!instance) return defaults;
+  if (!instance) return createEmptyFlowConfiguration(template, stepTemplates);
   return {
     inputBindings: structuredClone(instance.inputBindings),
-    stepConfigurations: {
-      ...defaults.stepConfigurations,
-      ...structuredClone(instance.stepConfigurations),
-    },
+    stepConfigurations: structuredClone(instance.stepConfigurations),
     embeddedGeometries: {},
   };
 }

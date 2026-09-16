@@ -4,7 +4,12 @@ import json
 from importlib.resources import files
 from typing import Any
 
-from process_flow_kernel import validate_geometry_semantic_keys
+from process_flow_kernel import (
+    validate_flow_graph,
+    validate_flow_parameter_defaults,
+    validate_geometry_semantic_keys,
+    validate_process_step_template,
+)
 
 JsonObject = dict[str, Any]
 
@@ -25,4 +30,10 @@ def load_seed_fixtures() -> dict[str, list[JsonObject]]:
             result[key] = json.load(file)
     for geometry in result["geometries"]:
         validate_geometry_semantic_keys(geometry["structure"])
+    step_templates = result["processStepTemplates"]
+    for step_template in step_templates:
+        validate_process_step_template(step_template)
+    for flow_template in result["processFlowTemplates"]:
+        validate_flow_graph(flow_template, step_templates)
+        validate_flow_parameter_defaults(flow_template, step_templates)
     return result

@@ -34,8 +34,10 @@ overwrites an existing instance and does not expose the workspace lifecycle.
 The header shows immutable template identity, a `From instance` select, Home, and primary `Save`.
 `From instance` contains `Start from blank` followed only by instances whose
 `processFlowTemplateId` equals the route template. Selecting one deep-copies `inputBindings` and
-`stepConfigurations`, merges missing step defaults, discards embedded geometries, and resets all
-new-instance identity fields. Replacing dirty values requires confirmation.
+`stepConfigurations` exactly, discards embedded geometries, and resets all new-instance identity
+fields. It does not reapply defaults. `Start from blank` copies the template's scalar
+`parameterDefaults`; collections and placements remain unset. Replacing dirty values requires
+confirmation.
 
 `Save` becomes enabled when the selected template resolves, configuration is complete, and no save
 is in progress. Its dialog requires name, id, version, and owner; description is optional. Version

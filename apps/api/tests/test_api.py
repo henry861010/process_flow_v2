@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import re
 import sqlite3
@@ -118,6 +119,49 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(carrier_bond["program"], "carrier/bond")
         self.assertEqual(carrier_bond["parameterDefinitions"], [])
+
+    def test_seed_defaults_use_scalar_flow_snapshots(self):
+        payload = self.client.get("/api/bootstrap").json()
+        step_templates = {
+            item["id"]: item for item in payload["processStepTemplates"]
+        }
+        flow_templates = {
+            item["id"]: item for item in payload["processFlowTemplates"]
+        }
+
+        molding_defaults = {
+            definition["id"]: definition.get("defaultValue")
+            for definition in step_templates["step_tpl_molding"]["parameterDefinitions"]
+        }
+        self.assertEqual(
+            molding_defaults,
+            {"material": "EMC-G700", "thickness": 180},
+        )
+        self.assertIn(
+            "defaultValue",
+            step_templates["step_tpl_rdl"]["parameterDefinitions"][0],
+        )
+
+        aaa_defaults = {
+            step_ref["stepRefId"]: step_ref["parameterDefaults"]
+            for step_ref in flow_templates["flow_tpl_aaa_demo"]["stepRefs"]
+        }
+        self.assertEqual(aaa_defaults["pnp_hbm"], {})
+        self.assertEqual(aaa_defaults["rdl_build"], {})
+        self.assertEqual(
+            aaa_defaults["mold_cap"],
+            {"material": "EMC-G700", "thickness": 180},
+        )
+
+        fanout_defaults = {
+            step_ref["stepRefId"]: step_ref["parameterDefaults"]
+            for step_ref in flow_templates["flow_tpl_fanout_demo"]["stepRefs"]
+        }
+        self.assertEqual(fanout_defaults["pnp_soc"], {})
+        self.assertEqual(
+            fanout_defaults["bga_array"],
+            {"material": "SAC305", "thk": 240, "density": 36, "koz": 35},
+        )
 
     def test_debond_fixture_exposes_recursive_optional_daf_contract(self):
         payload = self.client.get("/api/bootstrap").json()
@@ -329,6 +373,141 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(deleted.status_code, 204, deleted.text)
         missing = self.client.get("/api/process-step-templates/custom_step")
         self.assertEqual(missing.status_code, 404, missing.text)
+
+    def test_step_template_defaults_are_validated_and_persisted(self):
+        bootstrap = self.reset_poc_data()
+        source = next(
+            item
+            for item in bootstrap["processStepTemplates"]
+            if item["id"] == "step_tpl_molding"
+        )
+        template = copy.deepcopy(source)
+        template["id"] = "step_tpl_default_test"
+        template["parameterDefinitions"][0]["defaultValue"] = "EMC-TEST"
+        template["parameterDefinitions"][1]["defaultValue"] = 25
+
+        created = self.client.post("/api/process-step-templates", json=template)
+
+        self.assertEqual(created.status_code, 201, created.text)
+        self.assertEqual(
+            [
+                definition["defaultValue"]
+                for definition in created.json()["parameterDefinitions"]
+            ],
+            ["EMC-TEST", 25],
+        )
+
+        for fixture_id, created_id in (
+            ("step_tpl_rdl", "step_tpl_repeat_default_test"),
+            ("step_tpl_pnp", "step_tpl_placement_default_test"),
+        ):
+            collection_template = copy.deepcopy(
+                next(
+                    item
+                    for item in bootstrap["processStepTemplates"]
+                    if item["id"] == fixture_id
+                )
+            )
+            collection_template["id"] = created_id
+            if fixture_id == "step_tpl_pnp":
+                collection_template["parameterDefinitions"][0]["defaultValue"] = []
+            collection_created = self.client.post(
+                "/api/process-step-templates",
+                json=collection_template,
+            )
+            self.assertEqual(collection_created.status_code, 201, collection_created.text)
+            self.assertIn(
+                "defaultValue",
+                collection_created.json()["parameterDefinitions"][0],
+            )
+
+        invalid = copy.deepcopy(source)
+        invalid["id"] = "step_tpl_invalid_default"
+        invalid["parameterDefinitions"][1]["defaultValue"] = "not-a-number"
+        rejected = self.client.post("/api/process-step-templates", json=invalid)
+        self.assertEqual(rejected.status_code, 400, rejected.text)
+        self.assertIn("defaultValue", rejected.json()["message"])
+
+        null_default = copy.deepcopy(source)
+        null_default["id"] = "step_tpl_null_default"
+        null_default["parameterDefinitions"][0]["defaultValue"] = None
+        rejected_null = self.client.post(
+            "/api/process-step-templates",
+            json=null_default,
+        )
+        self.assertEqual(rejected_null.status_code, 422, rejected_null.text)
+        self.assertIn("defaultValue cannot be null", rejected_null.text)
+
+    def test_flow_template_materializes_only_scalar_step_defaults(self):
+        bootstrap = self.reset_poc_data()
+        source = next(
+            item
+            for item in bootstrap["processFlowTemplates"]
+            if item["id"] == "flow_tpl_aaa_demo"
+        )
+        template = copy.deepcopy(source)
+        template["id"] = "flow_tpl_default_materialization"
+        for step_ref in template["stepRefs"]:
+            step_ref.pop("parameterDefaults", None)
+
+        created = self.client.post("/api/process-flow-templates", json=template)
+
+        self.assertEqual(created.status_code, 201, created.text)
+        defaults = {
+            step_ref["stepRefId"]: step_ref["parameterDefaults"]
+            for step_ref in created.json()["stepRefs"]
+        }
+        self.assertEqual(defaults["pnp_hbm"], {})
+        self.assertEqual(
+            defaults["mold_cap"],
+            {"material": "EMC-G700", "thickness": 180},
+        )
+        self.assertEqual(defaults["rdl_build"], {})
+        self.assertEqual(
+            defaults["c4_bump"],
+            {"material": "SAC305", "thk": 65, "density": 58, "koz": 18},
+        )
+
+    def test_flow_template_explicit_defaults_are_exact_and_scalar_only(self):
+        bootstrap = self.reset_poc_data()
+        source = next(
+            item
+            for item in bootstrap["processFlowTemplates"]
+            if item["id"] == "flow_tpl_aaa_demo"
+        )
+        explicit = copy.deepcopy(source)
+        explicit["id"] = "flow_tpl_explicit_empty_defaults"
+        next(
+            step_ref
+            for step_ref in explicit["stepRefs"]
+            if step_ref["stepRefId"] == "mold_cap"
+        )["parameterDefaults"] = {}
+        created = self.client.post("/api/process-flow-templates", json=explicit)
+        self.assertEqual(created.status_code, 201, created.text)
+        self.assertEqual(
+            next(
+                step_ref
+                for step_ref in created.json()["stepRefs"]
+                if step_ref["stepRefId"] == "mold_cap"
+            )["parameterDefaults"],
+            {},
+        )
+
+        collection = copy.deepcopy(source)
+        collection["id"] = "flow_tpl_collection_default"
+        rdl_default = next(
+            item
+            for item in bootstrap["processStepTemplates"]
+            if item["id"] == "step_tpl_rdl"
+        )["parameterDefinitions"][0]["defaultValue"]
+        next(
+            step_ref
+            for step_ref in collection["stepRefs"]
+            if step_ref["stepRefId"] == "rdl_build"
+        )["parameterDefaults"] = {"layers": rdl_default}
+        rejected = self.client.post("/api/process-flow-templates", json=collection)
+        self.assertEqual(rejected.status_code, 400, rejected.text)
+        self.assertIn("must use a scalar valueType", rejected.json()["message"])
 
     def test_referenced_step_template_cannot_be_deleted(self):
         bootstrap = self.reset_poc_data()
