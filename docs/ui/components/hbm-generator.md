@@ -32,6 +32,11 @@ Viewer 從 `GET /api/geometry-generators` 取得 `id="hbm"` 的 label、defaults
 `ParameterDefinition[]` 與 `hbm-package@1` adaptation contract。欄位順序、default、unit、range
 與error以manifest/preview response為準；viewer不得保存另一份HBM constants或validation。
 
+目前 manifest version 是 `2`。厚度輸入使用代表最終封裝厚度的 `hbmThickness`，以及只套用於最上層
+core die 的 `topCoreDieThickness`；v1 的 `topMoldingThickness` 不再顯示或送出。Backend 從總厚度
+扣除 base die、gaps 與所有 core dies 後衍生 top molding thickness。總厚度不足以容納 stack 時，
+error 對應 `hbmThickness` 欄位，所有 materialize actions 維持 disabled。
+
 目前backend parameters與domain規則見
 [HBM Geometry Generator](../../reference/hbm-generator.md#參數)。Number/material controls依通用
 parameter editor渲染，所有dimension使用`um`。
@@ -52,7 +57,9 @@ response不得取代較新的parameter state；dialog close時必須cancel pendi
 
 Top View必須同時顯示`Overall X/Y`與代表性stack body的`Core die X/Y`；Cross Section必須顯示
 `Total thickness`與`Core die thickness`。這些值直接取自backend產生的core geometry bounds，
-不得由viewer從input parameter重新計算。DRAM generator沿用相同dimension labels。
+不得由viewer從input parameter重新計算。多層 HBM 的 `Core die thickness` 維持代表第一層的一般
+core die 厚度；單層 HBM 則代表唯一一層的 top core die 厚度。Preview 不另加 top core thickness
+dimension。DRAM generator沿用相同dimension labels。
 
 ## Actions
 
@@ -74,3 +81,4 @@ preview，不可在browser fallback build HBM。
 | `UI-HBM-004` | Valid preview後Download | 下載內容hash對應該preview response的geometry hash。 |
 | `UI-HBM-005` | Flow-input mode Define | Result保存normalized generation parameters與`hbm-package@1`。 |
 | `UI-HBM-006` | 新增另一個backend generator manifest | 不修改viewer registry即可出現在共用入口並渲染fields/preview。 |
+| `UI-HBM-007` | HBM thickness小於base、gaps與core stack總厚度 | `hbmThickness`顯示field error，Download、Save與Define皆disabled。 |

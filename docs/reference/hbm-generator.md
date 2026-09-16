@@ -30,10 +30,10 @@ HBM Geometry Generator 將一組 package、base die、core die stack 與 molding
 `standard` GeometryStructure `1.0.0`。產物可以直接下載，或包裝成 immutable
 `GeometryEntity` 寫入 geometry catalog。
 
-本版只描述矩形 HBM package，且所有 core dies 使用相同尺寸、厚度、間距與材料。下列項目不在
-本版範圍：
+本版只描述矩形 HBM package。所有 core dies 使用相同尺寸、間距與材料；最上層可使用獨立厚度，
+其餘 core dies 共用一般 core die 厚度。下列項目不在本版範圍：
 
-- 每層 core die 使用不同尺寸、厚度或材料；
+- 每層 core die 使用不同尺寸、材料，或除最上層外再個別設定厚度；
 - core die XY offset、rotation 或非置中排列；
 - TSV、bump、circuit、underfill 與其他 density feature；
 - bottom molding 或 base die 小於 package footprint；
@@ -67,13 +67,14 @@ ownership contract。
 | --- | --- | --- | --- |
 | `packageX` | finite number | `> 0` | Package 與 base die 的 X 尺寸。 |
 | `packageY` | finite number | `> 0` | Package 與 base die 的 Y 尺寸。 |
-| `topMoldingThickness` | finite number | `>= 0` | 最上層 core die 上表面至 package 上表面的 molding 厚度。 |
+| `hbmThickness` | finite number | `> 0` 且 `>= occupiedStackThickness` | HBM package 的最終總厚度。 |
 | `moldingMaterial` | string | trim 後非空 | Root molding body material。 |
 | `baseDieThickness` | finite number | `> 0` | Base die 厚度。 |
 | `coreDieX` | finite number | `> 0` 且 `<= packageX` | 每層 core die 的 X 尺寸。 |
 | `coreDieY` | finite number | `> 0` 且 `<= packageY` | 每層 core die 的 Y 尺寸。 |
-| `coreDieThickness` | finite number | `> 0` | 每層 core die 厚度。 |
-| `coreDieCount` | integer | `1..64` | Core die 層數。 |
+| `coreDieThickness` | finite number | `> 0` | 除最上層外，各 core die 的共用厚度。 |
+| `topCoreDieThickness` | finite number | `> 0` | 最上層 core die 的厚度。 |
+| `coreDieCount` | integer | `1..64` | 包含最上層在內的 core die 總層數。 |
 | `coreBaseGap` | finite number | `>= 0` | Base die 上表面至第一層 core die 下表面的距離。 |
 | `coreCoreGap` | finite number | `>= 0` | 相鄰 core dies 之間的距離。 |
 | `dieMaterial` | string | trim 後非空 | Base die 與所有 core dies 共用的 material。 |
@@ -85,12 +86,15 @@ ownership contract。
 令 core die index `i` 從 `0` 開始，`N = coreDieCount`。
 
 ```text
-totalThickness =
+occupiedStackThickness =
     baseDieThickness
   + coreBaseGap
-  + N * coreDieThickness
+  + (N - 1) * coreDieThickness
+  + topCoreDieThickness
   + (N - 1) * coreCoreGap
-  + topMoldingThickness
+
+totalThickness = hbmThickness
+topMoldingThickness = hbmThickness - occupiedStackThickness
 
 sideMoldingX = (packageX - coreDieX) / 2
 sideMoldingY = (packageY - coreDieY) / 2
@@ -99,7 +103,15 @@ coreBottomZ(i) =
     baseDieThickness
   + coreBaseGap
   + i * (coreDieThickness + coreCoreGap)
+
+coreThickness(i) =
+    topCoreDieThickness  if i = N - 1
+    coreDieThickness     otherwise
 ```
+
+`hbmThickness` 小於 `occupiedStackThickness` 時輸入不合法；兩者相等時
+`topMoldingThickness = 0`，仍是合法 geometry。當 `N = 1` 時沒有一般 core die，唯一一層直接使用
+`topCoreDieThickness`。
 
 各 BoxGeometry bounds 必須依下列規則建立：
 
@@ -107,7 +119,7 @@ coreBottomZ(i) =
 | --- | --- | --- | --- |
 | Molding | `[-packageX/2, -packageY/2, 0]` | `[packageX/2, packageY/2, 0]` | `totalThickness` |
 | Base die | `[-packageX/2, -packageY/2, 0]` | `[packageX/2, packageY/2, 0]` | `baseDieThickness` |
-| Core die `i` | `[-coreDieX/2, -coreDieY/2, coreBottomZ(i)]` | `[coreDieX/2, coreDieY/2, coreBottomZ(i)]` | `coreDieThickness` |
+| Core die `i` | `[-coreDieX/2, -coreDieY/2, coreBottomZ(i)]` | `[coreDieX/2, coreDieY/2, coreBottomZ(i)]` | `coreThickness(i)` |
 
 Root 的 molding 會自然保留在 core die 四周、core-base gap、core-core gaps 與 top molding
 區域；producer 不得為這些區域另外建立互相重疊的 sibling molding bodies。
@@ -164,6 +176,10 @@ Save 必須用同一份 GeometryStructure 建立 `GeometryEntity`：
 Catalog record MUST 同時保存通用`generation` metadata：`generatorId = "hbm"`、parameter
 schema version與建立structure所用的完整parameters。此metadata供authoring UI重新載入參數；
 GeometryStructure仍是compiler與kernel使用的authoritative geometry。
+
+目前 HBM generator parameter schema 是 version `2`。Version `1` 的
+`topMoldingThickness` 已從 authoring parameters 移除，backend 不提供 v1 preview 重算；既有已保存的
+immutable geometry 與其 generation metadata 不遷移也不重建。
 
 `name`、`vendor`、`type1`、`type2`、`owner`與`description`都是Save階段的catalog metadata，
 不得出現在generator engineering parameter editor；該editor只描述dimensions、materials與結構。

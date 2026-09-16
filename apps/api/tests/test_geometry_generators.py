@@ -23,11 +23,15 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         definitions = response.json()
         self.assertEqual([item["id"] for item in definitions], ["hbm", "dram"])
         hbm = definitions[0]
+        self.assertEqual(hbm["version"], 2)
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
-        self.assertIn(
-            "coreDieCount",
-            [item["id"] for item in hbm["parameterDefinitions"]],
-        )
+        hbm_parameter_ids = [item["id"] for item in hbm["parameterDefinitions"]]
+        self.assertIn("coreDieCount", hbm_parameter_ids)
+        self.assertIn("hbmThickness", hbm_parameter_ids)
+        self.assertIn("topCoreDieThickness", hbm_parameter_ids)
+        self.assertNotIn("topMoldingThickness", hbm_parameter_ids)
+        self.assertEqual(hbm["defaultParameters"]["hbmThickness"], 480)
+        self.assertEqual(hbm["defaultParameters"]["topCoreDieThickness"], 50)
         for definition in definitions:
             self.assertNotIn(
                 "vendor",
@@ -39,13 +43,17 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         response = self.client.post(
             "/api/geometry-generators/hbm/preview",
             json={
-                "generatorVersion": 1,
+                "generatorVersion": 2,
                 "parameters": {
                     "packageX": 1400,
                     "packageY": 1000,
+                    "hbmThickness": 340,
                     "coreDieX": 800,
                     "coreDieY": 600,
-                    "coreDieCount": 2,
+                    "coreDieThickness": 40,
+                    "topCoreDieThickness": 70,
+                    "coreDieCount": 3,
+                    "topMoldingThickness": 999,
                 },
             },
         )
@@ -71,19 +79,39 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         )
         self.assertEqual(
             _dimension_values(section_view)["Core die thickness"],
-            50,
+            40,
         )
+        self.assertEqual(_dimension_values(section_view)["Total thickness"], 340)
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 340)
+        self.assertEqual(preview["computedParameters"]["topMoldingThickness"], 30)
+        self.assertNotIn("topMoldingThickness", preview["normalizedParameters"])
         entity = preview["geometryEntityJson"]
         self.assertEqual(entity["adaptationContract"]["adapterId"], "hbm-package")
         self.assertEqual(entity["dim"], "1400 x 1000 x 340 um")
+        self.assertEqual(entity["generation"]["schemaVersion"], 2)
+        self.assertNotIn(
+            "topMoldingThickness", entity["generation"]["parameters"]
+        )
         self.assertNotIn("vendor", entity)
         root = entity["structure"]["root"]
         self.assertEqual(root["bodies"][0]["geometry"]["bottom_left"], [-700, -500, 0])
         self.assertEqual(root["bodies"][0]["geometry"]["top_right"], [700, 500, 0])
-        self.assertEqual(len(root["children"]), 3)
+        self.assertEqual(root["bodies"][0]["geometry"]["thk"], 340)
+        self.assertEqual(len(root["children"]), 4)
         self.assertEqual(
             root["children"][1]["bodies"][0]["geometry"]["bottom_left"][:2],
             [-400, -300],
+        )
+        core_geometries = [
+            child["bodies"][0]["geometry"] for child in root["children"][1:]
+        ]
+        self.assertEqual(
+            [geometry["bottom_left"][2] for geometry in core_geometries],
+            [120, 180, 240],
+        )
+        self.assertEqual(
+            [geometry["thk"] for geometry in core_geometries],
+            [40, 40, 70],
         )
 
         materialized = self.client.post(
@@ -93,6 +121,60 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(materialized.status_code, 200, materialized.text)
         self.assertEqual(materialized.json()["geometryHash"], preview["geometryHash"])
         self.assertEqual(materialized.json()["geometryEntityJson"], entity)
+
+    def test_hbm_single_core_uses_top_thickness_and_allows_zero_top_molding(self):
+        response = self.client.post(
+            "/api/geometry-generators/hbm/preview",
+            json={
+                "generatorVersion": 2,
+                "parameters": {
+                    "hbmThickness": 200,
+                    "baseDieThickness": 100,
+                    "coreBaseGap": 20,
+                    "coreDieThickness": 40,
+                    "topCoreDieThickness": 80,
+                    "coreDieCount": 1,
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"])
+        self.assertEqual(preview["computedParameters"]["topMoldingThickness"], 0)
+        root = preview["geometryEntityJson"]["structure"]["root"]
+        self.assertEqual(len(root["children"]), 2)
+        only_core = root["children"][1]["bodies"][0]["geometry"]
+        self.assertEqual(only_core["bottom_left"][2], 120)
+        self.assertEqual(only_core["thk"], 80)
+        section_view = preview["engineeringPreview"]["views"][1]
+        self.assertEqual(
+            _dimension_values(section_view)["Core die thickness"],
+            80,
+        )
+
+    def test_hbm_rejects_thickness_smaller_than_occupied_stack(self):
+        response = self.client.post(
+            "/api/geometry-generators/hbm/preview",
+            json={"generatorVersion": 2, "parameters": {"hbmThickness": 379}},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertFalse(preview["valid"])
+        self.assertIn("hbmThickness", preview["errors"])
+        self.assertEqual(preview["computedParameters"], {})
+        self.assertIsNone(preview["previewToken"])
+        self.assertIsNone(preview["geometryEntityJson"])
+
+    def test_hbm_v1_preview_is_no_longer_available(self):
+        response = self.client.post(
+            "/api/geometry-generators/hbm/preview",
+            json={"generatorVersion": 1, "parameters": {}},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("version 1 is not available", response.json()["message"])
 
     def test_invalid_preview_returns_field_errors_without_token(self):
         response = self.client.post(
