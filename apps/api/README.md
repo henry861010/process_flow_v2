@@ -90,6 +90,7 @@ missing token必須重新preview，不可在前端自行重建geometry。
 | --- | --- | --- |
 | `GET`/`POST` | `/api/process-flow-templates` | List or validate/insert template |
 | `GET` | `/api/process-flow-templates/{id}` | Template detail |
+| `PUT` | `/api/process-flow-templates/{id}` | Restricted metadata and scalar flow-default update |
 | `POST` | `/api/process-flow-template-instances` | Atomic template + first instance insert |
 | `GET`/`POST` | `/api/process-flow-instances` | List or compile/insert complete instance |
 | `GET` | `/api/process-flow-instances/{id}` | Instance detail |

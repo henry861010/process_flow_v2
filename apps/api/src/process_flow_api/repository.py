@@ -339,6 +339,26 @@ class SQLiteStore:
     def get_process_flow_template(self, id_: str) -> JsonObject | None:
         return self._get("process_flow_templates", id_)
 
+    def update_process_flow_template(self, payload: JsonObject) -> JsonObject:
+        with self._connection:
+            cursor = self._connection.execute(
+                """
+                UPDATE process_flow_templates
+                SET name = ?, version = ?, owner = ?, payload = ?
+                WHERE id = ?
+                """,
+                (
+                    payload.get("name", ""),
+                    payload.get("version", ""),
+                    payload.get("owner", ""),
+                    _json(payload),
+                    payload["id"],
+                ),
+            )
+        if cursor.rowcount == 0:
+            raise NotFoundError(payload["id"])
+        return payload
+
     def insert_process_flow_instance(self, payload: JsonObject) -> JsonObject:
         return self._insert(
             "process_flow_instances",

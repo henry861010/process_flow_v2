@@ -84,7 +84,8 @@ kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語�
 
 實際使用時，製程工程師會選用 PnP、molding、RDL 與 C4 等 `ProcessStepTemplate` 建立
 `ProcessFlowTemplate`；這份 flow template 代表一項封裝技術的完整製程拓撲，例如 AAA 的
-flow inputs、steps 與 geometry routing，但不包含特定產品的 geometry 或製程參數。當同一項
+flow inputs、steps 與 geometry routing，也可保存建立新 instance 時使用的 scalar parameter
+defaults，但不包含特定產品的 geometry 或已完成製程設定。當同一項
 技術套用到 HBM4 Alpha、HBM4 Beta 等不同產品時，工程師會在 `ProcessFlowWorkspace` 中
 選擇 panel 種類或 HBM 種類，並分別設定 placements、molding thickness、RDL
 layers 等 step parameters。設定完整並 commit 後，系統建立 immutable
@@ -93,7 +94,7 @@ layers 等 step parameters。設定完整並 commit 後，系統建立 immutable
 | Resource | 主要用途 | 半導體封裝範例 | 可變性 |
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | 定義可重用的單一製程步驟，包括 geometry ports、parameter definitions 與執行程式。 | PnP step 宣告 panel primary input、HBM auxiliary input 與 `placements` parameter。 | Immutable snapshot |
-| `ProcessFlowTemplate` | 定義一項封裝技術的完整 topology，包括 flow inputs、step references 與 edges。 | AAA flow 將 PnP、molding、RDL 與 C4 依製程順序連接。 | Immutable snapshot |
+| `ProcessFlowTemplate` | 定義一項封裝技術的完整 topology，包括 flow inputs、step references 與 edges。 | AAA flow 將 PnP、molding、RDL 與 C4 依製程順序連接。 | Topology/identity/version locked；metadata/defaults 可受限更新 |
 | `ProcessFlowWorkspace` | 保存特定產品仍在調整中的 `FlowConfiguration`。 | HBM4 Alpha 開發過程中調整 geometry bindings、placements、材料與厚度。 | 只有 `draft` 可修改 |
 | `ProcessFlowInstance` | 保存已完成並通過完整驗證的產品製程設定。 | HBM4 Alpha Build 的完整 geometry bindings 與各 step parameter values。 | Immutable snapshot |
 | `GeometryEntity` | 保存可被 flow input 引用的 catalog geometry snapshot。 | `panel_plp_310x310mm_glass` panel 與 `hbm3_8hi` HBM die。 | Immutable snapshot |
@@ -139,7 +140,8 @@ flowchart LR
 2. `ProcessFlowTemplate` 定義 topology；`ProcessFlowWorkspace` 保存可修改的研究設定；
    `ProcessFlowInstance` 保存完整且不可修改的產品設定。
 3. Geometry 只經由 typed ports 與 `inputBindings` 傳遞，不屬於 parameter value union。
-4. Flow template、instance 與 catalog geometry 是 immutable snapshots。Process step 的
+4. Flow template 的 identity/version/topology locked，但 metadata 與 flow-specific scalar
+   defaults 可受限更新；instance 與 catalog geometry 是 immutable snapshots。Process step 的
    identity、ports 與 parameter definition contract locked，但 owner、category、program 與
    parameter defaults 可受限地 in-place update；delete policy 另見 persistence specification。
 5. Compiler 負責解析跨 resource references、驗證 graph 與 configuration，並建立
@@ -165,15 +167,17 @@ flowchart TB
 | Model | 擁有 | 不擁有 | 可變性 |
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Contract locked；metadata/program/defaults 可更新 |
-| `ProcessFlowTemplate` | Flow inputs、step refs、edges | 產品設定值、geometry bindings | Immutable snapshot |
+| `ProcessFlowTemplate` | Flow inputs、step refs、edges、flow-specific scalar defaults | 產品 geometry bindings | Identity/version/topology locked；name/owner/description/defaults 可受限更新 |
 | `ProcessFlowWorkspace` | Bindings、parameter values、embedded geometries、commit state | Topology | 只有 `draft` 可修改 |
 | `ProcessFlowInstance` | 完整產品設定 | Embedded geometries、topology、instance lineage | Immutable snapshot |
 | `GeometryEntity` | Catalog metadata 與完整 `GeometryStructure` | Flow-specific role | Immutable snapshot |
 | `ExecutionPlan` | 已解析 structures、排序後 steps、明確 input routing | Repository handle 或尚待解析的 repository id | 僅存在於 runtime；nested mappings MUST 視為 read-only |
 
-每個 flow template id 代表一份 immutable snapshot；需要另一份 snapshot 時 MUST 使用新的
-`id`。Process step id 是 stable reference，受限 update 不得改變 identity、ports 或 parameter
-definition contract。`version` label、identifier 與未採用欄位的完整規則見
+每個 flow template id 代表一份 topology snapshot；受限 update 只可修改
+`name`、`owner`、`description` 與既有 step refs 的 `parameterDefaults`。需要變更 version、
+flow inputs、step refs 或 edges 時 MUST 使用新的 `id`。Process step id 是 stable reference，
+受限 update 不得改變 identity、ports 或 parameter definition contract。`version` label、
+identifier 與未採用欄位的完整規則見
 [共用欄位與格式規則](#10-共用欄位與格式規則)。
 
 ## 5. ProcessStepTemplate
@@ -319,6 +323,11 @@ Flow template editor 儲存目前已填的 eligible scalar step values 到 `para
 `placements`、`fieldGroupArray` 與所有 `[]` value types 即使在 preview draft 已有值也 MUST NOT
 保存為 flow defaults。Instance editor 只有在未匯入既有 instance 時才將 flow defaults 複製成
 `parameterValues`；compiler 不直接讀取 `parameterDefaults`。
+
+Management 的受限 update MAY 更新既有 step ref 的 `parameterDefaults`。明確 `{}` 表示清除
+該 step 的 flow defaults；update request 省略 `parameterDefaults` 表示保留目前 snapshot。
+更新只影響之後以 `Start from blank` 建立的 instance；既有 instance 與從既有 instance 複製的
+configuration MUST NOT 被回寫或重新套用 defaults。
 
 `FlowEdge`：
 
@@ -627,7 +636,7 @@ Canonical persisted JSON SHOULD 省略 optional `null` 欄位；空字串不是 
 
 `geometryRef`、`StepValueSet`、`fieldDefinitions` 與 `templateFamilyId` 是未採用的早期草案
 欄位，MUST NOT 出現在 request 或 persisted resource。系統不提供這些欄位的轉換路徑，也
-沒有 `ProcessFlowTemplateRevision` model。需要另一份 template snapshot 時，建立新的
+沒有 `ProcessFlowTemplateRevision` model。需要另一份 topology 或 version snapshot 時，建立新的
 resource id。
 
 `workingTemp` 已棄用。新建 template MUST NOT 宣告此 parameter，UI 與 compiler 也 MUST NOT

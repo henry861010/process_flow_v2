@@ -168,6 +168,19 @@ export async function createProcessFlowTemplate<T>(template: T): Promise<T> {
   });
 }
 
+export async function updateProcessFlowTemplate<T>(
+  templateId: string,
+  template: T,
+): Promise<T> {
+  return apiFetch<T>(
+    `/api/process-flow-templates/${encodeURIComponent(templateId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(template),
+    },
+  );
+}
+
 export async function createProcessFlowTemplateInstance<
   TTemplate,
   TInstanceCreate,

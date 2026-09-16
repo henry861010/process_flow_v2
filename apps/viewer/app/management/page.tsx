@@ -13,11 +13,12 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { ProcessFlowTemplateEditDialog } from "@/components/process-flow-template-edit/process-flow-template-edit-dialog";
 import { ProcessStepEditDialog } from "@/components/process-step-edit/process-step-edit-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ProcessStepTemplate } from "@/lib/process-flow/types";
+import type { ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flow/types";
 import type { BootstrapPayload } from "@/lib/process-flow-api";
 import { loadBootstrap, resetPocData } from "@/lib/process-flow-api";
 
@@ -34,6 +35,7 @@ export default function ManagementPage() {
   const [loading, setLoading] = React.useState(true);
   const [resetting, setResetting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = React.useState<ProcessFlowTemplate | null>(null);
   const [editingStep, setEditingStep] = React.useState<ProcessStepTemplate | null>(null);
 
   React.useEffect(() => {
@@ -80,6 +82,7 @@ export default function ManagementPage() {
     setResetting(true);
     try {
       setData(await resetPocData());
+      setEditingTemplate(null);
       setEditingStep(null);
       setError(null);
     } catch (reason) {
@@ -99,7 +102,7 @@ export default function ManagementPage() {
               <h1 className="text-xl font-semibold">Management</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Review process resources and manage process step settings.
+              Review process resources and manage template defaults and process step settings.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -153,17 +156,27 @@ export default function ManagementPage() {
           </div>
 
           <TabsContent value="templates">
-            <ResourceTable headings={["Template", "Version", "Owner", "Instances", ""]}>
+            <ResourceTable headings={["Template", "Version", "Owner", "Instances", "Actions"]}>
               {data.processFlowTemplates.map((template) => (
                 <tr key={template.id} className="border-b last:border-b-0">
                   <IdentityCell name={template.name} id={template.id} description={template.description} />
                   <Cell>{template.version}</Cell>
                   <Cell>{template.owner}</Cell>
                   <Cell>{instanceCountByTemplate.get(template.id) ?? 0}</Cell>
-                  <td className="px-4 py-3 text-right">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/flow-instance-editor?templateId=${encodeURIComponent(template.id)}`}>Open</Link>
-                    </Button>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingTemplate(template)}
+                      >
+                        Edit
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/flow-instance-editor?templateId=${encodeURIComponent(template.id)}`}>Open</Link>
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -236,6 +249,23 @@ export default function ManagementPage() {
           </TabsContent>
         </Tabs>
       </div>
+      {editingTemplate ? (
+        <ProcessFlowTemplateEditDialog
+          key={editingTemplate.id}
+          template={editingTemplate}
+          stepTemplates={data.processStepTemplates}
+          onClose={() => setEditingTemplate(null)}
+          onSaved={(saved) => {
+            setData((current) => ({
+              ...current,
+              processFlowTemplates: current.processFlowTemplates.map((template) =>
+                template.id === saved.id ? saved : template,
+              ),
+            }));
+            setEditingTemplate(null);
+          }}
+        />
+      ) : null}
       {editingStep ? (
         <ProcessStepEditDialog
           key={editingStep.id}

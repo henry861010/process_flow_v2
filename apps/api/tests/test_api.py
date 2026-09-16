@@ -602,6 +602,196 @@ class ProcessFlowApiTests(unittest.TestCase):
             {"material": "SAC305", "thk": 65, "density": 58, "koz": 18},
         )
 
+    def test_flow_template_update_persists_metadata_and_defaults_without_changing_instances(self):
+        bootstrap = self.reset_poc_data()
+        original = next(
+            item
+            for item in bootstrap["processFlowTemplates"]
+            if item["id"] == "flow_tpl_aaa_demo"
+        )
+        instances_before = copy.deepcopy(
+            [
+                item
+                for item in bootstrap["processFlowInstances"]
+                if item["processFlowTemplateId"] == original["id"]
+            ]
+        )
+        updated = copy.deepcopy(original)
+        updated["name"] = "AAA Production Flow"
+        updated["owner"] = "process.integration"
+        updated["description"] = "Updated flow defaults for future products."
+        molding_ref = next(
+            step_ref
+            for step_ref in updated["stepRefs"]
+            if step_ref["stepRefId"] == "mold_cap"
+        )
+        molding_ref["parameterDefaults"] = {
+            "material": "EMC-UPDATED",
+            "thickness": 205,
+        }
+
+        response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=updated,
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["name"], "AAA Production Flow")
+        self.assertEqual(response.json()["owner"], "process.integration")
+        self.assertEqual(
+            next(
+                step_ref
+                for step_ref in response.json()["stepRefs"]
+                if step_ref["stepRefId"] == "mold_cap"
+            )["parameterDefaults"],
+            {"material": "EMC-UPDATED", "thickness": 205},
+        )
+
+        detail = self.client.get(
+            "/api/process-flow-templates/flow_tpl_aaa_demo"
+        ).json()
+        listed = next(
+            item
+            for item in self.client.get("/api/process-flow-templates").json()
+            if item["id"] == original["id"]
+        )
+        bootstrapped = next(
+            item
+            for item in self.client.get("/api/bootstrap").json()["processFlowTemplates"]
+            if item["id"] == original["id"]
+        )
+        self.assertEqual(detail, listed)
+        self.assertEqual(listed, bootstrapped)
+        self.assertEqual(
+            [
+                item
+                for item in self.client.get("/api/process-flow-instances").json()
+                if item["processFlowTemplateId"] == original["id"]
+            ],
+            instances_before,
+        )
+
+        omitted = copy.deepcopy(response.json())
+        omitted["name"] = "AAA Production Flow 2"
+        next(
+            step_ref
+            for step_ref in omitted["stepRefs"]
+            if step_ref["stepRefId"] == "mold_cap"
+        ).pop("parameterDefaults")
+        preserved = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=omitted,
+        )
+        self.assertEqual(preserved.status_code, 200, preserved.text)
+        self.assertEqual(
+            next(
+                step_ref
+                for step_ref in preserved.json()["stepRefs"]
+                if step_ref["stepRefId"] == "mold_cap"
+            )["parameterDefaults"],
+            {"material": "EMC-UPDATED", "thickness": 205},
+        )
+
+        cleared = copy.deepcopy(preserved.json())
+        next(
+            step_ref
+            for step_ref in cleared["stepRefs"]
+            if step_ref["stepRefId"] == "mold_cap"
+        )["parameterDefaults"] = {}
+        cleared_response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=cleared,
+        )
+        self.assertEqual(cleared_response.status_code, 200, cleared_response.text)
+        self.assertEqual(
+            next(
+                step_ref
+                for step_ref in cleared_response.json()["stepRefs"]
+                if step_ref["stepRefId"] == "mold_cap"
+            )["parameterDefaults"],
+            {},
+        )
+
+    def test_flow_template_update_rejects_locked_fields_blank_metadata_and_invalid_defaults(self):
+        bootstrap = self.reset_poc_data()
+        original = next(
+            item
+            for item in bootstrap["processFlowTemplates"]
+            if item["id"] == "flow_tpl_aaa_demo"
+        )
+
+        mismatch = copy.deepcopy(original)
+        mismatch["id"] = "flow_tpl_other"
+        mismatch_response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=mismatch,
+        )
+        self.assertEqual(mismatch_response.status_code, 400, mismatch_response.text)
+
+        for field in ("name", "owner"):
+            invalid_metadata = copy.deepcopy(original)
+            invalid_metadata[field] = "   "
+            rejected = self.client.put(
+                "/api/process-flow-templates/flow_tpl_aaa_demo",
+                json=invalid_metadata,
+            )
+            self.assertEqual(rejected.status_code, 400, rejected.text)
+
+        version_change = copy.deepcopy(original)
+        version_change["version"] = "V1.0.0"
+        version_response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=version_change,
+        )
+        self.assertEqual(version_response.status_code, 409, version_response.text)
+
+        topology_change = copy.deepcopy(original)
+        topology_change["stepRefs"][0]["stepLabel"] = "Changed step"
+        topology_response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=topology_change,
+        )
+        self.assertEqual(topology_response.status_code, 409, topology_response.text)
+
+        unknown_default = copy.deepcopy(original)
+        unknown_default["stepRefs"][0]["parameterDefaults"] = {"missing": 1}
+        unknown_response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=unknown_default,
+        )
+        self.assertEqual(unknown_response.status_code, 400, unknown_response.text)
+        self.assertIn("Unknown parameter default", unknown_response.json()["message"])
+
+        invalid_scalar = copy.deepcopy(original)
+        next(
+            step_ref
+            for step_ref in invalid_scalar["stepRefs"]
+            if step_ref["stepRefId"] == "mold_cap"
+        )["parameterDefaults"] = {"thickness": "not-a-number"}
+        scalar_response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=invalid_scalar,
+        )
+        self.assertEqual(scalar_response.status_code, 400, scalar_response.text)
+
+        collection_default = copy.deepcopy(original)
+        rdl_default = next(
+            item
+            for item in bootstrap["processStepTemplates"]
+            if item["id"] == "step_tpl_rdl"
+        )["parameterDefinitions"][0]["defaultValue"]
+        next(
+            step_ref
+            for step_ref in collection_default["stepRefs"]
+            if step_ref["stepRefId"] == "rdl_build"
+        )["parameterDefaults"] = {"layers": rdl_default}
+        collection_response = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo",
+            json=collection_default,
+        )
+        self.assertEqual(collection_response.status_code, 400, collection_response.text)
+        self.assertIn("must use a scalar valueType", collection_response.json()["message"])
+
     def test_flow_template_explicit_defaults_are_exact_and_scalar_only(self):
         bootstrap = self.reset_poc_data()
         source = next(

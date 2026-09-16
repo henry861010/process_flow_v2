@@ -24,12 +24,15 @@ Process Flow 把「可重用的製程定義」、「研究中的配置」與「�
 | 資源 | 用途 | 可變性 | 主要 owner |
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | 定義一個 process operation 的 geometry ports、parameters 與 `program` | identity/contract locked；owner/category/program/defaults 可更新 | Process developer |
-| `ProcessFlowTemplate` | 定義 flow inputs、step references 與 directed topology | 建立後 immutable | Process developer |
+| `ProcessFlowTemplate` | 定義 flow inputs、step references、directed topology 與 flow-specific scalar defaults | identity/version/topology locked；metadata/defaults 可受限更新 | Process developer |
 | `ProcessFlowWorkspace` | 保存未完成的 geometry bindings 與 parameter values | Draft 可修改；以 `revision` optimistic concurrency 控制 | Product / RD engineer |
 | `ProcessFlowInstance` | 保存完整且可執行的產品配置 | Immutable | Product / RD engineer |
 | `GeometryEntity` | Catalog 中可被 flow input 引用的 geometry document | 建立後 immutable | Geometry producer |
 
-`ProcessFlowTemplate` 只定義 topology，不保存產品 geometry selection 或 recipe value。`ProcessFlowInstance` 與 `ProcessFlowWorkspace` reference template，並以 `inputBindings` 與 `stepConfigurations` 提供 configuration。
+`ProcessFlowTemplate` 定義 topology 與建立空白 instance 時使用的 flow-specific scalar
+defaults，不保存產品 geometry selection 或已完成 recipe configuration。`ProcessFlowInstance`
+與 `ProcessFlowWorkspace` reference template，並以 `inputBindings` 與 `stepConfigurations`
+提供 configuration。
 
 ## 生命週期
 

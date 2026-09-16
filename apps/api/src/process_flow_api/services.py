@@ -168,6 +168,67 @@ def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplate) -> JsonO
     return store.insert_process_flow_template(payload)
 
 
+def update_process_flow_template(
+    store: SQLiteStore,
+    template_id: str,
+    body: ProcessFlowTemplate,
+) -> JsonObject:
+    payload = body.payload()
+    if payload["id"] != template_id:
+        raise ValueError("ProcessFlowTemplate.id must match the route id")
+
+    current = require_item(store.get_process_flow_template(template_id), template_id)
+    normalized_current = ProcessFlowTemplate.model_validate(current).payload()
+    if _locked_process_flow_template(
+        normalized_current
+    ) != _locked_process_flow_template(payload):
+        raise ResourceConflictError(
+            "Only name, owner, description, and step parameterDefaults fields can be updated"
+        )
+
+    name = payload["name"].strip()
+    owner = payload.get("owner", "").strip()
+    if not name:
+        raise ValueError("ProcessFlowTemplate.name must not be blank")
+    if not owner:
+        raise ValueError("ProcessFlowTemplate.owner must not be blank")
+
+    updated = copy.deepcopy(current)
+    updated["name"] = name
+    updated["owner"] = owner
+    updated["description"] = payload.get("description", "")
+    _apply_flow_parameter_defaults(updated, payload)
+
+    step_templates = load_step_templates_for_template(store, updated)
+    validate_flow_parameter_defaults(updated, step_templates)
+    return store.update_process_flow_template(updated)
+
+
+def _locked_process_flow_template(template: JsonObject) -> JsonObject:
+    locked = copy.deepcopy(template)
+    for field in ("name", "owner", "description"):
+        locked.pop(field, None)
+    for step_ref in locked.get("stepRefs", []):
+        if isinstance(step_ref, dict):
+            step_ref.pop("parameterDefaults", None)
+    return locked
+
+
+def _apply_flow_parameter_defaults(target: JsonObject, source: JsonObject) -> None:
+    source_refs = {
+        step_ref.get("stepRefId"): step_ref
+        for step_ref in source.get("stepRefs", [])
+        if isinstance(step_ref, Mapping)
+    }
+    for target_ref in target.get("stepRefs", []):
+        if not isinstance(target_ref, dict):
+            continue
+        source_ref = source_refs.get(target_ref.get("stepRefId"))
+        if not isinstance(source_ref, Mapping) or "parameterDefaults" not in source_ref:
+            continue
+        target_ref["parameterDefaults"] = copy.deepcopy(source_ref["parameterDefaults"])
+
+
 def materialize_flow_parameter_defaults(
     template: JsonObject,
     step_templates: list[JsonObject] | tuple[JsonObject, ...],

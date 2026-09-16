@@ -57,8 +57,8 @@ kernel在execution time動態import process-step modules；CAD與mesher process-
 
 FastAPI 的 strict Pydantic models 會拒絕 unknown fields。Service 驗證 domain constraints
 後，`SQLiteStore` 把 canonical camelCase JSON 存入 `payload` column，並另外保存 list/query
-metadata。現行 public API 對 process step、flow template、instance 與 geometry 採
-insert-only；workspace 是可修改的例外。
+metadata。現行 public API 對 process step 與 flow template 提供 restricted update；instance 與
+geometry 採 insert-only，workspace 則有獨立的 draft update lifecycle。
 
 ### Compile 與 execute
 

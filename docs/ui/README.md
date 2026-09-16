@@ -90,7 +90,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/flow-template-editor` | fresh draft | click-add step、drag catalog geometry、connect、save、preview | `UI-FTE-001` 至 `UI-FTE-005` |
 | `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA instance | load source instance、edit、preview、save immutable copy | `UI-FIE-001` 至 `UI-FIE-007` |
 | `/hbm-editor`、`/dram-editor` | generator defaults | preview、download、Save to DB | `UI-GEN-001` 至 `UI-GEN-003` |
-| `/management` | bootstrap ready | inspect resources、edit process-step metadata/defaults、open authoring routes | `UI-MGMT-001` 至 `UI-MGMT-004` |
+| `/management` | bootstrap ready | inspect resources、edit flow-template metadata/defaults、edit process-step settings、open authoring routes | `UI-MGMT-001` 至 `UI-MGMT-005` |
 | `/cad-viewer` | demo workbench | import、section、camera、reset | `UI-CAD-001` 至 `UI-CAD-006` |
 | Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |
 

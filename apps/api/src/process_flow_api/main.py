@@ -52,6 +52,7 @@ from .services import (
     preview_geometry,
     preview_step_geometry,
     require_item,
+    update_process_flow_template,
     update_process_step_template,
     validate_process_step_template,
 )
@@ -223,6 +224,14 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     @app.post("/api/process-flow-templates", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_template(request: Request, body: ProcessFlowTemplate):
         return create_flow_template(get_store(request), body)
+
+    @app.put("/api/process-flow-templates/{template_id}")
+    async def replace_process_flow_template(
+        request: Request,
+        template_id: str,
+        body: ProcessFlowTemplate,
+    ):
+        return update_process_flow_template(get_store(request), template_id, body)
 
     @app.post("/api/process-flow-template-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_template_instance(request: Request, body: TemplateInstanceCreateRequest):

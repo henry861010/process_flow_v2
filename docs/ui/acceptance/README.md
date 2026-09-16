@@ -94,6 +94,7 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-FIE-003` | complete configuration | Save → enter full metadata | 建立新的immutable instance並返回Home，source保持不變。 |
 | `UI-MGMT-001` | bootstrap ready | open Management tabs | 四類resource count與唯讀rows符合bootstrap。 |
 | `UI-MGMT-002` | Process steps tab | click row Edit、change allowed fields/default、Save | 頁內modal只暴露允許欄位；成功後row即時更新且不導頁。 |
+| `UI-MGMT-005` | Templates tab | click row Edit、change metadata/per-step scalar defaults、Save | id/version/topology保持鎖定；flow-local defaults即時更新且只影響未來blank instances。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |
