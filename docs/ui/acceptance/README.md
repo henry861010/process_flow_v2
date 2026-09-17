@@ -108,7 +108,7 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-001` | placement cards | add/remove/reorder | persisted array與execution order一致。 |
 | `UI-PLACE-003` | invalid polygon points/edges/area | edit vertex | inline diagnostics顯示且configuration不算complete。 |
 | `UI-PLACE-004` | GDS rotated/reflected polygon | import | exact local polygon與bottom-left pose取代原placements。 |
-| `UI-PLACE-009` | open placement editor | inspect optional GDS input | 初始只顯示`Import from GDS`button，展開後才顯示fields。 |
+| `UI-PLACE-009` | open placement editor | click optional `Import from GDS` input | placement list不位移，portal modal顯示fields。 |
 | `UI-PLACE-010` | pose help icon | hover與keyboard focus | tooltip解釋Pose X/Y、Rotation Z與Anchor。 |
 | `UI-PLACE-011` | GDS含non-orthogonal polygon | import with Defeature off | exact polygon匯入並顯示non-blocking mesher warning。 |
 | `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | import with Defeature | 局部特徵正交修復、外框保留，摘要顯示repair數。 |
@@ -117,6 +117,7 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-015` | GDS pattern incomplete、invalid或pair重複 | inspect import action | 列級diagnostic顯示且Import and replace停用。 |
 | `UI-PLACE-016` | 手動新增或修改出不合法placement | inspect placement list | 清單上方紅色摘要即時顯示不合法數量；修正或移除後更新，且step readiness與個別紅框一致。 |
 | `UI-PLACE-017` | GDS匯入結果包含不合法placement | import and replace | 仍整批匯入；完成摘要改為紅色並顯示fail數，提醒使用者向下檢查紅框項目。 |
+| `UI-PLACE-018` | GDS import modal open, idle or import succeeds | tab through controls; close with Cancel/Close/backdrop/Escape, or complete import | focus保持在modal內；idle close只關閉GDS modal並保留draft、focus回trigger；success自動關閉且摘要留在placement list上方。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。

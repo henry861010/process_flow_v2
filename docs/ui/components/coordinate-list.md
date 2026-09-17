@@ -48,16 +48,19 @@ invalid draft顯示fallback copy且不得throw。Readonly mode顯示summary與po
 
 ## GDS import
 
-GDS不是required input。Editor初始只顯示小型`Import from GDS`button；button以`aria-expanded`
-控制import panel。使用者展開後選擇一個file，並維護至少一組pattern。每組pattern各自包含
-layer、datatype與optional cell name filter；`Defeature`是default-off且由所有pattern共用。
+GDS不是required input。Editor初始只顯示小型`Import from GDS`button；button以
+`aria-haspopup="dialog"`開啟portal modal，不得在placement list內展開或推動既有cards。Modal包含
+固定header/footer與可捲動body；使用者選擇一個file，並維護至少一組pattern。每組pattern各自包含
+layer、datatype與optional cell name filter；`Defeature`是default-off且由所有pattern共用。關閉再開啟
+modal時，file、patterns與Defeature在目前editor生命週期內保持不變。
 
 Pattern以exact layer/datatype pair做OR比對，不產生layer與datatype的cross product。同一pair不得
 重複；任一pair incomplete、不是non-negative safe integer或重複時，顯示inline diagnostic並停用
 import。Add pattern新增include、empty cell filter的空白列；remove不得刪除最後一列。Pattern order
 不影響結果。
 
-Import在dedicated Web Worker執行；新import terminate previous worker。Worker只解析、遍歷GDS一次，
+Import在dedicated Web Worker執行；新import terminate previous worker。Import執行中不得以Close、
+Cancel、backdrop或Escape意外關閉modal，但使用者仍可修改條件並重新啟動import。Worker只解析、遍歷GDS一次，
 把符合任一pattern的`BOUNDARY`/`BOX`遞迴展開`SREF/AREF`，套用translation、rotation、
 magnification、reflection與該pattern的optional cell name filter。Cell name來自每個shape所屬
 structure的`STRNAME`，比對不區分大小寫，並支援include/exclude substring。
@@ -68,6 +71,11 @@ structure的`STRNAME`，比對不區分大小寫，並支援include/exclude subs
 - Imported placement使用fixed zero pose與`center` anchor compatibility fields。
 - 所有pattern結果使用同一accumulator，Shape signature duplicate跨pattern移除，摘要統計彙總。
 - Success整批取代placements；error保留原值。
+
+Success先整批取代placements，再自動關閉modal並將success、repair、fallback、non-orthogonal與
+placement validation摘要顯示在placement list上方。Error留在modal內且不得關閉或修改placements。
+Close、Cancel、backdrop與Escape在idle時只關閉GDS modal、把focus還給trigger，不得連帶關閉外層
+Node Editor；modal開啟期間Tab focus必須留在modal內。修改任何GDS import設定會清除上一筆摘要。
 
 Defeature是無尺寸參數的import-time-only設定，不寫入placement payload。Worker在unit scaling後、
 duplicate removal前修復每個含非X/Y軸向edge的polygon。連續非正交edge兩側若為互相垂直的
@@ -103,10 +111,11 @@ Pose X/Y是selected anchor的global位置、Rotation Z繞anchor逆時針旋轉�
 | `UI-PLACE-006` | polygon rotation或anchor改變 | SVG preview以selected anchor為pivot更新。 |
 | `UI-PLACE-007` | committed/disabled configuration | summary可讀，所有mutating actions不render。 |
 | `UI-PLACE-008` | viewport 390px | cards與vertex editor可操作，無page-level horizontal overflow。 |
-| `UI-PLACE-009` | editor初次開啟 | 只顯示`Import from GDS`button；GDS fields保持收合且不暗示required。 |
+| `UI-PLACE-009` | editor初次開啟並點擊`Import from GDS` | placement list不位移；portal modal顯示GDS fields且不暗示required。 |
 | `UI-PLACE-010` | hover或focus pose help驚嘆號 | tooltip完整解釋Pose X/Y、Rotation Z與Anchor。 |
 | `UI-PLACE-011` | Defeature關閉且GDS含非正交polygon | exact polygon匯入並顯示mesher compatibility warning。 |
 | `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | 只修復局部特徵，外框保留且success摘要顯示repair數。 |
 | `UI-PLACE-013` | 純圓形或無法安全局部修復的polygon | 以AABB匯入，摘要顯示bounding-box fallback數且輸出完全正交。 |
 | `UI-PLACE-014` | 新增多組GDS pattern並匯入 | exact pair以OR合併、各組cell filter獨立、Defeature共用且結果整批取代placements。 |
 | `UI-PLACE-015` | GDS pattern incomplete、invalid或pair重複 | 對應列顯示diagnostic且Import and replace停用。 |
+| `UI-PLACE-018` | GDS modal開啟或idle時以Cancel、Close、backdrop、Escape關閉 | Tab focus保持在modal內；關閉只影響GDS modal、focus回到trigger且再次開啟仍保留draft；成功import則自動關閉並在placement list上方顯示摘要。 |
