@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse
 from process_flow_kernel import validate_geometry_semantic_keys
 
 from .file_export_jobs import FileExportJobManager
+from .fixture_export import build_fixture_archive
 from .geometry_generation import GeometryGeneratorRegistry
 from .identifiers import generated_geometry_id
 from .models import (
@@ -106,6 +108,21 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     async def bootstrap(request: Request):
         store = get_store(request)
         return _bootstrap_payload(request, store)
+
+    @app.get("/api/fixture-export")
+    async def export_fixtures(request: Request):
+        payload = bootstrap_payload(get_store(request))
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        return Response(
+            content=build_fixture_archive(payload),
+            media_type="application/zip",
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Disposition": (
+                    f'attachment; filename="process-flow-fixtures-{timestamp}.zip"'
+                ),
+            },
+        )
 
     @app.post("/api/reset")
     async def reset(request: Request):

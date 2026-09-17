@@ -10,6 +10,8 @@ import tempfile
 import threading
 import time
 import unittest
+import zipfile
+from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
@@ -74,6 +76,31 @@ class ProcessFlowApiTests(unittest.TestCase):
         response = self.client.get("/api/bootstrap")
         self.assertEqual(response.status_code, 200, response.text)
         self.assert_seed_payload_counts(response.json())
+
+    def test_fixture_export_contains_current_database_as_four_json_files(self):
+        bootstrap = self.client.get("/api/bootstrap").json()
+
+        response = self.client.get("/api/fixture-export")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers["content-type"], "application/zip")
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertRegex(
+            response.headers["content-disposition"],
+            r'^attachment; filename="process-flow-fixtures-\d{8}T\d{6}Z\.zip"$',
+        )
+
+        expected_payloads = {
+            "process-step-templates.json": bootstrap["processStepTemplates"],
+            "process-flow-templates.json": bootstrap["processFlowTemplates"],
+            "process-flow-instances.json": bootstrap["processFlowInstances"],
+            "geometries.json": bootstrap["geometries"],
+        }
+        with zipfile.ZipFile(BytesIO(response.content)) as archive:
+            self.assertEqual(set(archive.namelist()), set(expected_payloads))
+            for filename, expected in expected_payloads.items():
+                with self.subTest(filename=filename):
+                    self.assertEqual(json.loads(archive.read(filename)), expected)
 
     def test_seed_resources_use_unreleased_versions_and_resolvable_ids(self):
         payload = self.client.get("/api/bootstrap").json()

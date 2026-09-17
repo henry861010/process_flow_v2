@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Box,
   Braces,
+  Download,
   GitBranch,
   Layers3,
   Plus,
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flow/types";
 import type { BootstrapPayload } from "@/lib/process-flow-api";
-import { loadBootstrap, resetPocData } from "@/lib/process-flow-api";
+import { exportFixtureArchive, loadBootstrap, resetPocData } from "@/lib/process-flow-api";
 
 const emptyData: BootstrapPayload = {
   processFlowTemplates: [],
@@ -33,6 +34,7 @@ const emptyData: BootstrapPayload = {
 export default function ManagementPage() {
   const [data, setData] = React.useState<BootstrapPayload>(emptyData);
   const [loading, setLoading] = React.useState(true);
+  const [exporting, setExporting] = React.useState(false);
   const [resetting, setResetting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = React.useState<ProcessFlowTemplate | null>(null);
@@ -92,6 +94,18 @@ export default function ManagementPage() {
     }
   }
 
+  async function handleFixtureExport() {
+    setExporting(true);
+    try {
+      await exportFixtureArchive();
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to export fixture snapshot.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-7xl px-5 py-5 sm:px-6 lg:px-8">
@@ -108,6 +122,16 @@ export default function ManagementPage() {
           <div className="flex items-center gap-2">
             <Button asChild size="sm" variant="outline">
               <Link href="/"><ArrowLeft />Home</Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={exporting || loading}
+              onClick={() => void handleFixtureExport()}
+            >
+              <Download className={exporting ? "animate-pulse" : undefined} />
+              {exporting ? "Exporting..." : "Export Fixtures"}
             </Button>
             <Button
               type="button"

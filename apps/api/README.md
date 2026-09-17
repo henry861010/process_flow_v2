@@ -53,6 +53,7 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | --- | --- | --- |
 | `GET` | `/api/health` | Process health |
 | `GET` | `/api/bootstrap` | Templates、instances、geometry catalog bootstrap |
+| `GET` | `/api/fixture-export` | Current step/template/instance/geometry fixture ZIP snapshot |
 | `POST` | `/api/reset` | Destructive fixture reset |
 
 ### Process step template

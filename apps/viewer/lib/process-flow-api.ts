@@ -85,6 +85,30 @@ export async function loadBootstrap(): Promise<BootstrapPayload> {
   return apiFetch<BootstrapPayload>("/api/bootstrap");
 }
 
+export async function exportFixtureArchive(): Promise<void> {
+  const response = await fetch(`${processFlowApiBaseUrl()}/api/fixture-export`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const message = getApiErrorMessage(payload) ?? `API request failed: ${response.status}`;
+    throw new ApiRequestError(message, response.status);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fixtureArchiveFilename(new Date());
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function fixtureArchiveFilename(date: Date) {
+  const timestamp = date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return `process-flow-fixtures-${timestamp}.zip`;
+}
+
 export async function resetPocData(): Promise<BootstrapPayload> {
   return apiFetch<BootstrapPayload>("/api/reset", {
     method: "POST",
