@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { PlacementValidationSummary } from "@/lib/process-flow/placement-validation";
 import { cn } from "@/lib/utils";
 import type { GdsTargetRegion } from "./gds-coordinate-geometry";
 import {
@@ -45,7 +46,9 @@ type GdsImportResponse =
     }
   | { type: "error"; requestId: string; message: string };
 
-type ImportSummary = Extract<GdsImportResponse, { type: "success" }>;
+type ImportSummary = Extract<GdsImportResponse, { type: "success" }> & {
+  validation: PlacementValidationSummary;
+};
 
 type GdsImportCriterionDraft = {
   id: number;
@@ -63,7 +66,7 @@ export function GdsPlacementImport({
   onImport,
 }: {
   unit?: string | null;
-  onImport: (regions: GdsTargetRegion[]) => void;
+  onImport: (regions: GdsTargetRegion[]) => PlacementValidationSummary;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const [gdsFile, setGdsFile] = React.useState<File | null>(null);
@@ -165,8 +168,8 @@ export function GdsPlacementImport({
           setError(event.data.message);
           return;
         }
-        onImport(event.data.regions);
-        setSummary(event.data);
+        const validation = onImport(event.data.regions);
+        setSummary({ ...event.data, validation });
       };
       worker.onerror = (event) => {
         if (activeRequestIdRef.current !== requestId) return;
@@ -365,8 +368,20 @@ export function GdsPlacementImport({
         </Button>
       </div>
       {summary ? (
-        <div className="mt-3 flex gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+        <div
+          role={summary.validation.invalidPlacements > 0 ? "alert" : "status"}
+          className={cn(
+            "mt-3 flex gap-2 rounded-md border p-2 text-xs",
+            summary.validation.invalidPlacements > 0
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800",
+          )}
+        >
+          {summary.validation.invalidPlacements > 0 ? (
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          ) : (
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+          )}
           <span>
             Imported {summary.regions.length} target regions from {summary.matchedElements} matching elements.
             {summary.duplicatesRemoved > 0
@@ -377,6 +392,9 @@ export function GdsPlacementImport({
               : ""}
             {summary.boundingBoxFallbacks > 0
               ? ` ${summary.boundingBoxFallbacks} ${summary.boundingBoxFallbacks === 1 ? "element" : "elements"} used bounding-box fallback.`
+              : ""}
+            {summary.validation.invalidPlacements > 0
+              ? ` ${summary.validation.invalidPlacements} of ${summary.validation.totalPlacements} imported ${summary.validation.totalPlacements === 1 ? "placement does" : "placements do"} not meet placement rules. Review the highlighted ${summary.validation.invalidPlacements === 1 ? "placement" : "placements"} below.`
               : ""}
           </span>
         </div>

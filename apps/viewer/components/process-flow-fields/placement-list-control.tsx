@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 import { GdsPlacementImport, type GdsTargetRegion } from "./gds-placement-import";
 import { Button } from "@/components/ui/button";
+import { summarizePlacementValidation } from "@/lib/process-flow/placement-validation";
 import { cn } from "@/lib/utils";
 
 type NumericDraft = number | "";
@@ -46,6 +47,10 @@ export function PlacementListControl({
   onChange: (value: PlacementDraft[]) => void;
 }) {
   const placements = React.useMemo(() => normalizePlacements(value), [value]);
+  const validation = React.useMemo(
+    () => summarizePlacementValidation(placements),
+    [placements],
+  );
 
   function updatePlacement(index: number, next: PlacementDraft) {
     onChange(
@@ -64,12 +69,30 @@ export function PlacementListControl({
   }
 
   function importGdsRegions(regions: GdsTargetRegion[]) {
-    onChange(regions.map(placementFromGdsRegion));
+    const importedPlacements = regions.map(placementFromGdsRegion);
+    const importValidation = summarizePlacementValidation(importedPlacements);
+    onChange(importedPlacements);
+    return importValidation;
   }
 
   return (
     <div className="min-w-0 space-y-3">
       {!disabled ? <GdsPlacementImport unit={unit} onImport={importGdsRegions} /> : null}
+
+      {validation.invalidPlacements > 0 ? (
+        <div
+          role="alert"
+          className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {validation.invalidPlacements} of {validation.totalPlacements}{" "}
+            {validation.totalPlacements === 1 ? "placement does" : "placements do"}{" "}
+            not meet placement rules. Review the highlighted{" "}
+            {validation.invalidPlacements === 1 ? "placement" : "placements"} below.
+          </span>
+        </div>
+      ) : null}
 
       <div className="space-y-3">
         {placements.length === 0 ? (
@@ -82,6 +105,7 @@ export function PlacementListControl({
             key={index}
             index={index}
             placement={placement}
+            diagnostic={validation.diagnostics[index]}
             unit={unit}
             disabled={disabled}
             canMoveUp={index > 0}
@@ -115,6 +139,7 @@ export function PlacementListControl({
 function PlacementCard({
   index,
   placement,
+  diagnostic,
   unit,
   disabled,
   canMoveUp,
@@ -126,6 +151,7 @@ function PlacementCard({
 }: {
   index: number;
   placement: PlacementDraft;
+  diagnostic: string | null;
   unit?: string | null;
   disabled: boolean;
   canMoveUp: boolean;
@@ -135,7 +161,6 @@ function PlacementCard({
   onMoveDown: () => void;
   onRemove: () => void;
 }) {
-  const diagnostic = placementDiagnostic(placement);
   const unitSuffix = unit ? ` (${unit})` : "";
 
   if (disabled) {
@@ -646,31 +671,6 @@ function placementFromGdsRegion(region: GdsTargetRegion): PlacementDraft {
   };
 }
 
-function placementDiagnostic(placement: PlacementDraft) {
-  if (placement.targetRegion.type === "rectangle") {
-    const { bottomLeftX, bottomLeftY, topRightX, topRightY } = placement.targetRegion;
-    if (![bottomLeftX, bottomLeftY, topRightX, topRightY].every(isFiniteNumber)) {
-      return "Rectangle requires finite bottom-left and top-right coordinates.";
-    }
-    if (topRightX <= bottomLeftX || topRightY <= bottomLeftY) {
-      return "Rectangle top-right coordinates must be greater than bottom-left coordinates.";
-    }
-    return null;
-  }
-  const points = numericPoints(placement.targetRegion.points);
-  if (!points) return "Enter a finite X and Y for every polygon point.";
-  if (points.length < 3) return "Polygon requires at least three points.";
-  if (new Set(points.map((point) => `${point[0]}:${point[1]}`)).size !== points.length) {
-    return "Polygon points must be unique.";
-  }
-  if (points.some((point, index) => pointsEqual(point, points[(index + 1) % points.length]))) {
-    return "Polygon must not contain zero-length edges.";
-  }
-  if (polygonSelfIntersects(points)) return "Polygon must not self-intersect.";
-  if (Math.abs(polygonArea(points)) <= 1e-9) return "Polygon must have non-zero area.";
-  return null;
-}
-
 function placementSummary(placement: PlacementDraft, unit?: string | null) {
   const suffix = unit ? ` ${unit}` : "";
   if (placement.targetRegion.type === "rectangle") {
@@ -695,47 +695,6 @@ function readOnlyPlacementSummary(
 function numericPoints(points: PointDraft[]): [number, number][] | null {
   if (!points.every((point) => isFiniteNumber(point[0]) && isFiniteNumber(point[1]))) return null;
   return points.map((point) => [point[0] as number, point[1] as number]);
-}
-
-function polygonArea(points: [number, number][]) {
-  return (
-    points.reduce((area, point, index) => {
-      const next = points[(index + 1) % points.length];
-      return area + point[0] * next[1] - next[0] * point[1];
-    }, 0) / 2
-  );
-}
-
-function polygonSelfIntersects(points: [number, number][]) {
-  for (let left = 0; left < points.length; left += 1) {
-    const leftEnd = (left + 1) % points.length;
-    for (let right = left + 1; right < points.length; right += 1) {
-      const rightEnd = (right + 1) % points.length;
-      if (left === right || left === rightEnd || leftEnd === right || leftEnd === rightEnd) continue;
-      if (segmentsIntersect(points[left], points[leftEnd], points[right], points[rightEnd])) return true;
-    }
-  }
-  return false;
-}
-
-function segmentsIntersect(a: number[], b: number[], c: number[], d: number[]) {
-  const orientations = [orientation(a, b, c), orientation(a, b, d), orientation(c, d, a), orientation(c, d, b)];
-  if (orientations[0] * orientations[1] < -1e-9 && orientations[2] * orientations[3] < -1e-9) return true;
-  return pointOnSegment(a, c, d) || pointOnSegment(b, c, d) || pointOnSegment(c, a, b) || pointOnSegment(d, a, b);
-}
-
-function pointOnSegment(point: number[], start: number[], end: number[]) {
-  return (
-    Math.abs(orientation(start, end, point)) <= 1e-9 &&
-    point[0] >= Math.min(start[0], end[0]) - 1e-9 &&
-    point[0] <= Math.max(start[0], end[0]) + 1e-9 &&
-    point[1] >= Math.min(start[1], end[1]) - 1e-9 &&
-    point[1] <= Math.max(start[1], end[1]) + 1e-9
-  );
-}
-
-function orientation(a: number[], b: number[], c: number[]) {
-  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
 }
 
 function numericDraft(value: unknown): NumericDraft {

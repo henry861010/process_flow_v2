@@ -115,6 +115,8 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-013` | GDS含純圓形或無法安全局部修復的polygon | import with Defeature | 以AABB匯入，摘要顯示fallback數且輸出完全正交。 |
 | `UI-PLACE-014` | GDS patterns含多組layer/datatype與不同cell filter | import | exact pair以OR合併，共用Defeature並整批取代placements。 |
 | `UI-PLACE-015` | GDS pattern incomplete、invalid或pair重複 | inspect import action | 列級diagnostic顯示且Import and replace停用。 |
+| `UI-PLACE-016` | 手動新增或修改出不合法placement | inspect placement list | 清單上方紅色摘要即時顯示不合法數量；修正或移除後更新，且step readiness與個別紅框一致。 |
+| `UI-PLACE-017` | GDS匯入結果包含不合法placement | import and replace | 仍整批匯入；完成摘要改為紅色並顯示fail數，提醒使用者向下檢查紅框項目。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。
