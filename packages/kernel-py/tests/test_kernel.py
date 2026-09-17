@@ -1111,6 +1111,39 @@ class FlowCompilerTests(unittest.TestCase):
         self.assertEqual(plan.steps[0].geometry_inputs["die_geometry"].kind, "external")
         self.assertEqual(plan.external_geometries["incoming_die"]["root"]["key"], "hbm")
 
+    def test_compiler_enforces_exact_descendant_and_sibling_geometry_categories(self):
+        template = single_step_template()
+        template["flowInputs"][0]["geometryConstraints"] = {
+            "categories": ["test.geometry"]
+        }
+
+        exact_plan = compiler().compile(
+            template,
+            single_step_configuration(),
+            {"step_molding": molding_step_template()},
+        )
+        self.assertIn("incoming_main", exact_plan.external_geometries)
+
+        descendant = geometry_entity("geom_main", main_geometry())
+        descendant["category"] = "test.geometry.experimental"
+        descendant_compiler = FlowCompiler(InMemoryGeometryCatalog([descendant]))
+        descendant_plan = descendant_compiler.compile(
+            template,
+            single_step_configuration(),
+            {"step_molding": molding_step_template()},
+        )
+        self.assertIn("incoming_main", descendant_plan.external_geometries)
+
+        template["flowInputs"][0]["geometryConstraints"] = {
+            "categories": ["test.other"]
+        }
+        with self.assertRaisesRegex(ValueError, "Geometry category .* is not accepted"):
+            compiler().compile(
+                template,
+                single_step_configuration(),
+                {"step_molding": molding_step_template()},
+            )
+
     def test_compiler_allows_unbound_optional_flow_input_for_optional_port(self):
         template = pnp_template()
         template["flowInputs"][1]["required"] = False

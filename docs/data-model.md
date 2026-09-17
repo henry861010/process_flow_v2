@@ -308,6 +308,11 @@ Geometry constraint matching：
 - `structureFormats`：case-sensitive exact match。
 - Empty or omitted constraint list 表示不限制該維度。
 
+Flow template editor 從 catalog geometry 建立新的 flow input 時，會將來源的 category snapshot
+成單一 `geometryConstraints.categories` 項目。來源 geometry id 仍只存在於 preview
+configuration 的 `inputBindings`，不會寫入 template。作者在儲存前可調整 allowed categories；
+template 儲存後則沿用 immutable topology policy。
+
 ### 6.2 StepRef 與 FlowEdge
 
 `StepRef`：

@@ -63,6 +63,7 @@ import {
   createEmptyFlowConfiguration,
   getFlowInputReadiness,
   getStepExecutionReadiness,
+  geometryCategoryConstraints,
   geometryForFlowInput,
   geometryMatchesFlowInput,
   type ConfigurationReadiness,
@@ -426,6 +427,15 @@ function ProcessFlowTemplateEditorInner() {
     source: { kind: "catalog"; geometry: GeometryEntity },
   ) {
     if (topologyLocked) return;
+    const geometryConstraints = geometryCategoryConstraints(source.geometry);
+    if (!geometryConstraints) {
+      setMessage({
+        kind: "error",
+        text: `Geometry ${source.geometry.id} needs a category before it can define a template input.`,
+      });
+      return;
+    }
+    setMessage(null);
     const usedIds = new Set(
       nodes.filter(isFlowInputNode).map((node) => node.data.definition.flowInputId),
     );
@@ -442,6 +452,7 @@ function ProcessFlowTemplateEditorInner() {
           description: "",
           dataType: "geometry",
           required: true,
+          geometryConstraints,
         },
       },
     };

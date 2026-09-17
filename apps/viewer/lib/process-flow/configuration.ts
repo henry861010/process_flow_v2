@@ -1,5 +1,6 @@
 import type {
   FlowConfiguration,
+  GeometryConstraints,
   GeometryEntity,
   ParameterDefinition,
   ProcessFlowTemplate,
@@ -8,6 +9,13 @@ import type {
 } from "./types";
 import { resolveFlowParameterDefaults } from "./parameter-values";
 import { isPlacementValid } from "./placement-validation";
+
+export function geometryCategoryConstraints(
+  geometry: Pick<GeometryEntity, "category">,
+): GeometryConstraints | null {
+  const category = geometry.category;
+  return category.trim() ? { categories: [category] } : null;
+}
 
 export function createEmptyFlowConfiguration(
   template: ProcessFlowTemplate,

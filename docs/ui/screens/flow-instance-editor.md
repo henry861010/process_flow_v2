@@ -49,6 +49,11 @@ Topology is always view mode and is rebuilt from the selected template. Geometry
 parameters remain editable through single-click node dialogs. Preview/export behavior is unchanged.
 Dirty state protects reload/close and Home/source replacement. Source metadata is never copied.
 
+The geometry picker filters the catalog before browsing or search using the selected flow input's
+`geometryConstraints`. A category constraint accepts the exact category and dot-delimited
+descendants, but not sibling categories. The API compiler applies the same rule when an instance is
+saved, so a client cannot bypass the picker with an incompatible geometry id.
+
 ## Acceptance
 
 - `UI-FIE-001`: Home template card opens the matching fixed template and default configuration.
@@ -58,3 +63,4 @@ Dirty state protects reload/close and Home/source replacement. Source metadata i
 - `UI-FIE-005`: complete values plus valid unique metadata create a new immutable instance and return Home.
 - `UI-FIE-006`: duplicate/invalid id or empty required metadata preserves the dialog and configuration.
 - `UI-FIE-007`: input and step preview/export journeys remain available.
+- `UI-FIE-008`: geometry browsing and search expose only geometries accepted by the template's category constraints.

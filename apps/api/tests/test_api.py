@@ -127,6 +127,20 @@ class ProcessFlowApiTests(unittest.TestCase):
                 self.assertIsNone(versioned_id.search(resource_id))
 
         for flow_template in flow_templates.values():
+            for flow_input in flow_template["flowInputs"]:
+                categories = flow_input.get("geometryConstraints", {}).get(
+                    "categories", []
+                )
+                self.assertTrue(
+                    categories,
+                    f"{flow_template['id']}.{flow_input['flowInputId']} needs a category constraint",
+                )
+                self.assertTrue(
+                    all(
+                        isinstance(category, str) and category.strip()
+                        for category in categories
+                    )
+                )
             for step_ref in flow_template["stepRefs"]:
                 self.assertIn(step_ref["processStepTemplateId"], step_templates)
 
@@ -994,6 +1008,34 @@ class ProcessFlowApiTests(unittest.TestCase):
         blank_owner = {**instance, "id": "flow_inst_blank_owner", "owner": "   "}
         rejected = self.client.post("/api/process-flow-instances", json=blank_owner)
         self.assertEqual(rejected.status_code, 422, rejected.text)
+
+    def test_direct_instance_create_rejects_wrong_geometry_category_without_writing(self):
+        bootstrap = self.reset_poc_data()
+        source = next(
+            instance
+            for instance in bootstrap["processFlowInstances"]
+            if instance["processFlowTemplateId"] == "flow_tpl_aaa_demo"
+        )
+        request = copy.deepcopy(source)
+        request["id"] = "flow_inst_wrong_geometry_category"
+        request["name"] = "Wrong geometry category"
+        request["inputBindings"]["incoming_hbm"] = {
+            "kind": "catalog",
+            "geometryId": "dram_ddr5_x8",
+        }
+        instance_count = len(bootstrap["processFlowInstances"])
+
+        response = self.client.post("/api/process-flow-instances", json=request)
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn(
+            "Geometry category die.dram is not accepted",
+            response.json()["message"],
+        )
+        self.assertEqual(
+            len(self.client.get("/api/process-flow-instances").json()),
+            instance_count,
+        )
 
     def test_direct_instance_create_materializes_generated_geometry(self):
         bootstrap = self.reset_poc_data()
