@@ -413,10 +413,10 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
   return (
     <div
       className={cn(
-        "relative rounded-md border-2 bg-white shadow-sm transition",
+        "relative grid grid-rows-[3fr_2fr] rounded-md border-2 bg-white shadow-sm transition",
         graphMode === "edit"
-          ? "group w-[248px]"
-          : "w-[252px] cursor-pointer hover:shadow-md",
+          ? "group h-[132px] w-[248px]"
+          : "h-[138px] w-[252px] cursor-pointer hover:shadow-md",
         error
           ? "border-destructive"
           : ready
@@ -493,11 +493,11 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
         </div>
       ) : null}
 
-      <div className="border-b bg-muted/40 px-3 py-2">
+      <div className="flex min-h-0 flex-col justify-center border-b bg-muted/40 px-3 py-2">
         {graphMode === "edit" ? (
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <div className="line-clamp-2 text-sm font-semibold leading-snug">
+              <div className="line-clamp-2 text-base font-semibold leading-tight">
                 {nodeTitle}
               </div>
               {displaySublabel ? (
@@ -535,7 +535,7 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
           </div>
         ) : (
           <>
-            <div className="line-clamp-2 text-sm font-semibold leading-snug">
+            <div className="line-clamp-2 text-base font-semibold leading-tight">
               {nodeTitle}
             </div>
             {displaySublabel ? (
