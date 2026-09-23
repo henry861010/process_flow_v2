@@ -11,7 +11,7 @@ from process_flow_api.file_export_jobs import _package_versions
 
 
 class CdbWorkerBridgeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_starts_mesher_process_flow_worker_with_symmetry(self):
+    async def test_starts_mesher_process_flow_worker_with_two_json_inputs(self):
         process = object()
         with mock.patch(
             "process_flow_api.cdb_exporter.asyncio.create_subprocess_exec",
@@ -19,9 +19,8 @@ class CdbWorkerBridgeTests(unittest.IsolatedAsyncioTestCase):
             return_value=process,
         ) as create_subprocess:
             result = await start_cdb_worker(
-                input_path=Path("/tmp/input.json"),
-                element_size=25.0,
-                symmetry="upper_right_quarter",
+                geometry_input_path=Path("/tmp/geometry.json"),
+                mesh_control_input_path=Path("/tmp/mesh_control.json"),
                 output_path=Path("/tmp/output.cdb"),
             )
 
@@ -34,10 +33,9 @@ class CdbWorkerBridgeTests(unittest.IsolatedAsyncioTestCase):
                 sys.executable,
                 "-m",
                 "mesher.process_flow.worker",
-                "/tmp/input.json",
-                "25.0",
+                "/tmp/geometry.json",
+                "/tmp/mesh_control.json",
                 "/tmp/output.cdb",
-                "upper_right_quarter",
             ),
         )
         self.assertEqual(kwargs["stdout"], asyncio.subprocess.PIPE)

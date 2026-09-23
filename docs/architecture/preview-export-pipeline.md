@@ -179,11 +179,34 @@ Viewer 可將同一份 ready snapshot 送到 `POST /api/geometry-preview/export-
 | --- | --- | --- |
 | `json` | `geometryEntityJson` | API process 直接寫 pretty JSON |
 | `step` | `geometryStructure` | `process_flow_cad.worker step` subprocess |
-| `cdb` | `geometryStructure` + positive `elementSize` + optional `symmetry` | `mesher.process_flow.worker` subprocess |
+| `cdb` | `geometryStructure` + canonical `meshControl` | `mesher.process_flow.worker` subprocess |
 
-CDB `symmetry`合法值為`full`、`upper_half`、`right_half`、`upper_right_quarter`；省略時使用
-`full`。Export manager會保存正規化後的值並作為worker第四個CLI參數傳入。Job response的
-`symmetry`在CDB為實際使用值，JSON與STEP為`null`。舊`modelType`欄位不相容且會被strict schema拒絕。
+CDB request不再接受頂層`elementSize`、`symmetry`或`modelType`。`meshControl`固定包含
+`schemaVersion: "1.0.0"`、`unitSystem: "um"`、`mesher: "process_flow_2_5d"`、positive
+`globalElementSize`、`symmetry`與`controls`。`symmetry`合法值為`full`、`upper_half`、
+`right_half`、`upper_right_quarter`，所有欄位都必填。Job response以完整`meshControl`保存建立時的
+設定；JSON與STEP的`meshControl`為`null`。通用route與CDB compatibility route都要求相同的
+`kind: "cdb"`、`geometryStructure`、`meshControl`、`outputPath` body（另含browser `clientId`與optional
+`sourceLabel`）。
+
+Mesh-control schema的唯一完整source of truth在mesher package。API request model只要求`meshControl`
+是JSON object；建立job前呼叫輕量的
+`mesher.contracts.process_flow_2_5d.validate_mesh_control`（同時由`mesher.process_flow`公開re-export），
+validator拒絕時轉成HTTP 422，不建立temp files或排入queue。Worker透過pipeline再次執行同一contract，
+因此直接使用CLI也不會繞過驗證。API不得複製method/reference/location的Pydantic union。
+
+每個CDB job建立獨立temp directory，輸入檔固定命名為`geometry.json`與`mesh_control.json`，並以
+`mesher-process-flow geometry.json mesh_control.json output.cdb`等價的worker參數順序執行。成功、失敗
+與取消都清除兩份輸入檔及目錄；cleanup warning與既有warning合併，不互相覆蓋。Job log記錄mesher、
+global element size、symmetry、control count，以及兩份JSON輸入的hash與byte count。
+
+Mesher-owned contract目前讓`controls` method支援`Z_SECTION_AVG`、`Z_SECTION_TOP`、`Z_SECTION_BOT`、
+`Z_SECTION_CENTER`與`Z_POINT`。前四種要求`elementSize`、`startZ`、`endZ`；`Z_POINT`只要求`z`。
+Location可為relative `{ mode, anchor: z_min|z_max, offset }`或absolute `{ mode, value }`；任何relative
+location都要求reference。Reference kind支援`root|container|body|via|circuit|bump`：root不得帶key/id，
+其他kind至少要有一項；key只允許container/body。這一版只驗證controls schema，不解析reference或
+套用local Z planes。非空controls仍正常產生CDB，job warning會明示輸出只使用global element size與
+symmetry。
 
 Job state transition 是 `queued → running → success/failed`，取消路徑可經
 `canceling → canceled`。Manager 預設同時執行一個 job；`EXPORT_MAX_CONCURRENT_JOBS`

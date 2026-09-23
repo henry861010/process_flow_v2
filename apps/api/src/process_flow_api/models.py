@@ -6,18 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 
 JsonObject = dict[str, Any]
-SymmetryMode = Literal[
-    "full",
-    "upper_half",
-    "right_half",
-    "upper_right_quarter",
-]
-SYMMETRY_MODES: tuple[SymmetryMode, ...] = (
-    "full",
-    "upper_half",
-    "right_half",
-    "upper_right_quarter",
-)
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 PositiveFiniteFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 NonBlankString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -498,9 +486,9 @@ class GeometryPreviewStepRequest(StrictModel):
 
 class CdbFileExportCreateRequest(StrictModel):
     clientId: str = Field(min_length=1, max_length=160)
+    kind: Literal["cdb"]
     geometryStructure: JsonObject
-    elementSize: float
-    symmetry: SymmetryMode = "full"
+    meshControl: JsonObject
     outputPath: str = Field(min_length=1)
     sourceLabel: str | None = None
 
@@ -512,8 +500,28 @@ class FileExportCreateRequest(StrictModel):
     sourceLabel: str | None = None
     geometryStructure: JsonObject | None = None
     geometryEntityJson: JsonObject | None = None
-    elementSize: float | None = None
-    symmetry: SymmetryMode | None = None
+    meshControl: JsonObject | None = None
+
+    @model_validator(mode="after")
+    def validate_kind_payload(self):
+        if self.kind == "cdb":
+            if self.geometryStructure is None:
+                raise ValueError("geometryStructure is required for cdb export")
+            if self.meshControl is None:
+                raise ValueError("meshControl is required for cdb export")
+            if self.geometryEntityJson is not None:
+                raise ValueError("geometryEntityJson is not supported for cdb export")
+        elif self.kind == "step":
+            if self.geometryStructure is None:
+                raise ValueError("geometryStructure is required for step export")
+            if self.geometryEntityJson is not None or self.meshControl is not None:
+                raise ValueError("step export accepts only geometryStructure")
+        else:
+            if self.geometryEntityJson is None:
+                raise ValueError("geometryEntityJson is required for json export")
+            if self.geometryStructure is not None or self.meshControl is not None:
+                raise ValueError("json export accepts only geometryEntityJson")
+        return self
 
 
 class FileExportCancelRequest(StrictModel):
@@ -613,8 +621,7 @@ class FileExportJob(StrictModel):
     sourceLabel: str | None = None
     outputPath: str
     logPath: str
-    elementSize: float | None = None
-    symmetry: SymmetryMode | None = None
+    meshControl: JsonObject | None = None
     createdAt: str
     startedAt: str | None = None
     finishedAt: str | None = None

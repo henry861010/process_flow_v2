@@ -12,6 +12,7 @@ last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
 source_of_truth:
   - apps/viewer/components/geometry-preview/file-export-client.ts
   - apps/viewer/components/geometry-preview/file-export-dialog.tsx
+  - apps/viewer/components/geometry-preview/file-export-mesh-control.ts
   - apps/viewer/components/geometry-preview/file-export-jobs-panel.tsx
 ---
 
@@ -28,18 +29,34 @@ Browser client ID存在localStorage `process-flow:export-client-id`；若只有l
 ## Export 表單
 
 點Preview footer action開 portal modal：fixed z `100`、16px margin；form width
-`min(520px,100vw-32px)`、radius6、border、shadow。Header依kind顯示icon、`Export JSON/STEP/CDB`、
+`min(760px,100vw-32px)`、max-height `min(92vh,900px)`、radius6、border、shadow。Header依kind顯示icon、`Export JSON/STEP/CDB`、
 source label、Close；footer `Cancel`、primary `Export`。
 
 | Kind | Fields | Placeholder | Payload snapshot |
 | --- | --- | --- | --- |
 | JSON | Output path | `/Users/henry/Desktop/geometry-preview.json` | `geometryEntityJson` |
 | STEP | Output path | `/Users/henry/Desktop/geometry-preview.step` | `geometryStructure` |
-| CDB | Element size + Symmetry + Output path | `/Users/henry/Desktop/model.cdb` | `geometryStructure` |
+| CDB | Mesher + Global element size + Symmetry + Controls + Output path | `/Users/henry/Desktop/model.cdb` | `geometryStructure` + `meshControl` |
 
-CDB element size default `500`。Symmetry以緊湊的單欄radio list依序顯示`Full`、
+CDB mesher固定顯示`process_flow_2_5d`，global element size default `500`。Symmetry以緊湊的單欄radio list依序顯示`Full`、
 `Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
-Client validation順序：CDB size finite且`>0`、path required、path以
+Controls初始為空，可新增/刪除；`Add control`固定放在empty state或既有control cards的下方並靠右。
+Method下拉直接使用`Z_SECTION_AVG`、`Z_SECTION_TOP`、
+`Z_SECTION_BOT`、`Z_SECTION_CENTER`、`Z_POINT`；reference的kind、key、id皆為互相獨立的text input，
+不因kind清空、停用或篩選其他欄位，也不提供geometry picker。每個control是獨立bordered card：header顯示
+1-based編號、constraint type與delete；body的第一列並排Method與Element size，desktop欄寬分別為
+220px與140px，後續是Geometry reference
+(kind/key/id)與Z range；`Z_POINT`沒有Element size，Method維持單欄。Start與End各自使用sub-card並以arrow連接。Relative location依序顯示mode、
+`z_min|z_max` anchor與offset；absolute location保留相同三欄寬度，anchor位置顯示停用的`—`，最後一欄為全域Z value。
+`Z_SECTION_*`顯示local element size、startZ與endZ；`Z_POINT`只顯示z。非空controls在modal顯示尚未
+套用的warning。Geometry reference label旁顯示info control；展開後以floating block從當前preview
+structure遞迴列出所有有non-empty key的container/body kind + key組合，以trim後的kind/key去重並依
+kind、key排序。每列一筆，清單有固定max-height與vertical scrollbar，並可用text input對kind或key做
+case-insensitive contains search；點外部或按Escape關閉。清單只供查閱，不會修改draft。
+
+Client只做基本輸入檢查：global/local size必須finite且`>0`、location數值必須finite。Reference、
+method欄位組合及其他mesh-control contract規則由mesher validator負責；frontend不複製這些規則，也
+不檢查reference是否存在、resolved Z、bounds、start/end順序或overlap。接著檢查path required、path以
 `/`開頭、extension case-insensitive符合`.json/.step/.cdb`。錯誤顯示form內 destructive block。
 
 Submitting時fields、Close、Cancel與backdrop close disabled；primary顯示spinner。成功後seed job到
@@ -125,10 +142,11 @@ duration；其他success顯示kind/duration。Non-success message、warning各�
 
 Hover、pointer或focus-within顯示detail popover；desktop only (`md:block`)，fixed
 `right:432px`、z90、width `min(520px,100vw-464px)`、max-height `min(70vh,420px)`。Popover fields：
-Kind、CDB size/symmetry/mesh、Queue position、Stage/progress/elapsed/last activity、Duration、
+Kind、CDB mesher/global size/symmetry/control count/mesh、Queue position、Stage/progress/elapsed/last activity、Duration、
 Created/Started/Finished、Job ID、Log path、Message、Warning。
 
-Popover top依row rect計算，至少16px且不超viewport。CDB detail另顯示建立job時使用的Symmetry。
+Popover top依row rect計算，至少16px且不超viewport。CDB detail顯示建立job時使用的完整mesh-control
+摘要；非空controls在job row顯示backend回傳的尚未套用warning。
 它是pointer-events none，不能承載command。
 
 ## 狀態與 action 矩陣

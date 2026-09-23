@@ -76,9 +76,8 @@ class ExportJobLogger:
         source_label: str | None,
         output_path: str,
         log_path: str,
-        element_size: float | None,
-        symmetry: str | None,
         input_summary: JsonObject,
+        mesh_control_summary: JsonObject | None = None,
     ) -> None:
         counts = input_summary.get("counts")
         geometry_types = input_summary.get("geometryTypes")
@@ -94,10 +93,22 @@ class ExportJobLogger:
             f"Output: {output_path}",
             f"Log: {log_path}",
         ]
-        if element_size is not None:
-            lines.append(f"Element size: {_format_number(element_size)}")
-        if symmetry is not None:
-            lines.append(f"Symmetry: {symmetry}")
+        if mesh_control_summary is not None:
+            lines.extend(
+                [
+                    f"Mesher: {_display_value(mesh_control_summary.get('mesher'))}",
+                    "Global element size: "
+                    f"{_format_number(mesh_control_summary.get('globalElementSize'))}",
+                    f"Symmetry: {_display_value(mesh_control_summary.get('symmetry'))}",
+                    f"Mesh controls: {_display_value(mesh_control_summary.get('controlCount'))}",
+                    "Mesh-control schema: "
+                    f"{_display_value(mesh_control_summary.get('schemaVersion'))}",
+                    "Mesh-control SHA-256: "
+                    f"{_display_value(mesh_control_summary.get('inputHash'))}",
+                    "Mesh-control size: "
+                    f"{_display_value(mesh_control_summary.get('inputBytes'))} bytes",
+                ]
+            )
         lines.extend(
             [
                 f"Input schema: {_display_value(input_summary.get('schemaVersion'))}",
@@ -427,6 +438,26 @@ def summarize_export_input(payload: JsonObject) -> JsonObject:
             "zMax": max(item[5] for item in bounds),
         }
     return summary
+
+
+def summarize_mesh_control_input(payload: JsonObject) -> JsonObject:
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    controls = payload.get("controls")
+    return {
+        "inputHash": hashlib.sha256(canonical).hexdigest(),
+        "inputBytes": len(canonical),
+        "schemaVersion": payload.get("schemaVersion"),
+        "unitSystem": payload.get("unitSystem"),
+        "mesher": payload.get("mesher"),
+        "globalElementSize": payload.get("globalElementSize"),
+        "symmetry": payload.get("symmetry"),
+        "controlCount": len(controls) if isinstance(controls, list) else None,
+    }
 
 
 def _geometry_bounds(

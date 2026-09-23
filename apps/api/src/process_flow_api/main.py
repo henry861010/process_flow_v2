@@ -4,11 +4,12 @@ import os
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import FastAPI, Query, Request, Response, status
+from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from mesher.contracts.process_flow_2_5d import validate_mesh_control
 from process_flow_kernel import validate_geometry_semantic_keys
 
 from .file_export_jobs import FileExportJobManager
@@ -357,11 +358,11 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/geometry-preview/cdb-jobs", response_model=FileExportJobResponse)
     async def create_geometry_preview_cdb_file_export(body: CdbFileExportCreateRequest):
+        mesh_control = _validated_mesh_control(body.meshControl)
         job = await app.state.file_export_jobs.create_cdb_file_export(
             client_id=body.clientId,
             geometry_structure=body.geometryStructure,
-            element_size=body.elementSize,
-            symmetry=body.symmetry,
+            mesh_control=mesh_control,
             output_path=body.outputPath,
             source_label=body.sourceLabel,
         )
@@ -369,6 +370,11 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/geometry-preview/export-jobs", response_model=FileExportJobResponse)
     async def create_geometry_preview_file_export(body: FileExportCreateRequest):
+        mesh_control = (
+            _validated_mesh_control(body.meshControl)
+            if body.kind == "cdb" and body.meshControl is not None
+            else None
+        )
         job = await app.state.file_export_jobs.create_file_export_job(
             client_id=body.clientId,
             kind=body.kind,
@@ -376,8 +382,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             source_label=body.sourceLabel,
             geometry_structure=body.geometryStructure,
             geometry_entity_json=body.geometryEntityJson,
-            element_size=body.elementSize,
-            symmetry=body.symmetry,
+            mesh_control=mesh_control,
         )
         return {"job": job}
 
@@ -401,6 +406,17 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         return {"job": job}
 
     return app
+
+
+def _validated_mesh_control(mesh_control: dict[str, Any]) -> dict[str, Any]:
+    try:
+        validate_mesh_control(mesh_control)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid meshControl: {error}",
+        ) from error
+    return mesh_control
 
 
 @asynccontextmanager

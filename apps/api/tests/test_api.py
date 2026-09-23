@@ -1734,8 +1734,9 @@ class ProcessFlowApiTests(unittest.TestCase):
             "/api/geometry-preview/cdb-jobs",
             json={
                 "clientId": "client-a",
+                "kind": "cdb",
                 "geometryStructure": simple_structure(),
-                "elementSize": 5,
+                "meshControl": mesh_control(),
                 "outputPath": str(output_path),
                 "sourceLabel": "Unit test",
             },
@@ -1746,7 +1747,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         normalized_output_path = Path(self.tmp.name) / "MODEL.cdb"
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["outputPath"], str(normalized_output_path))
-        self.assertEqual(job["symmetry"], "full")
+        self.assertEqual(job["meshControl"], mesh_control())
         self.assertGreater(job["nodeCount"], 0)
         self.assertGreater(job["elementCount"], 0)
         self.assertIsNone(job["queuePosition"])
@@ -1762,6 +1763,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertIn("Log schema: process-flow-export-log/v2", log_text)
         self.assertIn("Type: CDB", log_text)
         self.assertIn("Symmetry: full", log_text)
+        self.assertIn("Mesh controls: 0", log_text)
+        self.assertIn("Mesh-control SHA-256:", log_text)
         self.assertIn("Input SHA-256:", log_text)
         self.assertIn("--- Timeline (elapsed) ---", log_text)
         self.assertIn("--- Summary ---", log_text)
@@ -1822,7 +1825,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                     "clientId": "client-live-progress",
                     "kind": "cdb",
                     "geometryStructure": simple_structure(),
-                    "elementSize": 5,
+                    "meshControl": mesh_control(),
                     "outputPath": str(output_path),
                 },
             )
@@ -1885,7 +1888,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                     "clientId": "client-cancel-running",
                     "kind": "cdb",
                     "geometryStructure": simple_structure(),
-                    "elementSize": 5,
+                    "meshControl": mesh_control(),
                     "outputPath": str(output_path),
                 },
             )
@@ -1937,8 +1940,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["kind"], "json")
         self.assertEqual(job["outputPath"], str(normalized_output_path))
-        self.assertIsNone(job["elementSize"])
-        self.assertIsNone(job["symmetry"])
+        self.assertIsNone(job["meshControl"])
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertEqual(json.loads(content), geometry_entity)
@@ -2019,7 +2021,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["kind"], "step")
         self.assertEqual(job["outputPath"], str(normalized_output_path))
-        self.assertIsNone(job["symmetry"])
+        self.assertIsNone(job["meshControl"])
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8", errors="replace")
         self.assertIn("ISO-10303-21", content)
@@ -2041,8 +2043,9 @@ class ProcessFlowApiTests(unittest.TestCase):
             "/api/geometry-preview/cdb-jobs",
             json={
                 "clientId": "client-a",
+                "kind": "cdb",
                 "geometryStructure": simple_structure(),
-                "elementSize": 5,
+                "meshControl": mesh_control(),
                 "outputPath": str(Path(self.tmp.name) / "mesh.txt"),
             },
         )
@@ -2067,8 +2070,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                         "clientId": "client-symmetry-modes",
                         "kind": "cdb",
                         "geometryStructure": simple_structure(),
-                        "elementSize": 5,
-                        "symmetry": symmetry,
+                        "meshControl": mesh_control(symmetry=symmetry),
                         "outputPath": str(Path(self.tmp.name) / f"{symmetry}.cdb"),
                     },
                 )
@@ -2080,7 +2082,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                     "client-symmetry-modes",
                 )
                 self.assertEqual(job["status"], "success", job)
-                self.assertEqual(job["symmetry"], symmetry)
+                self.assertEqual(job["meshControl"]["symmetry"], symmetry)
                 element_counts[symmetry] = job["elementCount"]
 
         self.assertLess(
@@ -2096,6 +2098,158 @@ class ProcessFlowApiTests(unittest.TestCase):
             element_counts["full"],
         )
 
+    def test_cdb_export_accepts_controls_but_warns_that_they_are_not_applied(self):
+        controls = [
+            {
+                "method": "Z_POINT",
+                "reference": {"kind": "root"},
+                "z": {
+                    "mode": "relative",
+                    "anchor": "z_min",
+                    "offset": 0.5,
+                },
+            }
+        ]
+        output_path = Path(self.tmp.name) / "controls-warning.cdb"
+
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "client-controls-warning",
+                "kind": "cdb",
+                "geometryStructure": simple_structure(),
+                "meshControl": mesh_control(controls=controls),
+                "outputPath": str(output_path),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("not applied", response.json()["job"]["warning"])
+        job = wait_for_export_job(
+            self.client,
+            response.json()["job"]["jobId"],
+            "client-controls-warning",
+        )
+        self.assertEqual(job["status"], "success", job)
+        self.assertEqual(job["meshControl"]["controls"], controls)
+        self.assertIn("not applied", job["warning"])
+        self.assertTrue(output_path.exists())
+
+    def test_cdb_export_validates_mesh_control_union_shapes(self):
+        valid_controls = [
+            {
+                "method": "Z_SECTION_AVG",
+                "reference": {
+                    "kind": "container",
+                    "key": "hbm",
+                    "id": "hbm-container-id",
+                },
+                "elementSize": 10,
+                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 10},
+                "endZ": {"mode": "relative", "anchor": "z_min", "offset": 100},
+            },
+            {
+                "method": "Z_SECTION_TOP",
+                "reference": {"kind": "body", "id": "body-id"},
+                "elementSize": 10,
+                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
+                "endZ": {"mode": "absolute", "value": 1},
+            },
+            {
+                "method": "Z_SECTION_BOT",
+                "reference": {"kind": "via", "id": "via-id"},
+                "elementSize": 10,
+                "startZ": {"mode": "absolute", "value": 0},
+                "endZ": {"mode": "absolute", "value": 1},
+            },
+            {
+                "method": "Z_SECTION_CENTER",
+                "reference": {"kind": "circuit", "id": "circuit-id"},
+                "elementSize": 10,
+                "startZ": {"mode": "absolute", "value": 0},
+                "endZ": {"mode": "absolute", "value": 1},
+            },
+            {
+                "method": "Z_POINT",
+                "reference": {"kind": "bump", "id": "bump-id"},
+                "z": {"mode": "absolute", "value": 0.5},
+            },
+            {
+                "method": "Z_POINT",
+                "reference": {"kind": "root"},
+                "z": {"mode": "relative", "anchor": "z_max", "offset": -1},
+            },
+        ]
+        output_path = Path(self.tmp.name) / "valid-control-union.cdb"
+
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "client-control-union",
+                "kind": "cdb",
+                "geometryStructure": simple_structure(),
+                "meshControl": mesh_control(controls=valid_controls),
+                "outputPath": str(output_path),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        job = wait_for_export_job(
+            self.client,
+            response.json()["job"]["jobId"],
+            "client-control-union",
+        )
+        self.assertEqual(job["status"], "success", job)
+
+        invalid_controls = (
+            {
+                "method": "Z_POINT",
+                "reference": {"kind": "root", "key": "hbm"},
+                "z": {"mode": "absolute", "value": 0},
+            },
+            {
+                "method": "Z_POINT",
+                "reference": {"kind": "via", "key": "hbm"},
+                "z": {"mode": "absolute", "value": 0},
+            },
+            {
+                "method": "Z_POINT",
+                "z": {"mode": "relative", "anchor": "z_min", "offset": 0},
+            },
+            {
+                "method": "Z_POINT",
+                "elementSize": 10,
+                "z": {"mode": "absolute", "value": 0},
+            },
+            {
+                "method": "Z_SECTION_AVG",
+                "elementSize": 10,
+                "z": {"mode": "absolute", "value": 0},
+            },
+            {
+                "method": "Z_POINT",
+                "z": {
+                    "mode": "absolute",
+                    "anchor": "z_min",
+                    "value": 0,
+                },
+            },
+        )
+        for index, control in enumerate(invalid_controls):
+            with self.subTest(index=index):
+                invalid = self.client.post(
+                    "/api/geometry-preview/export-jobs",
+                    json={
+                        "clientId": "client-invalid-controls",
+                        "kind": "cdb",
+                        "geometryStructure": simple_structure(),
+                        "meshControl": mesh_control(controls=[control]),
+                        "outputPath": str(Path(self.tmp.name) / f"invalid-{index}.cdb"),
+                    },
+                )
+                self.assertEqual(invalid.status_code, 422, invalid.text)
+                self.assertIn("Invalid meshControl", invalid.text)
+
     def test_cdb_export_job_rejects_unknown_symmetry(self):
         output_path = Path(self.tmp.name) / "unknown-symmetry.cdb"
 
@@ -2105,8 +2259,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 "clientId": "client-symmetry-modes",
                 "kind": "cdb",
                 "geometryStructure": simple_structure(),
-                "elementSize": 5,
-                "symmetry": "Upper_Model",
+                "meshControl": mesh_control(symmetry="Upper_Model"),
                 "outputPath": str(output_path),
             },
         )
@@ -2114,24 +2267,29 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422, response.text)
         self.assertFalse(output_path.exists())
 
-    def test_cdb_export_job_rejects_legacy_model_type_field(self):
-        output_path = Path(self.tmp.name) / "legacy-model-type.cdb"
+    def test_cdb_export_job_rejects_each_legacy_mesh_field(self):
+        for field, value in (
+            ("elementSize", 5),
+            ("symmetry", "full"),
+            ("modelType", "Full_Model"),
+        ):
+            with self.subTest(field=field):
+                output_path = Path(self.tmp.name) / f"legacy-{field}.cdb"
+                response = self.client.post(
+                    "/api/geometry-preview/export-jobs",
+                    json={
+                        "clientId": "client-legacy-mesh-field",
+                        "kind": "cdb",
+                        "geometryStructure": simple_structure(),
+                        "meshControl": mesh_control(),
+                        field: value,
+                        "outputPath": str(output_path),
+                    },
+                )
 
-        response = self.client.post(
-            "/api/geometry-preview/export-jobs",
-            json={
-                "clientId": "client-legacy-model-type",
-                "kind": "cdb",
-                "geometryStructure": simple_structure(),
-                "elementSize": 5,
-                "modelType": "Full_Model",
-                "outputPath": str(output_path),
-            },
-        )
-
-        self.assertEqual(response.status_code, 422, response.text)
-        self.assertIn("modelType", response.text)
-        self.assertFalse(output_path.exists())
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertIn(field, response.text)
+                self.assertFalse(output_path.exists())
 
     def test_export_job_rejects_wrong_generic_extension(self):
         response = self.client.post(
@@ -2152,8 +2310,9 @@ class ProcessFlowApiTests(unittest.TestCase):
             "/api/geometry-preview/cdb-jobs",
             json={
                 "clientId": "client-a",
+                "kind": "cdb",
                 "geometryStructure": simple_structure(),
-                "elementSize": 5,
+                "meshControl": mesh_control(),
                 "outputPath": str(Path(self.tmp.name) / "mesh.cdb"),
             },
         )
@@ -2174,8 +2333,9 @@ class ProcessFlowApiTests(unittest.TestCase):
             "/api/geometry-preview/cdb-jobs",
             json={
                 "clientId": "client-a",
+                "kind": "cdb",
                 "geometryStructure": simple_structure(),
-                "elementSize": 5,
+                "meshControl": mesh_control(),
                 "outputPath": str(output_path),
             },
         )
@@ -2186,6 +2346,13 @@ class ProcessFlowApiTests(unittest.TestCase):
         log_path = Path(response.json()["job"]["logPath"])
         self.assertEqual(log_path.name, f"{job_id}.log")
         self.assertTrue(log_path.exists())
+        internal_job = self.app.state.file_export_jobs._jobs[job_id]
+        input_directory = internal_job.input_directory
+        self.assertIsNotNone(input_directory)
+        self.assertEqual(internal_job.input_path.name, "geometry.json")
+        self.assertEqual(internal_job.mesh_control_input_path.name, "mesh_control.json")
+        self.assertTrue(internal_job.input_path.exists())
+        self.assertTrue(internal_job.mesh_control_input_path.exists())
 
         cancel = self.client.post(
             f"/api/export-jobs/{job_id}/cancel",
@@ -2195,6 +2362,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(cancel.status_code, 200, cancel.text)
         self.assertEqual(cancel.json()["job"]["status"], "canceled")
         self.assertFalse(output_path.exists())
+        self.assertFalse(input_directory.exists())
         log_text = log_path.read_text(encoding="utf-8")
         self.assertIn("Cancellation requested", log_text)
         self.assertIn("Status: canceled", log_text)
@@ -2279,6 +2447,17 @@ def simple_structure():
             "bumps": [],
             "children": [],
         },
+    }
+
+
+def mesh_control(*, element_size=5, symmetry="full", controls=None):
+    return {
+        "schemaVersion": "1.0.0",
+        "unitSystem": "um",
+        "mesher": "process_flow_2_5d",
+        "globalElementSize": element_size,
+        "symmetry": symmetry,
+        "controls": [] if controls is None else controls,
     }
 
 

@@ -11,6 +11,43 @@ export type SymmetryMode =
   | "right_half"
   | "upper_right_quarter";
 
+export type MeshControlReference = {
+  kind: string;
+  key?: string;
+  id?: string;
+};
+
+export type MeshControlZLocation =
+  | { mode: "relative"; anchor: "z_min" | "z_max"; offset: number }
+  | { mode: "absolute"; value: number };
+
+export type MeshControlEntry =
+  | {
+      method:
+        | "Z_SECTION_AVG"
+        | "Z_SECTION_TOP"
+        | "Z_SECTION_BOT"
+        | "Z_SECTION_CENTER";
+      reference?: MeshControlReference;
+      elementSize: number;
+      startZ: MeshControlZLocation;
+      endZ: MeshControlZLocation;
+    }
+  | {
+      method: "Z_POINT";
+      reference?: MeshControlReference;
+      z: MeshControlZLocation;
+    };
+
+export type MeshControlConfiguration = {
+  schemaVersion: "1.0.0";
+  unitSystem: "um";
+  mesher: "process_flow_2_5d";
+  globalElementSize: number;
+  symmetry: SymmetryMode;
+  controls: MeshControlEntry[];
+};
+
 export type FileExportStatus =
   | "queued"
   | "running"
@@ -47,8 +84,7 @@ export type FileExportJob = {
   sourceLabel: string | null;
   outputPath: string;
   logPath: string;
-  elementSize: number | null;
-  symmetry: SymmetryMode | null;
+  meshControl: MeshControlConfiguration | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -70,8 +106,7 @@ export type CreateFileExportJobRequest = {
   sourceLabel?: string | null;
   geometryStructure?: unknown;
   geometryEntityJson?: unknown;
-  elementSize?: number | null;
-  symmetry?: SymmetryMode | null;
+  meshControl?: MeshControlConfiguration | null;
 };
 
 export function getFileExportClientId() {

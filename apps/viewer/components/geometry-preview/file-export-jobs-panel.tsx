@@ -20,6 +20,7 @@ import {
   type FileExportJob,
   type FileExportKind,
   type FileExportStatus,
+  type SymmetryMode,
 } from "@/components/geometry-preview/file-export-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -453,12 +454,22 @@ function FileExportJobDetailPopover({
         {job.kind === "cdb" ? (
           <>
             <JobDetailField
-              label="Element size"
-              value={formatNullableNumber(job.elementSize)}
+              label="Mesher"
+              value={job.meshControl?.mesher ?? "-"}
+            />
+            <JobDetailField
+              label="Global size"
+              value={formatNullableNumber(
+                job.meshControl?.globalElementSize ?? null,
+              )}
             />
             <JobDetailField
               label="Symmetry"
-              value={formatSymmetryMode(job.symmetry)}
+              value={formatSymmetryMode(job.meshControl?.symmetry ?? null)}
+            />
+            <JobDetailField
+              label="Controls"
+              value={(job.meshControl?.controls.length ?? 0).toLocaleString()}
             />
             <JobDetailField label="Mesh" value={formatMeshSummary(job)} />
           </>
@@ -667,7 +678,7 @@ function formatNullableNumber(value: number | null) {
   return value == null ? "-" : value.toLocaleString();
 }
 
-function formatSymmetryMode(value: FileExportJob["symmetry"]) {
+function formatSymmetryMode(value: SymmetryMode | null) {
   if (value === "full") return "Full";
   if (value === "upper_right_quarter") return "Upper-right Quarter";
   if (value === "upper_half") return "Upper Half";
@@ -700,8 +711,14 @@ function jobDetailTitle(job: FileExportJob) {
     `Output: ${job.outputPath}`,
   ];
   if (job.kind === "cdb") {
-    parts.push(`Element size: ${formatNullableNumber(job.elementSize)}`);
-    parts.push(`Symmetry: ${formatSymmetryMode(job.symmetry)}`);
+    parts.push(`Mesher: ${job.meshControl?.mesher ?? "-"}`);
+    parts.push(
+      `Global element size: ${formatNullableNumber(
+        job.meshControl?.globalElementSize ?? null,
+      )}`,
+    );
+    parts.push(`Symmetry: ${formatSymmetryMode(job.meshControl?.symmetry ?? null)}`);
+    parts.push(`Controls: ${job.meshControl?.controls.length ?? 0}`);
     parts.push(`Mesh: ${formatMeshSummary(job)}`);
   }
   if (job.queuePosition != null) {

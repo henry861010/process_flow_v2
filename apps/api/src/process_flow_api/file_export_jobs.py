@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import math
 import os
 import platform
 import resource
@@ -28,8 +27,8 @@ from .export_job_logging import (
     ExportJobLogError,
     ExportJobLogger,
     summarize_export_input,
+    summarize_mesh_control_input,
 )
-from .models import SYMMETRY_MODES, SymmetryMode
 
 JsonObject = dict[str, Any]
 FileExportKind = Literal["cdb", "json", "step"]
@@ -51,6 +50,10 @@ DEFAULT_RETAINED_JOBS_PER_CLIENT = 20
 DEFAULT_MAX_CONCURRENT_EXPORT_JOBS = 1
 WORKER_PROGRESS_PREFIX = "PROCESS_FLOW_PROGRESS "
 MAX_WORKER_DIAGNOSTIC_TAIL = 16_000
+MESH_CONTROLS_IGNORED_WARNING = (
+    "Mesh controls were sent to the mesher but are not applied by this version; "
+    "the CDB uses globalElementSize and symmetry only."
+)
 
 
 @dataclass
@@ -84,12 +87,13 @@ class FileExportJob:
     output_path: Path
     temp_output_path: Path
     input_path: Path
+    input_directory: Path | None
+    mesh_control_input_path: Path | None
     source_label: str | None
     created_at: datetime
     log_path: Path
     logger: ExportJobLogger = field(repr=False)
-    element_size: float | None = None
-    symmetry: SymmetryMode | None = None
+    mesh_control: JsonObject | None = None
     status: FileExportStatus = "queued"
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -111,8 +115,7 @@ class FileExportJob:
             "sourceLabel": self.source_label,
             "outputPath": str(self.output_path),
             "logPath": str(self.log_path),
-            "elementSize": self.element_size,
-            "symmetry": self.symmetry,
+            "meshControl": self.mesh_control,
             "createdAt": _iso(self.created_at),
             "startedAt": _iso(self.started_at),
             "finishedAt": _iso(self.finished_at),
@@ -161,26 +164,32 @@ class FileExportJobManager:
         source_label: str | None,
         geometry_structure: JsonObject | None = None,
         geometry_entity_json: JsonObject | None = None,
-        element_size: float | None = None,
-        symmetry: str | None = None,
+        mesh_control: JsonObject | None = None,
     ) -> JsonObject:
         normalized_kind = _normalize_file_export_kind(kind)
         normalized_client_id = _normalize_client_id(client_id)
         final_output_path = _normalize_output_path(output_path, normalized_kind)
 
-        normalized_element_size: float | None = None
-        normalized_symmetry: SymmetryMode | None = None
+        input_path: Path | None = None
+        input_directory: Path | None = None
+        mesh_control_input_path: Path | None = None
+        normalized_mesh_control: JsonObject | None = None
         if normalized_kind == "cdb":
-            normalized_element_size = _positive_number(element_size, "elementSize")
-            normalized_symmetry = _normalize_symmetry(symmetry)
             input_payload = _required_json_object(geometry_structure, "geometryStructure")
-            input_path = _write_job_input(input_payload, normalized_kind)
+            normalized_mesh_control = _required_json_object(mesh_control, "meshControl")
+            input_directory, input_path, mesh_control_input_path = _write_cdb_job_inputs(
+                input_payload,
+                normalized_mesh_control,
+            )
         elif normalized_kind == "step":
             input_payload = _required_json_object(geometry_structure, "geometryStructure")
             input_path = _write_job_input(input_payload, normalized_kind)
         else:
             input_payload = _required_json_object(geometry_entity_json, "geometryEntityJson")
             input_path = _write_job_input(input_payload, normalized_kind, pretty=True)
+
+        if input_path is None:
+            raise RuntimeError(f"{normalized_kind} export input was not created.")
 
         job_id = f"{normalized_kind}_{uuid.uuid4().hex}"
         created_at = _now()
@@ -199,12 +208,20 @@ class FileExportJobManager:
                 source_label=source_label,
                 output_path=str(final_output_path),
                 log_path=str(log_path),
-                element_size=normalized_element_size,
-                symmetry=normalized_symmetry,
                 input_summary=summarize_export_input(input_payload),
+                mesh_control_summary=(
+                    summarize_mesh_control_input(normalized_mesh_control)
+                    if normalized_mesh_control is not None
+                    else None
+                ),
             )
         except Exception as error:
-            _cleanup_paths(input_path, temp_output_path)
+            _cleanup_input_artifacts(
+                input_path,
+                mesh_control_input_path,
+                input_directory,
+                temp_output_path,
+            )
             if "logger" in locals():
                 logger.abort()
             if isinstance(error, ExportJobLogError):
@@ -218,12 +235,19 @@ class FileExportJobManager:
             output_path=final_output_path,
             temp_output_path=temp_output_path,
             input_path=input_path,
+            input_directory=input_directory,
+            mesh_control_input_path=mesh_control_input_path,
             log_path=log_path,
             logger=logger,
-            element_size=normalized_element_size,
-            symmetry=normalized_symmetry,
+            mesh_control=normalized_mesh_control,
             source_label=source_label,
             created_at=created_at,
+            warning=(
+                MESH_CONTROLS_IGNORED_WARNING
+                if normalized_mesh_control is not None
+                and normalized_mesh_control.get("controls")
+                else None
+            ),
         )
 
         async with self._lock:
@@ -236,7 +260,7 @@ class FileExportJobManager:
             except Exception as error:
                 self._jobs.pop(job.job_id, None)
                 job.logger.abort()
-                _cleanup_paths(job.input_path, job.temp_output_path)
+                _cleanup_job_artifacts(job, include_temp_output=True)
                 if isinstance(error, ExportJobLogError):
                     raise ValueError(str(error)) from error
                 raise
@@ -251,8 +275,7 @@ class FileExportJobManager:
         *,
         client_id: str,
         geometry_structure: JsonObject,
-        element_size: float,
-        symmetry: str = "full",
+        mesh_control: JsonObject,
         output_path: str,
         source_label: str | None,
     ) -> JsonObject:
@@ -260,8 +283,7 @@ class FileExportJobManager:
             client_id=client_id,
             kind="cdb",
             geometry_structure=geometry_structure,
-            element_size=element_size,
-            symmetry=symmetry,
+            mesh_control=mesh_control,
             output_path=output_path,
             source_label=source_label,
         )
@@ -297,7 +319,10 @@ class FileExportJobManager:
                 job.status = "canceled"
                 job.finished_at = _now()
                 job.message = "Canceled before export started."
-                job.warning = _cleanup_paths(job.input_path, job.temp_output_path)
+                job.warning = _merge_warnings(
+                    job.warning,
+                    _cleanup_job_artifacts(job, include_temp_output=True),
+                )
                 self._record_event_locked(job, "job.cancel_requested")
                 self._record_terminal_event_locked(job, "job.canceled")
                 self._prune_locked()
@@ -333,7 +358,10 @@ class FileExportJobManager:
                     job.status = "canceled"
                     job.finished_at = _now()
                     job.message = "Canceled during API shutdown."
-                    job.warning = _cleanup_paths(job.input_path, job.temp_output_path)
+                    job.warning = _merge_warnings(
+                        job.warning,
+                        _cleanup_job_artifacts(job, include_temp_output=True),
+                    )
                     self._record_event_locked(
                         job,
                         "job.cancel_requested",
@@ -415,8 +443,7 @@ class FileExportJobManager:
                 cancel_requested = job.cancel_requested
                 kind = job.kind
                 input_path = job.input_path
-                element_size = job.element_size
-                symmetry = job.symmetry
+                mesh_control_input_path = job.mesh_control_input_path
                 temp_output_path = job.temp_output_path
 
             if cancel_requested:
@@ -450,10 +477,11 @@ class FileExportJobManager:
                 return
 
             if kind == "cdb":
+                if mesh_control_input_path is None:
+                    raise RuntimeError("CDB export is missing mesh_control.json.")
                 process = await start_cdb_worker(
-                    input_path=input_path,
-                    element_size=_positive_number(element_size, "elementSize"),
-                    symmetry=_normalize_symmetry(symmetry),
+                    geometry_input_path=input_path,
+                    mesh_control_input_path=mesh_control_input_path,
                     output_path=temp_output_path,
                 )
             else:
@@ -794,7 +822,10 @@ class FileExportJobManager:
                 job.finished_at = _now()
                 job.process = None
                 job.message = "Canceled during export."
-                job.warning = _cleanup_paths(job.input_path, job.temp_output_path)
+                job.warning = _merge_warnings(
+                    job.warning,
+                    _cleanup_job_artifacts(job, include_temp_output=True),
+                )
                 self._record_terminal_event_locked(job, "job.canceled")
                 self._prune_locked()
                 return
@@ -804,7 +835,10 @@ class FileExportJobManager:
                 job.status = "failed"
                 job.finished_at = _now()
                 job.message = f"{_kind_label(job.kind)} export failed while moving temp file: {error}"
-                job.warning = _cleanup_paths(job.input_path, job.temp_output_path)
+                job.warning = _merge_warnings(
+                    job.warning,
+                    _cleanup_job_artifacts(job, include_temp_output=True),
+                )
                 self._record_terminal_event_locked(
                     job,
                     "job.failed",
@@ -839,8 +873,12 @@ class FileExportJobManager:
                 job.node_count = _optional_int(metadata.get("nodeCount"))
                 job.element_count = _optional_int(metadata.get("elementCount"))
                 job.component_count = _optional_int(metadata.get("componentCount"))
+                job.warning = _merge_warnings(
+                    job.warning,
+                    *_metadata_warnings(metadata),
+                )
             job.message = f"{_kind_label(job.kind)} export completed."
-            job.warning = _cleanup_paths(job.input_path)
+            job.warning = _merge_warnings(job.warning, _cleanup_job_artifacts(job))
             try:
                 self._record_event_locked(
                     job,
@@ -877,7 +915,10 @@ class FileExportJobManager:
             job.finished_at = _now()
             job.process = None
             job.message = _concise_error_message(job.kind, message)
-            job.warning = _cleanup_paths(job.input_path, job.temp_output_path)
+            job.warning = _merge_warnings(
+                job.warning,
+                _cleanup_job_artifacts(job, include_temp_output=True),
+            )
             failure_data = dict(details or {})
             failure_data.setdefault("message", message)
             try:
@@ -896,7 +937,10 @@ class FileExportJobManager:
             job.finished_at = _now()
             job.process = None
             job.message = message
-            job.warning = _cleanup_paths(job.input_path, job.temp_output_path)
+            job.warning = _merge_warnings(
+                job.warning,
+                _cleanup_job_artifacts(job, include_temp_output=True),
+            )
             self._record_terminal_event_locked(job, "job.canceled")
             self._prune_locked()
 
@@ -982,14 +1026,6 @@ def _normalize_file_export_kind(value: str) -> FileExportKind:
     raise ValueError("Export job kind must be one of: cdb, json, step.")
 
 
-def _normalize_symmetry(value: str | None) -> SymmetryMode:
-    normalized = "full" if value is None else str(value).strip()
-    if normalized not in SYMMETRY_MODES:
-        allowed = ", ".join(SYMMETRY_MODES)
-        raise ValueError(f"symmetry must be one of: {allowed}.")
-    return cast(SymmetryMode, normalized)
-
-
 def _normalize_output_path(value: str, kind: FileExportKind) -> Path:
     raw = str(value).strip()
     if not raw:
@@ -1032,18 +1068,100 @@ def _write_job_input(payload: JsonObject, kind: FileExportKind, *, pretty: bool 
     return path
 
 
+def _write_cdb_job_inputs(
+    geometry_structure: JsonObject,
+    mesh_control: JsonObject,
+) -> tuple[Path, Path, Path]:
+    input_directory = Path(tempfile.mkdtemp(prefix="process-flow-cdb-input-"))
+    geometry_path = input_directory / "geometry.json"
+    mesh_control_path = input_directory / "mesh_control.json"
+    try:
+        geometry_path.write_text(
+            json.dumps(geometry_structure, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        mesh_control_path.write_text(
+            json.dumps(mesh_control, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    except Exception:
+        _cleanup_input_artifacts(
+            geometry_path,
+            mesh_control_path,
+            input_directory,
+        )
+        raise
+    return input_directory, geometry_path, mesh_control_path
+
+
 def _write_json_export(input_path: Path, output_path: Path) -> None:
     output_path.write_text(input_path.read_text(encoding="utf-8"), encoding="utf-8")
 
 
-def _cleanup_paths(*paths: Path) -> str | None:
+def _cleanup_paths(*paths: Path | None) -> str | None:
     warnings: list[str] = []
     for path in paths:
+        if path is None:
+            continue
         try:
             path.unlink(missing_ok=True)
         except Exception as error:
             warnings.append(f"Could not remove temp file {path}: {error}")
     return "; ".join(warnings) if warnings else None
+
+
+def _cleanup_input_artifacts(
+    input_path: Path | None,
+    mesh_control_input_path: Path | None,
+    input_directory: Path | None,
+    *additional_paths: Path,
+) -> str | None:
+    warning = _cleanup_paths(input_path, mesh_control_input_path, *additional_paths)
+    directory_warning: str | None = None
+    if input_directory is not None:
+        try:
+            input_directory.rmdir()
+        except FileNotFoundError:
+            pass
+        except Exception as error:
+            directory_warning = f"Could not remove temp folder {input_directory}: {error}"
+    return _merge_warnings(warning, directory_warning)
+
+
+def _cleanup_job_artifacts(
+    job: FileExportJob,
+    *,
+    include_temp_output: bool = False,
+) -> str | None:
+    additional_paths = (job.temp_output_path,) if include_temp_output else ()
+    return _cleanup_input_artifacts(
+        job.input_path,
+        job.mesh_control_input_path,
+        job.input_directory,
+        *additional_paths,
+    )
+
+
+def _merge_warnings(*warnings: str | None) -> str | None:
+    unique: list[str] = []
+    for warning in warnings:
+        normalized = str(warning or "").strip()
+        if normalized and normalized not in unique:
+            unique.append(normalized)
+    return " ".join(unique) if unique else None
+
+
+def _metadata_warnings(metadata: JsonObject) -> list[str]:
+    values: list[str] = []
+    warning = metadata.get("warning")
+    if isinstance(warning, str) and warning.strip():
+        values.append(warning.strip())
+    warnings = metadata.get("warnings")
+    if isinstance(warnings, list):
+        for candidate in warnings:
+            if isinstance(candidate, str) and candidate.strip():
+                values.append(candidate.strip())
+    return values
 
 
 def _terminate_process(process: asyncio.subprocess.Process | None) -> None:
@@ -1053,18 +1171,6 @@ def _terminate_process(process: asyncio.subprocess.Process | None) -> None:
         process.terminate()
     except ProcessLookupError:
         return
-
-
-def _positive_number(value: Any, name: str) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be a finite number.") from exc
-    if not math.isfinite(number):
-        raise ValueError(f"{name} must be a finite number.")
-    if number <= 0:
-        raise ValueError(f"{name} must be greater than 0.")
-    return number
 
 
 def _optional_int(value: Any) -> int | None:

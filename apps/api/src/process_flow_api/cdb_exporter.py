@@ -17,9 +17,8 @@ class CdbWorkerError(RuntimeError):
 
 async def start_cdb_worker(
     *,
-    input_path: Path,
-    element_size: float,
-    symmetry: str,
+    geometry_input_path: Path,
+    mesh_control_input_path: Path,
     output_path: Path,
 ) -> asyncio.subprocess.Process:
     env = os.environ.copy()
@@ -31,10 +30,9 @@ async def start_cdb_worker(
         sys.executable,
         "-m",
         "mesher.process_flow.worker",
-        str(input_path),
-        str(element_size),
+        str(geometry_input_path),
+        str(mesh_control_input_path),
         str(output_path),
-        symmetry,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,
