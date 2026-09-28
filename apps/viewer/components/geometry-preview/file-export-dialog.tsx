@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   ArrowRight,
+  ChevronDown,
   CircleAlert,
   Database,
   Download,
@@ -83,6 +84,7 @@ export function FileExportDialog({
   const [globalElementSize, setGlobalElementSize] = React.useState("500");
   const [symmetry, setSymmetryMode] = React.useState<SymmetryMode>("full");
   const [controls, setControls] = React.useState<MeshControlDraft[]>([]);
+  const [meshControlsExpanded, setMeshControlsExpanded] = React.useState(false);
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
@@ -91,6 +93,7 @@ export function FileExportDialog({
     () => collectKeyedGeometryReferences(geometryStructure),
     [geometryStructure],
   );
+  const meshControlsPanelId = React.useId();
 
   React.useEffect(() => {
     setPortalReady(true);
@@ -238,7 +241,7 @@ export function FileExportDialog({
                 </div>
               </fieldset>
 
-              <section className="space-y-3 border-t pt-4">
+              <section className="space-y-2 pt-4">
                 <div>
                   <h4 className="text-sm font-semibold text-foreground">
                     Mesh controls
@@ -248,58 +251,85 @@ export function FileExportDialog({
                   </p>
                 </div>
 
-                {controls.length > 0 ? (
-                  <p className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    Controls are sent to the mesher but are not applied by this version.
-                    The CDB uses global element size and symmetry only.
-                  </p>
-                ) : null}
+                <button
+                  type="button"
+                  className="inline-flex h-7 items-center gap-1 rounded-sm px-1.5 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-expanded={meshControlsExpanded}
+                  aria-controls={meshControlsPanelId}
+                  disabled={submitting}
+                  onClick={() =>
+                    setMeshControlsExpanded((expanded) => !expanded)
+                  }
+                >
+                  {meshControlsExpanded ? "Collapse" : "Expand"}
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+                      meshControlsExpanded ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
 
-                {controls.length === 0 ? (
-                  <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-                    No local mesh controls.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {controls.map((control, index) => (
-                      <MeshControlEditor
-                        key={control.clientId}
-                        index={index}
-                        control={control}
-                        keyedGeometryReferences={keyedGeometryReferences}
-                        disabled={submitting}
-                        onChange={(next) =>
-                          setControls((items) =>
-                            items.map((item, itemIndex) =>
-                              itemIndex === index ? next : item,
-                            ),
-                          )
-                        }
-                        onRemove={() =>
-                          setControls((items) =>
-                            items.filter((_, itemIndex) => itemIndex !== index),
-                          )
-                        }
-                      />
-                    ))}
+                {meshControlsExpanded ? (
+                  <div id={meshControlsPanelId} className="space-y-3 pt-1">
+                      {controls.length > 0 ? (
+                        <p className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                          Controls are sent to the mesher but are not applied by this version.
+                          The CDB uses global element size and symmetry only.
+                        </p>
+                      ) : null}
+
+                      {controls.length === 0 ? (
+                        <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+                          No local mesh controls.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {controls.map((control, index) => (
+                            <MeshControlEditor
+                              key={control.clientId}
+                              index={index}
+                              control={control}
+                              keyedGeometryReferences={keyedGeometryReferences}
+                              disabled={submitting}
+                              onChange={(next) =>
+                                setControls((items) =>
+                                  items.map((item, itemIndex) =>
+                                    itemIndex === index ? next : item,
+                                  ),
+                                )
+                              }
+                              onRemove={() =>
+                                setControls((items) =>
+                                  items.filter(
+                                    (_, itemIndex) => itemIndex !== index,
+                                  ),
+                                )
+                              }
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={submitting}
+                          onClick={() =>
+                            setControls((items) => [
+                              ...items,
+                              newMeshControlDraft(),
+                            ])
+                          }
+                        >
+                          <Plus />
+                          Add control
+                        </Button>
+                      </div>
                   </div>
-                )}
-
-                <div className="flex justify-end pt-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={submitting}
-                    onClick={() =>
-                      setControls((items) => [...items, newMeshControlDraft()])
-                    }
-                  >
-                    <Plus />
-                    Add control
-                  </Button>
-                </div>
+                ) : null}
               </section>
             </>
           ) : null}

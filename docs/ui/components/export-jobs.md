@@ -40,7 +40,10 @@ source label、Close；footer `Cancel`、primary `Export`。
 
 CDB mesher固定顯示`process_flow_2_5d`，global element size default `500`。Symmetry以緊湊的單欄radio list依序顯示`Full`、
 `Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
-Controls初始為空，可新增/刪除；`Add control`固定放在empty state或既有control cards的下方並靠右。
+Controls區塊預設收合；`Mesh controls` heading與description位於外面，其下是無border的`Expand` +
+chevron text control；展開時copy改為`Collapse`，並顯示warning、empty state或control cards與`Add control`。
+收合不得清空draft。Controls初始為空，可新增/刪除；`Add control`固定放在empty
+state或既有control cards的下方並靠右。
 Method下拉直接使用`Z_SECTION_AVG`、`Z_SECTION_TOP`、
 `Z_SECTION_BOT`、`Z_SECTION_CENTER`、`Z_POINT`；reference的kind、key、id皆為互相獨立的text input，
 不因kind清空、停用或篩選其他欄位，也不提供geometry picker。每個control是獨立bordered card：header顯示
