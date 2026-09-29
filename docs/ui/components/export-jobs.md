@@ -28,9 +28,10 @@ Browser client ID存在localStorage `process-flow:export-client-id`；若只有l
 
 ## Export 表單
 
-點Preview footer action開 portal modal：fixed z `100`、16px margin；form width
-`min(760px,100vw-32px)`、max-height `min(92vh,900px)`、radius6、border、shadow。Header依kind顯示icon、`Export JSON/STEP/CDB`、
-source label、Close；footer `Cancel`、primary `Export`。
+點Preview footer action開 portal modal：fixed z `100`、16px margin；CDB form width
+`min(960px,100vw-32px)`，JSON/STEP width `min(760px,100vw-32px)`，max-height
+`min(92vh,900px)`、radius8、border、shadow。Header依kind顯示icon、`Export JSON/STEP/CDB`、
+source label、Close；footer固定顯示validation error、`Cancel`、primary `Export`，CDB的output path也位於footer並與操作按鈕同列；窄螢幕時output path排在按鈕上方。內容區獨立捲動。
 
 | Kind | Fields | Placeholder | Payload snapshot |
 | --- | --- | --- | --- |
@@ -38,24 +39,26 @@ source label、Close；footer `Cancel`、primary `Export`。
 | STEP | Output path | `/Users/henry/Desktop/geometry-preview.step` | `geometryStructure` |
 | CDB | Mesher + Global element size + Symmetry + Controls + Output path | `/Users/henry/Desktop/model.cdb` | `geometryStructure` + `meshControl` |
 
-CDB mesher固定顯示`process_flow_2_5d`，global element size default `500`。Symmetry以緊湊的單欄radio list依序顯示`Full`、
-`Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
-`Apply` 與 mesh control set 選項同列，位於 `Mesh controls` 標題與 `Expand` 按鈕之間，預設為 `Manual / custom`；選擇已登錄 set 會將目前 preview structure 送到
+CDB內容先顯示跨欄的 `Mesh configuration`，其下在 `lg` 以上是左側280px `Mesh setup` 與右側可伸縮的 `Mesh controls`，窄螢幕為單欄。
+左側包含唯讀 mesher、global element size與2×2 symmetry radio cards；左側在內容捲動時保持可見。
+CDB mesher固定顯示`process_flow_2_5d`，global element size default `500`，尺寸欄位顯示µm。
+Symmetry依序顯示`Full`、`Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
+上方 `Mesh control set` 下拉預設為 `Manual / custom`，文案明示set會同時填入基本mesh設定與local controls；選擇已登錄 set 會將目前 preview structure 送到
 `POST /api/mesh-control-sets/{id}/apply`，把回傳的 global size、symmetry 與 controls 展開為可編輯欄位，
 並顯示每條規則的解析區間。修改展開結果後標示 `Customized after applying`；套用失敗保留原草稿。
 HBM example 只適用於單一 root HBM generator v2 geometry，其尺寸是示範值而非部門標準。
-Controls區塊預設收合；`Mesh controls` heading與description下方依序是set選項和`Expand` +
-chevron text control。展開時只有`Collapse`按鈕、規則說明與local controls以border包住，
-heading與set選項位於border上方；下方顯示empty state或control cards與`Add control`。
-收合不得清空draft。Controls初始為空，可新增/刪除；`Add control`固定放在empty
-state或既有control cards的下方並靠右。
+`Local controls`區塊預設收合，整列可點擊並顯示控制數量；收合不得清空draft。
+`Add control` 位於右側標題旁，新增時自動展開並捲到新卡片；已有控制時展開清單底部也提供新增按鈕。
+Controls初始為空，可新增/刪除；展開後顯示resolved rules、empty state或control cards。
+每筆control可填選填的`Label`來描述用途；卡片標題顯示label，未命名則顯示`Control N`。
+收合時在數量下顯示前3筆名稱或編號，超過3筆另顯示剩餘筆數；完整名稱可從摘要hover title查看。
+匯出時label會trim，空白值不寫入`meshControl.controls[]`；套用set後仍可編輯label。
 Method下拉直接使用`Z_SECTION_AVG`、`Z_SECTION_TOP`、
 `Z_SECTION_BOT`、`Z_SECTION_CENTER`、`Z_POINT`；reference的kind、key、id皆為互相獨立的text input，
 不因kind清空、停用或篩選其他欄位，也不提供geometry picker。每個control是獨立bordered card：header顯示
-1-based編號、constraint type與delete；body的第一列並排Method與Element size，desktop欄寬分別為
-220px與140px，後續是Geometry reference
+1-based編號、名稱、constraint type與delete；body先顯示Label，接著在`sm`以上並排Method與140px Element size，後續是Geometry reference
 (kind/key/id)與Z range；`Z_POINT`沒有Element size，Method維持單欄。Start與End各自使用sub-card並以arrow連接。Relative location依序顯示mode、
-`z_min|z_max` anchor與offset；absolute location保留相同三欄寬度，anchor位置顯示停用的`—`，最後一欄為全域Z value。
+`z_min|z_max` anchor與offset；Z location以mode/anchor兩欄、value橫跨下一列，避免窄欄位擠壓。Absolute location的anchor位置顯示停用的`—`，value為全域Z。尺寸與位置輸入旁顯示µm。
 `Z_SECTION_*`顯示local element size、startZ與endZ；`Z_POINT`只顯示z。Geometry reference label旁顯示
 info control；展開後以floating block從當前preview
 structure遞迴列出所有有non-empty key的container/body kind + key組合，以trim後的kind/key去重並依
@@ -65,7 +68,7 @@ case-insensitive contains search；點外部或按Escape關閉。清單只供查
 Client只做基本輸入檢查：global/local size必須finite且`>0`、location數值必須finite。Reference、
 method欄位組合及其他mesh-control contract規則由mesher validator負責；frontend不複製這些規則，也
 不檢查reference是否存在、resolved Z、bounds、start/end順序或overlap。接著檢查path required、path以
-`/`開頭、extension case-insensitive符合`.json/.step/.cdb`。錯誤顯示form內 destructive block。
+`/`開頭、extension case-insensitive符合`.json/.step/.cdb`。錯誤顯示在固定footer；local control輸入錯誤時自動展開並捲到該卡片，編輯後清除舊錯誤。
 
 Submitting時fields、Close、Cancel與backdrop close disabled；primary顯示spinner。成功後seed job到
 drawer、自動expand、關form；失敗保留form/value。

@@ -37,10 +37,10 @@ class HbmExampleSet:
         #     raise MeshControlSetNotApplicable(
         #         "HBM example requires a single root HBM generator v2 structure."
         #     )
-        if any(node["kind"] in {"via", "circuit", "bump"} for node in nodes):
-            raise MeshControlSetNotApplicable(
-                "HBM example does not support additional via, circuit, or bump features."
-            )
+        # if any(node["kind"] in {"via", "circuit", "bump"} for node in nodes):
+        #     raise MeshControlSetNotApplicable(
+        #         "HBM example does not support additional via, circuit, or bump features."
+        #     )
 
         envelope = _one(
             [node for node in bodies if node["containerId"] == root["id"]
@@ -100,6 +100,7 @@ class HbmExampleSet:
                 return
             controls.append({
                 "method": "Z_SECTION_AVG",
+                "label": label,
                 "reference": reference.copy(),
                 "elementSize": _LOCAL_ELEMENT_SIZE,
                 "startZ": {"mode": "absolute", "value": start},

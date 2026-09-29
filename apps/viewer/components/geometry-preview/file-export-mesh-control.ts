@@ -17,6 +17,7 @@ export type ZLocationDraft = {
 };
 export type MeshControlDraft = {
   clientId: string;
+  label: string;
   method: MeshControlMethod;
   referenceKind: string;
   referenceKey: string;
@@ -96,6 +97,7 @@ export function newMeshControlDraft(): MeshControlDraft {
     clientId: `mesh-control-${Date.now().toString(36)}-${Math.random()
       .toString(36)
       .slice(2, 8)}`,
+    label: "",
     method: "Z_SECTION_AVG",
     referenceKind: "root",
     referenceKey: "",
@@ -128,6 +130,7 @@ export function draftsFromMeshControlConfiguration(
   return configuration.controls.map((entry) => {
     const reference = entry.reference;
     const draft = newMeshControlDraft();
+    draft.label = entry.label ?? "";
     draft.method = entry.method;
     draft.referenceKind = reference?.kind ?? "";
     draft.referenceKey = reference?.key ?? "";
@@ -155,20 +158,27 @@ function draftFromZLocation(location: MeshControlZLocation): ZLocationDraft {
 
 function buildMeshControlEntry(control: MeshControlDraft): MeshControlEntry {
   const reference = buildMeshControlReference(control);
+  const label = control.label.trim();
   if (control.method === "Z_POINT") {
     return {
       method: control.method,
+      ...(label ? { label } : {}),
       ...(reference ? { reference } : {}),
       z: buildZLocation(control.z),
     };
   }
   return {
     method: control.method,
+    ...(label ? { label } : {}),
     ...(reference ? { reference } : {}),
     elementSize: Number(control.elementSize),
     startZ: buildZLocation(control.startZ),
     endZ: buildZLocation(control.endZ),
   };
+}
+
+export function meshControlDisplayLabel(control: MeshControlDraft, index: number): string {
+  return control.label.trim() || `Control ${index + 1}`;
 }
 
 function buildMeshControlReference(control: MeshControlDraft) {

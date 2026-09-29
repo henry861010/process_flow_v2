@@ -32,6 +32,7 @@ import {
   collectKeyedGeometryReferences,
   draftsFromMeshControlConfiguration,
   filterKeyedGeometryReferences,
+  meshControlDisplayLabel,
   MESH_CONTROL_METHODS,
   newMeshControlDraft,
   validateMeshControlDraft,
@@ -97,6 +98,7 @@ export function FileExportDialog({
   const [libraryError, setLibraryError] = React.useState<string | null>(null);
   const [applyingSet, setApplyingSet] = React.useState(false);
   const applyAbortRef = React.useRef<AbortController | null>(null);
+  const pendingControlScrollRef = React.useRef<string | null>(null);
   const [meshControlsExpanded, setMeshControlsExpanded] = React.useState(false);
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -107,6 +109,7 @@ export function FileExportDialog({
     [geometryStructure],
   );
   const meshControlsPanelId = React.useId();
+  const exportDialogTitleId = React.useId();
 
   React.useEffect(() => {
     setPortalReady(true);
@@ -129,8 +132,27 @@ export function FileExportDialog({
     };
   }, [kind]);
 
+  React.useEffect(() => {
+    const clientId = pendingControlScrollRef.current;
+    if (!clientId || !meshControlsExpanded) return;
+    document.getElementById(`${meshControlsPanelId}-${clientId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+    pendingControlScrollRef.current = null;
+  }, [controls, error, meshControlsExpanded, meshControlsPanelId]);
+
   function markCustomized() {
+    setError(null);
     if (appliedSet) setSetCustomized(true);
+  }
+
+  function addControl() {
+    const draft = newMeshControlDraft();
+    pendingControlScrollRef.current = draft.clientId;
+    markCustomized();
+    setControls((items) => [...items, draft]);
+    setMeshControlsExpanded(true);
   }
 
   async function selectControlSet(setId: string) {
@@ -183,6 +205,13 @@ export function FileExportDialog({
         : null;
     const validationError = validateExportForm(kind, meshControlError, trimmedOutputPath);
     if (validationError) {
+      const invalidControlIndex = meshControlError
+        ? Number(/^Control (\d+)/.exec(meshControlError)?.[1]) - 1
+        : -1;
+      if (Number.isInteger(invalidControlIndex) && controls[invalidControlIndex]) {
+        pendingControlScrollRef.current = controls[invalidControlIndex].clientId;
+        setMeshControlsExpanded(true);
+      }
       setError(validationError);
       return;
     }
@@ -226,16 +255,23 @@ export function FileExportDialog({
         onClick={submitting ? undefined : onClose}
       />
       <form
-        className="relative z-10 flex max-h-[min(92vh,900px)] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={exportDialogTitleId}
+        className={`relative z-10 flex max-h-[min(92vh,900px)] flex-col overflow-hidden rounded-lg border bg-background shadow-viewport ${
+          kind === "cdb"
+            ? "w-[min(960px,calc(100vw-32px))]"
+            : "w-[min(760px,calc(100vw-32px))]"
+        }`}
         onSubmit={submit}
       >
-        <header className="flex items-center justify-between gap-3 border-b bg-white px-4 py-3">
+        <header className="flex items-center justify-between gap-3 border-b bg-white px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground [&_svg]:h-4 [&_svg]:w-4">
               <ExportKindIcon kind={kind} />
             </span>
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold">
+              <h3 id={exportDialogTitleId} className="truncate text-lg font-semibold">
                 Export {config.label}
               </h3>
               <p className="truncate text-xs text-muted-foreground">
@@ -248,6 +284,7 @@ export function FileExportDialog({
             variant="ghost"
             size="icon-sm"
             title="Close"
+            aria-label="Close export dialog"
             disabled={submitting}
             onClick={onClose}
           >
@@ -255,81 +292,21 @@ export function FileExportDialog({
           </Button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
           {kind === "cdb" ? (
-            <>
-              <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-foreground">
-                  Mesher
-                </span>
-                <input
-                  className={inputClass}
-                  value="process_flow_2_5d"
-                  disabled
-                  readOnly
-                />
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-foreground">
-                  Global element size
-                </span>
-                <input
-                  className={inputClass}
-                  inputMode="decimal"
-                  value={globalElementSize}
-                  disabled={submitting || applyingSet}
-                  onChange={(event) => { setGlobalElementSize(event.target.value); markCustomized(); }}
-                />
-              </label>
-
-              <fieldset className="space-y-1.5" disabled={submitting || applyingSet}>
-                <legend className="text-sm font-semibold text-foreground">
-                  Symmetry
-                </legend>
-                <div className="space-y-1">
-                  {SYMMETRY_OPTIONS.map((option) => {
-                    const selected = symmetry === option.value;
-                    return (
-                      <label
-                        key={option.value}
-                        className={`flex items-center gap-2 py-1 text-sm ${
-                          submitting
-                            ? "cursor-not-allowed opacity-60"
-                            : "cursor-pointer"
-                        }`}
-                      >
-                        <input
-                          className="h-4 w-4 shrink-0 accent-primary"
-                          type="radio"
-                          name="symmetry"
-                          value={option.value}
-                          checked={selected}
-                          onChange={() => { setSymmetryMode(option.value); markCustomized(); }}
-                        />
-                        <span>{option.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-
-              <section className="space-y-3 pt-4">
-                <div>
-                  <h4 className="text-base font-semibold leading-6 text-foreground">
-                    Mesh controls
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    Add global Z-plane controls relative to geometry references.
-                  </p>
-                </div>
-
-                <div className="space-y-2 pl-3">
-                  <label className="flex max-w-md items-center gap-3">
-                    <span className="shrink-0 text-xs font-medium text-muted-foreground">Apply</span>
+            <div className="space-y-4">
+              <section className="rounded-lg border bg-white p-4" aria-labelledby="mesh-configuration-heading">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] sm:items-start">
+                  <div>
+                    <h4 id="mesh-configuration-heading" className="text-sm font-semibold">Mesh configuration</h4>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Applying a set fills both mesh setup and local controls. You can edit the result.
+                    </p>
+                  </div>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-medium text-foreground">Mesh control set</span>
                     <select
-                      className={`${compactInputClass} flex-1`}
-                      aria-label="Mesh control set"
+                      className={inputClass}
                       value={appliedSet?.id ?? ""}
                       disabled={submitting || applyingSet}
                       onChange={(event) => void selectControlSet(event.target.value)}
@@ -340,43 +317,120 @@ export function FileExportDialog({
                       ))}
                     </select>
                   </label>
-                  {applyingSet ? <p className="text-xs text-muted-foreground">Applying set…</p> : null}
-                  {appliedSet ? (
-                    <div className="text-xs text-muted-foreground">
-                      <p>{appliedSet.label} · v{appliedSet.version}
-                        {setCustomized ? " · Customized after applying" : " · Applied as defined"}</p>
-                      <p>{appliedSet.description}</p>
-                    </div>
-                  ) : null}
-                  {libraryError ? <p className="text-xs text-destructive" role="alert">{libraryError}</p> : null}
                 </div>
+                {applyingSet ? <p className="mt-3 text-xs text-muted-foreground" role="status">Applying set…</p> : null}
+                {appliedSet ? (
+                  <div className="mt-3 rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">
+                      {appliedSet.label} · v{appliedSet.version} · {setCustomized ? "Customized after applying" : "Applied as defined"}
+                    </p>
+                    <p className="mt-1">{appliedSet.description}</p>
+                  </div>
+                ) : null}
+                {libraryError ? <p className="mt-3 text-xs text-destructive" role="alert">{libraryError}</p> : null}
+              </section>
 
-                <div className={meshControlsExpanded ? "space-y-3 rounded-md border border-border p-3" : "pl-3"}>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1 rounded-sm px-1.5 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-expanded={meshControlsExpanded}
-                    aria-controls={meshControlsPanelId}
-                    disabled={submitting || applyingSet}
-                    onClick={() =>
-                      setMeshControlsExpanded((expanded) => !expanded)
-                    }
-                  >
-                    {meshControlsExpanded ? "Collapse" : "Expand"}
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 shrink-0 transition-transform ${
-                        meshControlsExpanded ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
+              <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <section className="space-y-5 rounded-lg border bg-white p-4 lg:sticky lg:top-0" aria-labelledby="mesh-setup-heading">
+                  <div>
+                    <h4 id="mesh-setup-heading" className="text-sm font-semibold">Mesh setup</h4>
+                    <p className="mt-1 text-xs text-muted-foreground">Settings for the whole model.</p>
+                  </div>
 
-                  {meshControlsExpanded ? (
-                    <div id={meshControlsPanelId} className="space-y-3 pt-1">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Mesher</p>
+                    <p className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs text-foreground">process_flow_2_5d</p>
+                  </div>
+
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-medium text-foreground">Global element size</span>
+                    <span className="relative block">
+                      <input
+                        className={`${inputClass} pr-12 font-mono`}
+                        inputMode="decimal"
+                        value={globalElementSize}
+                        disabled={submitting || applyingSet}
+                        onChange={(event) => { setGlobalElementSize(event.target.value); markCustomized(); }}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">µm</span>
+                    </span>
+                  </label>
+
+                  <fieldset className="space-y-2" disabled={submitting || applyingSet}>
+                    <legend className="text-xs font-medium text-foreground">Symmetry</legend>
+                    <div className="grid grid-cols-2 gap-2">
+                      {SYMMETRY_OPTIONS.map((option) => {
+                        const selected = symmetry === option.value;
+                        return (
+                          <label
+                            key={option.value}
+                            className={`flex min-h-11 items-center gap-2 rounded-md border px-2.5 py-2 text-xs leading-4 transition-colors focus-within:ring-2 focus-within:ring-ring ${
+                              selected ? "border-primary bg-primary/5 font-medium text-primary" : "bg-white hover:bg-muted/30"
+                            } ${submitting || applyingSet ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                          >
+                            <input
+                              className="h-4 w-4 shrink-0 accent-primary"
+                              type="radio"
+                              name="symmetry"
+                              value={option.value}
+                              checked={selected}
+                              onChange={() => { setSymmetryMode(option.value); markCustomized(); }}
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                </section>
+
+                <section className="min-w-0 space-y-4 rounded-lg border bg-white p-4" aria-labelledby="mesh-controls-heading">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h4 id="mesh-controls-heading" className="text-sm font-semibold">Mesh controls</h4>
+                      <p className="mt-1 text-xs text-muted-foreground">Refine the mesh at selected Z locations.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={submitting || applyingSet}
+                      onClick={addControl}
+                    >
+                      <Plus />
+                      Add control
+                    </Button>
+                  </div>
+
+                  <div className="rounded-md border">
+                    <button
+                      type="button"
+                      className={`flex min-h-11 w-full items-center justify-between gap-3 bg-muted/20 px-3 py-2 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${meshControlsExpanded ? "rounded-t-md" : "rounded-md"}`}
+                      aria-expanded={meshControlsExpanded}
+                      aria-controls={meshControlsPanelId}
+                      disabled={submitting || applyingSet}
+                      onClick={() => setMeshControlsExpanded((expanded) => !expanded)}
+                    >
+                      <span className="min-w-0 flex-1 text-xs font-medium text-foreground">
+                        <span className="flex items-center gap-2">
+                          Local controls
+                          <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px] text-secondary-foreground">{controls.length}</span>
+                        </span>
+                        {!meshControlsExpanded && controls.length > 0 ? (
+                          <span className="mt-1 block truncate text-[11px] font-normal text-muted-foreground" title={controls.map(meshControlDisplayLabel).join(" · ")}>
+                            {controls.slice(0, 3).map(meshControlDisplayLabel).join(" · ")}
+                            {controls.length > 3 ? ` · +${controls.length - 3} more` : ""}
+                          </span>
+                        ) : null}
+                      </span>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${meshControlsExpanded ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {meshControlsExpanded ? (
+                      <div id={meshControlsPanelId} className="space-y-3 border-t p-3">
                         {setDetails.length > 0 ? (
                           <div className="rounded-md border bg-muted/15 p-3">
-                            <p className="mb-2 text-xs font-semibold">
-                              {setCustomized ? "Original resolved rules" : "Resolved rules"}
-                            </p>
+                            <p className="mb-2 text-xs font-semibold">{setCustomized ? "Original resolved rules" : "Resolved rules"}</p>
                             <ul className="space-y-1 text-xs text-muted-foreground">
                               {setDetails.map((detail, index) => (
                                 <li key={`${detail.label}-${index}`}>
@@ -388,65 +442,50 @@ export function FileExportDialog({
                           </div>
                         ) : null}
                         {controls.length === 0 ? (
-                          <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-                            No local mesh controls.
-                          </p>
+                          <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">No local mesh controls.</p>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {controls.map((control, index) => (
-                              <MeshControlEditor
-                                key={control.clientId}
-                                index={index}
-                                control={control}
-                                keyedGeometryReferences={keyedGeometryReferences}
-                                disabled={submitting || applyingSet}
-                                onChange={(next) => {
-                                  markCustomized();
-                                  setControls((items) =>
-                                    items.map((item, itemIndex) =>
-                                      itemIndex === index ? next : item,
-                                    ),
-                                  );
-                                }}
-                                onRemove={() => {
-                                  markCustomized();
-                                  setControls((items) =>
-                                    items.filter(
-                                      (_, itemIndex) => itemIndex !== index,
-                                    ),
-                                  );
-                                }}
-                              />
+                              <div key={control.clientId} id={`${meshControlsPanelId}-${control.clientId}`}>
+                                <MeshControlEditor
+                                  index={index}
+                                  control={control}
+                                  keyedGeometryReferences={keyedGeometryReferences}
+                                  disabled={submitting || applyingSet}
+                                  onChange={(next) => {
+                                    markCustomized();
+                                    setControls((items) => items.map((item, itemIndex) => itemIndex === index ? next : item));
+                                  }}
+                                  onRemove={() => {
+                                    markCustomized();
+                                    setControls((items) => items.filter((_, itemIndex) => itemIndex !== index));
+                                  }}
+                                />
+                              </div>
                             ))}
+                            <div className="flex justify-end pt-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={submitting || applyingSet}
+                                onClick={addControl}
+                              >
+                                <Plus />
+                                Add control
+                              </Button>
+                            </div>
                           </div>
                         )}
-
-                        <div className="flex justify-end pt-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={submitting || applyingSet}
-                            onClick={() => {
-                              markCustomized();
-                              setControls((items) => [
-                                ...items,
-                                newMeshControlDraft(),
-                              ]);
-                            }}
-                          >
-                            <Plus />
-                            Add control
-                          </Button>
-                        </div>
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-            </>
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+              </div>
+            </div>
           ) : null}
 
-          <label className="block space-y-1.5">
+          {kind !== "cdb" ? <label className="block space-y-1.5">
             <span className="text-sm font-semibold text-foreground">
               Output path
             </span>
@@ -455,34 +494,53 @@ export function FileExportDialog({
               value={outputPath}
               disabled={submitting}
               placeholder={config.placeholder}
-              onChange={(event) => setOutputPath(event.target.value)}
+              onChange={(event) => { setOutputPath(event.target.value); setError(null); }}
             />
-          </label>
+          </label> : null}
 
+        </div>
+
+        <footer className="space-y-3 border-t bg-white px-4 py-3 sm:px-5">
           {error ? (
-            <p className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive" role="alert">
               {error}
             </p>
           ) : null}
-        </div>
-
-        <footer className="flex justify-end gap-2 border-t bg-white px-4 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={submitting}
-            onClick={onClose}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting || applyingSet}>
-            {submitting ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <ExportKindIcon kind={kind} />
-            )}
-            Export
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            {kind === "cdb" ? (
+              <label className="block min-w-0 flex-1 space-y-1.5">
+                <span className="flex items-center justify-between gap-2 text-xs font-medium text-foreground">
+                  Output path
+                  <span className="text-[11px] font-normal text-muted-foreground">Absolute .cdb path</span>
+                </span>
+                <input
+                  className={`${inputClass} font-mono text-xs`}
+                  value={outputPath}
+                  disabled={submitting}
+                  placeholder={config.placeholder}
+                  onChange={(event) => { setOutputPath(event.target.value); setError(null); }}
+                />
+              </label>
+            ) : null}
+            <div className="flex shrink-0 justify-end gap-2 sm:ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting}
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting || applyingSet}>
+                {submitting ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <ExportKindIcon kind={kind} />
+                )}
+                Export
+              </Button>
+            </div>
+          </div>
         </footer>
       </form>
     </div>,
@@ -551,8 +609,8 @@ function MeshControlEditor({
             {index + 1}
           </span>
           <div className="min-w-0">
-            <h5 className="text-xs font-semibold text-foreground">
-              Mesh control
+            <h5 className="truncate text-xs font-semibold text-foreground" title={meshControlDisplayLabel(control, index)}>
+              {meshControlDisplayLabel(control, index)}
             </h5>
             <p className="truncate text-[11px] text-muted-foreground">
               {isPoint ? "Point constraint" : "Section constraint"}
@@ -573,13 +631,20 @@ function MeshControlEditor({
         </Button>
       </header>
 
-      <div className="space-y-4 p-3">
+      <div className="space-y-4 p-3 sm:p-4">
+        <label className="block min-w-0 space-y-1.5">
+          <span className="text-xs font-medium text-foreground">Label (optional)</span>
+          <input
+            className={compactInputClass}
+            value={control.label}
+            disabled={disabled}
+            placeholder="What is this control for?"
+            onChange={(event) => onChange({ ...control, label: event.target.value })}
+          />
+        </label>
+
         <div
-          className={
-            isPoint
-              ? "min-w-0"
-              : "grid min-w-0 grid-cols-[minmax(0,1fr)_110px] gap-2 sm:grid-cols-[220px_140px]"
-          }
+          className={isPoint ? "min-w-0 sm:max-w-xs" : "grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px]"}
         >
           <label className="block min-w-0 space-y-1.5">
             <span className="text-xs font-medium text-foreground">Method</span>
@@ -607,15 +672,18 @@ function MeshControlEditor({
               <span className="text-xs font-medium text-foreground">
                 Element size
               </span>
-              <input
-                className={compactInputClass}
-                inputMode="decimal"
-                value={control.elementSize}
-                disabled={disabled}
-                onChange={(event) =>
-                  onChange({ ...control, elementSize: event.target.value })
-                }
-              />
+              <span className="relative block">
+                <input
+                  className={`${compactInputClass} pr-9`}
+                  inputMode="decimal"
+                  value={control.elementSize}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    onChange({ ...control, elementSize: event.target.value })
+                  }
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-muted-foreground">µm</span>
+              </span>
             </label>
           ) : null}
         </div>
@@ -817,7 +885,7 @@ function ZLocationEditor({
       >
         {label}
       </legend>
-      <div className="grid min-w-0 gap-2 min-[420px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid min-w-0 grid-cols-2 gap-2">
         <label className="block min-w-0 space-y-1">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Mode
@@ -858,24 +926,27 @@ function ZLocationEditor({
             <option value="z_max">z_max</option>
           </select>
         </label>
-        <label className="block min-w-0 space-y-1">
+        <label className="col-span-2 block min-w-0 space-y-1">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
             {value.mode === "relative" ? "Offset" : "Global Z"}
           </span>
-          <input
-            className={compactInputClass}
-            inputMode="decimal"
-            aria-label={
-              value.mode === "relative"
-                ? `${label} offset`
-                : `${label} absolute value`
-            }
-            placeholder={value.mode === "relative" ? "Offset" : "Global Z"}
-            value={value.value}
-            onChange={(event) =>
-              onChange({ ...value, value: event.target.value })
-            }
-          />
+          <span className="relative block">
+            <input
+              className={`${compactInputClass} pr-9`}
+              inputMode="decimal"
+              aria-label={
+                value.mode === "relative"
+                  ? `${label} offset`
+                  : `${label} absolute value`
+              }
+              placeholder={value.mode === "relative" ? "Offset" : "Global Z"}
+              value={value.value}
+              onChange={(event) =>
+                onChange({ ...value, value: event.target.value })
+              }
+            />
+            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-muted-foreground">µm</span>
+          </span>
         </label>
       </div>
     </fieldset>

@@ -6,11 +6,19 @@ from process_flow_kernel import ProcessGeometryState
 
 from .contracts import MeshControlSet, MeshControlSetResult
 from .sets.hbm_example import HbmExampleSet
+from .sets.mesh_model_1 import MeshModel1Set
+from .sets.mesh_model_2 import MeshModel2Set
+from .sets.mesh_model_3 import MeshModel3Set
 
 
 class MeshControlSetRegistry:
     def __init__(self, sets: tuple[MeshControlSet, ...] | None = None):
-        registered = sets if sets is not None else (HbmExampleSet(),)
+        registered = sets if sets is not None else (
+            HbmExampleSet(),
+            MeshModel1Set(),
+            MeshModel2Set(),
+            MeshModel3Set(),
+        )
         self._sets: dict[str, MeshControlSet] = {}
         for control_set in registered:
             definition = control_set.definition()

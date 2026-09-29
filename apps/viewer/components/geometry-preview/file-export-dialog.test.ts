@@ -5,6 +5,8 @@ import {
   collectKeyedGeometryReferences,
   draftsFromMeshControlConfiguration,
   filterKeyedGeometryReferences,
+  meshControlDisplayLabel,
+  newMeshControlDraft,
   validateMeshControlDraft,
   type MeshControlDraft,
 } from "./file-export-mesh-control";
@@ -12,6 +14,7 @@ import {
 function control(overrides: Partial<MeshControlDraft> = {}): MeshControlDraft {
   return {
     clientId: "control-1",
+    label: "",
     method: "Z_SECTION_AVG",
     referenceKind: "container",
     referenceKey: " hbm ",
@@ -28,6 +31,7 @@ describe("CDB mesh-control form", () => {
   it("loads a set result into editable drafts and exports the same canonical settings", () => {
     const generated = buildMeshControlConfiguration("500", "full", [
       control({
+        label: "Base-to-core gap",
         referenceKind: "container",
         referenceKey: "",
         referenceId: "container:hbm-root",
@@ -37,6 +41,7 @@ describe("CDB mesh-control form", () => {
     ]);
     const drafts = draftsFromMeshControlConfiguration(generated);
     expect(drafts[0].startZ.value).toBe("100");
+    expect(drafts[0].label).toBe("Base-to-core gap");
     expect(drafts[0].referenceId).toBe("container:hbm-root");
     expect(buildMeshControlConfiguration("500", "full", drafts)).toEqual(generated);
     drafts[0].elementSize = "5";
@@ -101,6 +106,7 @@ describe("CDB mesh-control form", () => {
   it("serializes section and point controls into the canonical payload", () => {
     const point = control({
       clientId: "control-2",
+      label: "  Interface plane  ",
       method: "Z_POINT",
       referenceKind: "root",
       referenceKey: "",
@@ -128,11 +134,29 @@ describe("CDB mesh-control form", () => {
         },
         {
           method: "Z_POINT",
+          label: "Interface plane",
           reference: { kind: "root" },
           z: { mode: "relative", anchor: "z_max", offset: -10 },
         },
       ],
     });
+  });
+
+  it("trims optional labels and omits blank labels", () => {
+    const payload = buildMeshControlConfiguration("200", "full", [
+      control({ label: "  Base die  " }),
+      control({ method: "Z_POINT", label: "  ", z: { mode: "absolute", anchor: "z_min", value: "100" } }),
+    ]);
+
+    expect(payload.controls[0].label).toBe("Base die");
+    expect(payload.controls[1]).not.toHaveProperty("label");
+    expect(draftsFromMeshControlConfiguration(payload).map((draft) => draft.label)).toEqual([
+      "Base die",
+      "",
+    ]);
+    expect(newMeshControlDraft().label).toBe("");
+    expect(meshControlDisplayLabel(control({ label: "  Base die  " }), 0)).toBe("Base die");
+    expect(meshControlDisplayLabel(control(), 1)).toBe("Control 2");
   });
 
   it("validates only basic numeric inputs", () => {

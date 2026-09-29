@@ -209,6 +209,8 @@ symmetry、control count，以及兩份JSON輸入的hash與byte count。
 
 Mesher-owned contract目前讓`controls` method支援`Z_SECTION_AVG`、`Z_SECTION_TOP`、`Z_SECTION_BOT`、
 `Z_SECTION_CENTER`與`Z_POINT`。前四種要求`elementSize`、`startZ`、`endZ`；`Z_POINT`只要求`z`。
+每筆control可帶選填的`label`描述用途；提供時必須是非空白字串，不影響mesh計算。舊資料可不帶此欄位，
+`schemaVersion`仍為`1.0.0`。HBM範例set會將已套用規則的名稱寫入對應control。
 Location可為relative `{ mode, anchor: z_min|z_max, offset }`或absolute `{ mode, value }`；任何relative
 location都要求reference。Reference kind支援`root|container|body|via|circuit|bump`：root不得帶key/id，
 其他kind至少要有一項；key只允許container/body。Mesher會解析reference與Z location，並在建立3D mesh

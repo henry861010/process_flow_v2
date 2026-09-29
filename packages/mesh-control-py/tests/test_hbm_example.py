@@ -60,10 +60,18 @@ class HbmExampleTests(unittest.TestCase):
             [(0, 100), (100, 120), (120, 170), (170, 190), (190, 240), (240, 260), (260, 310), (310, 340)],
         )
         self.assertTrue(all(item["reference"] == {"kind": "container", "id": "container:hbm-root"} for item in result.mesh_control["controls"]))
+        self.assertEqual(
+            [item["label"] for item in result.mesh_control["controls"]],
+            [item["label"] for item in result.details if item["status"] == "applied"],
+        )
 
     def test_single_core_and_zero_intervals_are_omitted(self):
         result = self.apply(hbm_structure(core_count=1, base_gap=0, top_molding=0))
         self.assertEqual(len(result.mesh_control["controls"]), 2)
+        self.assertEqual(
+            [item["label"] for item in result.mesh_control["controls"]],
+            ["Base die", "Core die 1"],
+        )
         self.assertEqual(
             [item["label"] for item in result.details if item["status"] == "omitted"],
             ["Base-to-core gap", "Top molding"],

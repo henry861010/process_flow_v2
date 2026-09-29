@@ -39,6 +39,10 @@ class MeshControlSetApiTests(unittest.TestCase):
         self.assertEqual(payload["setVersion"], "1")
         self.assertEqual(payload["details"][-1]["label"], "Top molding")
         validate_mesh_control(payload["meshControl"])
+        self.assertEqual(
+            [item["label"] for item in payload["meshControl"]["controls"]],
+            [item["label"] for item in payload["details"] if item["status"] == "applied"],
+        )
         self.assertEqual(structure["root"]["children"][0]["id"], "container:hbm-base-die")
 
     def test_unknown_or_inapplicable_set(self):

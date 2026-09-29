@@ -2167,6 +2167,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         controls = [
             {
                 "method": "Z_SECTION_AVG",
+                "label": "  Refine die interface  ",
                 "reference": {"kind": "container", "key": "hbm"},
                 "elementSize": 0.25,
                 "startZ": {"mode": "absolute", "value": 0},
@@ -2195,6 +2196,11 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["meshControl"]["controls"], controls)
+        mesh_control_output_path = output_path.with_suffix(".mesh-control.json")
+        self.assertEqual(
+            json.loads(mesh_control_output_path.read_text(encoding="utf-8"))["controls"],
+            controls,
+        )
         self.assertIsNone(job["warning"])
         self.assertTrue(output_path.exists())
 
