@@ -273,6 +273,9 @@ Structure ids 是 opaque、derived diagnostic handles，不是 catalog/resource 
 - Consumer MUST NOT 把 derived id 當成跨 structure revision 的 durable reference。
 - Process Flow identifier regex 不適用於 structure-local ids。
 
+`ProcessGeometryState.from_structure()` 保留輸入的 structure IDs；同一物件的序列化沿用該 ID。
+複製進另一 structure 的新物件清除來源 ID，再由 normalizer 產生該位置的 unique ID。
+
 ## 9. Scope 與 overlap 語意
 
 - Body physical volume ownership 屬於 containing container。

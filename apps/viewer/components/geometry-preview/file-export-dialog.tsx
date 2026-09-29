@@ -17,15 +17,20 @@ import {
 } from "lucide-react";
 
 import {
+  applyMeshControlSet,
   createFileExportJob,
   getFileExportClientId,
+  listMeshControlSets,
   type FileExportJob,
   type FileExportKind,
+  type MeshControlSetDefinition,
+  type MeshControlSetRuleDetail,
   type SymmetryMode,
 } from "@/components/geometry-preview/file-export-client";
 import {
   buildMeshControlConfiguration,
   collectKeyedGeometryReferences,
+  draftsFromMeshControlConfiguration,
   filterKeyedGeometryReferences,
   MESH_CONTROL_METHODS,
   newMeshControlDraft,
@@ -67,6 +72,7 @@ const SYMMETRY_OPTIONS: ReadonlyArray<{
 export function FileExportDialog({
   kind,
   geometryStructure,
+  geometryHash,
   geometryEntityJson,
   sourceLabel,
   onClose,
@@ -74,6 +80,7 @@ export function FileExportDialog({
 }: {
   kind: FileExportKind;
   geometryStructure: unknown;
+  geometryHash: string;
   geometryEntityJson: unknown;
   sourceLabel: string;
   onClose: () => void;
@@ -83,6 +90,13 @@ export function FileExportDialog({
   const [globalElementSize, setGlobalElementSize] = React.useState("500");
   const [symmetry, setSymmetryMode] = React.useState<SymmetryMode>("full");
   const [controls, setControls] = React.useState<MeshControlDraft[]>([]);
+  const [availableSets, setAvailableSets] = React.useState<MeshControlSetDefinition[]>([]);
+  const [appliedSet, setAppliedSet] = React.useState<MeshControlSetDefinition | null>(null);
+  const [setDetails, setSetDetails] = React.useState<MeshControlSetRuleDetail[]>([]);
+  const [setCustomized, setSetCustomized] = React.useState(false);
+  const [libraryError, setLibraryError] = React.useState<string | null>(null);
+  const [applyingSet, setApplyingSet] = React.useState(false);
+  const applyAbortRef = React.useRef<AbortController | null>(null);
   const [meshControlsExpanded, setMeshControlsExpanded] = React.useState(false);
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -98,9 +112,69 @@ export function FileExportDialog({
     setPortalReady(true);
   }, []);
 
+  React.useEffect(() => {
+    if (kind !== "cdb") return;
+    const controller = new AbortController();
+    listMeshControlSets(controller.signal)
+      .then((definitions) => {
+        if (!controller.signal.aborted) setAvailableSets(definitions);
+      })
+      .catch((requestError) => {
+        if (controller.signal.aborted) return;
+        setLibraryError(requestError instanceof Error ? requestError.message : "Unable to load mesh control sets.");
+      });
+    return () => {
+      controller.abort();
+      applyAbortRef.current?.abort();
+    };
+  }, [kind]);
+
+  function markCustomized() {
+    if (appliedSet) setSetCustomized(true);
+  }
+
+  async function selectControlSet(setId: string) {
+    applyAbortRef.current?.abort();
+    if (!setId) {
+      setAppliedSet(null);
+      setSetDetails([]);
+      setSetCustomized(false);
+      setLibraryError(null);
+      setApplyingSet(false);
+      return;
+    }
+    const controller = new AbortController();
+    applyAbortRef.current = controller;
+    setApplyingSet(true);
+    setLibraryError(null);
+    try {
+      const applied = await applyMeshControlSet(setId, geometryStructure, controller.signal);
+      if (controller.signal.aborted) return;
+      if (applied.geometryHash !== geometryHash) {
+        throw new Error("Geometry changed while applying the set. Reopen the preview and apply it again.");
+      }
+      const definition = availableSets.find((item) => item.id === applied.setId);
+      if (!definition) throw new Error("The selected mesh control set is no longer available.");
+      setGlobalElementSize(String(applied.meshControl.globalElementSize));
+      setSymmetryMode(applied.meshControl.symmetry);
+      setControls(draftsFromMeshControlConfiguration(applied.meshControl));
+      setAppliedSet(definition);
+      setSetDetails(applied.details);
+      setSetCustomized(false);
+      setMeshControlsExpanded(true);
+      setError(null);
+    } catch (requestError) {
+      if (!controller.signal.aborted) {
+        setLibraryError(requestError instanceof Error ? requestError.message : "Unable to apply mesh control set.");
+      }
+    } finally {
+      if (!controller.signal.aborted) setApplyingSet(false);
+    }
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting) return;
+    if (submitting || applyingSet) return;
 
     const trimmedOutputPath = outputPath.trim();
     const meshControlError =
@@ -204,12 +278,12 @@ export function FileExportDialog({
                   className={inputClass}
                   inputMode="decimal"
                   value={globalElementSize}
-                  disabled={submitting}
-                  onChange={(event) => setGlobalElementSize(event.target.value)}
+                  disabled={submitting || applyingSet}
+                  onChange={(event) => { setGlobalElementSize(event.target.value); markCustomized(); }}
                 />
               </label>
 
-              <fieldset className="space-y-1.5" disabled={submitting}>
+              <fieldset className="space-y-1.5" disabled={submitting || applyingSet}>
                 <legend className="text-sm font-semibold text-foreground">
                   Symmetry
                 </legend>
@@ -231,7 +305,7 @@ export function FileExportDialog({
                           name="symmetry"
                           value={option.value}
                           checked={selected}
-                          onChange={() => setSymmetryMode(option.value)}
+                          onChange={() => { setSymmetryMode(option.value); markCustomized(); }}
                         />
                         <span>{option.label}</span>
                       </label>
@@ -240,9 +314,9 @@ export function FileExportDialog({
                 </div>
               </fieldset>
 
-              <section className="space-y-2 pt-4">
+              <section className="space-y-3 pt-4">
                 <div>
-                  <h4 className="text-sm font-semibold text-foreground">
+                  <h4 className="text-base font-semibold leading-6 text-foreground">
                     Mesh controls
                   </h4>
                   <p className="text-xs text-muted-foreground">
@@ -250,77 +324,124 @@ export function FileExportDialog({
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  className="inline-flex h-7 items-center gap-1 rounded-sm px-1.5 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-expanded={meshControlsExpanded}
-                  aria-controls={meshControlsPanelId}
-                  disabled={submitting}
-                  onClick={() =>
-                    setMeshControlsExpanded((expanded) => !expanded)
-                  }
-                >
-                  {meshControlsExpanded ? "Collapse" : "Expand"}
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${
-                      meshControlsExpanded ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
+                <div className="space-y-2 pl-3">
+                  <label className="flex max-w-md items-center gap-3">
+                    <span className="shrink-0 text-xs font-medium text-muted-foreground">Apply</span>
+                    <select
+                      className={`${compactInputClass} flex-1`}
+                      aria-label="Mesh control set"
+                      value={appliedSet?.id ?? ""}
+                      disabled={submitting || applyingSet}
+                      onChange={(event) => void selectControlSet(event.target.value)}
+                    >
+                      <option value="">Manual / custom</option>
+                      {availableSets.map((item) => (
+                        <option key={item.id} value={item.id}>{item.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {applyingSet ? <p className="text-xs text-muted-foreground">Applying set…</p> : null}
+                  {appliedSet ? (
+                    <div className="text-xs text-muted-foreground">
+                      <p>{appliedSet.label} · v{appliedSet.version}
+                        {setCustomized ? " · Customized after applying" : " · Applied as defined"}</p>
+                      <p>{appliedSet.description}</p>
+                    </div>
+                  ) : null}
+                  {libraryError ? <p className="text-xs text-destructive" role="alert">{libraryError}</p> : null}
+                </div>
 
-                {meshControlsExpanded ? (
-                  <div id={meshControlsPanelId} className="space-y-3 pt-1">
-                      {controls.length === 0 ? (
-                        <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-                          No local mesh controls.
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {controls.map((control, index) => (
-                            <MeshControlEditor
-                              key={control.clientId}
-                              index={index}
-                              control={control}
-                              keyedGeometryReferences={keyedGeometryReferences}
-                              disabled={submitting}
-                              onChange={(next) =>
-                                setControls((items) =>
-                                  items.map((item, itemIndex) =>
-                                    itemIndex === index ? next : item,
-                                  ),
-                                )
-                              }
-                              onRemove={() =>
-                                setControls((items) =>
-                                  items.filter(
-                                    (_, itemIndex) => itemIndex !== index,
-                                  ),
-                                )
-                              }
-                            />
-                          ))}
+                <div className={meshControlsExpanded ? "space-y-3 rounded-md border border-border p-3" : "pl-3"}>
+                  <button
+                    type="button"
+                    className="inline-flex h-7 items-center gap-1 rounded-sm px-1.5 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-expanded={meshControlsExpanded}
+                    aria-controls={meshControlsPanelId}
+                    disabled={submitting || applyingSet}
+                    onClick={() =>
+                      setMeshControlsExpanded((expanded) => !expanded)
+                    }
+                  >
+                    {meshControlsExpanded ? "Collapse" : "Expand"}
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+                        meshControlsExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {meshControlsExpanded ? (
+                    <div id={meshControlsPanelId} className="space-y-3 pt-1">
+                        {setDetails.length > 0 ? (
+                          <div className="rounded-md border bg-muted/15 p-3">
+                            <p className="mb-2 text-xs font-semibold">
+                              {setCustomized ? "Original resolved rules" : "Resolved rules"}
+                            </p>
+                            <ul className="space-y-1 text-xs text-muted-foreground">
+                              {setDetails.map((detail, index) => (
+                                <li key={`${detail.label}-${index}`}>
+                                  {detail.label}: {detail.startZ} → {detail.endZ} µm
+                                  {detail.status === "omitted" ? " (zero thickness, omitted)" : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {controls.length === 0 ? (
+                          <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+                            No local mesh controls.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {controls.map((control, index) => (
+                              <MeshControlEditor
+                                key={control.clientId}
+                                index={index}
+                                control={control}
+                                keyedGeometryReferences={keyedGeometryReferences}
+                                disabled={submitting || applyingSet}
+                                onChange={(next) => {
+                                  markCustomized();
+                                  setControls((items) =>
+                                    items.map((item, itemIndex) =>
+                                      itemIndex === index ? next : item,
+                                    ),
+                                  );
+                                }}
+                                onRemove={() => {
+                                  markCustomized();
+                                  setControls((items) =>
+                                    items.filter(
+                                      (_, itemIndex) => itemIndex !== index,
+                                    ),
+                                  );
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex justify-end pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={submitting || applyingSet}
+                            onClick={() => {
+                              markCustomized();
+                              setControls((items) => [
+                                ...items,
+                                newMeshControlDraft(),
+                              ]);
+                            }}
+                          >
+                            <Plus />
+                            Add control
+                          </Button>
                         </div>
-                      )}
-
-                      <div className="flex justify-end pt-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={submitting}
-                          onClick={() =>
-                            setControls((items) => [
-                              ...items,
-                              newMeshControlDraft(),
-                            ])
-                          }
-                        >
-                          <Plus />
-                          Add control
-                        </Button>
-                      </div>
-                  </div>
-                ) : null}
+                    </div>
+                  ) : null}
+                </div>
               </section>
             </>
           ) : null}
@@ -354,7 +475,7 @@ export function FileExportDialog({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting || applyingSet}>
             {submitting ? (
               <Loader2 className="animate-spin" />
             ) : (

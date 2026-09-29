@@ -25,7 +25,7 @@ source_of_truth:
 - Node.js `>=18.17.0`（目前驗證環境為 Node `24.3.0`、npm `11.4.2`）
 - macOS/Linux environment capable of installing CadQuery/OCP
 - `mesher` repository checkout commit
-  `8b588bbc077d7cb4858a7926a4f563e148f5ec71`；它提供2D／3D mesh、Standard V1 translation、
+  `302ebe36663b727669901cbc766ccc0a2ae6f221`；它提供2D／3D mesh、Standard V1 translation、
   CDB export與optional visualization
 
 Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm ci`。Python
@@ -39,11 +39,12 @@ Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm
 ```bash
 python3 -m venv venv
 venv/bin/pip install --upgrade pip
-git -C /absolute/path/to/mesher checkout 8b588bbc077d7cb4858a7926a4f563e148f5ec71
+git -C /absolute/path/to/mesher checkout 302ebe36663b727669901cbc766ccc0a2ae6f221
 venv/bin/pip install -e packages/kernel-py
 venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
   -e packages/process-step-py \
+  -e packages/mesh-control-py \
   -e packages/cad-py \
   -e 'apps/api[test]'
 ```
@@ -116,6 +117,7 @@ marker 不是 `2` 時，目前 implementation 會清空 resource tables；這個
 ```bash
 venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
+venv/bin/python -m unittest discover -s packages/mesh-control-py/tests
 venv/bin/python -m unittest discover apps/api/tests
 cd apps/viewer && npm run build
 ```

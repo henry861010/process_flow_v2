@@ -7,8 +7,9 @@ from ..serialization.schema import DEFAULT_UNIT_SYSTEM, GEOMETRY_SCHEMA_VERSION,
 
 
 class Container:
-    def __init__(self, key=None, parent=None):
+    def __init__(self, key=None, parent=None, structure_id=None):
         self._key = validate_container_key(key)
+        self._structure_id = structure_id
         self._bodies = []
         self._vias = []
         self._circuits = []
@@ -119,7 +120,7 @@ class Container:
         return 0 if len(values) == 0 else min(values)
 
     def copy(self):
-        copied = Container(key=self.key())
+        copied = Container(key=self.key(), structure_id=self._structure_id)
         for body in self._bodies:
             copied.add_body(body.copy())
         for via in self._vias:
@@ -131,6 +132,13 @@ class Container:
         for child in self._children:
             copied.attach_child(child.copy())
         return copied
+
+    def clear_structure_ids(self):
+        self._structure_id = None
+        for feature in self._direct_features():
+            feature.clear_structure_id()
+        for child in self._children:
+            child.clear_structure_ids()
 
     def move(self, x=0, y=0, z=0):
         for feature in self._direct_features():
@@ -195,6 +203,8 @@ class Container:
         }
         if self._key is not None:
             payload["key"] = self._key
+        if self._structure_id is not None:
+            payload["id"] = self._structure_id
         return payload
 
     def json(self, schema_version=GEOMETRY_SCHEMA_VERSION, unit_system=DEFAULT_UNIT_SYSTEM):

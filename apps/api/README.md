@@ -112,6 +112,8 @@ missing token必須重新preview，不可在前端自行重建geometry。
 | --- | --- | --- |
 | `POST` | `/api/geometry-preview` | Resolve/execute target and return geometry JSON + GLB |
 | `POST` | `/api/geometry-preview/step` | Convert supplied structure to base64 STEP |
+| `GET` | `/api/mesh-control-sets` | List registered Python mesh control sets |
+| `POST` | `/api/mesh-control-sets/{setId}/apply` | Resolve a set against `geometryStructure` and return a complete `meshControl` plus rule details |
 | `POST` | `/api/geometry-preview/export-jobs` | Create JSON/STEP/CDB file job |
 | `POST` | `/api/geometry-preview/cdb-jobs` | CDB-only compatibility route using the same `geometryStructure` + `meshControl` body |
 | `GET` | `/api/export-jobs?clientId=...` | Client-filtered in-memory job list |
@@ -130,6 +132,8 @@ API maps repository errors to：
 - `409` duplicate id、referential conflict 或 stale workspace revision；
 - `400` domain/compiler `ValueError`；
 - `422` Pydantic request shape error，或mesher-owned `meshControl` contract validation error。
+
+Mesh control set 的 apply route 對不適用或無法解析的 geometry 也回 `422`；未知 set 回 `404`。
 
 Message text 不是 stable contract；client 應以 HTTP status + user-facing message 處理，不應
 parse 完整字串。

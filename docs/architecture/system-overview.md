@@ -14,7 +14,7 @@ source_of_truth:
   - packages/kernel-py/src/process_flow_kernel
   - packages/process-step-py/src/process_flow_steps
   - packages/cad-py/src/process_flow_cad
-  - https://github.com/henry861010/mesher/tree/8b588bbc077d7cb4858a7926a4f563e148f5ec71/src/mesher/process_flow
+  - https://github.com/henry861010/mesher/tree/302ebe36663b727669901cbc766ccc0a2ae6f221/src/mesher/process_flow
 ---
 
 # 系統架構總覽

@@ -4,10 +4,11 @@ from .semantic_keys import validate_body_key
 
 
 class Body:
-    def __init__(self, geometry, material, key=None):
+    def __init__(self, geometry, material, key=None, structure_id=None):
         self._geometry = geometry
         self._material = material
         self._key = validate_body_key(key)
+        self._structure_id = structure_id
 
     def z_min(self):
         return self._geometry.z_min()
@@ -28,13 +29,16 @@ class Body:
         return self._key
 
     def copy(self):
-        return Body(self._geometry.copy(), self._material, self._key)
+        return Body(self._geometry.copy(), self._material, self._key, self._structure_id)
 
     def copy_with_thk(self, thk):
-        return Body(self._geometry.copy_with_thk(thk), self._material, self._key)
+        return Body(self._geometry.copy_with_thk(thk), self._material, self._key, self._structure_id)
 
     def copy_with_key(self, key):
-        return Body(self._geometry.copy(), self._material, key)
+        return Body(self._geometry.copy(), self._material, key, self._structure_id)
+
+    def clear_structure_id(self):
+        self._structure_id = None
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -62,17 +66,20 @@ class Body:
         }
         if self._key is not None:
             payload["key"] = self._key
+        if self._structure_id is not None:
+            payload["id"] = self._structure_id
         return payload
 
 
 class Via:
-    def __init__(self, geometry, density, material, direction, koz=0):
+    def __init__(self, geometry, density, material, direction, koz=0, structure_id=None):
         _assert_direction(direction, "Via")
         self._geometry = geometry
         self._density = density
         self._material = material
         self._direction = direction
         self._koz = _non_negative_number(koz, "Via koz")
+        self._structure_id = structure_id
 
     def z_min(self):
         return self._geometry.z_min()
@@ -99,10 +106,13 @@ class Via:
         return self._koz
 
     def copy(self):
-        return Via(self._geometry.copy(), self._density, self._material, self._direction, self._koz)
+        return Via(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id)
 
     def copy_with_thk(self, thk):
-        return Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz)
+        return Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id)
+
+    def clear_structure_id(self):
+        self._structure_id = None
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -125,21 +135,25 @@ class Via:
         self._direction = _reverse_direction(self._direction)
 
     def json(self):
-        return {
+        payload = {
             "geometry": self._geometry.json(),
             "material": self._material,
             "density": self._density,
             "direction": self._direction,
             "koz": self._koz,
         }
+        if self._structure_id is not None:
+            payload["id"] = self._structure_id
+        return payload
 
 
 class Circuit:
-    def __init__(self, geometry, density, material, koz=0):
+    def __init__(self, geometry, density, material, koz=0, structure_id=None):
         self._geometry = geometry
         self._density = density
         self._material = material
         self._koz = _non_negative_number(koz, "Circuit koz")
+        self._structure_id = structure_id
 
     def z_min(self):
         return self._geometry.z_min()
@@ -163,10 +177,13 @@ class Circuit:
         return self._koz
 
     def copy(self):
-        return Circuit(self._geometry.copy(), self._density, self._material, self._koz)
+        return Circuit(self._geometry.copy(), self._density, self._material, self._koz, self._structure_id)
 
     def copy_with_thk(self, thk):
-        return Circuit(self._geometry.copy_with_thk(thk), self._density, self._material, self._koz)
+        return Circuit(self._geometry.copy_with_thk(thk), self._density, self._material, self._koz, self._structure_id)
+
+    def clear_structure_id(self):
+        self._structure_id = None
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -188,22 +205,26 @@ class Circuit:
         self._geometry.flip(around_z)
 
     def json(self):
-        return {
+        payload = {
             "geometry": self._geometry.json(),
             "material": self._material,
             "density": self._density,
             "koz": self._koz,
         }
+        if self._structure_id is not None:
+            payload["id"] = self._structure_id
+        return payload
 
 
 class Bump:
-    def __init__(self, geometry, density, material, direction, koz=0):
+    def __init__(self, geometry, density, material, direction, koz=0, structure_id=None):
         _assert_direction(direction, "Bump")
         self._geometry = geometry
         self._density = density
         self._material = material
         self._direction = direction
         self._koz = _non_negative_number(koz, "Bump koz")
+        self._structure_id = structure_id
 
     def z_min(self):
         return self._geometry.z_min()
@@ -230,10 +251,13 @@ class Bump:
         return self._koz
 
     def copy(self):
-        return Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz)
+        return Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id)
 
     def copy_with_thk(self, thk):
-        return Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz)
+        return Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id)
+
+    def clear_structure_id(self):
+        self._structure_id = None
 
     def move(self, x=0, y=0, z=0):
         self._geometry.move(x=x, y=y, z=z)
@@ -256,13 +280,16 @@ class Bump:
         self._direction = _reverse_direction(self._direction)
 
     def json(self):
-        return {
+        payload = {
             "geometry": self._geometry.json(),
             "material": self._material,
             "density": self._density,
             "direction": self._direction,
             "koz": self._koz,
         }
+        if self._structure_id is not None:
+            payload["id"] = self._structure_id
+        return payload
 
 
 def _assert_direction(direction, label):

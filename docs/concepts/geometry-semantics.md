@@ -15,7 +15,7 @@ source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/serialization
   - packages/cad-py/src/process_flow_cad/exporter.py
   - packages/cad-py/src/process_flow_cad/section.py
-  - https://github.com/henry861010/mesher/blob/8b588bbc077d7cb4858a7926a4f563e148f5ec71/src/mesher/process_flow/translation.py
+  - https://github.com/henry861010/mesher/blob/302ebe36663b727669901cbc766ccc0a2ae6f221/src/mesher/process_flow/translation/standard_v1.py
 ---
 
 # Geometry 解讀語意

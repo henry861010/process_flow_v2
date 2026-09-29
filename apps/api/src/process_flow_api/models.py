@@ -484,6 +484,33 @@ class GeometryPreviewStepRequest(StrictModel):
     geometryStructure: JsonObject
 
 
+class MeshControlSetDefinition(StrictModel):
+    id: str
+    version: str
+    label: str
+    description: str
+
+
+class MeshControlSetApplyRequest(StrictModel):
+    geometryStructure: JsonObject
+
+
+class MeshControlSetRuleDetail(StrictModel):
+    label: str
+    status: Literal["applied", "omitted"]
+    startZ: float
+    endZ: float
+    sourceIds: list[str]
+
+
+class MeshControlSetApplyResponse(StrictModel):
+    setId: str
+    setVersion: str
+    geometryHash: str
+    meshControl: JsonObject
+    details: list[MeshControlSetRuleDetail]
+
+
 class CdbFileExportCreateRequest(StrictModel):
     clientId: str = Field(min_length=1, max_length=160)
     kind: Literal["cdb"]

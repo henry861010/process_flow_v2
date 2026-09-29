@@ -40,8 +40,13 @@ source label、Close；footer `Cancel`、primary `Export`。
 
 CDB mesher固定顯示`process_flow_2_5d`，global element size default `500`。Symmetry以緊湊的單欄radio list依序顯示`Full`、
 `Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
-Controls區塊預設收合；`Mesh controls` heading與description位於外面，其下是無border的`Expand` +
-chevron text control；展開時copy改為`Collapse`，並顯示empty state或control cards與`Add control`。
+`Apply` 與 mesh control set 選項同列，位於 `Mesh controls` 標題與 `Expand` 按鈕之間，預設為 `Manual / custom`；選擇已登錄 set 會將目前 preview structure 送到
+`POST /api/mesh-control-sets/{id}/apply`，把回傳的 global size、symmetry 與 controls 展開為可編輯欄位，
+並顯示每條規則的解析區間。修改展開結果後標示 `Customized after applying`；套用失敗保留原草稿。
+HBM example 只適用於單一 root HBM generator v2 geometry，其尺寸是示範值而非部門標準。
+Controls區塊預設收合；`Mesh controls` heading與description下方依序是set選項和`Expand` +
+chevron text control。展開時只有`Collapse`按鈕、規則說明與local controls以border包住，
+heading與set選項位於border上方；下方顯示empty state或control cards與`Add control`。
 收合不得清空draft。Controls初始為空，可新增/刪除；`Add control`固定放在empty
 state或既有control cards的下方並靠右。
 Method下拉直接使用`Z_SECTION_AVG`、`Z_SECTION_TOP`、

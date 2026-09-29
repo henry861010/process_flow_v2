@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "process-flow-mesh-control"
+version = "0.0.0"
+description = "Geometry-aware mesh control sets for Process Flow."
+requires-python = ">=3.11"
+dependencies = ["process-flow-kernel"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+process_flow_mesh_control = ["py.typed"]

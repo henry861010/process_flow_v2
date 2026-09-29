@@ -12,6 +12,7 @@ topology、研究中的 workspace、immutable product instance 與 geometry cata
 | `apps/api` | FastAPI、Pydantic boundary、SQLite repository、workspace transaction、preview/export orchestration。 |
 | `packages/kernel-py` | Geometry domain、graph/configuration validation、compile 與 process-step execution；不存取 HTTP 或 SQLite。 |
 | `packages/process-step-py` | `process_flow_steps.<program>` 的實際 process operations。 |
+| `packages/mesh-control-py` | Python 定義的 mesh control sets 與 HBM 範例。 |
 | `packages/cad-py` | GeometryStructure 到 GLB / STEP AP242 的轉換。 |
 | `docs` | Target contract、現行架構、UI 規格、操作手冊與 conformance ledger。 |
 
@@ -32,16 +33,17 @@ topology、研究中的 workspace、immutable product instance 與 geometry cata
 Python 3.11+ 與 Node.js 18.17+ 是最低基線。2D／3D mesh、Standard V1 translation、CDB
 export 與 optional mesh visualization 由獨立的
 [`mesher`](https://github.com/henry861010/mesher) repository 管理；目前整合固定在 commit
-`8b588bbc077d7cb4858a7926a4f563e148f5ec71`。完整 dependency 與平台注意事項請依
+`302ebe36663b727669901cbc766ccc0a2ae6f221`。完整 dependency 與平台注意事項請依
 [本機開發手冊](docs/operations/local-development.md)；以下命令從 repository root 執行：
 
 ```bash
 python3 -m venv venv
-git -C /absolute/path/to/mesher checkout 8b588bbc077d7cb4858a7926a4f563e148f5ec71
+git -C /absolute/path/to/mesher checkout 302ebe36663b727669901cbc766ccc0a2ae6f221
 venv/bin/pip install -e packages/kernel-py
 venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
   -e packages/process-step-py \
+  -e packages/mesh-control-py \
   -e packages/cad-py \
   -e 'apps/api[test]'
 ```
@@ -71,6 +73,7 @@ NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL=http://localhost:8000 npm run dev -- -p 30
 ```bash
 venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
+venv/bin/python -m unittest discover -s packages/mesh-control-py/tests
 venv/bin/python -m unittest discover apps/api/tests
 venv/bin/python scripts/check_docs.py
 venv/bin/python scripts/check_golden_example.py

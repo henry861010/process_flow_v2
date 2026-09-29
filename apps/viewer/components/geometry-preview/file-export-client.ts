@@ -48,6 +48,48 @@ export type MeshControlConfiguration = {
   controls: MeshControlEntry[];
 };
 
+export type MeshControlSetDefinition = {
+  id: string;
+  version: string;
+  label: string;
+  description: string;
+};
+
+export type MeshControlSetRuleDetail = {
+  label: string;
+  status: "applied" | "omitted";
+  startZ: number;
+  endZ: number;
+  sourceIds: string[];
+};
+
+export type MeshControlSetApplyResponse = {
+  setId: string;
+  setVersion: string;
+  geometryHash: string;
+  meshControl: MeshControlConfiguration;
+  details: MeshControlSetRuleDetail[];
+};
+
+export function listMeshControlSets(signal?: AbortSignal) {
+  return apiFetch<MeshControlSetDefinition[]>("/api/mesh-control-sets", { signal });
+}
+
+export function applyMeshControlSet(
+  setId: string,
+  geometryStructure: unknown,
+  signal?: AbortSignal,
+) {
+  return apiFetch<MeshControlSetApplyResponse>(
+    `/api/mesh-control-sets/${encodeURIComponent(setId)}/apply`,
+    {
+      method: "POST",
+      body: JSON.stringify({ geometryStructure }),
+      signal,
+    },
+  );
+}
+
 export type FileExportStatus =
   | "queued"
   | "running"

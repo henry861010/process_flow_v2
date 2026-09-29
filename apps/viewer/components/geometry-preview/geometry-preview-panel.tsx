@@ -267,6 +267,7 @@ export function GeometryPreviewPanel({
         <FileExportDialog
           kind={fileExportDialogKind}
           geometryStructure={targetSnapshot.geometryEntityJson.structure}
+          geometryHash={targetSnapshot.geometryHash}
           geometryEntityJson={targetSnapshot.geometryEntityJson}
           sourceLabel={`${preview.sourceLabel} -> ${targetSnapshot.label}`}
           onClose={() => setFileExportDialogKind(null)}

@@ -10,7 +10,8 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mesher.contracts.process_flow_2_5d import validate_mesh_control
-from process_flow_kernel import validate_geometry_semantic_keys
+from process_flow_kernel import ProcessGeometryState, validate_geometry_semantic_keys
+from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry
 
 from .file_export_jobs import FileExportJobManager
 from .fixture_export import build_fixture_archive
@@ -33,6 +34,9 @@ from .models import (
     GeometryPreviewResponse,
     GeometryPreviewStepRequest,
     GeometryPreviewStepResponse,
+    MeshControlSetApplyRequest,
+    MeshControlSetApplyResponse,
+    MeshControlSetDefinition,
     PreviewSectionResponse,
     PreviewSessionResponse,
     ProcessFlowInstanceCreate,
@@ -43,7 +47,7 @@ from .models import (
     TemplateInstanceCreateRequest,
     WorkspaceCommitRequest,
 )
-from .preview_sessions import PreviewCapacityError, PreviewSessionManager, etag_matches
+from .preview_sessions import PreviewCapacityError, PreviewSessionManager, content_hash, etag_matches
 from .repository import DuplicateItemError, NotFoundError, ResourceConflictError, SQLiteStore
 from .seed import load_seed_fixtures
 from .services import (
@@ -68,6 +72,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     app.state.file_export_jobs = FileExportJobManager()
     app.state.preview_sessions = PreviewSessionManager.from_environment()
     app.state.geometry_generators = GeometryGeneratorRegistry()
+    app.state.mesh_control_sets = MeshControlSetRegistry()
 
     app.add_middleware(
         CORSMiddleware,
@@ -355,6 +360,33 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     @app.post("/api/geometry-preview/step", response_model=GeometryPreviewStepResponse)
     async def geometry_preview_step(body: GeometryPreviewStepRequest):
         return await preview_step_geometry(body)
+
+    @app.get("/api/mesh-control-sets", response_model=list[MeshControlSetDefinition])
+    async def list_mesh_control_sets():
+        return app.state.mesh_control_sets.definitions()
+
+    @app.post(
+        "/api/mesh-control-sets/{set_id}/apply",
+        response_model=MeshControlSetApplyResponse,
+    )
+    async def apply_mesh_control_set(set_id: str, body: MeshControlSetApplyRequest):
+        try:
+            app.state.mesh_control_sets.definition(set_id)
+        except KeyError:
+            raise NotFoundError(set_id) from None
+        try:
+            state = ProcessGeometryState.from_structure(body.geometryStructure)
+            definition, result = app.state.mesh_control_sets.apply(set_id, state)
+            validate_mesh_control(result.mesh_control)
+        except (MeshControlSetNotApplicable, ValueError, KeyError, TypeError, AttributeError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return {
+            "setId": definition["id"],
+            "setVersion": definition["version"],
+            "geometryHash": content_hash(body.geometryStructure),
+            "meshControl": result.mesh_control,
+            "details": result.details,
+        }
 
     @app.post("/api/geometry-preview/cdb-jobs", response_model=FileExportJobResponse)
     async def create_geometry_preview_cdb_file_export(body: CdbFileExportCreateRequest):

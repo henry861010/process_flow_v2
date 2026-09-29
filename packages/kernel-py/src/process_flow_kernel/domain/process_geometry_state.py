@@ -47,6 +47,7 @@ class ProcessGeometryState:
     def from_structure(cls, payload, options=None):
         options = options or {}
         structure = normalize_geometry_structure(payload)
+        _validate_structure_ids(structure["root"])
         root = _container_from_payload(structure["root"])
         cursor_option = options.get("cursor_z", options.get("cursorZ", "geometryTop"))
         cursor_z = root.z_max() if cursor_option == "geometryTop" else cursor_option
@@ -70,6 +71,24 @@ class ProcessGeometryState:
             schema_version or self._schema_version,
             unit_system or self._unit_system,
         )
+
+    def find_geometry(self, *, kind=None, id=None, key=None, material=None):
+        """Return detached summaries of serialized containers and features.
+
+        IDs here are structure IDs, unlike the runtime IDs returned by
+        ``find_scopes``. Results cannot mutate this state.
+        """
+        kinds = {"container", "body", "via", "circuit", "bump"}
+        if kind is not None and kind not in kinds:
+            raise ValueError(f"Unknown geometry kind: {kind}")
+        nodes = _geometry_node_summaries(self.to_geometry_structure()["root"])
+        return [
+            node for node in nodes
+            if (kind is None or node["kind"] == kind)
+            and (id is None or node["id"] == id)
+            and (key is None or node["key"] == key)
+            and (material is None or node["material"] == material)
+        ]
 
     def cursor_z(self):
         return self._cursor_z
@@ -749,6 +768,7 @@ class ProcessGeometryState:
 
         for source_body in source_bodies:
             body = source_body.copy()
+            body.clear_structure_id()
             body.move(z=z_offset)
             self._add_body_object(body)
 
@@ -788,6 +808,7 @@ class ProcessGeometryState:
         source_bottom_z = source_body.z_min()
         source_top_z = source_body.z_max()
         body = source_body.copy()
+        body.clear_structure_id()
         body.move(z=target_bottom_z - source_bottom_z)
         self._add_body_object(body)
 
@@ -880,6 +901,7 @@ class ProcessGeometryState:
             z=_finite_number(self._cursor_z if bottom_z is None else bottom_z, "bottomZ") - source_bounds["zMin"],
         )
         parent = self._resolve_scope(scope)
+        placed.clear_structure_ids()
         parent.attach_child(placed)
         self._register_scope_tree(placed)
         return self._scope_ref(placed)
@@ -1014,14 +1036,80 @@ class ProcessGeometryState:
         return counts
 
 
+def _validate_structure_ids(root):
+    seen = set()
+
+    def visit(container):
+        for item in [container, *(
+            feature
+            for field in ("bodies", "vias", "circuits", "bumps")
+            for feature in container.get(field, [])
+        )]:
+            structure_id = item.get("id")
+            if not isinstance(structure_id, str) or not structure_id:
+                raise ValueError("Geometry structure IDs must be non-empty strings")
+            if structure_id in seen:
+                raise ValueError(f"Duplicate geometry structure ID: {structure_id}")
+            seen.add(structure_id)
+        for child in container.get("children", []):
+            visit(child)
+
+    visit(root)
+
+
+def _geometry_node_summaries(root):
+    nodes = []
+
+    def visit(container, parent_id=None):
+        container_id = container["id"]
+        summary = {
+            "kind": "container",
+            "id": container_id,
+            "key": container.get("key"),
+            "material": None,
+            "parentId": parent_id,
+            "containerId": parent_id,
+            "zMin": 0,
+            "zMax": 0,
+        }
+        nodes.append(summary)
+        bounds = []
+        for field, kind in (("bodies", "body"), ("vias", "via"),
+                            ("circuits", "circuit"), ("bumps", "bump")):
+            for feature in container.get(field, []):
+                geometry = _geometry_from_payload(feature["geometry"])
+                node = {
+                    "kind": kind,
+                    "id": feature["id"],
+                    "key": feature.get("key"),
+                    "material": feature["material"],
+                    "parentId": container_id,
+                    "containerId": container_id,
+                    "zMin": geometry.z_min(),
+                    "zMax": geometry.z_max(),
+                }
+                nodes.append(node)
+                bounds.append((node["zMin"], node["zMax"]))
+        for child in container.get("children", []):
+            bounds.append(visit(child, container_id))
+        if bounds:
+            summary["zMin"] = min(item[0] for item in bounds)
+            summary["zMax"] = max(item[1] for item in bounds)
+        return summary["zMin"], summary["zMax"]
+
+    visit(root)
+    return nodes
+
+
 def _container_from_payload(container):
-    result = Container(key=container.get("key"))
+    result = Container(key=container.get("key"), structure_id=container.get("id"))
     for body in container.get("bodies", []):
         result.add_body(
             Body(
                 _geometry_from_payload(body["geometry"]),
                 body["material"],
                 body.get("key"),
+                body.get("id"),
             )
         )
     for via in container.get("vias", []):
@@ -1032,6 +1120,7 @@ def _container_from_payload(container):
                 via["material"],
                 via.get("direction"),
                 via["koz"],
+                via.get("id"),
             )
         )
     for circuit in container.get("circuits", []):
@@ -1041,6 +1130,7 @@ def _container_from_payload(container):
                 circuit["density"],
                 circuit["material"],
                 circuit["koz"],
+                circuit.get("id"),
             )
         )
     for bump in container.get("bumps", []):
@@ -1051,6 +1141,7 @@ def _container_from_payload(container):
                 bump["material"],
                 bump.get("direction"),
                 bump["koz"],
+                bump.get("id"),
             )
         )
     for child in container.get("children", []):

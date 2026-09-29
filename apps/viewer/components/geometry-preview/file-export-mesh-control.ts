@@ -122,18 +122,49 @@ export function buildMeshControlConfiguration(
   };
 }
 
+export function draftsFromMeshControlConfiguration(
+  configuration: MeshControlConfiguration,
+): MeshControlDraft[] {
+  return configuration.controls.map((entry) => {
+    const reference = entry.reference;
+    const draft = newMeshControlDraft();
+    draft.method = entry.method;
+    draft.referenceKind = reference?.kind ?? "";
+    draft.referenceKey = reference?.key ?? "";
+    draft.referenceId = reference?.id ?? "";
+    if (entry.method === "Z_POINT") {
+      draft.z = draftFromZLocation(entry.z);
+    } else {
+      draft.elementSize = String(entry.elementSize);
+      draft.startZ = draftFromZLocation(entry.startZ);
+      draft.endZ = draftFromZLocation(entry.endZ);
+    }
+    return draft;
+  });
+}
+
+function draftFromZLocation(location: MeshControlZLocation): ZLocationDraft {
+  return location.mode === "absolute"
+    ? { mode: "absolute", anchor: "z_min", value: String(location.value) }
+    : {
+        mode: "relative",
+        anchor: location.anchor,
+        value: String(location.offset),
+      };
+}
+
 function buildMeshControlEntry(control: MeshControlDraft): MeshControlEntry {
   const reference = buildMeshControlReference(control);
   if (control.method === "Z_POINT") {
     return {
       method: control.method,
-      reference,
+      ...(reference ? { reference } : {}),
       z: buildZLocation(control.z),
     };
   }
   return {
     method: control.method,
-    reference,
+    ...(reference ? { reference } : {}),
     elementSize: Number(control.elementSize),
     startZ: buildZLocation(control.startZ),
     endZ: buildZLocation(control.endZ),
@@ -144,6 +175,7 @@ function buildMeshControlReference(control: MeshControlDraft) {
   const kind = control.referenceKind.trim();
   const key = control.referenceKey.trim();
   const id = control.referenceId.trim();
+  if (!kind && !key && !id) return undefined;
   return {
     kind,
     ...(key ? { key } : {}),

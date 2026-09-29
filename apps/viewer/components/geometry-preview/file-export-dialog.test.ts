@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMeshControlConfiguration,
   collectKeyedGeometryReferences,
+  draftsFromMeshControlConfiguration,
   filterKeyedGeometryReferences,
   validateMeshControlDraft,
   type MeshControlDraft,
@@ -24,6 +25,26 @@ function control(overrides: Partial<MeshControlDraft> = {}): MeshControlDraft {
 }
 
 describe("CDB mesh-control form", () => {
+  it("loads a set result into editable drafts and exports the same canonical settings", () => {
+    const generated = buildMeshControlConfiguration("500", "full", [
+      control({
+        referenceKind: "container",
+        referenceKey: "",
+        referenceId: "container:hbm-root",
+        startZ: { mode: "absolute", anchor: "z_min", value: "100" },
+        endZ: { mode: "absolute", anchor: "z_max", value: "120" },
+      }),
+    ]);
+    const drafts = draftsFromMeshControlConfiguration(generated);
+    expect(drafts[0].startZ.value).toBe("100");
+    expect(drafts[0].referenceId).toBe("container:hbm-root");
+    expect(buildMeshControlConfiguration("500", "full", drafts)).toEqual(generated);
+    drafts[0].elementSize = "5";
+    expect(buildMeshControlConfiguration("500", "full", drafts).controls[0]).toMatchObject({
+      elementSize: 5,
+    });
+  });
+
   it("collects unique keyed container and body references from the preview", () => {
     expect(
       collectKeyedGeometryReferences({

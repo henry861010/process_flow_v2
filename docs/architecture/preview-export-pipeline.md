@@ -17,7 +17,7 @@ source_of_truth:
   - apps/api/src/process_flow_api/file_export_jobs.py
   - packages/cad-py/src/process_flow_cad/worker.py
   - packages/cad-py/src/process_flow_cad/section.py
-  - https://github.com/henry861010/mesher/blob/8b588bbc077d7cb4858a7926a4f563e148f5ec71/src/mesher/process_flow/worker.py
+  - https://github.com/henry861010/mesher/blob/302ebe36663b727669901cbc766ccc0a2ae6f221/src/mesher/process_flow/worker.py
 ---
 
 # Preview 與 export pipeline
@@ -194,6 +194,10 @@ Mesh-control schema的唯一完整source of truth在mesher package。API request
 `mesher.contracts.process_flow_2_5d.validate_mesh_control`（同時由`mesher.process_flow`公開re-export），
 validator拒絕時轉成HTTP 422，不建立temp files或排入queue。Worker透過pipeline再次執行同一contract，
 因此直接使用CLI也不會繞過驗證。API不得複製method/reference/location的Pydantic union。
+
+Python-authored mesh control sets 位於 `packages/mesh-control-py`。API 可列出 set，或以當前
+`geometryStructure` 套用 set，回傳完整 canonical `meshControl`、geometry hash 與規則解析說明。
+套用 API 不建立 export job；前端可修改展開的設定，最後仍以原有 CDB job route 匯出。
 
 每個CDB job建立獨立temp directory，輸入檔固定命名為`geometry.json`與`mesh_control.json`，並以
 `mesher-process-flow geometry.json mesh_control.json output.cdb`等價的worker參數順序執行。Mesher啟動前，
