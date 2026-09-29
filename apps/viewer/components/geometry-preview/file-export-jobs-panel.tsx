@@ -512,6 +512,20 @@ function FileExportJobDetailPopover({
           value={formatDateTime(job.finishedAt)}
         />
         <JobDetailField label="Job ID" value={job.jobId} mono />
+        {job.geometryOutputPath ? (
+          <JobDetailField
+            label="Geometry JSON"
+            value={job.geometryOutputPath}
+            mono
+          />
+        ) : null}
+        {job.meshControlOutputPath ? (
+          <JobDetailField
+            label="Mesh-control JSON"
+            value={job.meshControlOutputPath}
+            mono
+          />
+        ) : null}
         <JobDetailField label="Log path" value={job.logPath} mono />
         {job.message ? (
           <JobDetailField

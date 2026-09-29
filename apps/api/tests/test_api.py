@@ -1747,6 +1747,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         normalized_output_path = Path(self.tmp.name) / "MODEL.cdb"
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["outputPath"], str(normalized_output_path))
+        geometry_output_path = Path(self.tmp.name) / "MODEL.geometry.json"
+        mesh_control_output_path = Path(self.tmp.name) / "MODEL.mesh-control.json"
+        self.assertEqual(job["geometryOutputPath"], str(geometry_output_path))
+        self.assertEqual(job["meshControlOutputPath"], str(mesh_control_output_path))
         self.assertEqual(job["meshControl"], mesh_control())
         self.assertGreater(job["nodeCount"], 0)
         self.assertGreater(job["elementCount"], 0)
@@ -1755,6 +1759,14 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["progress"]["stage"], "finalizing")
         self.assertEqual(job["logPath"], str(Path(self.tmp.name) / f"{job['jobId']}.log"))
         self.assertTrue(normalized_output_path.exists())
+        self.assertEqual(
+            json.loads(geometry_output_path.read_text(encoding="utf-8")),
+            simple_structure(),
+        )
+        self.assertEqual(
+            json.loads(mesh_control_output_path.read_text(encoding="utf-8")),
+            mesh_control(),
+        )
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertIn("*NODES,index,x,y,z", content)
         self.assertIn("*ELEMENTS,index,n0,n1,n2,n3,n4,n5,n6,n7", content)
@@ -1790,6 +1802,57 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertNotIn('"event":', log_text)
         self.assertNotIn("processing_features", log_text)
         self.assertNotIn("geometryStructure", log_text)
+
+    def test_cdb_export_keeps_geometry_and_mesh_control_when_mesher_fails(self):
+        output_path = Path(self.tmp.name) / "failed-mesh.cdb"
+
+        async def start_failing_worker(**_):
+            script = (
+                "import sys\n"
+                "print('mesh construction failed', file=sys.stderr, flush=True)\n"
+                "raise SystemExit(2)\n"
+            )
+            return await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+        with mock.patch(
+            "process_flow_api.file_export_jobs.start_cdb_worker",
+            new=start_failing_worker,
+        ):
+            response = self.client.post(
+                "/api/geometry-preview/export-jobs",
+                json={
+                    "clientId": "client-failed-mesh-sidecars",
+                    "kind": "cdb",
+                    "geometryStructure": simple_structure(),
+                    "meshControl": mesh_control(),
+                    "outputPath": str(output_path),
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            job = wait_for_export_job(
+                self.client,
+                response.json()["job"]["jobId"],
+                "client-failed-mesh-sidecars",
+            )
+
+        geometry_output_path = Path(job["geometryOutputPath"])
+        mesh_control_output_path = Path(job["meshControlOutputPath"])
+        self.assertEqual(job["status"], "failed", job)
+        self.assertFalse(output_path.exists())
+        self.assertEqual(
+            json.loads(geometry_output_path.read_text(encoding="utf-8")),
+            simple_structure(),
+        )
+        self.assertEqual(
+            json.loads(mesh_control_output_path.read_text(encoding="utf-8")),
+            mesh_control(),
+        )
 
     def test_running_job_exposes_live_worker_stage_progress(self):
         output_path = Path(self.tmp.name) / "slow.cdb"
@@ -2098,86 +2161,85 @@ class ProcessFlowApiTests(unittest.TestCase):
             element_counts["full"],
         )
 
-    def test_cdb_export_accepts_controls_but_warns_that_they_are_not_applied(self):
+    def test_cdb_export_applies_controls_without_a_compatibility_warning(self):
+        geometry_structure = simple_structure()
+        geometry_structure["root"]["key"] = "hbm"
         controls = [
             {
-                "method": "Z_POINT",
-                "reference": {"kind": "root"},
-                "z": {
-                    "mode": "relative",
-                    "anchor": "z_min",
-                    "offset": 0.5,
-                },
+                "method": "Z_SECTION_AVG",
+                "reference": {"kind": "container", "key": "hbm"},
+                "elementSize": 0.25,
+                "startZ": {"mode": "absolute", "value": 0},
+                "endZ": {"mode": "absolute", "value": 1},
             }
         ]
-        output_path = Path(self.tmp.name) / "controls-warning.cdb"
+        output_path = Path(self.tmp.name) / "controls.cdb"
 
         response = self.client.post(
             "/api/geometry-preview/export-jobs",
             json={
-                "clientId": "client-controls-warning",
+                "clientId": "client-controls",
                 "kind": "cdb",
-                "geometryStructure": simple_structure(),
+                "geometryStructure": geometry_structure,
                 "meshControl": mesh_control(controls=controls),
                 "outputPath": str(output_path),
             },
         )
 
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertIn("not applied", response.json()["job"]["warning"])
+        self.assertIsNone(response.json()["job"]["warning"])
         job = wait_for_export_job(
             self.client,
             response.json()["job"]["jobId"],
-            "client-controls-warning",
+            "client-controls",
         )
         self.assertEqual(job["status"], "success", job)
         self.assertEqual(job["meshControl"]["controls"], controls)
-        self.assertIn("not applied", job["warning"])
+        self.assertIsNone(job["warning"])
         self.assertTrue(output_path.exists())
 
     def test_cdb_export_validates_mesh_control_union_shapes(self):
+        geometry_structure = simple_structure()
+        geometry_structure["root"]["key"] = "hbm"
+        reference = {"kind": "container", "key": "hbm"}
         valid_controls = [
             {
                 "method": "Z_SECTION_AVG",
-                "reference": {
-                    "kind": "container",
-                    "key": "hbm",
-                    "id": "hbm-container-id",
-                },
-                "elementSize": 10,
-                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 10},
-                "endZ": {"mode": "relative", "anchor": "z_min", "offset": 100},
+                "reference": reference,
+                "elementSize": 0.25,
+                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
+                "endZ": {"mode": "relative", "anchor": "z_min", "offset": 1},
             },
             {
                 "method": "Z_SECTION_TOP",
-                "reference": {"kind": "body", "id": "body-id"},
-                "elementSize": 10,
+                "reference": reference,
+                "elementSize": 0.25,
                 "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
                 "endZ": {"mode": "absolute", "value": 1},
             },
             {
                 "method": "Z_SECTION_BOT",
-                "reference": {"kind": "via", "id": "via-id"},
-                "elementSize": 10,
+                "reference": reference,
+                "elementSize": 0.25,
                 "startZ": {"mode": "absolute", "value": 0},
                 "endZ": {"mode": "absolute", "value": 1},
             },
             {
                 "method": "Z_SECTION_CENTER",
-                "reference": {"kind": "circuit", "id": "circuit-id"},
-                "elementSize": 10,
+                "reference": reference,
+                "elementSize": 0.25,
                 "startZ": {"mode": "absolute", "value": 0},
                 "endZ": {"mode": "absolute", "value": 1},
             },
             {
                 "method": "Z_POINT",
-                "reference": {"kind": "bump", "id": "bump-id"},
+                "reference": reference,
                 "z": {"mode": "absolute", "value": 0.5},
             },
             {
                 "method": "Z_POINT",
-                "reference": {"kind": "root"},
-                "z": {"mode": "relative", "anchor": "z_max", "offset": -1},
+                "reference": reference,
+                "z": {"mode": "relative", "anchor": "z_max", "offset": -0.25},
             },
         ]
         output_path = Path(self.tmp.name) / "valid-control-union.cdb"
@@ -2187,7 +2249,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             json={
                 "clientId": "client-control-union",
                 "kind": "cdb",
-                "geometryStructure": simple_structure(),
+                "geometryStructure": geometry_structure,
                 "meshControl": mesh_control(controls=valid_controls),
                 "outputPath": str(output_path),
             },

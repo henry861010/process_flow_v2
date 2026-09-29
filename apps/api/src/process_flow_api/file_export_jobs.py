@@ -50,10 +50,6 @@ DEFAULT_RETAINED_JOBS_PER_CLIENT = 20
 DEFAULT_MAX_CONCURRENT_EXPORT_JOBS = 1
 WORKER_PROGRESS_PREFIX = "PROCESS_FLOW_PROGRESS "
 MAX_WORKER_DIAGNOSTIC_TAIL = 16_000
-MESH_CONTROLS_IGNORED_WARNING = (
-    "Mesh controls were sent to the mesher but are not applied by this version; "
-    "the CDB uses globalElementSize and symmetry only."
-)
 
 
 @dataclass
@@ -89,6 +85,8 @@ class FileExportJob:
     input_path: Path
     input_directory: Path | None
     mesh_control_input_path: Path | None
+    geometry_output_path: Path | None
+    mesh_control_output_path: Path | None
     source_label: str | None
     created_at: datetime
     log_path: Path
@@ -114,6 +112,16 @@ class FileExportJob:
             "status": self.status,
             "sourceLabel": self.source_label,
             "outputPath": str(self.output_path),
+            "geometryOutputPath": (
+                str(self.geometry_output_path)
+                if self.geometry_output_path is not None
+                else None
+            ),
+            "meshControlOutputPath": (
+                str(self.mesh_control_output_path)
+                if self.mesh_control_output_path is not None
+                else None
+            ),
             "logPath": str(self.log_path),
             "meshControl": self.mesh_control,
             "createdAt": _iso(self.created_at),
@@ -173,10 +181,15 @@ class FileExportJobManager:
         input_path: Path | None = None
         input_directory: Path | None = None
         mesh_control_input_path: Path | None = None
+        geometry_output_path: Path | None = None
+        mesh_control_output_path: Path | None = None
         normalized_mesh_control: JsonObject | None = None
         if normalized_kind == "cdb":
             input_payload = _required_json_object(geometry_structure, "geometryStructure")
             normalized_mesh_control = _required_json_object(mesh_control, "meshControl")
+            geometry_output_path, mesh_control_output_path = _cdb_sidecar_paths(
+                final_output_path
+            )
             input_directory, input_path, mesh_control_input_path = _write_cdb_job_inputs(
                 input_payload,
                 normalized_mesh_control,
@@ -237,17 +250,13 @@ class FileExportJobManager:
             input_path=input_path,
             input_directory=input_directory,
             mesh_control_input_path=mesh_control_input_path,
+            geometry_output_path=geometry_output_path,
+            mesh_control_output_path=mesh_control_output_path,
             log_path=log_path,
             logger=logger,
             mesh_control=normalized_mesh_control,
             source_label=source_label,
             created_at=created_at,
-            warning=(
-                MESH_CONTROLS_IGNORED_WARNING
-                if normalized_mesh_control is not None
-                and normalized_mesh_control.get("controls")
-                else None
-            ),
         )
 
         async with self._lock:
@@ -434,7 +443,8 @@ class FileExportJobManager:
 
             await self._start_stage(job_id, "preparing", message="Preparing export files.")
             await self._prepare_final_path(job_id)
-            await self._complete_stage(job_id, "preparing")
+            sidecar_data = await self._write_cdb_sidecars(job_id)
+            await self._complete_stage(job_id, "preparing", data=sidecar_data)
 
             async with self._lock:
                 job = self._jobs.get(job_id)
@@ -805,12 +815,43 @@ class FileExportJobManager:
     async def _prepare_final_path(self, job_id: str) -> None:
         async with self._lock:
             job = self._jobs[job_id]
-            output_path = job.output_path
+            output_paths = [
+                job.output_path,
+                job.geometry_output_path,
+                job.mesh_control_output_path,
+            ]
 
-        if output_path.exists() and output_path.is_dir():
-            raise ValueError(f"Output path is a directory: {output_path}")
-        if output_path.exists():
-            output_path.unlink()
+        for output_path in output_paths:
+            if output_path is None:
+                continue
+            if output_path.exists() and output_path.is_dir():
+                raise ValueError(f"Output path is a directory: {output_path}")
+            if output_path.exists():
+                output_path.unlink()
+
+    async def _write_cdb_sidecars(self, job_id: str) -> JsonObject | None:
+        async with self._lock:
+            job = self._jobs[job_id]
+            if job.kind != "cdb":
+                return None
+            geometry_input_path = job.input_path
+            mesh_control_input_path = job.mesh_control_input_path
+            geometry_output_path = job.geometry_output_path
+            mesh_control_output_path = job.mesh_control_output_path
+
+        if mesh_control_input_path is None:
+            raise RuntimeError("CDB export is missing mesh_control.json.")
+        if geometry_output_path is None or mesh_control_output_path is None:
+            raise RuntimeError("CDB export sidecar paths are unavailable.")
+
+        _write_pretty_json_export(geometry_input_path, geometry_output_path)
+        _write_pretty_json_export(mesh_control_input_path, mesh_control_output_path)
+        return {
+            "geometryOutputPath": str(geometry_output_path),
+            "meshControlOutputPath": str(mesh_control_output_path),
+            "geometryOutputBytes": geometry_output_path.stat().st_size,
+            "meshControlOutputBytes": mesh_control_output_path.stat().st_size,
+        }
 
     async def _mark_success(self, job_id: str, metadata: JsonObject) -> None:
         async with self._lock:
@@ -1094,8 +1135,23 @@ def _write_cdb_job_inputs(
     return input_directory, geometry_path, mesh_control_path
 
 
+def _cdb_sidecar_paths(output_path: Path) -> tuple[Path, Path]:
+    return (
+        output_path.with_suffix(".geometry.json"),
+        output_path.with_suffix(".mesh-control.json"),
+    )
+
+
 def _write_json_export(input_path: Path, output_path: Path) -> None:
     output_path.write_text(input_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def _write_pretty_json_export(input_path: Path, output_path: Path) -> None:
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _cleanup_paths(*paths: Path | None) -> str | None:

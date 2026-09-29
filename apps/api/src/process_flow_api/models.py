@@ -620,6 +620,8 @@ class FileExportJob(StrictModel):
     status: Literal["queued", "running", "success", "failed", "canceling", "canceled"]
     sourceLabel: str | None = None
     outputPath: str
+    geometryOutputPath: str | None = None
+    meshControlOutputPath: str | None = None
     logPath: str
     meshControl: JsonObject | None = None
     createdAt: str

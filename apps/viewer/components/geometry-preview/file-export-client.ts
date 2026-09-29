@@ -83,6 +83,8 @@ export type FileExportJob = {
   status: FileExportStatus;
   sourceLabel: string | null;
   outputPath: string;
+  geometryOutputPath: string | null;
+  meshControlOutputPath: string | null;
   logPath: string;
   meshControl: MeshControlConfiguration | null;
   createdAt: string;

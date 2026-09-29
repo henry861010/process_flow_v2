@@ -41,7 +41,7 @@ source label、Close；footer `Cancel`、primary `Export`。
 CDB mesher固定顯示`process_flow_2_5d`，global element size default `500`。Symmetry以緊湊的單欄radio list依序顯示`Full`、
 `Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
 Controls區塊預設收合；`Mesh controls` heading與description位於外面，其下是無border的`Expand` +
-chevron text control；展開時copy改為`Collapse`，並顯示warning、empty state或control cards與`Add control`。
+chevron text control；展開時copy改為`Collapse`，並顯示empty state或control cards與`Add control`。
 收合不得清空draft。Controls初始為空，可新增/刪除；`Add control`固定放在empty
 state或既有control cards的下方並靠右。
 Method下拉直接使用`Z_SECTION_AVG`、`Z_SECTION_TOP`、
@@ -51,8 +51,8 @@ Method下拉直接使用`Z_SECTION_AVG`、`Z_SECTION_TOP`、
 220px與140px，後續是Geometry reference
 (kind/key/id)與Z range；`Z_POINT`沒有Element size，Method維持單欄。Start與End各自使用sub-card並以arrow連接。Relative location依序顯示mode、
 `z_min|z_max` anchor與offset；absolute location保留相同三欄寬度，anchor位置顯示停用的`—`，最後一欄為全域Z value。
-`Z_SECTION_*`顯示local element size、startZ與endZ；`Z_POINT`只顯示z。非空controls在modal顯示尚未
-套用的warning。Geometry reference label旁顯示info control；展開後以floating block從當前preview
+`Z_SECTION_*`顯示local element size、startZ與endZ；`Z_POINT`只顯示z。Geometry reference label旁顯示
+info control；展開後以floating block從當前preview
 structure遞迴列出所有有non-empty key的container/body kind + key組合，以trim後的kind/key去重並依
 kind、key排序。每列一筆，清單有固定max-height與vertical scrollbar，並可用text input對kind或key做
 case-insensitive contains search；點外部或按Escape關閉。清單只供查閱，不會修改draft。
@@ -149,7 +149,7 @@ Kind、CDB mesher/global size/symmetry/control count/mesh、Queue position、Sta
 Created/Started/Finished、Job ID、Log path、Message、Warning。
 
 Popover top依row rect計算，至少16px且不超viewport。CDB detail顯示建立job時使用的完整mesh-control
-摘要；非空controls在job row顯示backend回傳的尚未套用warning。
+摘要；實際的worker diagnostics或cleanup warning仍顯示在job row。
 它是pointer-events none，不能承載command。
 
 ## 狀態與 action 矩陣

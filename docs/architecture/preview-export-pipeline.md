@@ -196,17 +196,20 @@ validator拒絕時轉成HTTP 422，不建立temp files或排入queue。Worker透
 因此直接使用CLI也不會繞過驗證。API不得複製method/reference/location的Pydantic union。
 
 每個CDB job建立獨立temp directory，輸入檔固定命名為`geometry.json`與`mesh_control.json`，並以
-`mesher-process-flow geometry.json mesh_control.json output.cdb`等價的worker參數順序執行。成功、失敗
-與取消都清除兩份輸入檔及目錄；cleanup warning與既有warning合併，不互相覆蓋。Job log記錄mesher、
-global element size、symmetry、control count，以及兩份JSON輸入的hash與byte count。
+`mesher-process-flow geometry.json mesh_control.json output.cdb`等價的worker參數順序執行。Mesher啟動前，
+API另將完整輸入以pretty JSON寫到CDB同目錄的`<stem>.geometry.json`與
+`<stem>.mesh-control.json`；兩份sidecar不依賴mesh成功，CDB失敗或running job取消後仍會保留，且路徑由
+job response的`geometryOutputPath`與`meshControlOutputPath`公開。成功、失敗與取消都只清除temp輸入檔
+及目錄；cleanup warning與既有warning合併，不互相覆蓋。Job log記錄mesher、global element size、
+symmetry、control count，以及兩份JSON輸入的hash與byte count。
 
 Mesher-owned contract目前讓`controls` method支援`Z_SECTION_AVG`、`Z_SECTION_TOP`、`Z_SECTION_BOT`、
 `Z_SECTION_CENTER`與`Z_POINT`。前四種要求`elementSize`、`startZ`、`endZ`；`Z_POINT`只要求`z`。
 Location可為relative `{ mode, anchor: z_min|z_max, offset }`或absolute `{ mode, value }`；任何relative
 location都要求reference。Reference kind支援`root|container|body|via|circuit|bump`：root不得帶key/id，
-其他kind至少要有一項；key只允許container/body。這一版只驗證controls schema，不解析reference或
-套用local Z planes。非空controls仍正常產生CDB，job warning會明示輸出只使用global element size與
-symmetry。
+其他kind至少要有一項；key只允許container/body。Mesher會解析reference與Z location，並在建立3D mesh
+layers時套用local Z-plane controls。正常套用controls不產生job warning；worker diagnostics與cleanup
+失敗等實際警告仍透過既有`warning`欄位回報。
 
 Job state transition 是 `queued → running → success/failed`，取消路徑可經
 `canceling → canceled`。Manager 預設同時執行一個 job；`EXPORT_MAX_CONCURRENT_JOBS`
@@ -242,7 +245,8 @@ log schema、job/type、paths與input摘要；timeline只使用`HH:MM:SS.mmm: ac
 mesh統計；failure才附上exception、return code、diagnostic與traceback。非協定stderr轉成timeline
 diagnostic。Log不保存完整geometry payload、mesh connectivity或逐node/element資料。
 
-Input temp files 會在 terminal state cleanup。Cleanup 失敗以 job `warning` 回報。
+Input temp files 會在 terminal state cleanup。CDB的geometry與mesh-control JSON output sidecars不屬於
+temp files，因此不會隨terminal cleanup刪除。Cleanup 失敗以 job `warning` 回報。
 
 ## Timeout、重啟與取消
 
