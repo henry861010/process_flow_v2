@@ -70,8 +70,10 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="Process Flow API", version="0.0.0", lifespan=app_lifespan)
     app.state.store = SQLiteStore(db_path or default_db_path())
     app.state.file_export_jobs = FileExportJobManager()
-    app.state.preview_sessions = PreviewSessionManager.from_environment()
     app.state.geometry_generators = GeometryGeneratorRegistry()
+    app.state.preview_sessions = PreviewSessionManager.from_environment(
+        geometry_generators=app.state.geometry_generators
+    )
     app.state.mesh_control_sets = MeshControlSetRegistry()
 
     app.add_middleware(
@@ -201,6 +203,18 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     async def list_geometry_generators(request: Request):
         return get_geometry_generators(request).definitions()
 
+    @app.get(
+        "/api/geometry-generators/{generator_id}/versions/{generator_version}",
+        response_model=GeometryGeneratorDefinition,
+    )
+    async def get_geometry_generator_version(
+        request: Request, generator_id: str, generator_version: int
+    ):
+        try:
+            return get_geometry_generators(request).definition(generator_id, generator_version)
+        except KeyError:
+            raise NotFoundError(f"{generator_id} v{generator_version}") from None
+
     @app.post(
         "/api/geometry-generators/{generator_id}/preview",
         response_model=GeometryGeneratorPreviewResponse,
@@ -258,7 +272,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/process-flow-template-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_template_instance(request: Request, body: TemplateInstanceCreateRequest):
-        return create_template_instance(get_store(request), body)
+        return create_template_instance(get_store(request), body, get_geometry_generators(request))
 
     @app.get("/api/process-flow-instances")
     async def list_process_flow_instances(request: Request):
@@ -270,11 +284,11 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/process-flow-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_instance(request: Request, body: ProcessFlowInstanceCreate):
-        return create_flow_instance(get_store(request), body)
+        return create_flow_instance(get_store(request), body, get_geometry_generators(request))
 
     @app.post("/api/process-flow-instances/{instance_id}/execute", response_model=ExecuteInstanceResponse)
     async def execute_process_flow_instance(request: Request, instance_id: str):
-        return execute_instance(get_store(request), instance_id)
+        return execute_instance(get_store(request), instance_id, get_geometry_generators(request))
 
     @app.get("/api/process-flow-workspaces")
     async def list_process_flow_workspaces(request: Request):
@@ -302,11 +316,13 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         workspace_id: str,
         body: WorkspaceCommitRequest,
     ):
-        return commit_workspace(get_store(request), workspace_id, body)
+        return commit_workspace(
+            get_store(request), workspace_id, body, get_geometry_generators(request)
+        )
 
     @app.post("/api/geometry-preview", response_model=GeometryPreviewResponse)
     async def geometry_preview(request: Request, body: GeometryPreviewRequest):
-        return await preview_geometry(get_store(request), body)
+        return await preview_geometry(get_store(request), body, get_geometry_generators(request))
 
     @app.post("/api/preview-sessions", response_model=PreviewSessionResponse)
     async def create_preview_session(request: Request, body: GeometryPreviewRequest):

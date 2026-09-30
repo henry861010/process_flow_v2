@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from process_flow_kernel import validate_geometry_semantic_keys
@@ -22,11 +23,14 @@ def materialize_embedded_bindings(
 
     embedded = configuration.get("embeddedGeometries", {})
     generated_by_local_id: dict[str, JsonObject] = {}
-    catalog_bindings: dict[str, JsonObject] = {}
+    persisted_bindings: dict[str, JsonObject] = {}
 
     for flow_input_id, binding in configuration.get("inputBindings", {}).items():
         if binding.get("kind") == "catalog":
-            catalog_bindings[flow_input_id] = binding
+            persisted_bindings[flow_input_id] = binding
+            continue
+        if binding.get("kind") == "generator":
+            persisted_bindings[flow_input_id] = binding
             continue
 
         local_id = binding["localId"]
@@ -36,12 +40,32 @@ def materialize_embedded_bindings(
             payload = {**geometry}
             payload["id"] = generated_geometry_id(payload)
             generated_by_local_id[local_id] = payload
-        catalog_bindings[flow_input_id] = {
+        persisted_bindings[flow_input_id] = {
             "kind": "catalog",
             "geometryId": generated_by_local_id[local_id]["id"],
         }
 
-    return list(generated_by_local_id.values()), catalog_bindings
+    return list(generated_by_local_id.values()), persisted_bindings
+
+
+def canonicalize_generator_bindings(configuration: JsonObject, execution_plan) -> JsonObject:
+    """Snapshot complete validated generator parameters from the compiled artifacts."""
+    bindings = {}
+    for flow_input_id, binding in configuration.get("inputBindings", {}).items():
+        if binding.get("kind") != "generator":
+            bindings[flow_input_id] = binding
+            continue
+        artifact = execution_plan.external_geometries.get(flow_input_id)
+        generation = artifact.generation if artifact is not None else None
+        if not isinstance(generation, Mapping):
+            raise ValueError(f"Generator input {flow_input_id} was not resolved")
+        bindings[flow_input_id] = {
+            "kind": "generator",
+            "generatorId": generation["generatorId"],
+            "generatorVersion": generation["schemaVersion"],
+            "parameters": dict(generation["parameters"]),
+        }
+    return {**configuration, "inputBindings": bindings}
 
 
 def _validate_persisted_metadata(local_id: str, geometry: JsonObject) -> None:

@@ -30,6 +30,9 @@ import {
 } from "lucide-react";
 
 import { CategoryLibraryBrowser } from "@/components/category-library/category-library-browser";
+import { GeometryGeneratorDialogLauncher } from "@/components/geometry-generator/geometry-generator-registry";
+import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
+import { useGeneratorBindingGeometries } from "@/components/geometry-generator/use-generator-binding-geometries";
 import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
 import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
 import {
@@ -75,21 +78,20 @@ import {
   stepReadinessStatusLabel,
 } from "@/lib/process-flow/readiness-presentation";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
-import {
-  createDefaultParameterValues,
-  createFlowParameterDefaults,
-} from "@/lib/process-flow/parameter-values";
+import { createDefaultParameterValues } from "@/lib/process-flow/parameter-values";
+import { buildTemplatePayload } from "@/lib/process-flow/template-builder";
 import type {
   FlowConfiguration,
   FlowInputDefinition,
   GeometryEntity,
+  GeometryBinding,
   ProcessFlowTemplate,
   ProcessStepTemplate,
   SavedFlowEdge,
   StepRef,
 } from "@/lib/process-flow/types";
 import { clone, normalizeStepLabel } from "@/lib/process-flow/utils";
-import { createProcessFlowTemplate, loadBootstrap } from "@/lib/process-flow-api";
+import { createProcessFlowTemplate, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const STEP_TEMPLATE_DRAG_TYPE = "application/process-step-template-v2";
@@ -151,6 +153,12 @@ function ProcessFlowTemplateEditorInner() {
   const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>([]);
   const [flowTemplates, setFlowTemplates] = React.useState<ProcessFlowTemplate[]>([]);
   const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
+  const [generatorDefinitions, setGeneratorDefinitions] = React.useState<GeometryGeneratorDefinition[]>([]);
+  const [generatorEditor, setGeneratorEditor] = React.useState<{
+    targetNodeId: string | null;
+    definition: GeometryGeneratorDefinition;
+    initialParameters?: Record<string, unknown>;
+  } | null>(null);
   const [metadata, setMetadata] = React.useState<TemplateMetadata>(newMetadata());
   const [configuration, setConfiguration] = React.useState<FlowConfiguration>(emptyConfiguration());
   const [nodes, setNodes] = React.useState<FlowNode[]>([]);
@@ -183,6 +191,7 @@ function ProcessFlowTemplateEditorInner() {
         setStepTemplates(payload.processStepTemplates);
         setFlowTemplates(payload.processFlowTemplates);
         setGeometries(payload.geometries);
+        setGeneratorDefinitions(payload.geometryGenerators);
       })
       .catch((error) => {
         if (!active) return;
@@ -200,6 +209,8 @@ function ProcessFlowTemplateEditorInner() {
   }, []);
 
   const topologyLocked = savedTemplate !== null;
+  const generated = useGeneratorBindingGeometries(configuration);
+  const resolvedGeometries = [...geometries, ...generated.geometries];
   const draftTemplate = React.useMemo(
     () => buildTemplate(metadata, nodes, edges, configuration),
     [configuration, edges, metadata, nodes],
@@ -219,7 +230,7 @@ function ProcessFlowTemplateEditorInner() {
             draftTemplate,
             stepTemplates,
             configuration,
-            geometries,
+            resolvedGeometries,
           ),
         )
       : null;
@@ -230,14 +241,14 @@ function ProcessFlowTemplateEditorInner() {
           const geometry = geometryForFlowInput(
             configuration,
             node.data.definition.flowInputId,
-            geometries,
+            resolvedGeometries,
           );
           const connected = edges.some((edge) => edge.source === node.id);
           const readiness = getFlowInputReadiness(
             draftTemplate,
             stepTemplates,
             configuration,
-            geometries,
+            resolvedGeometries,
             node.data.definition.flowInputId,
           );
           const binding =
@@ -272,7 +283,7 @@ function ProcessFlowTemplateEditorInner() {
           draftTemplate,
           stepTemplates,
           configuration,
-          geometries,
+          resolvedGeometries,
         );
         const previewAvailability = previewAvailabilityFromReadiness(readiness);
         const terminal = !edges.some(
@@ -328,14 +339,14 @@ function ProcessFlowTemplateEditorInner() {
               draftTemplate,
               stepTemplates,
               configuration,
-              geometries,
+              resolvedGeometries,
             )
           : sourceNode && isFlowInputNode(sourceNode)
             ? getFlowInputReadiness(
                 draftTemplate,
                 stepTemplates,
                 configuration,
-                geometries,
+                resolvedGeometries,
                 sourceNode.data.definition.flowInputId,
               )
             : null;
@@ -424,7 +435,11 @@ function ProcessFlowTemplateEditorInner() {
 
   function addFlowInput(
     position: { x: number; y: number },
-    source: { kind: "catalog"; geometry: GeometryEntity },
+    source: {
+      geometry: { id: string; category: string };
+      binding: GeometryBinding;
+      suggestedName?: string;
+    },
   ) {
     if (topologyLocked) return;
     const geometryConstraints = geometryCategoryConstraints(source.geometry);
@@ -448,7 +463,7 @@ function ProcessFlowTemplateEditorInner() {
         nodeKind: "flowInput",
         definition: {
           flowInputId,
-          name: "Geometry input",
+          name: source.suggestedName ?? "Geometry input",
           description: "",
           dataType: "geometry",
           required: true,
@@ -463,7 +478,7 @@ function ProcessFlowTemplateEditorInner() {
         ...current,
         inputBindings: {
           ...current.inputBindings,
-          [flowInputId]: { kind: "catalog", geometryId: source.geometry.id },
+          [flowInputId]: source.binding,
         },
       };
     });
@@ -621,7 +636,10 @@ function ProcessFlowTemplateEditorInner() {
     const geometryId = event.dataTransfer.getData(GEOMETRY_DRAG_TYPE);
     if (geometryId) {
       const geometry = geometries.find((item) => item.id === geometryId);
-      if (geometry) addFlowInput(position, { kind: "catalog", geometry });
+      if (geometry) addFlowInput(position, {
+        geometry,
+        binding: { kind: "catalog", geometryId: geometry.id },
+      });
     }
   }
 
@@ -680,6 +698,32 @@ function ProcessFlowTemplateEditorInner() {
     setMessage(null);
   }
 
+  function setInputGenerator(node: FlowInputNode, binding: GeometryBinding) {
+    setConfiguration((current) => ({
+      ...current,
+      inputBindings: {
+        ...current.inputBindings,
+        [node.data.definition.flowInputId]: binding,
+      },
+    }));
+    setGeneratorEditor(null);
+    setMessage(null);
+  }
+
+  async function editCurrentGenerator(node: FlowInputNode) {
+    const binding = configuration.inputBindings[node.data.definition.flowInputId];
+    if (binding?.kind !== "generator") return;
+    try {
+      const definition = await getGeometryGeneratorVersion(
+        binding.generatorId, binding.generatorVersion,
+      );
+      setPickerNodeId(null);
+      setGeneratorEditor({ targetNodeId: node.id, definition, initialParameters: binding.parameters });
+    } catch (error) {
+      setMessage({ kind: "error", text: error instanceof Error ? error.message : "Generator version unavailable." });
+    }
+  }
+
   function setStepParameterValues(node: StepNode, parameterValues: Record<string, unknown>) {
     setConfiguration((current) => ({
       ...current,
@@ -694,7 +738,7 @@ function ProcessFlowTemplateEditorInner() {
     const geometry = geometryForFlowInput(
       configuration,
       node.data.definition.flowInputId,
-      geometries,
+      resolvedGeometries,
     );
     if (!geometry) return;
     setPreview({
@@ -835,6 +879,21 @@ function ProcessFlowTemplateEditorInner() {
       <section className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(540px,1fr)_320px] lg:overflow-hidden">
         <aside className="flex min-h-[240px] flex-col border-r bg-white lg:min-h-0">
           <PaletteHeader icon={<Boxes className="h-4 w-4" />} title="Geometry library" />
+          <div className="space-y-2 border-b p-3">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
+            {generatorDefinitions.map((definition) => (
+              <Button
+                key={`${definition.id}@${definition.version}`}
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                disabled={topologyLocked}
+                onClick={() => setGeneratorEditor({ targetNodeId: null, definition })}
+              >
+                {definition.label}
+              </Button>
+            ))}
+          </div>
           <div className="h-[240px] min-h-0 overflow-y-auto p-3 lg:h-auto lg:flex-1">
             <CategoryLibraryBrowser
               items={geometries}
@@ -954,7 +1013,8 @@ function ProcessFlowTemplateEditorInner() {
           node={editingNode}
           topologyLocked={topologyLocked}
           configuration={configuration}
-          geometries={geometries}
+          geometries={resolvedGeometries}
+          generatorError={isFlowInputNode(editingNode) ? generated.errors[editingNode.data.definition.flowInputId] : undefined}
           edges={edges}
           onClose={() => setEditingNodeId(null)}
           onFlowInputChange={(patch) =>
@@ -985,8 +1045,40 @@ function ProcessFlowTemplateEditorInner() {
           flowInput={pickerNode.data.definition}
           selectedBinding={configuration.inputBindings[pickerNode.data.definition.flowInputId]}
           geometries={geometries}
+          generatorDefinitions={generatorDefinitions}
           onClose={() => setPickerNodeId(null)}
           onSelect={(geometryId) => setInputGeometry(pickerNode, geometryId)}
+          onSelectGenerator={(definition) => {
+            setPickerNodeId(null);
+            setGeneratorEditor({ targetNodeId: pickerNode.id, definition });
+          }}
+          onEditCurrentGenerator={() => void editCurrentGenerator(pickerNode)}
+        />
+      ) : null}
+
+      {generatorEditor ? (
+        <GeometryGeneratorDialogLauncher
+          definition={generatorEditor.definition}
+          initialParameters={generatorEditor.initialParameters}
+          onClose={() => setGeneratorEditor(null)}
+          onDefine={(result) => {
+            if (generatorEditor.targetNodeId === null) {
+              addFlowInput(defaultDropPosition(nodes), {
+                geometry: {
+                  id: `generator:${result.binding.generatorId}`,
+                  category: result.geometry.category ?? "",
+                },
+                binding: result.binding,
+                suggestedName: result.suggestedFlowInputName,
+              });
+            } else {
+              const node = nodes.find((item): item is FlowInputNode =>
+                item.id === generatorEditor.targetNodeId && isFlowInputNode(item),
+              );
+              if (node) setInputGenerator(node, result.binding);
+            }
+            setGeneratorEditor(null);
+          }}
         />
       ) : null}
 
@@ -1102,6 +1194,7 @@ function NodeEditorDialog({
   topologyLocked,
   configuration,
   geometries,
+  generatorError,
   edges,
   onClose,
   onFlowInputChange,
@@ -1117,6 +1210,7 @@ function NodeEditorDialog({
   topologyLocked: boolean;
   configuration: FlowConfiguration;
   geometries: GeometryEntity[];
+  generatorError?: string;
   edges: FlowEdge[];
   onClose: () => void;
   onFlowInputChange: (patch: EditableFlowInputPatch) => void;
@@ -1170,6 +1264,7 @@ function NodeEditorDialog({
               topologyLocked={topologyLocked}
               configuration={configuration}
               geometries={geometries}
+              generatorError={generatorError}
               outgoingCount={edges.filter((edge) => edge.source === node.id).length}
               onChange={onFlowInputChange}
               onPick={onPickGeometry}
@@ -1205,6 +1300,7 @@ function FlowInputInspector({
   topologyLocked,
   configuration,
   geometries,
+  generatorError,
   outgoingCount,
   onChange,
   onPick,
@@ -1215,6 +1311,7 @@ function FlowInputInspector({
   topologyLocked: boolean;
   configuration: FlowConfiguration;
   geometries: GeometryEntity[];
+  generatorError?: string;
   outgoingCount: number;
   onChange: (patch: EditableFlowInputPatch) => void;
   onPick: () => void;
@@ -1244,10 +1341,12 @@ function FlowInputInspector({
 
       <FlowInputBindingControl
         geometry={geometry}
+        hasBinding={Boolean(configuration.inputBindings[definition.flowInputId])}
         canEdit
         onPick={onPick}
         onPreview={onPreview}
       />
+      {generatorError ? <p className="mt-2 text-sm text-destructive">{generatorError}</p> : null}
 
       <FlowInputAdvancedDisclosure>
         {topologyLocked ? (
@@ -1430,19 +1529,32 @@ function GeometryPickerDialog({
   flowInput,
   selectedBinding,
   geometries,
+  generatorDefinitions,
   onClose,
   onSelect,
+  onSelectGenerator,
+  onEditCurrentGenerator,
 }: {
   flowInput: FlowInputDefinition;
   selectedBinding: FlowConfiguration["inputBindings"][string] | undefined;
   geometries: GeometryEntity[];
+  generatorDefinitions: GeometryGeneratorDefinition[];
   onClose: () => void;
   onSelect: (geometryId: string) => void;
+  onSelectGenerator: (definition: GeometryGeneratorDefinition) => void;
+  onEditCurrentGenerator: () => void;
 }) {
   const [query, setQuery] = React.useState("");
   const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
   const matchingGeometries = geometries.filter((geometry) =>
     geometryMatchesFlowInput(geometry, flowInput),
+  );
+  const matchingGenerators = generatorDefinitions.filter((definition) =>
+    geometryMatchesFlowInput({
+      entityType: definition.entityType,
+      category: definition.category,
+      structureFormat: "standard",
+    }, flowInput),
   );
 
   React.useEffect(() => {
@@ -1459,7 +1571,7 @@ function GeometryPickerDialog({
       <section className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(820px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
         <header className="flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold">Geometry Catalog</h2>
+            <h2 className="text-lg font-semibold">Choose geometry source</h2>
             <div className="mt-1 text-sm text-muted-foreground">{flowInput.name}</div>
           </div>
           <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
@@ -1467,6 +1579,21 @@ function GeometryPickerDialog({
           </Button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="mb-4 space-y-2">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
+            {selectedBinding?.kind === "generator" ? (
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={onEditCurrentGenerator}>
+                Edit current {selectedBinding.generatorId}@{selectedBinding.generatorVersion} recipe
+              </Button>
+            ) : null}
+            {matchingGenerators.map((definition) => (
+              <Button key={`${definition.id}@${definition.version}`} type="button" variant="outline" className="w-full justify-start" onClick={() => onSelectGenerator(definition)}>
+                {definition.label} · v{definition.version}
+              </Button>
+            ))}
+            {matchingGenerators.length === 0 ? <p className="text-xs text-muted-foreground">No matching generators.</p> : null}
+          </div>
+          <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Geometry catalog</div>
           <CategoryLibraryBrowser
             items={matchingGeometries}
             path={categoryPath}
@@ -1532,19 +1659,14 @@ function buildTemplate(
   edges: FlowEdge[],
   configuration: FlowConfiguration,
 ): ProcessFlowTemplate {
-  return {
-    schemaVersion: 2,
-    ...metadata,
-    flowInputs: nodes.filter(isFlowInputNode).map((node) => clone(node.data.definition)),
-    stepRefs: nodes.filter(isStepNode).map((node) => ({
-      ...clone(node.data.stepRef),
-      parameterDefaults: createFlowParameterDefaults(
-        node.data.stepTemplate.parameterDefinitions,
-        configuration.stepConfigurations[node.data.stepRef.stepRefId]
-          ?.parameterValues ?? {},
-      ),
+  return buildTemplatePayload(
+    metadata,
+    nodes.filter(isFlowInputNode).map((node) => node.data.definition),
+    nodes.filter(isStepNode).map((node) => ({
+      ref: node.data.stepRef,
+      template: node.data.stepTemplate,
     })),
-    flowEdges: edges.flatMap((edge) => {
+    edges.flatMap((edge) => {
       const sourceNode = nodes.find((node) => node.id === edge.source);
       const targetNode = nodes.find((node): node is StepNode => node.id === edge.target && isStepNode(node));
       if (!sourceNode || !targetNode || !edge.targetHandle) return [];
@@ -1569,7 +1691,8 @@ function buildTemplate(
         } satisfies SavedFlowEdge,
       ];
     }),
-  };
+    configuration,
+  );
 }
 
 function graphFromTemplate(

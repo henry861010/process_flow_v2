@@ -1076,6 +1076,135 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(saved.status_code, 200, saved.text)
         self.assertEqual(saved.json()["generation"], embedded["generation"])
 
+    def test_generator_binding_saves_recipe_and_executes_without_catalog_insert(self):
+        bootstrap = self.reset_poc_data()
+        source = next(
+            item for item in bootstrap["processFlowInstances"]
+            if item["processFlowTemplateId"] == "flow_tpl_aaa_demo"
+        )
+        request = copy.deepcopy(source)
+        request["id"] = "flow_inst_generator_recipe"
+        request["name"] = "Generated HBM recipe"
+        request["inputBindings"]["incoming_hbm"] = {
+            "kind": "generator",
+            "generatorId": "hbm",
+            "generatorVersion": 2,
+            "parameters": {"packageX": 1400, "packageY": 1000, "coreDieX": 800, "coreDieY": 600},
+        }
+        before_count = len(self.client.get("/api/geometries").json())
+
+        created = self.client.post("/api/process-flow-instances", json=request)
+
+        self.assertEqual(created.status_code, 201, created.text)
+        binding = created.json()["inputBindings"]["incoming_hbm"]
+        self.assertEqual(binding["kind"], "generator")
+        self.assertEqual(binding["generatorVersion"], 2)
+        self.assertEqual(binding["parameters"]["packageX"], 1400)
+        self.assertEqual(binding["parameters"]["coreDieCount"], 4)
+        self.assertNotIn("geometryId", binding)
+        self.assertNotIn("embeddedGeometries", created.json())
+        self.assertEqual(len(self.client.get("/api/geometries").json()), before_count)
+        self.assertEqual(
+            self.client.get(f"/api/process-flow-instances/{request['id']}").json(),
+            created.json(),
+        )
+
+        preview = self.client.post(
+            "/api/geometry-preview",
+            json={
+                "target": {"type": "flowInput", "flowInputId": "incoming_hbm"},
+                "processFlowTemplateId": source["processFlowTemplateId"],
+                "configuration": {
+                    "inputBindings": created.json()["inputBindings"],
+                    "stepConfigurations": created.json()["stepConfigurations"],
+                    "embeddedGeometries": {},
+                },
+            },
+        )
+        self.assertEqual(preview.status_code, 200, preview.text)
+        session = self.client.post(
+            "/api/preview-sessions",
+            json={
+                "target": {"type": "flowInput", "flowInputId": "incoming_hbm"},
+                "processFlowTemplateId": source["processFlowTemplateId"],
+                "configuration": {
+                    "inputBindings": created.json()["inputBindings"],
+                    "stepConfigurations": created.json()["stepConfigurations"],
+                    "embeddedGeometries": {},
+                },
+            },
+        )
+        self.assertEqual(session.status_code, 200, session.text)
+        self.assertTrue(session.json()["snapshots"])
+        first = self.client.post(f"/api/process-flow-instances/{request['id']}/execute")
+        second = self.client.post(f"/api/process-flow-instances/{request['id']}/execute")
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.json()["geometryStructure"], first.json()["geometryStructure"])
+        self.assertEqual(len(self.client.get("/api/geometries").json()), before_count)
+
+    def test_generator_binding_rejects_missing_version_unknown_version_and_category(self):
+        bootstrap = self.reset_poc_data()
+        source = bootstrap["processFlowInstances"][0]
+        request = copy.deepcopy(source)
+        request["id"] = "flow_inst_invalid_generator"
+        request["inputBindings"]["incoming_hbm"] = {
+            "kind": "generator", "generatorId": "hbm", "parameters": {},
+        }
+        missing = self.client.post("/api/process-flow-instances", json=request)
+        self.assertEqual(missing.status_code, 422, missing.text)
+
+        request["inputBindings"]["incoming_hbm"]["generatorVersion"] = 1
+        unavailable = self.client.post("/api/process-flow-instances", json=request)
+        self.assertEqual(unavailable.status_code, 400, unavailable.text)
+        self.assertIn("version 1 is not available", unavailable.json()["message"])
+
+        request["inputBindings"]["incoming_hbm"]["generatorVersion"] = 2
+        request["inputBindings"]["incoming_hbm"]["parameters"] = {"hbmThickness": -1}
+        invalid_parameters = self.client.post("/api/process-flow-instances", json=request)
+        self.assertEqual(invalid_parameters.status_code, 400, invalid_parameters.text)
+        self.assertIn("hbmThickness", invalid_parameters.json()["message"])
+
+        request["inputBindings"]["incoming_hbm"] = {
+            "kind": "generator", "generatorId": "missing", "generatorVersion": 2,
+            "parameters": {},
+        }
+        unknown = self.client.post("/api/process-flow-instances", json=request)
+        self.assertEqual(unknown.status_code, 400, unknown.text)
+        self.assertIn("Geometry generator missing version 2 is not available", unknown.json()["message"])
+
+        request["inputBindings"]["incoming_hbm"] = {
+            "kind": "generator", "generatorId": "dram", "generatorVersion": 2,
+            "parameters": {},
+        }
+        wrong_category = self.client.post("/api/process-flow-instances", json=request)
+        self.assertEqual(wrong_category.status_code, 400, wrong_category.text)
+        self.assertIn("Geometry category die.dram is not accepted", wrong_category.json()["message"])
+        self.assertIsNone(self.app.state.store.get_process_flow_instance(request["id"]))
+
+    def test_combined_template_instance_create_preserves_generator_recipe(self):
+        bootstrap = self.reset_poc_data()
+        template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
+        template["id"] = "flow_tpl_generator_combined"
+        instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
+        instance["id"] = "flow_inst_generator_combined"
+        instance["processFlowTemplateId"] = template["id"]
+        instance["inputBindings"]["incoming_hbm"] = {
+            "kind": "generator", "generatorId": "hbm", "generatorVersion": 2,
+            "parameters": {"packageX": 1400, "packageY": 1000, "coreDieX": 800, "coreDieY": 600},
+        }
+        before_count = len(self.client.get("/api/geometries").json())
+
+        response = self.client.post(
+            "/api/process-flow-template-instances",
+            json={"processFlowTemplate": template, "processFlowInstance": instance},
+        )
+
+        self.assertEqual(response.status_code, 201, response.text)
+        binding = response.json()["processFlowInstance"]["inputBindings"]["incoming_hbm"]
+        self.assertEqual(binding["kind"], "generator")
+        self.assertEqual(binding["parameters"]["coreDieCount"], 4)
+        self.assertEqual(len(self.client.get("/api/geometries").json()), before_count)
+
     def test_direct_instance_materialization_rolls_back_on_duplicate_instance(self):
         bootstrap = self.reset_poc_data()
         source = bootstrap["processFlowInstances"][0]
@@ -1726,6 +1855,46 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(workspace_payload["embeddedGeometries"], {})
         saved_geometry = self.client.get(f"/api/geometries/{binding['geometryId']}")
         self.assertEqual(saved_geometry.status_code, 200, saved_geometry.text)
+
+    def test_workspace_commit_preserves_generator_recipe_without_catalog_insert(self):
+        bootstrap = self.reset_poc_data()
+        source = bootstrap["processFlowInstances"][0]
+        bindings = copy.deepcopy(source["inputBindings"])
+        bindings["incoming_hbm"] = {
+            "kind": "generator",
+            "generatorId": "hbm",
+            "generatorVersion": 2,
+            "parameters": {"packageX": 1400, "packageY": 1000, "coreDieX": 800, "coreDieY": 600},
+        }
+        before_count = len(self.client.get("/api/geometries").json())
+        created = self.client.post(
+            "/api/process-flow-workspaces",
+            json={
+                "name": "Generator study",
+                "processFlowTemplateId": source["processFlowTemplateId"],
+                "inputBindings": bindings,
+                "stepConfigurations": source["stepConfigurations"],
+                "embeddedGeometries": {},
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+
+        committed = self.client.post(
+            f"/api/process-flow-workspaces/{created.json()['id']}/commit",
+            json={
+                "instanceId": "flow_inst_generator_commit",
+                "instanceName": "Generator Commit",
+                "instanceVersion": "V0.0.0",
+                "instanceOwner": "test-owner",
+                "revision": 1,
+            },
+        )
+        self.assertEqual(committed.status_code, 200, committed.text)
+        binding = committed.json()["processFlowInstance"]["inputBindings"]["incoming_hbm"]
+        self.assertEqual(binding["kind"], "generator")
+        self.assertEqual(binding["parameters"]["coreDieCount"], 4)
+        self.assertEqual(committed.json()["workspace"]["inputBindings"]["incoming_hbm"], binding)
+        self.assertEqual(len(self.client.get("/api/geometries").json()), before_count)
 
     def test_cdb_export_job_writes_text_cdb_file(self):
         output_path = Path(self.tmp.name) / "MODEL.CDB"

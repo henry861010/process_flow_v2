@@ -5,7 +5,11 @@ from typing import Any
 from process_flow_kernel import FlowCompiler
 
 from .geometry_resolver import StoreGeometryCatalog
-from .configuration_materialization import materialize_embedded_bindings
+from .configuration_materialization import (
+    canonicalize_generator_bindings,
+    materialize_embedded_bindings,
+)
+from .geometry_generation import GeometryGeneratorRegistry
 from .identifiers import generated_workspace_id
 from .models import (
     ProcessFlowWorkspaceCreate,
@@ -83,6 +87,7 @@ def commit_workspace(
     store: SQLiteStore,
     workspace_id: str,
     body: WorkspaceCommitRequest,
+    generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
     workspace = _required_workspace(store, workspace_id)
     if workspace.get("status") == "committed":
@@ -96,10 +101,11 @@ def commit_workspace(
 
     template = _required_template(store, workspace["processFlowTemplateId"])
     step_templates = _step_templates(store, template)
-    compiler = _compiler(store)
-    compiler.compile(template, workspace, step_templates)
+    compiler = FlowCompiler(StoreGeometryCatalog(store), generators)
+    plan = compiler.compile(template, workspace, step_templates)
+    workspace = canonicalize_generator_bindings(workspace, plan)
 
-    geometries, catalog_bindings = materialize_embedded_bindings(workspace)
+    geometries, persisted_bindings = materialize_embedded_bindings(workspace)
     instance = {
         "schemaVersion": 2,
         "id": body.instanceId,
@@ -108,7 +114,7 @@ def commit_workspace(
         "owner": body.instanceOwner,
         "description": body.instanceDescription,
         "processFlowTemplateId": workspace["processFlowTemplateId"],
-        "inputBindings": catalog_bindings,
+        "inputBindings": persisted_bindings,
         "stepConfigurations": workspace.get("stepConfigurations", {}),
     }
     committed_workspace = {
@@ -117,7 +123,7 @@ def commit_workspace(
         "status": "committed",
         "committedInstanceId": body.instanceId,
         "updatedAt": utc_now(),
-        "inputBindings": catalog_bindings,
+        "inputBindings": persisted_bindings,
         "embeddedGeometries": {},
     }
     saved_workspace, saved_instance = store.commit_process_flow_workspace(

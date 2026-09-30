@@ -20,7 +20,11 @@ from process_flow_kernel import (
 
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
-from .configuration_materialization import materialize_embedded_bindings
+from .configuration_materialization import (
+    canonicalize_generator_bindings,
+    materialize_embedded_bindings,
+)
+from .geometry_generation import GeometryGeneratorRegistry
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,
@@ -261,6 +265,7 @@ def load_step_templates_for_template(
 def create_template_instance(
     store: SQLiteStore,
     body: TemplateInstanceCreateRequest,
+    generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
     template = body.processFlowTemplate.payload()
     instance = body.processFlowInstance.payload()
@@ -270,9 +275,10 @@ def create_template_instance(
     materialize_flow_parameter_defaults(template, step_templates)
     validate_flow_graph(template, step_templates)
     validate_flow_parameter_defaults(template, step_templates)
-    _compiler(store).compile(template, instance, step_templates)
-    geometries, catalog_bindings = materialize_embedded_bindings(instance)
-    persisted_instance = _persisted_instance(instance, catalog_bindings)
+    plan = _compiler(store, generators).compile(template, instance, step_templates)
+    instance = canonicalize_generator_bindings(instance, plan)
+    geometries, persisted_bindings = materialize_embedded_bindings(instance)
+    persisted_instance = _persisted_instance(instance, persisted_bindings)
     created_template, created_instance = store.insert_template_and_instance(
         template,
         persisted_instance,
@@ -287,6 +293,7 @@ def create_template_instance(
 def create_flow_instance(
     store: SQLiteStore,
     body: ProcessFlowInstanceCreate,
+    generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
     payload = body.payload()
     template = require_item(
@@ -294,15 +301,16 @@ def create_flow_instance(
         payload["processFlowTemplateId"],
     )
     step_templates = load_step_templates_for_template(store, template)
-    _compiler(store).compile(template, payload, step_templates)
-    geometries, catalog_bindings = materialize_embedded_bindings(payload)
-    instance = _persisted_instance(payload, catalog_bindings)
+    plan = _compiler(store, generators).compile(template, payload, step_templates)
+    payload = canonicalize_generator_bindings(payload, plan)
+    geometries, persisted_bindings = materialize_embedded_bindings(payload)
+    instance = _persisted_instance(payload, persisted_bindings)
     return store.insert_instance_with_geometries(instance, geometries=geometries)
 
 
 def _persisted_instance(
     create_payload: JsonObject,
-    catalog_bindings: dict[str, JsonObject],
+    persisted_bindings: dict[str, JsonObject],
 ) -> JsonObject:
     return {
         "schemaVersion": 2,
@@ -312,19 +320,21 @@ def _persisted_instance(
         "owner": create_payload["owner"],
         "description": create_payload.get("description", ""),
         "processFlowTemplateId": create_payload["processFlowTemplateId"],
-        "inputBindings": catalog_bindings,
+        "inputBindings": persisted_bindings,
         "stepConfigurations": create_payload.get("stepConfigurations", {}),
     }
 
 
-def execute_instance(store: SQLiteStore, instance_id: str) -> JsonObject:
+def execute_instance(
+    store: SQLiteStore, instance_id: str, generators: GeometryGeneratorRegistry
+) -> JsonObject:
     instance = require_item(store.get_process_flow_instance(instance_id), instance_id)
     template = require_item(
         store.get_process_flow_template(instance["processFlowTemplateId"]),
         instance["processFlowTemplateId"],
     )
     step_templates = load_step_templates_for_template(store, template)
-    plan = _compiler(store).compile(template, instance, step_templates)
+    plan = _compiler(store, generators).compile(template, instance, step_templates)
     result = GeometryKernel().execute(plan)
     return {
         "geometryStructure": result.geometry(),
@@ -386,6 +396,7 @@ def preview_request_identity(context: PreviewRequestContext) -> JsonObject:
 
 def prepare_preview_execution(
     context: PreviewRequestContext,
+    generators: GeometryGeneratorRegistry,
 ) -> PreparedPreviewExecution:
     """Compile at most once against resources captured by the request context."""
 
@@ -394,7 +405,7 @@ def prepare_preview_execution(
         for geometry in context.referenced_catalog_geometries.values()
         if isinstance(geometry, dict) and isinstance(geometry.get("id"), str)
     ]
-    compiler = FlowCompiler(InMemoryGeometryCatalog(catalog_geometries))
+    compiler = FlowCompiler(InMemoryGeometryCatalog(catalog_geometries), generators)
     target = context.target
     if target["type"] == "flowInput":
         geometry_structure = compiler.resolve_flow_input(
@@ -496,9 +507,10 @@ async def materialize_preview_snapshots(
 async def preview_geometry(
     store: SQLiteStore,
     body: GeometryPreviewRequest,
+    generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
     context = resolve_preview_request(store, body)
-    prepared = await asyncio.to_thread(prepare_preview_execution, context)
+    prepared = await asyncio.to_thread(prepare_preview_execution, context, generators)
     snapshots = await materialize_preview_snapshots(prepared)
     selected = snapshots[-1]
     geometry_structure = selected.geometry_structure
@@ -549,8 +561,8 @@ def build_geometry_entity_download(
     }
 
 
-def _compiler(store: SQLiteStore) -> FlowCompiler:
-    return FlowCompiler(StoreGeometryCatalog(store))
+def _compiler(store: SQLiteStore, generators: GeometryGeneratorRegistry) -> FlowCompiler:
+    return FlowCompiler(StoreGeometryCatalog(store), generators)
 
 
 def _execute_preview_plan(plan: ExecutionPlan, output_step_ref_id: str):

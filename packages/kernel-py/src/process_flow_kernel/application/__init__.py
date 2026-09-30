@@ -12,7 +12,11 @@ from .flow_validation import analyze_flow_graph, validate_flow_graph, validate_p
 from .geometry_kernel import GeometryKernel
 from .options import ExecuteOptions
 from .protocols import ModuleResolver, ProcessStepModule
-from .resource_resolution import GeometryCatalogResolver, InMemoryGeometryCatalog
+from .resource_resolution import (
+    GeometryCatalogResolver,
+    GeometryGeneratorResolver,
+    InMemoryGeometryCatalog,
+)
 
 __all__ = [
     "ExecuteOptions",
@@ -20,6 +24,7 @@ __all__ = [
     "FlowCompiler",
     "FLOW_DEFAULT_VALUE_TYPES",
     "GeometryCatalogResolver",
+    "GeometryGeneratorResolver",
     "GeometryKernel",
     "GeometryKernelExecutionResult",
     "InMemoryGeometryCatalog",

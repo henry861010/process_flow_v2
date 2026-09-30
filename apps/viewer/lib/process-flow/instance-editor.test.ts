@@ -94,6 +94,26 @@ describe("instance editor helpers", () => {
     expect(source.stepConfigurations.step.parameterValues.value).toBe("source");
   });
 
+  it("copies and submits generator recipes without sharing parameter objects", () => {
+    const source = instance("source");
+    source.inputBindings.incoming_hbm = {
+      kind: "generator", generatorId: "hbm", generatorVersion: 2,
+      parameters: { hbmThickness: 480 },
+    };
+    const copied = configurationFromInstance(template, [stepTemplate], source);
+    const payload = buildProcessFlowInstanceCreate(
+      template.id,
+      { ...newInstanceIdentity(), id: "copy", name: "Copy", owner: "test" },
+      copied,
+    );
+    expect(payload.inputBindings.incoming_hbm).toEqual(source.inputBindings.incoming_hbm);
+    expect(payload.embeddedGeometries).toEqual({});
+    if (copied.inputBindings.incoming_hbm.kind !== "generator") throw new Error("Expected generator");
+    copied.inputBindings.incoming_hbm.parameters.hbmThickness = 520;
+    expect(source.inputBindings.incoming_hbm).toMatchObject({ parameters: { hbmThickness: 480 } });
+    expect(payload.inputBindings.incoming_hbm).toMatchObject({ parameters: { hbmThickness: 480 } });
+  });
+
   it("uses flow scalar defaults only when no instance is imported", () => {
     const configuration = configurationFromInstance(template, [stepTemplate]);
     expect(configuration.stepConfigurations.step.parameterValues).toEqual({

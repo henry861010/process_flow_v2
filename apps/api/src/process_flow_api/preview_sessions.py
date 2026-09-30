@@ -205,6 +205,7 @@ class PreviewSessionManager:
     def __init__(
         self,
         *,
+        geometry_generators=None,
         mesh_exporter: MeshExporter | None = None,
         section_generator: SectionGenerator | None = None,
         section_preparer: SectionPreparer | None = None,
@@ -235,6 +236,7 @@ class PreviewSessionManager:
         ) < 1:
             raise ValueError("Preview cache and concurrency limits must be positive")
         self._mesh_exporter = mesh_exporter or export_geometry
+        self._geometry_generators = geometry_generators
         # A directly injected generator is retained for tests/custom adapters.
         # Production uses the prepare-once path when this value is None.
         self._section_generator = section_generator
@@ -281,8 +283,9 @@ class PreviewSessionManager:
         ] = {}
 
     @classmethod
-    def from_environment(cls) -> PreviewSessionManager:
+    def from_environment(cls, *, geometry_generators=None) -> PreviewSessionManager:
         return cls(
+            geometry_generators=geometry_generators,
             max_sessions=_positive_env_int("PREVIEW_SESSION_CACHE_ENTRIES", 16),
             max_session_bytes=_positive_env_int(
                 "PREVIEW_SESSION_CACHE_BYTES", 128 * 1024 * 1024
@@ -534,7 +537,9 @@ class PreviewSessionManager:
         request_hash: str,
     ) -> PreviewSessionRecord:
         async with self._session_slots:
-            prepared = await asyncio.to_thread(prepare_preview_execution, context)
+            prepared = await asyncio.to_thread(
+                prepare_preview_execution, context, self._geometry_generators
+            )
             snapshot_geometries = await materialize_preview_snapshots(prepared)
             return await asyncio.to_thread(
                 self._assemble_session,

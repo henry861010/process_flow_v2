@@ -5,6 +5,8 @@ import unittest
 from fastapi.testclient import TestClient
 
 from process_flow_api.main import create_app
+from process_flow_api.geometry_generation.hbm import HbmGenerator
+from process_flow_api.geometry_generation.registry import GeometryGeneratorRegistry
 
 
 class GeometryGeneratorApiTests(unittest.TestCase):
@@ -136,6 +138,36 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 [item["id"] for item in definition["parameterDefinitions"]],
             )
         self.assertEqual(hbm["previewViews"], ["top", "cross-section-x"])
+
+    def test_exact_definition_endpoint_and_versioned_registry(self):
+        exact = self.client.get("/api/geometry-generators/hbm/versions/2")
+        self.assertEqual(exact.status_code, 200, exact.text)
+        self.assertEqual(exact.json()["version"], 2)
+        missing = self.client.get("/api/geometry-generators/hbm/versions/1")
+        self.assertEqual(missing.status_code, 404, missing.text)
+
+        class HbmV3(HbmGenerator):
+            def definition(self):
+                definition = super().definition()
+                definition["version"] = 3
+                return definition
+
+        registry = GeometryGeneratorRegistry((HbmGenerator(), HbmV3()))
+        self.assertEqual(registry.definitions()[0]["version"], 3)
+        self.assertEqual(registry.definition("hbm", 2)["version"], 2)
+        self.assertEqual(registry.generate("hbm", 2, {})["generation"]["schemaVersion"], 2)
+        self.assertEqual(registry.generate("hbm", 3, {})["generation"]["schemaVersion"], 3)
+
+    def test_v2_default_structures_remain_stable(self):
+        registry = GeometryGeneratorRegistry()
+        self.assertEqual(
+            registry.preview("hbm", {}, generator_version=2)["geometryHash"],
+            "sha256:398ea0156cfd06137ae9a573168ba4cca31f040f2c6c3990f86b8681bbd2e371",
+        )
+        self.assertEqual(
+            registry.preview("dram", {}, generator_version=2)["geometryHash"],
+            "sha256:0638938a920195a3689cfb0aa42f7f4ff1c33de1a23169a0ada619087df17e09",
+        )
 
     def test_hbm_preview_materializes_geometry_and_engineering_views(self):
         response = self.client.post(

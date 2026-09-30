@@ -49,8 +49,15 @@ export function geometryForFlowInput(
   if (binding.kind === "catalog") {
     return geometries.find((geometry) => geometry.id === binding.geometryId) ?? null;
   }
+  if (binding.kind === "generator") {
+    return geometries.find((geometry) => geometry.id === generatedGeometryId(flowInputId)) ?? null;
+  }
   const embedded = configuration.embeddedGeometries[binding.localId];
   return embedded ? { ...embedded, id: binding.localId } : null;
+}
+
+export function generatedGeometryId(flowInputId: string) {
+  return `generator:${flowInputId}`;
 }
 
 export type ConfigurationReadinessStatus =
@@ -397,7 +404,9 @@ function numericValueIsValid(value: number, definition: ParameterDefinition) {
 }
 
 export function geometryMatchesFlowInput(
-  geometry: ReturnType<typeof geometryForFlowInput>,
+  geometry:
+    | ReturnType<typeof geometryForFlowInput>
+    | { entityType: string; category?: string | null; structureFormat: string },
   input: ProcessFlowTemplate["flowInputs"][number],
 ) {
   if (!geometry) return false;

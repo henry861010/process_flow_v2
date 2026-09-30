@@ -17,20 +17,21 @@ source_of_truth:
 
 # Geometry Generator Framework
 
-所有geometry generators透過後端registry對Home與Flow Template Editor公開。Flow editor不得以
+所有geometry generators透過後端registry對Home、Flow Template Editor與Flow Instance Editor公開。Flow editor不得以
 generator id寫HBM/DRAM條件分支；新增generator只需在後端註冊definition、validation、geometry
 builder與preview evaluator。只要沿用通用contract，前端不需修改。
 
 `GET /api/geometry-generators`提供id/version、label/icon、default parameters、通用
 `ParameterDefinition[]`、optional ordered `parameterGroups`與adaptation contract。前端依definition
 渲染parameter control及分組；沒有groups時維持單一flat parameter card。修改值後debounce呼叫
-`POST /api/geometry-generators/{id}/preview`。
+`POST /api/geometry-generators/{id}/preview`。編輯舊instance的配方時使用
+`GET /api/geometry-generators/{id}/versions/{version}`取得指定版本definition。
 
 Preview response包含normalized/computed parameters、validation errors、geometry hash、opaque
 `previewToken`、download JSON與versioned engineering preview document。前端只負責generic CAD
 renderer，支援views、rectangle、polygon、circle、dimensions與semantic roles；shape與engineering
-dimensions由後端決定。Save/Define使用`POST /api/geometry-materializations`加preview token，確保
-materialized geometry就是使用者最後看見的版本。
+dimensions由後端決定。Catalog Save使用`POST /api/geometry-materializations`加preview token；
+flow-input Define直接保存最後有效preview回傳的normalized parameters作為generator binding。
 
 HBM/DRAM目前在Top View提供overall與core die X/Y dimensions，Cross Section提供total與core die
 thickness。Renderer依dimension axis各自配置callout offset，新增horizontal或vertical dimension
@@ -48,12 +49,11 @@ metadata dialog收集，optional欄位trim後為空時不寫入GeometryEntity。
 | Mode | Actions | Persistence |
 | --- | --- | --- |
 | `catalog` | Generate JSON、Save to DB | Save明確建立immutable GeometryEntity。 |
-| `flowInput` | Define | 只回傳EmbeddedGeometry；呼叫端建立binding，不寫DB。 |
+| `flowInput` | Define | 回傳versioned generator binding及當次preview geometry；不寫DB。 |
 
-Define result必須包含suggested flow input name、完整EmbeddedGeometry與`generation` metadata。
+Define result必須包含suggested flow input name、generator binding與當次preview geometry。
 重新編輯時呼叫端只在resolved geometry的generator id與選擇的definition一致時傳入saved
 parameters；backend仍須validate輸入。Malformed value顯示field errors，不可由前端另算geometry。
 
-Catalog geometry immutable。即使參數來自catalog record，Define也必須產生新的embedded draft，
-不得更新原record。後續instance save由通用materialization transaction負責建立新catalog
-snapshot。
+Catalog geometry immutable。Generator binding是獨立於catalog的配方；後續instance save
+保存完整正規化參數，compile時產生structure，不建立新catalog snapshot。

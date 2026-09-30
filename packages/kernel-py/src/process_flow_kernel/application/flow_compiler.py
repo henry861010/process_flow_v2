@@ -9,7 +9,7 @@ from typing import Any
 from .execution_plan import ExecutionPlan, PlannedGeometryInput, PlannedStep
 from .geometry_artifact import GeometryArtifact
 from .flow_validation import analyze_flow_graph, upstream_step_ref_ids
-from .resource_resolution import GeometryCatalogResolver
+from .resource_resolution import GeometryCatalogResolver, GeometryGeneratorResolver
 from ..serialization.schema import normalize_geometry_structure
 
 
@@ -72,10 +72,15 @@ def validate_flow_parameter_defaults(process_flow_template, step_templates) -> N
 
 
 class FlowCompiler:
-    def __init__(self, geometry_catalog: GeometryCatalogResolver):
+    def __init__(
+        self,
+        geometry_catalog: GeometryCatalogResolver,
+        geometry_generator_resolver: GeometryGeneratorResolver | None = None,
+    ):
         if geometry_catalog is None or not hasattr(geometry_catalog, "get_geometry"):
             raise ValueError("geometry_catalog with get_geometry(id) is required")
         self._geometry_catalog = geometry_catalog
+        self._geometry_generator_resolver = geometry_generator_resolver
 
     def validate_configuration(
         self,
@@ -142,7 +147,7 @@ class FlowCompiler:
             step_templates,
             require_complete=True,
             included_step_ref_ids=included,
-            resolve_resources=True,
+            resolve_resources=False,
         )
 
         bindings = configuration.get("inputBindings", {})
@@ -244,15 +249,31 @@ class FlowCompiler:
             geometry = self._geometry_catalog.get_geometry(geometry_id)
             if geometry is None:
                 raise ValueError(f"Geometry entity not found: {geometry_id}")
-        else:
+        elif binding["kind"] == "embedded":
             geometry = embedded_geometries[binding["localId"]]
+        else:
+            if self._geometry_generator_resolver is None:
+                raise ValueError(f"Geometry generator resolver is unavailable for {flow_input_id}")
+            try:
+                geometry = self._geometry_generator_resolver.generate(
+                    binding["generatorId"],
+                    binding["generatorVersion"],
+                    binding["parameters"],
+                )
+            except KeyError:
+                raise ValueError(
+                    f"Geometry generator {binding['generatorId']} "
+                    f"version {binding['generatorVersion']} is not available"
+                ) from None
 
         structure = geometry.get("structure")
         if not isinstance(structure, Mapping):
             raise ValueError(f"Geometry for flow input {flow_input_id} is missing structure")
         _validate_geometry_constraints(flow_input, geometry)
         source_geometry_id = (
-            binding["geometryId"] if binding["kind"] == "catalog" else binding["localId"]
+            binding["geometryId"] if binding["kind"] == "catalog"
+            else binding["localId"] if binding["kind"] == "embedded"
+            else None
         )
         return GeometryArtifact.from_entity(
             geometry,
@@ -704,6 +725,17 @@ def _validate_binding_shape(flow_input_id, binding, embedded_geometries):
             raise ValueError(f"Embedded binding {flow_input_id} requires localId")
         if local_id not in embedded_geometries:
             raise ValueError(f"Embedded geometry not found: {local_id}")
+        return
+    if kind == "generator":
+        generator_id = binding.get("generatorId")
+        generator_version = binding.get("generatorVersion")
+        if not isinstance(generator_id, str) or not generator_id.strip():
+            raise ValueError(f"Generator binding {flow_input_id} requires generatorId")
+        if (isinstance(generator_version, bool) or not isinstance(generator_version, int)
+                or generator_version < 1):
+            raise ValueError(f"Generator binding {flow_input_id} requires generatorVersion")
+        if not isinstance(binding.get("parameters"), Mapping):
+            raise ValueError(f"Generator binding {flow_input_id} requires parameters")
         return
     raise ValueError(f"Unsupported input binding kind: {kind}")
 

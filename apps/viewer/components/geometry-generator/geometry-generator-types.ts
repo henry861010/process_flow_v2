@@ -1,11 +1,13 @@
 import type {
   EmbeddedGeometry,
+  GeneratorGeometryBinding,
   GeometryGeneration,
 } from "@/lib/process-flow/types";
 
 export type GeometryGeneratorMode = "catalog" | "flowInput";
 
 export type GeometryGeneratorDefineResult = {
+  binding: GeneratorGeometryBinding;
   geometry: EmbeddedGeometry;
   suggestedFlowInputName: string;
 };

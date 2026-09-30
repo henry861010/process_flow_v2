@@ -28,7 +28,9 @@ export function geometryInputStatusLabel(
   bindingKind: GeometryBinding["kind"] | undefined,
 ) {
   if (readiness.status === "ready") {
-    return bindingKind === "embedded" ? "Embedded" : "Catalog";
+    if (bindingKind === "embedded") return "Embedded";
+    if (bindingKind === "generator") return "Generator";
+    return "Catalog";
   }
   if (readiness.status === "neutral") return "Optional";
   if (readiness.status === "error") return "Invalid";

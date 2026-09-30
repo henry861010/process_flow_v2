@@ -260,8 +260,8 @@ port。
 
 每個 flow input 可以透過 `flowEdges` 將 geometry 傳到一個或多個 step input ports。Flow
 input 沒有 incoming edge、不執行 process program，也沒有 step parameters；執行時使用的
-實際 geometry 由 `FlowConfiguration.inputBindings[flowInputId]` 綁定 catalog 或 embedded
-geometry。
+實際 geometry 由 `FlowConfiguration.inputBindings[flowInputId]` 綁定 catalog、embedded
+geometry，或指定 generator 的版本與參數。
 
 因此，Template 負責定義 flow input 的名稱、型別、constraints 與 routing；Workspace 或
 Instance 的 Configuration 則負責選擇這次實際使用的 geometry。
@@ -278,6 +278,7 @@ Instance 的 Configuration 則負責選擇這次實際使用的 geometry。
 flowchart LR
   Catalog["Catalog GeometryEntity"] -->|"geometryId"| Binding["inputBindings[incoming_die]"]
   Embedded["embeddedGeometries[localId]"] -->|"localId"| Binding
+  Generator["Versioned generator + parameters"] -->|"generate"| Binding
   Binding --> Input["FlowInput node<br/>incoming_die"]
   Input -->|"FlowEdge"| Port["Step input port<br/>pnp.die_geometry"]
   Port --> Step["PnP step"]
@@ -308,9 +309,9 @@ Geometry constraint matching：
 - `structureFormats`：case-sensitive exact match。
 - Empty or omitted constraint list 表示不限制該維度。
 
-Flow template editor 從 catalog geometry 建立新的 flow input 時，會將來源的 category snapshot
+Flow template editor 從 catalog geometry 或 generator 建立新的 flow input 時，會將來源的 category snapshot
 成單一 `geometryConstraints.categories` 項目。來源 geometry id 仍只存在於 preview
-configuration 的 `inputBindings`，不會寫入 template。作者在儲存前可調整 allowed categories；
+configuration 的 `inputBindings`；generator 配方也只存在於 preview configuration，兩者都不會寫入 template。作者在儲存前可調整 allowed categories；
 template 儲存後則沿用 immutable topology policy。
 
 ### 6.2 StepRef 與 FlowEdge
@@ -419,11 +420,11 @@ geometries。它不定義 steps、ports 或 topology；這些結構仍由 `Proce
 
 Workspace 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的設定；preview request 使用
 同一個結構傳入臨時設定；compiler 則讀取它並產生 `ExecutionPlan`。Instance 保存 commit 後的
-完整設定，但只允許 catalog bindings，MUST NOT 保存 `embeddedGeometries`。
+完整設定，但只允許 catalog 或 generator bindings，MUST NOT 保存 `embeddedGeometries`。
 
 | 欄位 | 型別 | 用途 | 必填條件 | Request 省略時 | 契約 |
 | --- | --- | --- | --- | --- | --- |
-| `inputBindings` | map of `flowInputId -> GeometryBinding` | 記錄每個 flow input 實際使用的 geometry 來源。`catalog` binding 以 `geometryId` 引用已存入 catalog 的 `GeometryEntity`；`embedded` binding 以 `localId` 引用同一份 configuration 中的 `embeddedGeometries`。Template 的 `flowEdges` 再將該 geometry route 到 step port。 | canonical yes | `{}` | Unknown flow-input key MUST reject。 |
+| `inputBindings` | map of `flowInputId -> GeometryBinding` | 記錄每個 flow input 實際使用的 geometry 來源。`catalog` 以 `geometryId` 引用 catalog；`embedded` 以 `localId` 引用同一份 configuration；`generator` 保存 generator id、版本及參數。Template 的 `flowEdges` 再將 geometry route 到 step port。 | canonical yes | `{}` | Unknown flow-input key MUST reject。 |
 | `stepConfigurations` | map of `stepRefId -> StepConfiguration` | 記錄每個 step 實際使用的 `parameterValues`，例如 PnP 的 `placements` 或 molding 的 material、thickness。Parameter id 與 value shape 由該 step 引用的 `ProcessStepTemplate` 定義。 | canonical yes | `{}` | Unknown step key MUST reject。 |
 | `embeddedGeometries` | map of `localId -> EmbeddedGeometry` | 作為 draft-local geometry store，暫存尚未進入 catalog 的完整 geometry metadata 與 `GeometryStructure`，供 `embedded` input binding 引用。Commit 只會將實際被引用的項目 materialize 到 catalog。 | configuration canonical yes | `{}` | Instance MUST NOT persist this field。 |
 
@@ -431,7 +432,10 @@ Workspace 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的�
 `generatorId`是registry key、`schemaVersion >= 1`標記parameter contract、`parameters`保存完整
 JSON object。Generator validation、build 與 engineering preview 由 backend registry 擁有；
 materialization必須原樣保存metadata。`generation`僅用於重新開啟generator時回填參數，
-不作為flow routing identity。
+不作為flow routing identity。`generator` binding 則是 flow input 的實際來源，compile 時依
+`generatorId`、`generatorVersion` 與 `parameters` 產生 geometry。Instance 儲存前合併預設值、
+驗證並保存完整正規化參數；不建立 catalog record。Registry 必須保留已被 instance 引用的
+版本實作，不得默默升級配方。
 
 兩種geometry也包含versioned `adaptationContract`：`adapterId`是backend adapter registry key、
 `adapterVersion >= 1`、`parameters`是adapter-specific JSON object。Runtime `GeometryArtifact`同時
@@ -443,7 +447,7 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 
 三個 map 的資料關係如下：
 
-- `inputBindings[flowInputId]` 決定 geometry 來自 catalog 或 `embeddedGeometries`，再由
+- `inputBindings[flowInputId]` 決定 geometry 來自 catalog、`embeddedGeometries` 或 generator，再由
   template edge 傳到對應的 step port。
 - `stepConfigurations[stepRefId].parameterValues` 直接提供該 step 執行時使用的製程參數。
 - `embeddedGeometries` 不會由 step 直接查詢；它必須先被 `inputBindings` 以 `localId` 引用。
@@ -452,7 +456,7 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 `stepConfigurations.pnp.parameterValues`以同一筆`placements[]` item保存absolute target region與
 固定的hidden transform（zero pose、center anchor）。
 
-`inputBindings` 中的 `GeometryBinding` 有兩種來源：
+`inputBindings` 中的 `GeometryBinding` 有三種來源：
 
 ```json
 { "kind": "catalog", "geometryId": "panel_plp_310x310mm_glass" }
@@ -462,10 +466,20 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
 { "kind": "embedded", "localId": "draft_panel_1" }
 ```
 
+```json
+{
+  "kind": "generator",
+  "generatorId": "hbm",
+  "generatorVersion": 2,
+  "parameters": { "hbmThickness": 480, "dieMaterial": "Si-HBM" }
+}
+```
+
 | Binding kind | Geometry 來源 | 必填欄位 | 禁止欄位 |
 | --- | --- | --- | --- |
 | `catalog` | Persisted `GeometryEntity` catalog record。 | `kind: "catalog"`、non-empty `geometryId` | `localId` |
 | `embedded` | 同一份 `FlowConfiguration.embeddedGeometries` 中的 draft-local record。 | `kind: "embedded"`、non-empty `localId` | `geometryId` |
+| `generator` | Backend registry 中指定版本的 generator；compile 時動態產生 structure。 | `kind: "generator"`、non-empty `generatorId`、positive `generatorVersion`、object `parameters` | `geometryId`、`localId`、`structure` |
 
 `StepConfiguration` 只有一個 canonical field：`parameterValues` 是 parameter-id keyed object，
 request MAY 省略並 default 為 `{}`。Unknown top-level fields 與 unknown parameter ids MUST
@@ -535,9 +549,9 @@ Commit retry 以 workspace 的 committed state 為準。一旦 commit 成功，�
 
 ## 9. ProcessFlowInstance
 
-Instance 是完整、immutable，而且只包含 catalog bindings 的產品設定。Instance create request
+Instance 是完整、immutable，而且只包含 catalog 或 generator bindings 的產品設定。Instance create request
 MAY使用完整FlowConfiguration並包含embedded bindings；server必須在同一transaction將被引用的
-embedded records materialize後，回傳及持久化catalog-only ProcessFlowInstance。
+embedded records materialize後，回傳及持久化不含 embedded binding 的 ProcessFlowInstance。
 PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完整的 `placements`。
 
 | 欄位 | 型別 | 必填條件 | 契約 |
@@ -549,7 +563,7 @@ PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完�
 | `owner` | non-empty string | yes | Owning product、RD team或domain。 |
 | `description` | string | yes | Human-facing description；default `""`。 |
 | `processFlowTemplateId` | identifier | yes | Existing immutable template。 |
-| `inputBindings` | map of catalog bindings | yes | Embedded binding MUST NOT appear；optional inputs MAY be absent。 |
+| `inputBindings` | map of catalog or generator bindings | yes | Embedded binding MUST NOT appear；generator parameters MUST 是完整正規化 snapshot；optional inputs MAY be absent。 |
 | `stepConfigurations` | map | yes | Required values complete；steps without values MAY be absent。 |
 
 API MUST NOT provide in-place instance update。新產品、study result 或 recipe change MUST
@@ -679,7 +693,7 @@ resource id。
 | --- | --- | --- | --- |
 | Step template create | n/a | n/a | SHOULD validate program locator |
 | Flow template create | step templates MUST exist | n/a | not executed |
-| Workspace create / update | Catalog existence MAY defer；embedded local ref MUST exist | MAY defer | not executed |
+| Workspace create / update | Catalog與generator version existence MAY defer；embedded local ref MUST exist | MAY defer | not executed |
 | Flow-input preview | target binding MUST resolve/match | target geometry MUST hydrate | not executed |
 | Step-output preview | closure bindings MUST resolve/match | closure geometries MUST hydrate | closure modules MUST load/execute |
 | Instance create | all supplied bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable；execution errors remain possible only for domain behavior |
@@ -701,7 +715,8 @@ writes 則 MUST 位於同一個 SQLite transaction。Write transaction 必須：
    revision。
 3. 只 materialize 被 binding reference 的 embedded geometries；同一 `localId` 被多次
    reference 時只建立一個 catalog entity。
-4. 將 embedded bindings 改寫成 catalog bindings。
+4. 將 embedded bindings 改寫成 catalog bindings；generator bindings 保留已驗證並正規化的
+   版本與參數，不建立 catalog entity。
 5. Insert new immutable `ProcessFlowInstance`。
 6. 將 workspace 標記 `committed`、revision 加一、保存 `committedInstanceId`，改寫
    bindings 並清空 `embeddedGeometries`。

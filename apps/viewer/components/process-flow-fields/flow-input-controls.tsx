@@ -12,11 +12,13 @@ import {
 
 export function FlowInputBindingControl({
   geometry,
+  hasBinding = false,
   canEdit,
   onPick,
   onPreview,
 }: {
   geometry: GeometryCardValue | null | undefined;
+  hasBinding?: boolean;
   canEdit: boolean;
   onPick: () => void;
   onPreview: () => void;
@@ -25,7 +27,7 @@ export function FlowInputBindingControl({
     if (!canEdit) {
       return (
         <div className="flex min-h-14 items-center rounded-md border border-dashed bg-muted/10 px-3 py-3 text-sm text-muted-foreground">
-          No geometry bound
+          {hasBinding ? "Geometry source needs validation" : "No geometry bound"}
         </div>
       );
     }
@@ -37,7 +39,7 @@ export function FlowInputBindingControl({
         onClick={onPick}
       >
         <Plus />
-        Add geometry
+        {hasBinding ? "Change geometry source" : "Add geometry"}
       </Button>
     );
   }

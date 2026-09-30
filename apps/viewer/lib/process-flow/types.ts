@@ -167,7 +167,17 @@ export type EmbeddedGeometryBinding = {
   localId: string;
 };
 
-export type GeometryBinding = CatalogGeometryBinding | EmbeddedGeometryBinding;
+export type GeneratorGeometryBinding = {
+  kind: "generator";
+  generatorId: string;
+  generatorVersion: number;
+  parameters: Record<string, unknown>;
+};
+
+export type GeometryBinding =
+  | CatalogGeometryBinding
+  | EmbeddedGeometryBinding
+  | GeneratorGeometryBinding;
 
 export type StepConfiguration = {
   parameterValues: Record<string, unknown>;
@@ -229,7 +239,7 @@ export type ProcessFlowInstance = {
   owner: string;
   description: string;
   processFlowTemplateId: string;
-  inputBindings: Record<string, CatalogGeometryBinding>;
+  inputBindings: Record<string, CatalogGeometryBinding | GeneratorGeometryBinding>;
   stepConfigurations: Record<string, StepConfiguration>;
 };
 

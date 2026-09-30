@@ -207,8 +207,20 @@ class EmbeddedGeometryBinding(StrictModel):
     localId: str = Field(min_length=1)
 
 
+class GeneratorGeometryBinding(StrictModel):
+    kind: Literal["generator"]
+    generatorId: str = Field(min_length=1)
+    generatorVersion: int = Field(ge=1)
+    parameters: JsonObject
+
+
 GeometryBinding = Annotated[
-    CatalogGeometryBinding | EmbeddedGeometryBinding,
+    CatalogGeometryBinding | EmbeddedGeometryBinding | GeneratorGeometryBinding,
+    Field(discriminator="kind"),
+]
+
+PersistedGeometryBinding = Annotated[
+    CatalogGeometryBinding | GeneratorGeometryBinding,
     Field(discriminator="kind"),
 ]
 
@@ -261,7 +273,7 @@ class ProcessFlowInstance(StrictModel):
     owner: NonBlankString
     description: str = ""
     processFlowTemplateId: str = Field(min_length=1)
-    inputBindings: dict[str, CatalogGeometryBinding]
+    inputBindings: dict[str, PersistedGeometryBinding]
     stepConfigurations: dict[str, StepConfiguration]
 
 

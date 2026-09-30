@@ -126,6 +126,15 @@ export async function listGeometryGenerators(): Promise<GeometryGeneratorDefinit
   return apiFetch<GeometryGeneratorDefinition[]>("/api/geometry-generators");
 }
 
+export async function getGeometryGeneratorVersion(
+  generatorId: string,
+  version: number,
+): Promise<GeometryGeneratorDefinition> {
+  return apiFetch<GeometryGeneratorDefinition>(
+    `/api/geometry-generators/${encodeURIComponent(generatorId)}/versions/${version}`,
+  );
+}
+
 export async function previewGeneratedGeometry(
   generatorId: string,
   generatorVersion: number,

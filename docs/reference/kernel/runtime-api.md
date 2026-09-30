@@ -22,7 +22,9 @@ source_of_truth:
 
 ### `FlowCompiler`
 
-- `FlowCompiler(geometry_catalog)`：catalog 必須提供 `get_geometry(id)`。
+- `FlowCompiler(geometry_catalog, geometry_generator_resolver=None)`：catalog 必須提供
+  `get_geometry(id)`；解析 generator binding 時，resolver 必須提供
+  `generate(generator_id, generator_version, parameters)` 並回傳完整 geometry entity。
 - `validate_configuration(..., require_complete, included_step_ref_ids=None, resolve_resources=False)`：draft 或 complete validation。
 - `compile(..., output_step_ref_id=None) -> ExecutionPlan`：validate、resolve、normalize 並建立 ordered plan；指定 output 時只包含 upstream closure。
 - `resolve_flow_input(..., flow_input_id)`：不執行 step，直接 resolve/normalize binding。
@@ -42,7 +44,7 @@ Result `GeometryKernelExecutionResult` 提供：
 
 ### Plan types
 
-`ExecutionPlan` 包含 `steps`、fully resolved `external_geometries` 與 `terminal_step_ref_ids`。`PlannedGeometryInput.kind` 為 `external` 或 `stepOutput`；plan 不帶 repository handle。
+`ExecutionPlan` 包含 `steps`、fully resolved `external_geometries` 與 `terminal_step_ref_ids`。Catalog、embedded、generator bindings 都在編譯時轉成 geometry artifact；`PlannedGeometryInput.kind` 為 `external` 或 `stepOutput`，plan 不帶 repository handle。
 
 ## `ProcessGeometryState`
 

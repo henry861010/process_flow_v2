@@ -186,11 +186,10 @@ immutable geometry 與其 generation metadata 不遷移也不重建。
 
 ### Define Flow Input
 
-Flow Template Editor使用同一generator的flow-input mode。此模式不得顯示Generate JSON或
-Save to DB；`Define`回傳draft-local EmbeddedGeometry，使用暫存metadata
-`name = "HBM generator"`、backend-produced `dim`、`owner = null`，並附完整generation與
-adaptation metadata。Define本身不得寫DB；只有後續instance save materialization可以建立
-catalog record。
+Flow Template Editor與Flow Instance Editor使用同一generator的flow-input mode。此模式不得
+顯示Generate JSON或Save to DB；`Define`回傳包含`generatorId`、`generatorVersion`與完整
+normalized parameters的generator binding，並提供當次preview geometry供UI顯示。Define與
+後續instance save都不建立catalog record；compiler在preview與執行時依版本解析配方。
 
 Catalog persistence 與 server-generated geometry id 的一般規則見
 [Persistence](./persistence.md) 與 [Geometry structure](./geometry-structure.md#2-geometryentity-外層結構)。

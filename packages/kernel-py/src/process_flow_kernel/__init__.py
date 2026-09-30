@@ -16,7 +16,11 @@ from .application.flow_validation import analyze_flow_graph, validate_flow_graph
 from .application.geometry_kernel import GeometryKernel
 from .application.options import ExecuteOptions
 from .application.protocols import ModuleResolver, ProcessStepModule
-from .application.resource_resolution import GeometryCatalogResolver, InMemoryGeometryCatalog
+from .application.resource_resolution import (
+    GeometryCatalogResolver,
+    GeometryGeneratorResolver,
+    InMemoryGeometryCatalog,
+)
 from .domain.container import Container
 from .domain.features import Body, Bump, Circuit, Via
 from .domain.geometry import BoxGeometry, ConeGeometry, CylinderGeometry, Geometry, PolygonGeometry
@@ -62,6 +66,7 @@ __all__ = [
     "Geometry",
     "GeometryArtifact",
     "GeometryCatalogResolver",
+    "GeometryGeneratorResolver",
     "GeometryKernel",
     "GeometryKernelExecutionResult",
     "InMemoryGeometryCatalog",

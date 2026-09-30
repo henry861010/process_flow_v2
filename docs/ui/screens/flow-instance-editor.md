@@ -49,10 +49,12 @@ Topology is always view mode and is rebuilt from the selected template. Geometry
 parameters remain editable through single-click node dialogs. Preview/export behavior is unchanged.
 Dirty state protects reload/close and Home/source replacement. Source metadata is never copied.
 
-The geometry picker filters the catalog before browsing or search using the selected flow input's
+The geometry picker filters catalog records and available generators using the selected flow input's
 `geometryConstraints`. A category constraint accepts the exact category and dot-delimited
-descendants, but not sibling categories. The API compiler applies the same rule when an instance is
-saved, so a client cannot bypass the picker with an incompatible geometry id.
+descendants, but not sibling categories. A generator opens the shared parameter editor and keeps a
+versioned recipe in the binding; the instance save stores normalized parameters without adding a
+catalog record. A source instance copies that recipe exactly. The API compiler applies the same
+geometry constraints when an instance is saved.
 
 ## Acceptance
 
@@ -64,3 +66,5 @@ saved, so a client cannot bypass the picker with an incompatible geometry id.
 - `UI-FIE-006`: duplicate/invalid id or empty required metadata preserves the dialog and configuration.
 - `UI-FIE-007`: input and step preview/export journeys remain available.
 - `UI-FIE-008`: geometry browsing and search expose only geometries accepted by the template's category constraints.
+- `UI-FIE-009`: generator recipes can be selected, edited, previewed, copied from a source instance,
+  and saved without creating a geometry catalog record.

@@ -81,10 +81,10 @@ dimension。DRAM generator沿用相同dimension labels。
 | Mode | Actions | Contract |
 | --- | --- | --- |
 | `catalog` | Download JSON、Save to DB | 先以最後有效`previewToken` materialize，再下載或建立immutable `GeometryEntity`。 |
-| `flowInput` | Define | Materialize為帶`generation`與`adaptationContract`的`EmbeddedGeometry`，不直接寫DB。 |
+| `flowInput` | Define | 保存指定版本與normalized parameters作為generator binding，不寫DB。 |
 
-若目前parameter state與preview token不一致，action MUST disabled。Token失效時顯示error並重新
-preview，不可在browser fallback build HBM。
+若目前parameter state與preview不一致，action MUST disabled。Catalog action的token失效時
+顯示error並重新preview，不可在browser fallback build HBM。
 
 ## 驗收案例
 

@@ -23,20 +23,21 @@ This editor authors immutable process-flow topology: metadata, flow inputs, step
 edges. The header contains Home, `Start from template...`, and the single primary command
 `Save Template`.
 
-## Catalog-only working configuration
+## Working configuration
 
-The left library contains only geometry records already persisted in the DB. HBM/DRAM generator
-commands do not appear in the palette, geometry picker, inspector, or header. Generated geometry
-must first be created from `/hbm-editor` or `/dram-editor`.
+The left library offers catalog geometry and available generators. A generator can define a new flow
+input or serve as the working binding of an existing input. Its parameter editor and preview use the
+backend registry; defining it does not create a geometry catalog record.
 
-Catalog bindings remain preview-only working state. Step parameter values initialize from the
+Geometry bindings remain preview-only working state. Step parameter values initialize from the
 step template's `defaultValue`; `Save Template` snapshots currently populated scalar values into
 the corresponding `StepRef.parameterDefaults`. Array values, repeat groups, and placements remain
 preview-only and are never persisted by `Save Template`.
 
-Dropping a catalog geometry creates a flow input whose
+Adding a catalog geometry or generator creates a flow input whose
 `geometryConstraints.categories` contains that geometry's category. The category is part of the
-saved template contract, while the selected catalog geometry id remains a preview-only binding.
+saved template contract, while the selected catalog geometry id or generator recipe remains a
+preview-only binding.
 Before saving, the author may adjust the allowed category list in Advanced settings; after saving,
 the existing topology lock makes those constraints read-only.
 
@@ -44,12 +45,13 @@ the existing topology lock makes those constraints read-only.
 not part of this screen.
 
 Saving validates template name, id, version, owner, topology, and uniqueness. Success locks
-topology while preview-only catalog bindings and collection test values remain usable.
+topology while preview-only geometry bindings and collection test values remain usable.
 
 ## Acceptance
 
 - `UI-FTE-001`: fresh editor provides catalog geometry, process steps, graph, and one save command.
-- `UI-FTE-002`: no instance-save or HBM/DRAM generator command is rendered in any template flow.
+- `UI-FTE-002`: HBM/DRAM generator commands are available for working previews and new flow inputs;
+  template save does not persist their bindings.
 - `UI-FTE-003`: valid topology can save while preview-only configuration is incomplete.
 - `UI-FTE-004`: scalar step values are saved as flow defaults; the source geometry category is saved as the flow-input contract, while its catalog id and collection values remain preview-only.
 - `UI-FTE-005`: successful save locks topology and reports the immutable template id.

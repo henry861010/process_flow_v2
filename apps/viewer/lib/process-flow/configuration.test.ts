@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  generatedGeometryId,
+  geometryForFlowInput,
+  getFlowInputReadiness,
+  isConfigurationComplete,
   geometryCategoryConstraints,
   geometryMatchesFlowInput,
 } from "./configuration";
-import type { FlowInputDefinition, GeometryEntity } from "./types";
+import type { FlowConfiguration, FlowInputDefinition, GeometryEntity, ProcessFlowTemplate } from "./types";
 
 const baseGeometry: GeometryEntity = {
   id: "hbm3_8hi",
@@ -26,6 +30,39 @@ const constrainedInput: FlowInputDefinition = {
 };
 
 describe("flow input geometry category constraints", () => {
+  it("accepts only a resolved generator preview for the current binding", () => {
+    const template: ProcessFlowTemplate = {
+      schemaVersion: 2,
+      id: "flow",
+      name: "Flow",
+      version: "V0.0.0",
+      owner: "test",
+      flowInputs: [constrainedInput],
+      stepRefs: [],
+      flowEdges: [],
+    };
+    const configuration: FlowConfiguration = {
+      inputBindings: {
+        incoming_hbm: {
+          kind: "generator", generatorId: "hbm", generatorVersion: 2,
+          parameters: { hbmThickness: 480 },
+        },
+      },
+      stepConfigurations: {},
+      embeddedGeometries: {},
+    };
+    expect(geometryForFlowInput(configuration, "incoming_hbm", [])).toBeNull();
+    expect(isConfigurationComplete(template, [], configuration, [])).toBe(false);
+
+    const resolved = [{ ...baseGeometry, id: generatedGeometryId("incoming_hbm") }];
+    expect(geometryForFlowInput(configuration, "incoming_hbm", resolved)).toEqual(resolved[0]);
+    expect(getFlowInputReadiness(template, [], configuration, resolved, "incoming_hbm").status).toBe("ready");
+    expect(isConfigurationComplete(template, [], configuration, resolved)).toBe(true);
+    expect(geometryMatchesFlowInput(
+      { entityType: "die", category: "die.dram", structureFormat: "standard" },
+      constrainedInput,
+    )).toBe(false);
+  });
   it("captures only the source category and not its catalog identity", () => {
     const constraints = geometryCategoryConstraints(baseGeometry);
 

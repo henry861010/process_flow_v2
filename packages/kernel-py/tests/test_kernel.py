@@ -1093,6 +1093,48 @@ class GeometryDomainTests(unittest.TestCase):
 
 
 class FlowCompilerTests(unittest.TestCase):
+    def test_compiler_resolves_generator_input_once(self):
+        template = pnp_template()
+        configuration = pnp_configuration()
+        configuration["inputBindings"]["incoming_die"] = {
+            "kind": "generator",
+            "generatorId": "test-die",
+            "generatorVersion": 2,
+            "parameters": {"thk": 100},
+        }
+
+        class Resolver:
+            calls = 0
+
+            def generate(self, generator_id, generator_version, parameters):
+                self.calls += 1
+                assert (generator_id, generator_version, parameters) == (
+                    "test-die", 2, {"thk": 100}
+                )
+                return {
+                    **geometry_entity("generated-die", die_geometry()),
+                    "generation": {
+                        "generatorId": generator_id,
+                        "schemaVersion": generator_version,
+                        "parameters": {"thk": 100},
+                    },
+                }
+
+        resolver = Resolver()
+        flow_compiler = FlowCompiler(
+            InMemoryGeometryCatalog([geometry_entity("geom_main", main_geometry())]),
+            resolver,
+        )
+        plan = flow_compiler.compile(
+            template, configuration, {"step_pnp": pnp_step_template()}
+        )
+        self.assertEqual(resolver.calls, 1)
+        self.assertIsNone(plan.external_geometries["incoming_die"].source_geometry_id)
+        self.assertEqual(
+            plan.external_geometries["incoming_die"].generation["generatorId"],
+            "test-die",
+        )
+
     def test_compiler_resolves_catalog_and_embedded_inputs(self):
         template = pnp_template()
         steps = {item["id"]: item for item in [pnp_step_template()]}

@@ -79,6 +79,7 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/geometry-generators` | List backend generator manifests |
+| `GET` | `/api/geometry-generators/{id}/versions/{version}` | Get the exact versioned manifest used by an instance recipe |
 | `POST` | `/api/geometry-generators/{id}/preview` | Validate parameters、build geometry 與通用2D engineering preview |
 | `POST` | `/api/geometry-materializations` | Materialize exact preview snapshot by opaque token |
 

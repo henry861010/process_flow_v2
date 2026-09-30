@@ -9,6 +9,17 @@ class GeometryCatalogResolver(Protocol):
         ...
 
 
+class GeometryGeneratorResolver(Protocol):
+    def generate(
+        self,
+        generator_id: str,
+        generator_version: int,
+        parameters: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        """Return a complete geometry entity, including normalized generation metadata."""
+        ...
+
+
 class InMemoryGeometryCatalog:
     def __init__(self, geometries=()):
         self._geometries = {

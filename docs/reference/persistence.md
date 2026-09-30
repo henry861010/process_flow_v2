@@ -147,8 +147,9 @@ Normative service rules：
 - A `ProcessFlowTemplate` references a stable process-step id and snapshots its own scalar
   `parameterDefaults`。Step owner、category、program 與 definition defaults MAY update in place；
   existing flow defaults MUST NOT be rewritten by that update。
-- A `ProcessFlowInstance` references immutable flow-template and geometry snapshots；those references
-  MUST NOT drift in place。
+- A `ProcessFlowInstance` references an immutable flow-template and either catalog geometry snapshots
+  or versioned generator recipes. Catalog references MUST NOT drift；generator implementations MUST
+  preserve the behavior of versions referenced by instances。
 - Physical foreign keys MAY 在 future schema 加入，但不得改變 JSON reference contract。
 
 ## 4. Mutability policy
@@ -184,7 +185,8 @@ snapshots。
 
 Workspace commit、direct ProcessFlowInstance create與combined template-instance create MUST共用
 同一embedded materialization service。Direct create的request MAY包含embedded bindings與
-embeddedGeometries，但response與stored instance仍只有catalog bindings。Direct create transaction
+embeddedGeometries，但response與stored instance只保留catalog或generator bindings。Generator
+binding在validation/compile後保存完整正規化參數，不建立geometry catalog row。Direct create transaction
 必須先insert referenced geometries再insert instance；combined create則在同一transaction依序
 insert template、geometries與instance。任一duplicate或write failure MUST rollback全部writes。
 
