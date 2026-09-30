@@ -13,6 +13,7 @@ from .contracts import GeometryGenerator, JsonObject
 from .dram import DramGenerator
 from .engineering_preview import build_engineering_preview
 from .hbm import HbmGenerator
+from .soc import SocGenerator
 
 
 class GeometryGeneratorRegistry:
@@ -22,7 +23,11 @@ class GeometryGeneratorRegistry:
         *,
         preview_capacity: int = 128,
     ):
-        registered = generators if generators is not None else (HbmGenerator(), DramGenerator())
+        registered = (
+            generators
+            if generators is not None
+            else (HbmGenerator(), DramGenerator(), SocGenerator())
+        )
         self._generators: dict[tuple[str, int], GeometryGenerator] = {}
         self._latest_versions: dict[str, int] = {}
         for generator in registered:
@@ -184,8 +189,8 @@ def _geometry_hash(structure: JsonObject) -> str:
 
 def _dimension_label(parameters: JsonObject, computed: JsonObject) -> str:
     values = (
-        parameters.get("packageX"),
-        parameters.get("packageY"),
+        parameters.get("packageX", computed.get("packageX")),
+        parameters.get("packageY", computed.get("packageY")),
         computed.get("totalThickness"),
     )
     if not all(

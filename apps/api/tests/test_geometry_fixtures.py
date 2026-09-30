@@ -20,7 +20,6 @@ FIXTURE_PATH = (
 CATALOG_COUNT_RANGES = {
     "die.hbm": (5, 10),
     "die.dram": (5, 10),
-    "die.soc": (5, 10),
     "die.soic": (5, 10),
     "package.soic": (5, 10),
     "die.lsi": (5, 10),
@@ -34,7 +33,6 @@ CATALOG_COUNT_RANGES = {
 CATEGORY_DIMENSION_RANGES_UM = {
     "die.hbm": ((7_000, 12_000), (7_000, 12_000), (600, 1_000)),
     "die.dram": ((7_000, 16_000), (7_000, 16_000), (800, 1_300)),
-    "die.soc": ((5_000, 32_000), (5_000, 32_000), (100, 350)),
     "die.soic": ((8_000, 20_000), (8_000, 20_000), (250, 900)),
     "package.soic": ((4_000, 19_000), (3_500, 8_000), (1_500, 3_000)),
     "die.lsi": ((3_000, 32_000), (3_000, 32_000), (100, 350)),
@@ -60,6 +58,7 @@ class GeometryFixtureTests(unittest.TestCase):
         self.assertTrue(
             any(item["category"].startswith("test.") for item in self.geometries)
         )
+        self.assertEqual(counts["die.soc"], 0)
 
     def test_geometry_ids_are_unique(self):
         ids = [item["id"] for item in self.geometries]
@@ -70,7 +69,6 @@ class GeometryFixtureTests(unittest.TestCase):
             {
                 "panel_plp_310x310mm_glass",
                 "hbm3_8hi",
-                "soc",
                 "test1",
             }
             <= fixture_ids
@@ -118,7 +116,6 @@ class GeometryFixtureTests(unittest.TestCase):
             "frame": "frame",
             "die.hbm": "hbm",
             "die.dram": "dram",
-            "die.soc": "soc",
             "die.soic": "soic",
             "package.soic": "soic",
             "die.lsi": "lsi",
@@ -140,7 +137,6 @@ class GeometryFixtureTests(unittest.TestCase):
                         all("key" not in child for child in root["children"])
                     )
                 elif item["category"] in {
-                    "die.soc",
                     "die.soic",
                     "package.soic",
                     "die.lsi",

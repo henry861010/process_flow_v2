@@ -23,7 +23,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         definitions = response.json()
-        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram"])
+        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc"])
         hbm = definitions[0]
         self.assertEqual(hbm["version"], 2)
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
@@ -138,6 +138,97 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 [item["id"] for item in definition["parameterDefinitions"]],
             )
         self.assertEqual(hbm["previewViews"], ["top", "cross-section-x"])
+        soc = definitions[2]
+        self.assertEqual(soc["version"], 1)
+        self.assertEqual(soc["entityType"], "die")
+        self.assertEqual(soc["category"], "die.soc")
+        self.assertEqual(
+            soc["adaptationContract"],
+            {"adapterId": "box-rescale", "adapterVersion": 1, "parameters": {}},
+        )
+        self.assertEqual(soc["defaultParameters"], {"thickness": 150, "material": "Si-SoC"})
+        self.assertEqual(
+            [item["id"] for item in soc["parameterDefinitions"]],
+            ["thickness", "material"],
+        )
+        self.assertEqual(soc["parameterGroups"], [])
+        self.assertEqual(soc["previewViews"], ["top", "cross-section-x"])
+
+    def test_soc_preview_has_one_box_and_only_two_saved_parameters(self):
+        default = self.app.state.geometry_generators.preview(
+            "soc", {}, generator_version=1
+        )
+        self.assertEqual(
+            default["normalizedParameters"],
+            {"thickness": 150, "material": "Si-SoC"},
+        )
+        default_box = default["geometryEntityJson"]["structure"]["root"]["bodies"][0]["geometry"]
+        self.assertEqual(default_box["bottom_left"], [-4000, -5000, -75])
+
+        response = self.client.post(
+            "/api/geometry-generators/soc/preview",
+            json={
+                "generatorVersion": 1,
+                "parameters": {"thickness": 220, "material": "  Si-Custom  "},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"])
+        self.assertEqual(
+            preview["normalizedParameters"],
+            {"thickness": 220, "material": "Si-Custom"},
+        )
+        self.assertEqual(
+            preview["computedParameters"],
+            {"packageX": 8000, "packageY": 10000, "totalThickness": 220},
+        )
+        top, section = preview["engineeringPreview"]["views"]
+        self.assertEqual(_dimension_values(top), {"Overall X": 8000, "Overall Y": 10000})
+        self.assertEqual(_dimension_values(section), {"Total thickness": 220})
+
+        entity = preview["geometryEntityJson"]
+        self.assertEqual(entity["dim"], "8000 x 10000 x 220 um")
+        self.assertEqual(entity["generation"], {
+            "generatorId": "soc",
+            "schemaVersion": 1,
+            "parameters": {"thickness": 220, "material": "Si-Custom"},
+        })
+        self.assertEqual(
+            entity["adaptationContract"],
+            {"adapterId": "box-rescale", "adapterVersion": 1, "parameters": {}},
+        )
+        root = entity["structure"]["root"]
+        self.assertEqual(root["key"], "soc")
+        self.assertEqual(len(root["bodies"]), 1)
+        self.assertEqual(root["children"], [])
+        body = root["bodies"][0]
+        self.assertEqual(body["key"], "envelope")
+        self.assertEqual(body["material"], "Si-Custom")
+        self.assertEqual(body["geometry"], {
+            "type": "BoxGeometry",
+            "bottom_left": [-4000, -5000, -110],
+            "top_right": [4000, 5000, -110],
+            "thk": 220,
+        })
+
+    def test_soc_rejects_invalid_thickness_and_material(self):
+        for thickness in (0, -1, True, "150", float("nan"), float("inf")):
+            with self.subTest(thickness=thickness):
+                preview = self.app.state.geometry_generators.preview(
+                    "soc", {"thickness": thickness}, generator_version=1
+                )
+                self.assertFalse(preview["valid"])
+                self.assertIn("thickness", preview["errors"])
+                self.assertIsNone(preview["geometryEntityJson"])
+        for material in ("", "  ", None):
+            with self.subTest(material=material):
+                preview = self.app.state.geometry_generators.preview(
+                    "soc", {"material": material}, generator_version=1
+                )
+                self.assertFalse(preview["valid"])
+                self.assertIn("material", preview["errors"])
 
     def test_exact_definition_endpoint_and_versioned_registry(self):
         exact = self.client.get("/api/geometry-generators/hbm/versions/2")

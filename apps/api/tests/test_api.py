@@ -150,6 +150,15 @@ class ProcessFlowApiTests(unittest.TestCase):
                 if binding["kind"] == "catalog":
                     self.assertIn(binding["geometryId"], geometries)
 
+        self.assertFalse(any(item["category"] == "die.soc" for item in geometries.values()))
+        self.assertNotIn("flow_tpl_fanout_demo", flow_templates)
+        self.assertFalse(
+            any(
+                item["id"] == "flow_inst_fanout_demo_soc_ev1"
+                for item in payload["processFlowInstances"]
+            )
+        )
+
     def test_carrier_bond_fixture_has_no_daf_parameters(self):
         payload = self.client.get("/api/bootstrap").json()
         carrier_bond = next(
@@ -192,16 +201,6 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(
             aaa_defaults["mold_cap"],
             {"material": "EMC-G700", "thickness": 180},
-        )
-
-        fanout_defaults = {
-            step_ref["stepRefId"]: step_ref["parameterDefaults"]
-            for step_ref in flow_templates["flow_tpl_fanout_demo"]["stepRefs"]
-        }
-        self.assertEqual(fanout_defaults["pnp_soc"], {})
-        self.assertEqual(
-            fanout_defaults["bga_array"],
-            {"material": "SAC305", "thk": 240, "density": 36, "koz": 35},
         )
 
     def test_debond_fixture_exposes_recursive_optional_daf_contract(self):
@@ -1141,6 +1140,108 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(first.status_code, 200, first.text)
         self.assertEqual(second.json()["geometryStructure"], first.json()["geometryStructure"])
         self.assertEqual(len(self.client.get("/api/geometries").json()), before_count)
+
+    def test_soc_generator_binding_can_create_and_execute_a_flow(self):
+        bootstrap = self.reset_poc_data()
+        template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
+        template["id"] = "flow_tpl_soc_generator_test"
+        template["name"] = "Generated SoC placement"
+        template["flowInputs"][1]["flowInputId"] = "incoming_soc"
+        template["flowInputs"][1]["name"] = "Incoming SoC"
+        template["flowInputs"][1]["geometryConstraints"]["categories"] = ["die.soc"]
+        template["stepRefs"] = template["stepRefs"][:1]
+        template["flowEdges"] = template["flowEdges"][:2]
+        template["flowEdges"][1]["source"]["flowInputId"] = "incoming_soc"
+
+        source = bootstrap["processFlowInstances"][0]
+        instance = copy.deepcopy(source)
+        instance["id"] = "flow_inst_soc_generator_test"
+        instance["name"] = "Generated SoC placement"
+        instance["processFlowTemplateId"] = template["id"]
+        instance["inputBindings"].pop("incoming_hbm")
+        instance["inputBindings"]["incoming_soc"] = {
+            "kind": "generator",
+            "generatorId": "soc",
+            "generatorVersion": 1,
+            "parameters": {"thickness": 220, "material": "  Si-Custom  "},
+        }
+        instance["stepConfigurations"] = {
+            "pnp_hbm": {
+                "parameterValues": {
+                    "placements": [
+                        {
+                            "targetRegion": {
+                                "type": "rectangle",
+                                "bottomLeftX": -1000,
+                                "bottomLeftY": -800,
+                                "topRightX": 1000,
+                                "topRightY": 800,
+                            },
+                            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+                            "anchor": "center",
+                        }
+                    ]
+                }
+            }
+        }
+        geometry_count = len(bootstrap["geometries"])
+
+        created = self.client.post(
+            "/api/process-flow-template-instances",
+            json={"processFlowTemplate": template, "processFlowInstance": instance},
+        )
+
+        self.assertEqual(created.status_code, 201, created.text)
+        saved = created.json()["processFlowInstance"]
+        binding = saved["inputBindings"]["incoming_soc"]
+        self.assertEqual(binding["generatorId"], "soc")
+        self.assertEqual(binding["generatorVersion"], 1)
+        self.assertEqual(binding["parameters"], {"thickness": 220, "material": "Si-Custom"})
+        self.assertEqual(
+            self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), saved
+        )
+        definition = self.client.get("/api/geometry-generators/soc/versions/1")
+        self.assertEqual(definition.status_code, 200, definition.text)
+        self.assertEqual(
+            [item["id"] for item in definition.json()["parameterDefinitions"]],
+            ["thickness", "material"],
+        )
+        self.assertEqual(len(self.client.get("/api/geometries").json()), geometry_count)
+
+        executed = self.client.post(f"/api/process-flow-instances/{instance['id']}/execute")
+        self.assertEqual(executed.status_code, 200, executed.text)
+        child = executed.json()["geometryStructure"]["root"]["children"][0]
+        self.assertEqual(child["key"], "soc")
+        body = child["bodies"][0]
+        self.assertEqual(body["material"], "Si-Custom")
+        self.assertEqual(body["geometry"]["thk"], 220)
+        self.assertEqual(
+            body["geometry"]["top_right"][0] - body["geometry"]["bottom_left"][0],
+            2000,
+        )
+        self.assertEqual(
+            body["geometry"]["top_right"][1] - body["geometry"]["bottom_left"][1],
+            1600,
+        )
+
+        edited = copy.deepcopy(saved)
+        edited["id"] = "flow_inst_soc_generator_edited"
+        edited["name"] = "Edited SoC placement"
+        edited["inputBindings"]["incoming_soc"]["parameters"] = {
+            "thickness": 180,
+            "material": "Si-Edited",
+        }
+        recreated = self.client.post("/api/process-flow-instances", json=edited)
+        self.assertEqual(recreated.status_code, 201, recreated.text)
+        edited_execution = self.client.post(
+            f"/api/process-flow-instances/{edited['id']}/execute"
+        )
+        self.assertEqual(edited_execution.status_code, 200, edited_execution.text)
+        edited_child = edited_execution.json()["geometryStructure"]["root"]["children"][0]
+        edited_body = edited_child["bodies"][0]
+        self.assertEqual(edited_body["material"], "Si-Edited")
+        self.assertEqual(edited_body["geometry"]["thk"], 180)
+        self.assertEqual(len(self.client.get("/api/geometries").json()), geometry_count)
 
     def test_generator_binding_rejects_missing_version_unknown_version_and_category(self):
         bootstrap = self.reset_poc_data()

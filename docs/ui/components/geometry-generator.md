@@ -17,9 +17,13 @@ source_of_truth:
 
 # Geometry Generator Framework
 
-所有geometry generators透過後端registry對Home、Flow Template Editor與Flow Instance Editor公開。Flow editor不得以
-generator id寫HBM/DRAM條件分支；新增generator只需在後端註冊definition、validation、geometry
+所有geometry generators透過後端registry對Flow Template Editor與Flow Instance Editor公開；HBM與DRAM另有Home入口。Flow editor不得以
+generator id寫HBM/DRAM/SoC條件分支；新增generator只需在後端註冊definition、validation、geometry
 builder與preview evaluator。只要沿用通用contract，前端不需修改。
+
+SoC generator v1只提供`thickness`及`material`兩個參數，使用8000 × 10000 um作為預覽基準
+footprint，並以`box-rescale@1`在PnP時配合target region調整XY。SoC僅從flow editor的
+generator selector使用；fixture catalog不提供SoC geometry。
 
 `GET /api/geometry-generators`提供id/version、label/icon、default parameters、通用
 `ParameterDefinition[]`、optional ordered `parameterGroups`與adaptation contract。前端依definition

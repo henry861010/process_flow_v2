@@ -151,56 +151,5 @@
         }
       }
     }
-  },
-  {
-    "schemaVersion": 2,
-    "id": "flow_inst_fanout_demo_soc_ev1",
-    "name": "SoC EV1",
-    "version": "V0.0.0",
-    "owner": "demo.example",
-    "description": "Fan-out SoC engineering validation configuration.",
-    "processFlowTemplateId": "flow_tpl_fanout_demo",
-    "inputBindings": {
-      "incoming_panel": {
-        "kind": "catalog",
-        "geometryId": "panel_plp_310x310mm_glass"
-      },
-      "incoming_soc": {
-        "kind": "catalog",
-        "geometryId": "soc"
-      }
-    },
-    "stepConfigurations": {
-      "pnp_soc": {
-        "parameterValues": {
-          "placements": [
-            {
-              "targetRegion": { "type": "rectangle", "bottomLeftX": -1000, "bottomLeftY": -800, "topRightX": 1000, "topRightY": 800 },
-              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
-              "anchor": "center"
-            }
-          ]
-        }
-      },
-      "micro_bump": {
-        "parameterValues": {
-          "material": "Cu/Ni/SnAg",
-          "thk": 28,
-          "density": 42,
-          "koz": 12
-        }
-      },
-      "flip_package": {
-        "parameterValues": {}
-      },
-      "bga_array": {
-        "parameterValues": {
-          "material": "SAC305",
-          "thk": 240,
-          "density": 36,
-          "koz": 35
-        }
-      }
-    }
   }
 ]
