@@ -111,6 +111,10 @@ marker 不是 `2` 時，目前 implementation 會清空 resource tables；這個
 
 `POST /api/reset` 會清空所有 resources 並 reload fixtures。它沒有 authentication 或 environment guard；只可在確認資料可丟棄時使用。需要保留 local study 時，先停止 API 並備份 SQLite file 及其 WAL files。
 
+Management 右下角的 fixture 選單可匯出目前資料、從匯出的四檔 JSON ZIP 還原資料，或以 repo
+fixtures 重設。`POST /api/reset-from-zip` 接受 `application/zip` 原始內容；匯入前會驗證檔案格式，
+資料替換在單一 SQLite transaction 內完成。
+
 ## 驗證
 
 從 root 執行：

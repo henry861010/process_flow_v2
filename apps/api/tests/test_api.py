@@ -102,6 +102,53 @@ class ProcessFlowApiTests(unittest.TestCase):
                 with self.subTest(filename=filename):
                     self.assertEqual(json.loads(archive.read(filename)), expected)
 
+    def test_fixture_zip_reset_restores_exported_snapshot(self):
+        original = self.client.get("/api/bootstrap").json()
+        source = original["processFlowInstances"][0]
+        added = {**source, "id": "flow_inst_zip_test", "name": "ZIP fixture test"}
+        self.assertEqual(self.client.post("/api/process-flow-instances", json=added).status_code, 201)
+        snapshot = self.client.get("/api/fixture-export").content
+
+        self.reset_poc_data()
+        response = self.client.post(
+            "/api/reset-from-zip", content=snapshot, headers={"Content-Type": "application/zip"}
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("flow_inst_zip_test", {item["id"] for item in response.json()["processFlowInstances"]})
+        self.assertEqual(response.json(), self.client.get("/api/bootstrap").json())
+
+    def test_fixture_zip_reset_rejects_invalid_archives_without_changing_data(self):
+        before = self.client.get("/api/bootstrap").json()
+        cases = [b"not a zip"]
+        for mutate in (lambda payload: payload.pop("geometries.json"),
+                       lambda payload: payload["process-step-templates.json"].append({"id": "broken"})):
+            with zipfile.ZipFile(BytesIO(self.client.get("/api/fixture-export").content)) as source:
+                files = {name: json.loads(source.read(name)) for name in source.namelist()}
+            mutate(files)
+            output = BytesIO()
+            with zipfile.ZipFile(output, "w") as archive:
+                for name, data in files.items():
+                    archive.writestr(name, json.dumps(data))
+            cases.append(output.getvalue())
+
+        for content in cases:
+            with self.subTest(content=content[:20]):
+                response = self.client.post(
+                    "/api/reset-from-zip", content=content, headers={"Content-Type": "application/zip"}
+                )
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+
+    def test_failed_fixture_seed_rolls_back_previous_data(self):
+        before = self.client.get("/api/bootstrap").json()
+        with mock.patch.object(
+            self.app.state.store, "_insert_geometry_in_transaction", side_effect=RuntimeError("insert failed")
+        ):
+            with self.assertRaisesRegex(RuntimeError, "insert failed"):
+                self.app.state.store.seed(load_seed_fixtures(), reset=True)
+        self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+
     def test_seed_resources_use_unreleased_versions_and_resolvable_ids(self):
         payload = self.client.get("/api/bootstrap").json()
         step_templates = {

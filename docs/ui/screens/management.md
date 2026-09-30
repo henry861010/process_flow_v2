@@ -40,11 +40,15 @@ bootstrap state；Cancel、X、backdrop與Escape discard the modal draft。The s
 editor route and its New、Clone、Delete UI do not exist。Locked metadata、input/output port fields
 and complete parameter-definition details remain visible in disabled controls for reference.
 
-The header also owns the destructive `Reset Database` command. It requires confirmation, restores
-the canonical POC data, refreshes all visible counts and lists, and exposes a reset-busy state.
+The small fixture button at the bottom right opens `Export fixture`, `Reset from ZIP`, and `Reset`.
+Export downloads the current database as a four-file fixture ZIP. Reset from ZIP asks the user to
+choose a fixture ZIP, then confirms before replacing the database with its contents. Reset confirms
+before restoring the canonical repo fixtures. Both reset actions refresh visible counts and lists
+and expose a busy state; errors are shown on the page.
 
 Acceptance: `UI-MGMT-001` validates counts and rows; `UI-MGMT-002` validates authoring links and the
 process-step edit modal; `UI-MGMT-003` validates missing references remain visible using their raw ids.
-`UI-MGMT-004` validates confirmation, busy state, reset success refresh, and reset error feedback.
+`UI-MGMT-004` validates the fixture menu, ZIP selection and validation, confirmation, busy state,
+reset success refresh, and reset error feedback.
 `UI-MGMT-005` validates flow-template metadata/default editing, flow-local default isolation, locked
 topology, save refresh, and the future-instance-only explanation.

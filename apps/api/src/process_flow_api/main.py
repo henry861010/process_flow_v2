@@ -18,7 +18,7 @@ from process_flow_kernel import ProcessGeometryState, validate_geometry_semantic
 from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry
 
 from .file_export_jobs import FileExportJobManager
-from .fixture_export import build_fixture_archive
+from .fixture_export import MAX_ARCHIVE_BYTES, build_fixture_archive, load_fixture_archive
 from .identifiers import generated_geometry_id
 from .models import (
     CdbFileExportCreateRequest,
@@ -146,6 +146,22 @@ def create_app(
     async def reset(request: Request):
         store = get_store(request)
         store.seed(load_seed_fixtures(), reset=True)
+        await get_preview_sessions(request).clear()
+        get_geometry_generators(request).clear()
+        return _bootstrap_payload(request, store)
+
+    @app.post("/api/reset-from-zip")
+    async def reset_from_zip(request: Request):
+        if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/zip":
+            raise HTTPException(status_code=415, detail="Upload a fixture ZIP as application/zip")
+        if int(request.headers.get("content-length", "0")) > MAX_ARCHIVE_BYTES:
+            raise HTTPException(status_code=413, detail="Fixture ZIP exceeds the 25 MB upload limit")
+        content = await request.body()
+        if len(content) > MAX_ARCHIVE_BYTES:
+            raise HTTPException(status_code=413, detail="Fixture ZIP exceeds the 25 MB upload limit")
+        fixtures = load_fixture_archive(content)
+        store = get_store(request)
+        store.seed(fixtures, reset=True)
         await get_preview_sessions(request).clear()
         get_geometry_generators(request).clear()
         return _bootstrap_payload(request, store)

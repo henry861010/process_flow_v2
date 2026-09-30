@@ -23,13 +23,13 @@ source_of_truth:
 input選擇器。Flow editor不得以generator id寫條件分支；新增generator只需在後端註冊
 definition、validation、geometry builder與preview evaluator，並明確宣告入口。
 
-HBM與DRAM只在Home提供catalog建立入口；flow input從Geometry DB選擇公版。SoC出現在
+HBM與DRAM只在Home提供catalog建立入口；flow input從Geometry DB選擇公版。SoC與VRM出現在
 Template Geometry library及兩種flow input選擇器。LSI另在Management提供catalog建立入口。
 Management和Home的catalog入口共用`/geometry-generator?generatorId=<id>`靜態頁。
 
-SoC generator v1只提供`thickness`及`material`兩個參數，使用8000 × 10000 um作為預覽基準
-footprint，並以`box-rescale@1`在PnP時配合target region調整XY。SoC僅從flow editor的
-generator selector使用；fixture catalog不提供SoC geometry。
+SoC與VRM generator v1都只提供`thickness`及`material`兩個參數，使用8000 × 10000 um作為預覽基準
+footprint，並以`box-rescale@1`在PnP時配合target region調整XY。兩者僅從flow editor的
+generator selector使用；fixture catalog不提供SoC或VRM geometry。VRM生成的root container key為`vrm`。
 
 LSI generator v1以`generation`參數選擇`gen1`或`gen2`，使用固定8000 × 10000 um
 footprint。gen1要求一組material與正的thickness；gen2要求四組，依layer 1至4由下往上

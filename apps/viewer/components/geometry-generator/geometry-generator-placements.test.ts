@@ -38,6 +38,7 @@ const definitions = [
   definition("hbm", "die.hbm", ["home"]),
   definition("dram", "die.dram", ["home"]),
   definition("soc", "die.soc", ["templateGeometryLibrary", "flowInputPicker"]),
+  definition("vrm", "die.vrm", ["templateGeometryLibrary", "flowInputPicker"]),
   definition("lsi", "die.lsi", ["management", "templateGeometryLibrary", "flowInputPicker"]),
 ];
 
@@ -56,7 +57,7 @@ describe("generator UI placements", () => {
     expect(generatorsForPlacement(definitions, "home").map((item) => item.id)).toEqual(["hbm", "dram"]);
     expect(generatorsForPlacement(definitions, "management").map((item) => item.id)).toEqual(["lsi"]);
     expect(generatorsForPlacement(definitions, "templateGeometryLibrary").map((item) => item.id))
-      .toEqual(["soc", "lsi"]);
+      .toEqual(["soc", "vrm", "lsi"]);
     expect(catalogGeneratorHref(definitions[0])).toBe("/geometry-generator?generatorId=hbm");
   });
 
@@ -64,6 +65,7 @@ describe("generator UI placements", () => {
     expect(generatorsForFlowInput(definitions, input("die.hbm"))).toEqual([]);
     expect(generatorsForFlowInput(definitions, input("die.dram"))).toEqual([]);
     expect(generatorsForFlowInput(definitions, input("die.soc")).map((item) => item.id)).toEqual(["soc"]);
+    expect(generatorsForFlowInput(definitions, input("die.vrm")).map((item) => item.id)).toEqual(["vrm"]);
     expect(generatorsForFlowInput(definitions, input("die.lsi")).map((item) => item.id)).toEqual(["lsi"]);
   });
 

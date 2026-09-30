@@ -24,6 +24,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             "hbm": ["home"],
             "dram": ["home"],
             "soc": ["templateGeometryLibrary", "flowInputPicker"],
+            "vrm": ["templateGeometryLibrary", "flowInputPicker"],
             "lsi": ["management", "templateGeometryLibrary", "flowInputPicker"],
         }
         listed = self.client.get("/api/geometry-generators")
@@ -120,7 +121,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         definitions = response.json()
-        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc", "lsi"])
+        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc", "vrm", "lsi"])
         hbm = definitions[0]
         self.assertEqual(hbm["version"], 2)
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
@@ -251,7 +252,17 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(soc["parameterGroups"], [])
         self.assertEqual(soc["previewViews"], ["top", "cross-section-x"])
 
-        lsi = definitions[3]
+        vrm = definitions[3]
+        self.assertEqual(vrm["version"], 1)
+        self.assertEqual(vrm["entityType"], "die")
+        self.assertEqual(vrm["category"], "die.vrm")
+        self.assertEqual(vrm["adaptationContract"], soc["adaptationContract"])
+        self.assertEqual(vrm["defaultParameters"], {"thickness": 150, "material": "Si-VRM"})
+        self.assertEqual(vrm["parameterDefinitions"], soc["parameterDefinitions"])
+        self.assertEqual(vrm["parameterGroups"], soc["parameterGroups"])
+        self.assertEqual(vrm["previewViews"], soc["previewViews"])
+
+        lsi = definitions[4]
         self.assertEqual(lsi["version"], 1)
         self.assertEqual(lsi["category"], "die.lsi")
         self.assertEqual(
@@ -503,6 +514,57 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 )
                 self.assertFalse(preview["valid"])
                 self.assertIn("material", preview["errors"])
+
+    def test_vrm_preview_matches_soc_shape_with_vrm_identity(self):
+        default = self.app.state.geometry_generators.preview(
+            "vrm", {}, generator_version=1
+        )
+        self.assertEqual(
+            default["normalizedParameters"],
+            {"thickness": 150, "material": "Si-VRM"},
+        )
+        response = self.client.post(
+            "/api/geometry-generators/vrm/preview",
+            json={
+                "generatorVersion": 1,
+                "parameters": {"thickness": 220, "material": "  Si-Custom  "},
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"])
+        self.assertEqual(
+            preview["normalizedParameters"],
+            {"thickness": 220, "material": "Si-Custom"},
+        )
+        self.assertEqual(
+            preview["computedParameters"],
+            {"packageX": 8000, "packageY": 10000, "totalThickness": 220},
+        )
+        entity = preview["geometryEntityJson"]
+        self.assertEqual(entity["category"], "die.vrm")
+        self.assertEqual(entity["generation"], {
+            "generatorId": "vrm",
+            "schemaVersion": 1,
+            "parameters": {"thickness": 220, "material": "Si-Custom"},
+        })
+        root = entity["structure"]["root"]
+        self.assertEqual(root["id"], "container:vrm-root")
+        self.assertEqual(root["key"], "vrm")
+        self.assertEqual(len(root["bodies"]), 1)
+        self.assertEqual(root["bodies"][0]["id"], "body:vrm-envelope")
+        self.assertEqual(root["bodies"][0]["key"], "envelope")
+        self.assertEqual(root["bodies"][0]["geometry"], {
+            "type": "BoxGeometry",
+            "bottom_left": [-4000, -5000, -110],
+            "top_right": [4000, 5000, -110],
+            "thk": 220,
+        })
+
+        invalid = self.app.state.geometry_generators.preview(
+            "vrm", {"thickness": 0, "material": " "}, generator_version=1
+        )
+        self.assertEqual(set(invalid["errors"]), {"thickness", "material"})
 
     def test_exact_definition_endpoint_and_versioned_registry(self):
         exact = self.client.get("/api/geometry-generators/hbm/versions/2")

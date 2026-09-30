@@ -6,11 +6,13 @@ import {
   ArrowLeft,
   Box,
   Braces,
+  Database,
   Download,
   GitBranch,
   Layers3,
   Plus,
   RotateCcw,
+  Upload,
   Workflow,
 } from "lucide-react";
 
@@ -26,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flow/types";
 import type { BootstrapPayload } from "@/lib/process-flow-api";
-import { exportFixtureArchive, loadBootstrap, resetPocData } from "@/lib/process-flow-api";
+import { exportFixtureArchive, loadBootstrap, resetPocData, resetPocDataFromZip } from "@/lib/process-flow-api";
 
 const emptyData: BootstrapPayload = {
   processFlowTemplates: [],
@@ -41,9 +43,29 @@ export default function ManagementPage() {
   const [loading, setLoading] = React.useState(true);
   const [exporting, setExporting] = React.useState(false);
   const [resetting, setResetting] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const [fixtureMenuOpen, setFixtureMenuOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = React.useState<ProcessFlowTemplate | null>(null);
   const [editingStep, setEditingStep] = React.useState<ProcessStepTemplate | null>(null);
+  const fixtureMenuRef = React.useRef<HTMLDivElement>(null);
+  const fixtureFileRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!fixtureMenuOpen) return;
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!fixtureMenuRef.current?.contains(event.target as Node)) setFixtureMenuOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setFixtureMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [fixtureMenuOpen]);
 
   React.useEffect(() => {
     let active = true;
@@ -76,6 +98,7 @@ export default function ManagementPage() {
     });
     return counts;
   }, [data.processFlowInstances]);
+  const fixtureBusy = exporting || resetting || importing;
 
   const resources = [
     { label: "Templates", count: data.processFlowTemplates.length, icon: Workflow },
@@ -85,6 +108,7 @@ export default function ManagementPage() {
   ];
 
   async function handleDatabaseReset() {
+    setFixtureMenuOpen(false);
     if (!window.confirm("Reset the database and restore the default POC data?")) return;
     setResetting(true);
     try {
@@ -94,20 +118,39 @@ export default function ManagementPage() {
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to reset the database.");
+      setFixtureMenuOpen(true);
     } finally {
       setResetting(false);
     }
   }
 
   async function handleFixtureExport() {
+    setFixtureMenuOpen(false);
     setExporting(true);
     try {
       await exportFixtureArchive();
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to export fixture snapshot.");
+      setFixtureMenuOpen(true);
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleZipReset(file: File) {
+    if (!window.confirm(`Reset the database using ${file.name}? Current data will be replaced.`)) return;
+    setImporting(true);
+    try {
+      setData(await resetPocDataFromZip(file));
+      setEditingTemplate(null);
+      setEditingStep(null);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to reset from fixture ZIP.");
+      setFixtureMenuOpen(true);
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -124,31 +167,9 @@ export default function ManagementPage() {
               Review process resources and manage template defaults and process step settings.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link href="/"><ArrowLeft />Home</Link>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={exporting || loading}
-              onClick={() => void handleFixtureExport()}
-            >
-              <Download className={exporting ? "animate-pulse" : undefined} />
-              {exporting ? "Exporting..." : "Export Fixtures"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={resetting}
-              onClick={() => void handleDatabaseReset()}
-            >
-              <RotateCcw className={resetting ? "animate-spin" : undefined} />
-              {resetting ? "Resetting..." : "Reset Database"}
-            </Button>
-          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/"><ArrowLeft />Home</Link>
+          </Button>
         </header>
 
         {error ? (
@@ -279,6 +300,76 @@ export default function ManagementPage() {
             </ResourceTable>
           </TabsContent>
         </Tabs>
+      </div>
+      <div ref={fixtureMenuRef} className="fixed bottom-5 right-5 z-50">
+        <input
+          ref={fixtureFileRef}
+          type="file"
+          accept=".zip,application/zip"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Select fixture ZIP"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file) void handleZipReset(file);
+          }}
+        />
+        {fixtureMenuOpen ? (
+          <div id="fixture-actions" className="mb-2 w-52 rounded-md border bg-popover p-1 text-popover-foreground shadow-lg">
+            <p className="px-3 py-2 text-xs font-medium text-muted-foreground">Fixture actions</p>
+            {error ? (
+              <p role="alert" className="mx-2 mb-2 max-h-28 overflow-auto rounded bg-destructive/10 p-2 text-xs text-destructive">
+                {error}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              disabled={fixtureBusy || loading}
+              onClick={() => void handleFixtureExport()}
+            >
+              <Download className="h-4 w-4" />Export fixture
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              disabled={fixtureBusy || loading}
+              onClick={() => {
+                setFixtureMenuOpen(false);
+                fixtureFileRef.current?.click();
+              }}
+            >
+              <Upload className="h-4 w-4" />Reset from ZIP
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              disabled={fixtureBusy || loading}
+              onClick={() => void handleDatabaseReset()}
+            >
+              <RotateCcw className="h-4 w-4" />Reset
+            </button>
+          </div>
+        ) : null}
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="outline"
+          className="ml-auto flex rounded-full bg-background shadow-md"
+          disabled={fixtureBusy}
+          aria-label={
+            importing ? "Resetting from fixture ZIP"
+              : resetting ? "Resetting database"
+                : exporting ? "Exporting fixture" : "Fixture actions"
+          }
+          aria-expanded={fixtureMenuOpen}
+          aria-controls="fixture-actions"
+          title="Fixture actions"
+          onClick={() => setFixtureMenuOpen((open) => !open)}
+        >
+          <Database className={fixtureBusy ? "animate-pulse" : undefined} />
+        </Button>
       </div>
       {editingTemplate ? (
         <ProcessFlowTemplateEditDialog

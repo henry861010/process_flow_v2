@@ -115,6 +115,14 @@ export async function resetPocData(): Promise<BootstrapPayload> {
   });
 }
 
+export async function resetPocDataFromZip(file: File): Promise<BootstrapPayload> {
+  return apiFetch<BootstrapPayload>("/api/reset-from-zip", {
+    method: "POST",
+    headers: { "Content-Type": "application/zip" },
+    body: file,
+  });
+}
+
 export async function createGeometry(geometry: unknown): Promise<GeometryEntity> {
   return apiFetch<GeometryEntity>("/api/geometries", {
     method: "POST",

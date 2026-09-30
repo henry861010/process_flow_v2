@@ -512,11 +512,12 @@ class SQLiteStore:
         return instance
 
     def seed(self, fixtures: dict[str, Iterable[JsonObject]], *, reset: bool = False) -> None:
-        if reset:
-            self.reset()
-        elif not self.is_empty():
+        if not reset and not self.is_empty():
             return
         with self._connection:
+            if reset:
+                for table in TABLES:
+                    self._connection.execute(f"DELETE FROM {table}")
             for payload in fixtures["processStepTemplates"]:
                 self._insert_process_step_template_in_transaction(payload)
             for payload in fixtures["processFlowTemplates"]:
