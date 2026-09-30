@@ -17,19 +17,31 @@ source_of_truth:
 
 # Geometry Generator Framework
 
-所有geometry generators透過後端registry對Flow Template Editor與Flow Instance Editor公開；HBM與DRAM另有Home入口。Flow editor不得以
-generator id寫HBM/DRAM/SoC條件分支；新增generator只需在後端註冊definition、validation、geometry
+所有geometry generators透過後端registry對Flow Template Editor與Flow Instance Editor公開；HBM與DRAM另有Home入口，LSI由Management頁或flow editor進入。Flow editor不得以
+generator id寫HBM/DRAM/SoC/LSI條件分支；新增generator只需在後端註冊definition、validation、geometry
 builder與preview evaluator。只要沿用通用contract，前端不需修改。
 
 SoC generator v1只提供`thickness`及`material`兩個參數，使用8000 × 10000 um作為預覽基準
 footprint，並以`box-rescale@1`在PnP時配合target region調整XY。SoC僅從flow editor的
 generator selector使用；fixture catalog不提供SoC geometry。
 
+LSI generator v1以`generation`參數選擇`gen1`或`gen2`，使用固定8000 × 10000 um
+footprint。gen1要求一組material與正的thickness；gen2要求四組，依layer 1至4由下往上
+相貼堆疊。四層提供可編輯的範例材料與厚度；預設為gen1並在開啟時顯示有效預覽，切換
+gen2後也能立即預覽四層。LSI從flow editor的
+generator selector及獨立編輯頁面使用，生成的geometry使用`box-rescale@1`；fixture catalog不提供LSI geometry。
+
 `GET /api/geometry-generators`提供id/version、label/icon、default parameters、通用
 `ParameterDefinition[]`、optional ordered `parameterGroups`與adaptation contract。前端依definition
 渲染parameter control及分組；沒有groups時維持單一flat parameter card。修改值後debounce呼叫
 `POST /api/geometry-generators/{id}/preview`。編輯舊instance的配方時使用
 `GET /api/geometry-generators/{id}/versions/{version}`取得指定版本definition。
+
+Generator parameter definition可另外提供`visibleWhen: { parameterId, equals }`。此條件
+以同一definition中top-level scalar select的目前值做嚴格相等比較；未提供條件的欄位永遠
+顯示。條件由通用generator dialog評估，並將不可見欄位從preview request排除；編輯期間
+保留不可見欄位的草稿值以便切回。後端仍依`generation`獨立驗證，正規化配方只包含當前
+gen所需欄位，不能依賴前端隱藏來保證資料正確。沒有可見欄位的group不顯示。
 
 Preview response包含normalized/computed parameters、validation errors、geometry hash、opaque
 `previewToken`、download JSON與versioned engineering preview document。前端只負責generic CAD

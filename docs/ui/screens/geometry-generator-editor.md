@@ -14,11 +14,11 @@ source_of_truth:
   - apps/viewer/components/geometry-generator/backend-geometry-generator-dialog.tsx
 ---
 
-# HBM and DRAM Geometry Editors
+# HBM, DRAM and LSI Geometry Editors
 
-Routes: `/hbm-editor`, `/dram-editor`
+Routes: `/hbm-editor`, `/dram-editor`, `/lsi-editor`
 
-Each route loads the matching backend registry definition (`hbm` or `dram`) into the shared full-page
+Each route loads the matching backend registry definition (`hbm`, `dram` or `lsi`) into the shared full-page
 generator editor. The page preserves parameter editing, debounced engineering preview, validation,
 JSON download, metadata dialog, and `Save to DB`. On tablet and desktop widths the editor is centered
 and limited to 70% of the viewport; narrow screens retain the full-width layout.
@@ -26,6 +26,9 @@ and limited to 70% of the viewport; narrow screens retain the full-width layout.
 Successful DB save shows the new catalog geometry id without navigating or resetting parameters and
 preview. Home is available as a header command. A missing registry definition renders a recoverable
 error and Home command.
+
+The LSI editor is linked from Management. Home does not show a Create LSI shortcut, and seed fixtures
+do not include LSI catalog geometry; users create LSI geometry through the generator.
 
 Acceptance: `UI-GEN-001` validates route-to-definition mapping; `UI-GEN-002` validates save success
 stays in-place; `UI-GEN-003` validates loading/error states.

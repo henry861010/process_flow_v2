@@ -7,6 +7,11 @@ import type {
   GeometryGeneratorDefinition,
   GeometryGeneratorPreview,
 } from "@/components/geometry-generator/geometry-generator-contracts";
+import {
+  fromGeneratorEditorValues,
+  toGeneratorEditorValues,
+  visibleGeneratorParameters,
+} from "@/components/geometry-generator/geometry-generator-parameters";
 import { EngineeringPreviewRenderer } from "@/components/geometry-generator/engineering-preview-renderer";
 import {
   engineeringPreviewAspectRatioLimit,
@@ -22,12 +27,7 @@ import type {
 } from "@/components/geometry-generator/geometry-generator-types";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import { Button } from "@/components/ui/button";
-import type {
-  EmbeddedGeometry,
-  ParameterDefinition,
-  RepeatableGroupValue,
-} from "@/lib/process-flow/types";
-import { isRepeatableGroupValue } from "@/lib/process-flow/parameter-values";
+import type { EmbeddedGeometry } from "@/lib/process-flow/types";
 import {
   createGeometry,
   materializeGeneratedGeometry,
@@ -51,7 +51,7 @@ export function BackendGeometryGeneratorDialog({
 }) {
   const initialEditorValues = React.useMemo(
     () =>
-      toEditorValues(definition.parameterDefinitions, {
+      toGeneratorEditorValues(definition.parameterDefinitions, {
         ...definition.defaultParameters,
         ...initialParameters,
       }),
@@ -76,8 +76,12 @@ export function BackendGeometryGeneratorDialog({
     owner: "",
     description: "",
   });
+  const visibleDefinitions = React.useMemo(
+    () => visibleGeneratorParameters(definition.parameterDefinitions, editorValues),
+    [definition.parameterDefinitions, editorValues],
+  );
   const parameters = React.useMemo(
-    () => fromEditorValues(definition.parameterDefinitions, editorValues),
+    () => fromGeneratorEditorValues(definition.parameterDefinitions, editorValues),
     [definition.parameterDefinitions, editorValues],
   );
   const parametersKey = React.useMemo(() => JSON.stringify(parameters), [parameters]);
@@ -307,7 +311,7 @@ export function BackendGeometryGeneratorDialog({
 
             <section aria-label="Geometry generator parameters">
               <ParameterValueEditor
-                definitions={definition.parameterDefinitions}
+                definitions={visibleDefinitions}
                 groups={definition.parameterGroups}
                 values={editorValues}
                 errors={latestPreview?.errors}
@@ -376,74 +380,4 @@ function embeddedGeometryFromEntity(
     owner: geometry.owner ?? null,
     description: geometry.description ?? null,
   };
-}
-
-function toEditorValues(
-  definitions: ParameterDefinition[],
-  parameters: Record<string, unknown>,
-) {
-  return Object.fromEntries(
-    definitions.map((definition) => [
-      definition.id,
-      toEditorValue(definition, parameters[definition.id]),
-    ]),
-  );
-}
-
-function toEditorValue(definition: ParameterDefinition, value: unknown): unknown {
-  if (definition.valueType !== "fieldGroupArray" || !definition.repeatDefinition) {
-    return value;
-  }
-  const items = Array.isArray(value) ? value : [];
-  return {
-    items: items.map((item, offset) => {
-      const record = isRecord(item) ? item : {};
-      const index = definition.repeatDefinition!.indexBase + offset;
-      return {
-        itemId:
-          typeof record.id === "string"
-            ? record.id
-            : `${definition.id}-${String(index).padStart(2, "0")}`,
-        index,
-        values: Object.fromEntries(
-          definition.repeatDefinition!.itemParameterDefinitions.map((child) => [
-            child.id,
-            toEditorValue(child, record[child.id]),
-          ]),
-        ),
-      };
-    }),
-  } satisfies RepeatableGroupValue;
-}
-
-function fromEditorValues(
-  definitions: ParameterDefinition[],
-  values: Record<string, unknown>,
-) {
-  return Object.fromEntries(
-    definitions.map((definition) => [
-      definition.id,
-      fromEditorValue(definition, values[definition.id]),
-    ]),
-  );
-}
-
-function fromEditorValue(definition: ParameterDefinition, value: unknown): unknown {
-  if (definition.valueType !== "fieldGroupArray" || !definition.repeatDefinition) {
-    return value;
-  }
-  if (!isRepeatableGroupValue(value)) return [];
-  return value.items.map((item) => ({
-    id: item.itemId,
-    ...Object.fromEntries(
-      definition.repeatDefinition!.itemParameterDefinitions.map((child) => [
-        child.id,
-        fromEditorValue(child, item.values[child.id]),
-      ]),
-    ),
-  }));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

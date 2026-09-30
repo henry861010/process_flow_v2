@@ -413,6 +413,17 @@ class GeometryGeneratorParameterGroup(StrictModel):
     parameterIds: list[str] = Field(min_length=1)
 
 
+class GeneratorParameterVisibility(StrictModel):
+    parameterId: str = Field(min_length=1)
+    equals: str | int | float | bool
+
+
+class GeometryGeneratorParameterDefinition(ParameterDefinition):
+    visibleWhen: GeneratorParameterVisibility | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+
 class GeometryGeneratorDefinition(StrictModel):
     schemaVersion: Literal[1] = 1
     id: str = Field(min_length=1)
@@ -424,7 +435,7 @@ class GeometryGeneratorDefinition(StrictModel):
     icon: str | None = None
     adaptationContract: GeometryAdaptationContract
     defaultParameters: JsonObject
-    parameterDefinitions: list[ParameterDefinition]
+    parameterDefinitions: list[GeometryGeneratorParameterDefinition]
     parameterGroups: list[GeometryGeneratorParameterGroup] = Field(default_factory=list)
     previewViews: list[str] = Field(default_factory=list)
 

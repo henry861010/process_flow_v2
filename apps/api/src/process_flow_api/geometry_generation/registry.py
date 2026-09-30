@@ -13,6 +13,7 @@ from .contracts import GeometryGenerator, JsonObject
 from .dram import DramGenerator
 from .engineering_preview import build_engineering_preview
 from .hbm import HbmGenerator
+from .lsi import LsiGenerator
 from .soc import SocGenerator
 
 
@@ -26,7 +27,7 @@ class GeometryGeneratorRegistry:
         registered = (
             generators
             if generators is not None
-            else (HbmGenerator(), DramGenerator(), SocGenerator())
+            else (HbmGenerator(), DramGenerator(), SocGenerator(), LsiGenerator())
         )
         self._generators: dict[tuple[str, int], GeometryGenerator] = {}
         self._latest_versions: dict[str, int] = {}

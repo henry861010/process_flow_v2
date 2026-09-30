@@ -5,6 +5,13 @@ import type {
   ParameterDefinitionGroup,
 } from "@/lib/process-flow/types";
 
+export type GeneratorParameterDefinition = ParameterDefinition & {
+  visibleWhen?: {
+    parameterId: string;
+    equals: string | number | boolean;
+  } | null;
+};
+
 export type GeometryGeneratorDefinition = {
   schemaVersion: 1;
   id: string;
@@ -16,7 +23,7 @@ export type GeometryGeneratorDefinition = {
   icon?: string | null;
   adaptationContract: GeometryAdaptationContract;
   defaultParameters: Record<string, unknown>;
-  parameterDefinitions: ParameterDefinition[];
+  parameterDefinitions: GeneratorParameterDefinition[];
   parameterGroups: ParameterDefinitionGroup[];
   previewViews: string[];
 };

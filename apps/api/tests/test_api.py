@@ -1243,6 +1243,91 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(edited_body["geometry"]["thk"], 180)
         self.assertEqual(len(self.client.get("/api/geometries").json()), geometry_count)
 
+    def test_lsi_generator_binding_can_create_reopen_and_execute_a_flow(self):
+        bootstrap = self.reset_poc_data()
+        template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
+        template["id"] = "flow_tpl_lsi_generator_test"
+        template["name"] = "Generated LSI placement"
+        template["flowInputs"][1]["flowInputId"] = "incoming_lsi"
+        template["flowInputs"][1]["name"] = "Incoming LSI"
+        template["flowInputs"][1]["geometryConstraints"]["categories"] = ["die.lsi"]
+        template["stepRefs"] = template["stepRefs"][:1]
+        template["flowEdges"] = template["flowEdges"][:2]
+        template["flowEdges"][1]["source"]["flowInputId"] = "incoming_lsi"
+
+        instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
+        instance["id"] = "flow_inst_lsi_generator_test"
+        instance["name"] = "Generated LSI placement"
+        instance["processFlowTemplateId"] = template["id"]
+        instance["inputBindings"].pop("incoming_hbm")
+        instance["inputBindings"]["incoming_lsi"] = {
+            "kind": "generator",
+            "generatorId": "lsi",
+            "generatorVersion": 1,
+            "parameters": {
+                "generation": "gen2",
+                "layer1Material": "  Si  ",
+                "layer1Thickness": 10,
+                "layer2Material": "Oxide",
+                "layer2Thickness": 20,
+                "layer3Material": "Cu",
+                "layer3Thickness": 30,
+                "layer4Material": "Nitride",
+                "layer4Thickness": 40,
+            },
+        }
+        instance["stepConfigurations"] = {
+            "pnp_hbm": {
+                "parameterValues": {
+                    "placements": [
+                        {
+                            "targetRegion": {
+                                "type": "rectangle",
+                                "bottomLeftX": -1000,
+                                "bottomLeftY": -800,
+                                "topRightX": 1000,
+                                "topRightY": 800,
+                            },
+                            "pose": {"x": 0, "y": 0, "rotationZ": 0},
+                            "anchor": "center",
+                        }
+                    ]
+                }
+            }
+        }
+
+        created = self.client.post(
+            "/api/process-flow-template-instances",
+            json={"processFlowTemplate": template, "processFlowInstance": instance},
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        saved = created.json()["processFlowInstance"]
+        binding = saved["inputBindings"]["incoming_lsi"]
+        self.assertEqual(binding["generatorId"], "lsi")
+        self.assertEqual(binding["generatorVersion"], 1)
+        self.assertEqual(binding["parameters"]["layer1Material"], "Si")
+        self.assertEqual(len(binding["parameters"]), 9)
+        self.assertEqual(
+            self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), saved
+        )
+
+        executed = self.client.post(f"/api/process-flow-instances/{instance['id']}/execute")
+        self.assertEqual(executed.status_code, 200, executed.text)
+        child = executed.json()["geometryStructure"]["root"]["children"][0]
+        self.assertEqual(child["key"], "lsi")
+        bodies = child["bodies"]
+        self.assertEqual(len(bodies), 4)
+        self.assertEqual([body["material"] for body in bodies], ["Si", "Oxide", "Cu", "Nitride"])
+        self.assertEqual([body["geometry"]["thk"] for body in bodies], [10, 20, 30, 40])
+        self.assertTrue(
+            all(
+                body["geometry"]["top_right"][0]
+                - body["geometry"]["bottom_left"][0]
+                == 2000
+                for body in bodies
+            )
+        )
+
     def test_generator_binding_rejects_missing_version_unknown_version_and_category(self):
         bootstrap = self.reset_poc_data()
         source = bootstrap["processFlowInstances"][0]

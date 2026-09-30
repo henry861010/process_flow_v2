@@ -22,7 +22,6 @@ CATALOG_COUNT_RANGES = {
     "die.dram": (5, 10),
     "die.soic": (5, 10),
     "package.soic": (5, 10),
-    "die.lsi": (5, 10),
     "die.cpo": (5, 10),
     "carrier.wafer": (1, 4),
     "carrier.panel": (1, 4),
@@ -35,7 +34,6 @@ CATEGORY_DIMENSION_RANGES_UM = {
     "die.dram": ((7_000, 16_000), (7_000, 16_000), (800, 1_300)),
     "die.soic": ((8_000, 20_000), (8_000, 20_000), (250, 900)),
     "package.soic": ((4_000, 19_000), (3_500, 8_000), (1_500, 3_000)),
-    "die.lsi": ((3_000, 32_000), (3_000, 32_000), (100, 350)),
     "die.cpo": ((4_000, 16_000), (4_000, 16_000), (150, 600)),
     "carrier.wafer": ((150_000, 300_000), (150_000, 300_000), (600, 850)),
     "carrier.panel": ((300_000, 600_000), (300_000, 600_000), (500, 1_100)),
@@ -59,6 +57,7 @@ class GeometryFixtureTests(unittest.TestCase):
             any(item["category"].startswith("test.") for item in self.geometries)
         )
         self.assertEqual(counts["die.soc"], 0)
+        self.assertEqual(counts["die.lsi"], 0)
 
     def test_geometry_ids_are_unique(self):
         ids = [item["id"] for item in self.geometries]
@@ -118,7 +117,6 @@ class GeometryFixtureTests(unittest.TestCase):
             "die.dram": "dram",
             "die.soic": "soic",
             "package.soic": "soic",
-            "die.lsi": "lsi",
             "die.cpo": "cpo",
             "test.carrier": "carrier",
         }
@@ -139,7 +137,6 @@ class GeometryFixtureTests(unittest.TestCase):
                 elif item["category"] in {
                     "die.soic",
                     "package.soic",
-                    "die.lsi",
                     "die.cpo",
                 }:
                     self.assertTrue(all(body.get("key") == "envelope" for body in bodies))

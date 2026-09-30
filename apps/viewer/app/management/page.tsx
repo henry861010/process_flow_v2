@@ -176,6 +176,7 @@ export default function ManagementPage() {
               <Button asChild size="sm"><Link href="/flow-template-editor"><Plus />Template</Link></Button>
               <Button asChild size="sm" variant="outline"><Link href="/hbm-editor"><Plus />HBM</Link></Button>
               <Button asChild size="sm" variant="outline"><Link href="/dram-editor"><Plus />DRAM</Link></Button>
+              <Button asChild size="sm" variant="outline"><Link href="/lsi-editor"><Plus />LSI</Link></Button>
             </div>
           </div>
 

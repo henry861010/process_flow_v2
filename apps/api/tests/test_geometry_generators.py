@@ -23,7 +23,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         definitions = response.json()
-        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc"])
+        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc", "lsi"])
         hbm = definitions[0]
         self.assertEqual(hbm["version"], 2)
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
@@ -153,6 +153,183 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         )
         self.assertEqual(soc["parameterGroups"], [])
         self.assertEqual(soc["previewViews"], ["top", "cross-section-x"])
+
+        lsi = definitions[3]
+        self.assertEqual(lsi["version"], 1)
+        self.assertEqual(lsi["category"], "die.lsi")
+        self.assertEqual(
+            lsi["defaultParameters"],
+            {
+                "generation": "gen1",
+                "layer1Material": "Si-LSI",
+                "layer1Thickness": 150,
+                "layer2Material": "SiO2",
+                "layer2Thickness": 20,
+                "layer3Material": "Cu",
+                "layer3Thickness": 10,
+                "layer4Material": "SiN",
+                "layer4Thickness": 20,
+            },
+        )
+        self.assertEqual(lsi["adaptationContract"]["adapterId"], "box-rescale")
+        self.assertEqual(
+            [item["id"] for item in lsi["parameterDefinitions"]],
+            ["generation"]
+            + [
+                field
+                for index in range(1, 5)
+                for field in (f"layer{index}Material", f"layer{index}Thickness")
+            ],
+        )
+        self.assertEqual(
+            [item["visibleWhen"] for item in lsi["parameterDefinitions"][3:]],
+            [{"parameterId": "generation", "equals": "gen2"}] * 6,
+        )
+        self.assertEqual(lsi["previewViews"], ["top", "cross-section-x"])
+
+    def test_lsi_defaults_preview_both_generations_and_ignore_inactive_values(self):
+        initial = self.app.state.geometry_generators.preview("lsi", {}, generator_version=1)
+        self.assertTrue(initial["valid"])
+        self.assertEqual(
+            initial["normalizedParameters"],
+            {"generation": "gen1", "layer1Material": "Si-LSI", "layer1Thickness": 150},
+        )
+        self.assertEqual(initial["computedParameters"]["totalThickness"], 150)
+        gen2_default = self.app.state.geometry_generators.preview(
+            "lsi", {"generation": "gen2"}, generator_version=1
+        )
+        self.assertTrue(gen2_default["valid"])
+        self.assertEqual(gen2_default["computedParameters"]["totalThickness"], 200)
+        self.assertEqual(
+            len(gen2_default["geometryEntityJson"]["structure"]["root"]["bodies"]),
+            4,
+        )
+
+        blank = self.app.state.geometry_generators.preview(
+            "lsi", {"layer1Material": "", "layer1Thickness": ""}, generator_version=1
+        )
+        self.assertFalse(blank["valid"])
+        self.assertEqual(set(blank["errors"]), {"layer1Material", "layer1Thickness"})
+
+        response = self.client.post(
+            "/api/geometry-generators/lsi/preview",
+            json={
+                "generatorVersion": 1,
+                "parameters": {
+                    "generation": "gen1",
+                    "layer1Material": "  Si-LSI  ",
+                    "layer1Thickness": 150,
+                    "layer2Material": "",
+                    "layer2Thickness": -10,
+                },
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"])
+        self.assertEqual(
+            preview["normalizedParameters"],
+            {"generation": "gen1", "layer1Material": "Si-LSI", "layer1Thickness": 150},
+        )
+        self.assertEqual(
+            preview["computedParameters"],
+            {"packageX": 8000, "packageY": 10000, "totalThickness": 150},
+        )
+        entity = preview["geometryEntityJson"]
+        self.assertEqual(entity["dim"], "8000 x 10000 x 150 um")
+        self.assertEqual(entity["generation"]["parameters"], preview["normalizedParameters"])
+        self.assertEqual(entity["structure"]["root"]["key"], "lsi")
+        self.assertEqual(len(entity["structure"]["root"]["bodies"]), 1)
+        self.assertEqual(
+            entity["structure"]["root"]["bodies"][0]["geometry"],
+            {
+                "type": "BoxGeometry",
+                "bottom_left": [-4000, -5000, -75],
+                "top_right": [4000, 5000, -75],
+                "thk": 150,
+            },
+        )
+
+    def test_lsi_gen2_stacks_four_layers_and_materializes(self):
+        parameters = {
+            "generation": "gen2",
+            "layer1Material": "  Si  ",
+            "layer1Thickness": 10,
+            "layer2Material": "Oxide",
+            "layer2Thickness": 20,
+            "layer3Material": "Cu",
+            "layer3Thickness": 30,
+            "layer4Material": "Nitride",
+            "layer4Thickness": 40,
+        }
+        response = self.client.post(
+            "/api/geometry-generators/lsi/preview",
+            json={"generatorVersion": 1, "parameters": parameters},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"])
+        self.assertEqual(preview["normalizedParameters"]["layer1Material"], "Si")
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 100)
+        self.assertEqual(preview["geometryEntityJson"]["dim"], "8000 x 10000 x 100 um")
+        self.assertEqual(
+            _dimension_values(preview["engineeringPreview"]["views"][1]),
+            {"Total thickness": 100},
+        )
+        bodies = preview["geometryEntityJson"]["structure"]["root"]["bodies"]
+        self.assertEqual(len(bodies), 4)
+        self.assertEqual(
+            [body["material"] for body in bodies],
+            ["Si", "Oxide", "Cu", "Nitride"],
+        )
+        self.assertEqual(
+            [body["geometry"]["bottom_left"][2] for body in bodies],
+            [-50, -40, -20, 10],
+        )
+        self.assertEqual([body["geometry"]["thk"] for body in bodies], [10, 20, 30, 40])
+        self.assertEqual(
+            [body["geometry"]["bottom_left"][:2] for body in bodies],
+            [[-4000, -5000]] * 4,
+        )
+
+        materialized = self.client.post(
+            "/api/geometry-materializations",
+            json={"previewToken": preview["previewToken"]},
+        )
+        self.assertEqual(materialized.status_code, 200, materialized.text)
+        self.assertEqual(materialized.json()["geometryEntityJson"], preview["geometryEntityJson"])
+        saved = self.client.post(
+            "/api/geometries",
+            json={**materialized.json()["geometryEntityJson"], "name": "Four-layer LSI", "owner": "test"},
+        )
+        self.assertEqual(saved.status_code, 201, saved.text)
+        self.assertEqual(saved.json()["generation"]["parameters"], preview["normalizedParameters"])
+
+    def test_lsi_rejects_invalid_generation_and_active_layers(self):
+        registry = self.app.state.geometry_generators
+        invalid_generation = registry.preview("lsi", {"generation": "gen3"}, generator_version=1)
+        self.assertEqual(set(invalid_generation["errors"]), {"generation"})
+
+        invalid_gen2 = registry.preview(
+            "lsi",
+            {
+                "generation": "gen2",
+                "layer1Material": "Si",
+                "layer1Thickness": 10,
+                "layer2Material": " ",
+                "layer2Thickness": 0,
+                "layer3Material": "Cu",
+                "layer3Thickness": True,
+                "layer4Material": "Nitride",
+                "layer4Thickness": 40,
+            },
+            generator_version=1,
+        )
+        self.assertEqual(
+            set(invalid_gen2["errors"]),
+            {"layer2Material", "layer2Thickness", "layer3Thickness"},
+        )
+        self.assertFalse(invalid_gen2["valid"])
 
     def test_soc_preview_has_one_box_and_only_two_saved_parameters(self):
         default = self.app.state.geometry_generators.preview(

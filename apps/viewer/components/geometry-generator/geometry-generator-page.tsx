@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { listGeometryGenerators } from "@/lib/process-flow-api";
 import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
 
-export function GeometryGeneratorPage({ generatorId }: { generatorId: "hbm" | "dram" }) {
+export function GeometryGeneratorPage({ generatorId }: { generatorId: "hbm" | "dram" | "lsi" }) {
   const router = useRouter();
   const [definition, setDefinition] = React.useState<GeometryGeneratorDefinition | null>(null);
   const [loading, setLoading] = React.useState(true);
