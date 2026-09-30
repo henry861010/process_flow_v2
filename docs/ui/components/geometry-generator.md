@@ -10,7 +10,7 @@ audience:
   - QA
   - generator developers
 source_of_truth:
-  - apps/api/src/process_flow_api/geometry_generation
+  - packages/geometry_generators/src/process_flow_geometry_generators
   - apps/viewer/components/geometry-generator/backend-geometry-generator-dialog.tsx
   - apps/viewer/components/geometry-generator/engineering-preview-renderer.tsx
 ---

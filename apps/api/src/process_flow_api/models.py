@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from process_flow_geometry_generators import GeometryGeneratorDefinition
 
 
 JsonObject = dict[str, Any]
@@ -405,51 +406,6 @@ class EngineeringPreviewDocument(StrictModel):
     schemaVersion: Literal[1] = 1
     unit: str = Field(min_length=1)
     views: list[EngineeringPreviewView] = Field(min_length=1)
-
-
-class GeometryGeneratorParameterGroup(StrictModel):
-    id: str = Field(min_length=1)
-    label: str = Field(min_length=1)
-    parameterIds: list[str] = Field(min_length=1)
-
-
-class GeneratorParameterVisibility(StrictModel):
-    parameterId: str = Field(min_length=1)
-    equals: str | int | float | bool
-
-
-class GeometryGeneratorParameterDefinition(ParameterDefinition):
-    visibleWhen: GeneratorParameterVisibility | None = Field(
-        default=None, exclude_if=lambda value: value is None
-    )
-
-
-GeometryGeneratorUiPlacement = Literal[
-    "home", "management", "templateGeometryLibrary", "flowInputPicker"
-]
-
-
-class GeometryGeneratorDefinition(StrictModel):
-    schemaVersion: Literal[2]
-    id: str = Field(min_length=1)
-    version: int = Field(ge=1)
-    label: str = Field(min_length=1)
-    description: str = ""
-    uiPlacements: list[GeometryGeneratorUiPlacement]
-    entityType: str = Field(min_length=1)
-    category: str | None = None
-    icon: str | None = None
-    adaptationContract: GeometryAdaptationContract
-    defaultParameters: JsonObject
-    parameterDefinitions: list[GeometryGeneratorParameterDefinition]
-    parameterGroups: list[GeometryGeneratorParameterGroup] = Field(default_factory=list)
-    previewViews: list[str] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def reject_duplicate_ui_placements(self):
-        if len(self.uiPlacements) != len(set(self.uiPlacements)):
-            raise ValueError("uiPlacements cannot contain duplicates")
-        return self
 
 
 class GeometryGeneratorPreviewRequest(StrictModel):

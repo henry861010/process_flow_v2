@@ -44,6 +44,7 @@ venv/bin/pip install -e packages/kernel-py
 venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
   -e packages/process-step-py \
+  -e packages/geometry_generators \
   -e packages/mesh-control-py \
   -e packages/cad-py \
   -e 'apps/api[test]'
@@ -118,6 +119,7 @@ marker 不是 `2` 時，目前 implementation 會清空 resource tables；這個
 venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
 venv/bin/python -m unittest discover -s packages/mesh-control-py/tests
+venv/bin/python -m unittest discover -s packages/geometry_generators/tests
 venv/bin/python -m unittest discover apps/api/tests
 cd apps/viewer && npm run build
 ```

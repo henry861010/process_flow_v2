@@ -13,7 +13,7 @@ last_verified_commit: 283d28057aae3d2cde2a6383740f4c2551cb2a6a
 source_of_truth:
   - docs/reference/hbm-generator.md
   - docs/ui/components/geometry-generator.md
-  - apps/api/src/process_flow_api/geometry_generation/hbm.py
+  - packages/geometry_generators/src/process_flow_geometry_generators/hbm.py
   - apps/viewer/components/geometry-generator/backend-geometry-generator-dialog.tsx
 verified_against:
   - apps/viewer/app/page.tsx

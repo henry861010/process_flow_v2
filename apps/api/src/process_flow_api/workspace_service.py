@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from process_flow_geometry_generators import GeometryGeneratorRegistry
 from process_flow_kernel import FlowCompiler
 
-from .geometry_resolver import StoreGeometryCatalog
 from .configuration_materialization import (
     canonicalize_generator_bindings,
     materialize_embedded_bindings,
 )
-from .geometry_generation import GeometryGeneratorRegistry
+from .geometry_resolver import StoreGeometryCatalog
 from .identifiers import generated_workspace_id
 from .models import (
     ProcessFlowWorkspaceCreate,

@@ -10,12 +10,15 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mesher.contracts.process_flow_2_5d import validate_mesh_control
+from process_flow_geometry_generators import (
+    GeometryGeneratorRegistry,
+    register_builtin_generators,
+)
 from process_flow_kernel import ProcessGeometryState, validate_geometry_semantic_keys
 from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry
 
 from .file_export_jobs import FileExportJobManager
 from .fixture_export import build_fixture_archive
-from .geometry_generation import GeometryGeneratorRegistry
 from .identifiers import generated_geometry_id
 from .models import (
     CdbFileExportCreateRequest,
@@ -66,11 +69,18 @@ from .services import (
 from .workspace_service import commit_workspace, create_workspace, update_workspace
 
 
-def create_app(*, db_path: str | Path | None = None) -> FastAPI:
+def create_app(
+    *,
+    db_path: str | Path | None = None,
+    generator_registry: GeometryGeneratorRegistry | None = None,
+) -> FastAPI:
     app = FastAPI(title="Process Flow API", version="0.0.0", lifespan=app_lifespan)
     app.state.store = SQLiteStore(db_path or default_db_path())
     app.state.file_export_jobs = FileExportJobManager()
-    app.state.geometry_generators = GeometryGeneratorRegistry()
+    if generator_registry is None:
+        generator_registry = GeometryGeneratorRegistry()
+        register_builtin_generators(generator_registry)
+    app.state.geometry_generators = generator_registry
     app.state.preview_sessions = PreviewSessionManager.from_environment(
         geometry_generators=app.state.geometry_generators
     )

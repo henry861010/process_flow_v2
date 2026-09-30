@@ -6,6 +6,7 @@ import copy
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from process_flow_geometry_generators import GeometryGeneratorRegistry
 from process_flow_kernel import (
     ExecuteOptions,
     ExecutionPlan,
@@ -18,13 +19,12 @@ from process_flow_kernel import (
     validate_process_step_template as validate_step_contract,
 )
 
-from .geometry_preview_exporter import export_geometry
-from .geometry_resolver import StoreGeometryCatalog
 from .configuration_materialization import (
     canonicalize_generator_bindings,
     materialize_embedded_bindings,
 )
-from .geometry_generation import GeometryGeneratorRegistry
+from .geometry_preview_exporter import export_geometry
+from .geometry_resolver import StoreGeometryCatalog
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,

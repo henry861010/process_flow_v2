@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import copy
 import unittest
 
 from fastapi.testclient import TestClient
 
 from process_flow_api.main import create_app
-from process_flow_api.geometry_generation.hbm import HbmGenerator
-from process_flow_api.geometry_generation.registry import GeometryGeneratorRegistry
+from process_flow_geometry_generators import GeometryGeneratorRegistry, register_builtin_generators
+from process_flow_geometry_generators.hbm import HbmGenerator
 
 
 class GeometryGeneratorApiTests(unittest.TestCase):
@@ -47,6 +48,55 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             )
             self.assertEqual(exact.status_code, 200, exact.text)
             self.assertEqual(exact.json(), definition)
+
+    def test_injected_registry_controls_catalog_and_compilation(self):
+        registry = GeometryGeneratorRegistry()
+        registry.register(HbmGenerator())
+        app = create_app(db_path=":memory:", generator_registry=registry)
+        try:
+            with TestClient(app) as client:
+                self.assertIs(app.state.geometry_generators, registry)
+                listed = client.get("/api/geometry-generators")
+                self.assertEqual([item["id"] for item in listed.json()], ["hbm"])
+                bootstrap = client.get("/api/bootstrap").json()
+                self.assertEqual(
+                    [item["id"] for item in bootstrap["geometryGenerators"]], ["hbm"]
+                )
+
+                source = next(
+                    item for item in bootstrap["processFlowInstances"]
+                    if item["processFlowTemplateId"] == "flow_tpl_aaa_demo"
+                )
+                request = copy.deepcopy(source)
+                request["id"] = "flow_inst_registered_generator"
+                request["inputBindings"]["incoming_hbm"] = {
+                    "kind": "generator",
+                    "generatorId": "hbm",
+                    "generatorVersion": 2,
+                    "parameters": {},
+                }
+                enabled = client.post("/api/process-flow-instances", json=request)
+                self.assertEqual(enabled.status_code, 201, enabled.text)
+
+                request["id"] = "flow_inst_unregistered_generator"
+                request["inputBindings"]["incoming_hbm"] = {
+                    "kind": "generator",
+                    "generatorId": "soc",
+                    "generatorVersion": 1,
+                    "parameters": {},
+                }
+                disabled = client.post("/api/process-flow-instances", json=request)
+                self.assertEqual(disabled.status_code, 400, disabled.text)
+                self.assertIn("Geometry generator soc version 1 is not available", disabled.json()["message"])
+                self.assertEqual(
+                    client.post(
+                        "/api/geometry-generators/soc/preview",
+                        json={"generatorVersion": 1, "parameters": {}},
+                    ).status_code,
+                    404,
+                )
+        finally:
+            app.state.store.close()
 
     def test_registry_rejects_missing_unknown_or_duplicate_ui_placements(self):
         class InvalidPlacementGenerator(HbmGenerator):
@@ -475,6 +525,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
 
     def test_v2_default_structures_remain_stable(self):
         registry = GeometryGeneratorRegistry()
+        register_builtin_generators(registry)
         self.assertEqual(
             registry.preview("hbm", {}, generator_version=2)["geometryHash"],
             "sha256:398ea0156cfd06137ae9a573168ba4cca31f040f2c6c3990f86b8681bbd2e371",

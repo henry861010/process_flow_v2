@@ -13,6 +13,7 @@ on:
       - "apps/api/src/process_flow_api/main.py"
       - "apps/api/src/process_flow_api/models.py"
       - "apps/api/tests/**"
+      - "packages/geometry_generators/**"
       - "apps/viewer/components/geometry-preview/file-export-*.ts*"
       - "apps/viewer/components/process-flow-fields/gds-*"
       - "apps/viewer/package.json"
@@ -31,6 +32,7 @@ on:
       - "apps/api/src/process_flow_api/main.py"
       - "apps/api/src/process_flow_api/models.py"
       - "apps/api/tests/**"
+      - "packages/geometry_generators/**"
       - "apps/viewer/components/geometry-preview/file-export-*.ts*"
       - "apps/viewer/components/process-flow-fields/gds-*"
       - "apps/viewer/package.json"
@@ -74,8 +76,13 @@ jobs:
           python -m pip install './_external/mesher[process-flow,visualization]'
           python -m pip install \
             -e packages/process-step-py \
+            -e packages/geometry_generators \
+            -e packages/mesh-control-py \
             -e packages/cad-py \
             -e 'apps/api[test]'
+
+      - name: Test geometry generators
+        run: python -m unittest discover -s packages/geometry_generators/tests -v
 
       - name: Test external mesher
         run: python -m unittest discover -s _external/mesher/tests -v

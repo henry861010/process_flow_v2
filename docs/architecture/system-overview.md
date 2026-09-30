@@ -13,6 +13,7 @@ source_of_truth:
   - apps/viewer
   - packages/kernel-py/src/process_flow_kernel
   - packages/process-step-py/src/process_flow_steps
+  - packages/geometry_generators/src/process_flow_geometry_generators
   - packages/cad-py/src/process_flow_cad
   - https://github.com/henry861010/mesher/tree/302ebe36663b727669901cbc766ccc0a2ae6f221/src/mesher/process_flow
 ---
@@ -26,7 +27,7 @@ Process Flow 是 local-first PoC，由 static Next.js viewer、FastAPI/SQLite se
 ```mermaid
 flowchart LR
   Browser["apps/viewer\nstatic Next.js browser app"] -->|"HTTP JSON"| API["apps/api\nFastAPI composition root"]
-  API --> Generators["backend generator registry\nparameters + geometry + 2D preview"]
+  API --> Generators["packages/geometry_generators\nregistry + geometry + 2D preview"]
   API --> Store["SQLite\nJSON snapshots + indexed metadata"]
   API --> Compiler["packages/kernel-py\nFlowCompiler"]
   Compiler --> Plan["ExecutionPlan"]
@@ -41,13 +42,14 @@ flowchart LR
 | 套件 | 負責 | 不負責 |
 | --- | --- | --- |
 | `apps/viewer` | Browser interaction、generic generator/2D preview renderer、working editor state、HTTP clients、3D presentation | Generator engineering logic、canonical persistence、kernel execution rules |
-| `apps/api` | HTTP contract、backend generator registry、Pydantic validation、SQLite persistence/transactions、resource orchestration、export job lifecycle | Process-step geometry operations |
+| `apps/api` | HTTP contract、generator 註冊組裝、Pydantic request/response validation、SQLite persistence/transactions、resource orchestration、export job lifecycle | Generator 與 process-step geometry operations |
+| `packages/geometry_generators` | Versioned generator manifest、registry、具體實作、engineering preview 與 materialization cache | HTTP、SQLite、API application |
 | `packages/kernel-py` | Geometry domain、flow validation/compiler、execution plan、step execution、normalization | SQLite、HTTP、CadQuery、frontend state |
 | `packages/process-step-py` | Concrete `execute(context)` operation modules | Persistence、API routing、module discovery policy |
 | `packages/cad-py` | Geometry-to-CadQuery conversion、GLB、STEP AP242 | Flow compilation、catalog resolution |
 | external `mesher` 0.2 | Standard structure to 2.5D mesh/text CDB | Flow compilation、catalog resolution |
 
-Dependency direction 是 `viewer → API → kernel`。API 另外啟動CAD與external mesher workers；
+Dependency direction 是 `viewer → API → kernel`，API 也依賴獨立的 geometry generator package，並在 `create_app` 明確註冊啟用的實作。API 另外啟動CAD與external mesher workers；
 kernel在execution time動態import process-step modules；CAD與mesher process-flow extra使用kernel
 的geometry contract。Kernel不依賴API或storage。
 

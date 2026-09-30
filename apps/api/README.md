@@ -16,7 +16,7 @@ source_of_truth:
 
 # Process Flow API
 
-`apps/api` 是 FastAPI composition root，負責 HTTP validation、SQLite persistence/transactions、kernel orchestration，以及 preview/export worker lifecycle。它不定義 geometry domain operation。
+`apps/api` 是 FastAPI composition root，負責 HTTP validation、SQLite persistence/transactions、kernel orchestration，以及 preview/export worker lifecycle。Geometry generator engine 由 `packages/geometry_generators` 維護；`create_app` 預設明確註冊四個內建 generator，也可透過 `generator_registry` 注入自訂註冊結果。
 
 Canonical model/invariants 見 [`docs/data-model.md`](../../docs/data-model.md)，system flow 見 [System Architecture](../../docs/architecture/system-overview.md)。FastAPI 在 runtime 產生 OpenAPI，local UI 位於 `/docs`；本 README 不重複 schema examples。
 

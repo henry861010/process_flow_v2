@@ -10,7 +10,7 @@ audience:
 last_verified: 2026-08-31
 last_verified_commit: 79a37fb7651eb2e0b1e2b46152ee0af28766fa43
 verified_against:
-  - apps/api/src/process_flow_api/geometry_generation
+  - packages/geometry_generators/src/process_flow_geometry_generators
   - apps/viewer/components/geometry-generator
   - packages/kernel-py/src/process_flow_kernel/application/geometry_artifact.py
   - packages/process-step-py/src/process_flow_steps/pnp

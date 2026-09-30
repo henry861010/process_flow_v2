@@ -13,8 +13,8 @@ source_of_truth:
   - docs/reference/geometry-structure.md
   - docs/concepts/geometry-semantics.md
 verified_against:
-  - apps/api/src/process_flow_api/geometry_generation/hbm.py
-  - apps/api/src/process_flow_api/geometry_generation/engineering_preview.py
+  - packages/geometry_generators/src/process_flow_geometry_generators/hbm.py
+  - packages/geometry_generators/src/process_flow_geometry_generators/engineering_preview.py
   - apps/viewer/components/geometry-generator/backend-geometry-generator-dialog.tsx
 ---
 

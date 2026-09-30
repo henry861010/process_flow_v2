@@ -9,13 +9,9 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from typing import Any
 
-from ..models import GeometryGeneratorDefinition
 from .contracts import GeometryGenerator, JsonObject
-from .dram import DramGenerator
 from .engineering_preview import build_engineering_preview
-from .hbm import HbmGenerator
-from .lsi import LsiGenerator
-from .soc import SocGenerator
+from .manifest import GeometryGeneratorDefinition
 
 
 class GeometryGeneratorRegistry:
@@ -25,32 +21,30 @@ class GeometryGeneratorRegistry:
         *,
         preview_capacity: int = 128,
     ):
-        registered = (
-            generators
-            if generators is not None
-            else (HbmGenerator(), DramGenerator(), SocGenerator(), LsiGenerator())
-        )
         self._generators: dict[tuple[str, int], GeometryGenerator] = {}
         self._latest_versions: dict[str, int] = {}
-        for generator in registered:
-            definition = generator.definition()
-            generator_id = definition.get("id")
-            if not isinstance(generator_id, str) or generator_id == "":
-                raise ValueError("Geometry generator definition requires id")
-            version = definition.get("version")
-            if isinstance(version, bool) or not isinstance(version, int) or version < 1:
-                raise ValueError(f"Geometry generator {generator_id} requires a positive version")
-            GeometryGeneratorDefinition.model_validate(definition)
-            key = (generator_id, version)
-            if key in self._generators:
-                raise ValueError(f"Duplicate geometry generator: {generator_id} v{version}")
-            self._generators[key] = generator
-            self._latest_versions[generator_id] = max(
-                version, self._latest_versions.get(generator_id, 0)
-            )
         self._preview_capacity = max(1, preview_capacity)
         self._previews: OrderedDict[str, JsonObject] = OrderedDict()
         self._lock = threading.Lock()
+        for generator in generators or ():
+            self.register(generator)
+
+    def register(self, generator: GeometryGenerator) -> None:
+        definition = generator.definition()
+        generator_id = definition.get("id")
+        if not isinstance(generator_id, str) or generator_id == "":
+            raise ValueError("Geometry generator definition requires id")
+        version = definition.get("version")
+        if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+            raise ValueError(f"Geometry generator {generator_id} requires a positive version")
+        GeometryGeneratorDefinition.model_validate(definition)
+        key = (generator_id, version)
+        if key in self._generators:
+            raise ValueError(f"Duplicate geometry generator: {generator_id} v{version}")
+        self._generators[key] = generator
+        self._latest_versions[generator_id] = max(
+            version, self._latest_versions.get(generator_id, 0)
+        )
 
     def definitions(self) -> list[JsonObject]:
         return [self.definition(generator_id) for generator_id in self._latest_versions]

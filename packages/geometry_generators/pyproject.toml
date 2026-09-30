@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "process-flow-geometry-generators"
+version = "0.0.0"
+description = "Versioned geometry generator engine and built-in generators for Process Flow."
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+process_flow_geometry_generators = ["py.typed"]

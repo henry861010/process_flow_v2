@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from mesher.contracts.process_flow_2_5d import validate_mesh_control
 
-from process_flow_api.geometry_generation.hbm import DEFAULT_PARAMETERS, build_geometry, derive_dimensions
+from process_flow_geometry_generators.hbm import DEFAULT_PARAMETERS, build_geometry, derive_dimensions
 from process_flow_api.main import create_app
 from process_flow_api.preview_sessions import content_hash
 
