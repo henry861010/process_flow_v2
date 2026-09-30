@@ -9,6 +9,7 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from typing import Any
 
+from ..models import GeometryGeneratorDefinition
 from .contracts import GeometryGenerator, JsonObject
 from .dram import DramGenerator
 from .engineering_preview import build_engineering_preview
@@ -39,6 +40,7 @@ class GeometryGeneratorRegistry:
             version = definition.get("version")
             if isinstance(version, bool) or not isinstance(version, int) or version < 1:
                 raise ValueError(f"Geometry generator {generator_id} requires a positive version")
+            GeometryGeneratorDefinition.model_validate(definition)
             key = (generator_id, version)
             if key in self._generators:
                 raise ValueError(f"Duplicate geometry generator: {generator_id} v{version}")

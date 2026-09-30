@@ -10,7 +10,7 @@ export type GeometryGeneratorId = string;
 export type { GeometryGeneratorDefinition };
 
 export function GeometryGeneratorIcon({ definition }: { definition: GeometryGeneratorDefinition }) {
-  if (definition.icon === "layers") {
+  if (definition.icon === "layers" || definition.icon === "die.stack") {
     return <Layers3 />;
   }
   return <Boxes />;

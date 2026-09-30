@@ -184,12 +184,11 @@ immutable geometry 與其 generation metadata 不遷移也不重建。
 `name`、`vendor`、`type1`、`type2`、`owner`與`description`都是Save階段的catalog metadata，
 不得出現在generator engineering parameter editor；該editor只描述dimensions、materials與結構。
 
-### Define Flow Input
+### Flow Input
 
-Flow Template Editor與Flow Instance Editor使用同一generator的flow-input mode。此模式不得
-顯示Generate JSON或Save to DB；`Define`回傳包含`generatorId`、`generatorVersion`與完整
-normalized parameters的generator binding，並提供當次preview geometry供UI顯示。Define與
-後續instance save都不建立catalog record；compiler在preview與執行時依版本解析配方。
+HBM的`uiPlacements`只有`home`。Flow Template Editor與Flow Instance Editor不提供HBM
+generator新建或配方編輯入口；使用者從Geometry DB選擇已保存的公版。後端仍可依版本解析
+既有generator binding，不會因UI入口設定而停用preview或compile。
 
 Catalog persistence 與 server-generated geometry id 的一般規則見
 [Persistence](./persistence.md) 與 [Geometry structure](./geometry-structure.md#2-geometryentity-外層結構)。

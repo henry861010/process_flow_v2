@@ -424,12 +424,18 @@ class GeometryGeneratorParameterDefinition(ParameterDefinition):
     )
 
 
+GeometryGeneratorUiPlacement = Literal[
+    "home", "management", "templateGeometryLibrary", "flowInputPicker"
+]
+
+
 class GeometryGeneratorDefinition(StrictModel):
-    schemaVersion: Literal[1] = 1
+    schemaVersion: Literal[2]
     id: str = Field(min_length=1)
     version: int = Field(ge=1)
     label: str = Field(min_length=1)
     description: str = ""
+    uiPlacements: list[GeometryGeneratorUiPlacement]
     entityType: str = Field(min_length=1)
     category: str | None = None
     icon: str | None = None
@@ -438,6 +444,12 @@ class GeometryGeneratorDefinition(StrictModel):
     parameterDefinitions: list[GeometryGeneratorParameterDefinition]
     parameterGroups: list[GeometryGeneratorParameterGroup] = Field(default_factory=list)
     previewViews: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def reject_duplicate_ui_placements(self):
+        if len(self.uiPlacements) != len(set(self.uiPlacements)):
+            raise ValueError("uiPlacements cannot contain duplicates")
+        return self
 
 
 class GeometryGeneratorPreviewRequest(StrictModel):

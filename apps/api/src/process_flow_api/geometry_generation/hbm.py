@@ -28,11 +28,12 @@ DEFAULT_PARAMETERS: JsonObject = {
 class HbmGenerator:
     def definition(self) -> JsonObject:
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "id": "hbm",
             "version": 2,
             "label": "HBM generator",
             "description": "Build an HBM package from a molding envelope and fixed core stack.",
+            "uiPlacements": ["home"],
             "entityType": "die",
             "category": "die.hbm",
             "icon": "die.stack",

@@ -28,8 +28,8 @@ Home is the primary entry point for creating immutable `ProcessFlowInstance` rec
 - Template area: responsive one/two/three-column card grid. Each compact card shows only template
   name, version, and owner. The name owns the 70% primary column.
 - A card links to `/flow-instance-editor?templateId=<encoded id>`.
-- The lower `Create resources` area links to `/flow-template-editor`, `/hbm-editor`, and
-  `/dram-editor`.
+- The lower `Create resources` area links to `/flow-template-editor` and all generators whose
+  `uiPlacements` includes `home`. HBM and DRAM use `/geometry-generator?generatorId=<id>`.
 - Loading uses stable card skeletons. API errors keep known content and expose `Retry`. Empty data
   shows `No process flow templates` while preserving all create commands.
 
@@ -38,6 +38,6 @@ Home is the primary entry point for creating immutable `ProcessFlowInstance` rec
 - `UI-HOME-001`: bootstrap templates produce one keyboard-accessible card each.
 - `UI-HOME-002`: every card carries the correct encoded `templateId` route and only the required
   name, owner, and version metadata.
-- `UI-HOME-003`: Create Template/HBM/DRAM and Management navigate to their dedicated routes.
+- `UI-HOME-003`: Create Template/HBM/DRAM and Management navigate to their configured routes.
 - `UI-HOME-004`: loading, empty, and API-error states do not flash false data.
 - `UI-HOME-005`: 390px viewport has no document-level horizontal overflow.

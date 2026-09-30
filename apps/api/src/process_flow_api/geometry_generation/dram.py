@@ -48,11 +48,12 @@ DEFAULT_PARAMETERS: JsonObject = {
 class DramGenerator:
     def definition(self) -> JsonObject:
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "id": "dram",
             "version": 2,
             "label": "DRAM generator",
             "description": "Build a molded DRAM stack on a configurable SBT buildup.",
+            "uiPlacements": ["home"],
             "entityType": "die",
             "category": "die.dram",
             "icon": "layers",

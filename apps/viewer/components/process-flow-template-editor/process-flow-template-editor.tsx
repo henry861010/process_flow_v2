@@ -32,6 +32,11 @@ import {
 import { CategoryLibraryBrowser } from "@/components/category-library/category-library-browser";
 import { GeometryGeneratorDialogLauncher } from "@/components/geometry-generator/geometry-generator-registry";
 import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
+import {
+  canEditGeneratorBinding,
+  generatorsForFlowInput,
+  generatorsForPlacement,
+} from "@/components/geometry-generator/geometry-generator-placements";
 import { useGeneratorBindingGeometries } from "@/components/geometry-generator/use-generator-binding-geometries";
 import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
 import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
@@ -154,6 +159,7 @@ function ProcessFlowTemplateEditorInner() {
   const [flowTemplates, setFlowTemplates] = React.useState<ProcessFlowTemplate[]>([]);
   const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
   const [generatorDefinitions, setGeneratorDefinitions] = React.useState<GeometryGeneratorDefinition[]>([]);
+  const templateLibraryGenerators = generatorsForPlacement(generatorDefinitions, "templateGeometryLibrary");
   const [generatorEditor, setGeneratorEditor] = React.useState<{
     targetNodeId: string | null;
     definition: GeometryGeneratorDefinition;
@@ -879,21 +885,23 @@ function ProcessFlowTemplateEditorInner() {
       <section className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(540px,1fr)_320px] lg:overflow-hidden">
         <aside className="flex min-h-[240px] flex-col border-r bg-white lg:min-h-0">
           <PaletteHeader icon={<Boxes className="h-4 w-4" />} title="Geometry library" />
-          <div className="space-y-2 border-b p-3">
-            <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
-            {generatorDefinitions.map((definition) => (
-              <Button
-                key={`${definition.id}@${definition.version}`}
-                type="button"
-                variant="outline"
-                className="w-full justify-start"
-                disabled={topologyLocked}
-                onClick={() => setGeneratorEditor({ targetNodeId: null, definition })}
-              >
-                {definition.label}
-              </Button>
-            ))}
-          </div>
+          {templateLibraryGenerators.length > 0 ? (
+            <div className="space-y-2 border-b p-3">
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
+              {templateLibraryGenerators.map((definition) => (
+                <Button
+                  key={`${definition.id}@${definition.version}`}
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled={topologyLocked}
+                  onClick={() => setGeneratorEditor({ targetNodeId: null, definition })}
+                >
+                  {definition.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
           <div className="h-[240px] min-h-0 overflow-y-auto p-3 lg:h-auto lg:flex-1">
             <CategoryLibraryBrowser
               items={geometries}
@@ -1549,13 +1557,8 @@ function GeometryPickerDialog({
   const matchingGeometries = geometries.filter((geometry) =>
     geometryMatchesFlowInput(geometry, flowInput),
   );
-  const matchingGenerators = generatorDefinitions.filter((definition) =>
-    geometryMatchesFlowInput({
-      entityType: definition.entityType,
-      category: definition.category,
-      structureFormat: "standard",
-    }, flowInput),
-  );
+  const matchingGenerators = generatorsForFlowInput(generatorDefinitions, flowInput);
+  const canEditCurrentGenerator = canEditGeneratorBinding(generatorDefinitions, selectedBinding);
 
   React.useEffect(() => {
     const close = (event: KeyboardEvent) => {
@@ -1579,20 +1582,21 @@ function GeometryPickerDialog({
           </Button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="mb-4 space-y-2">
-            <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
-            {selectedBinding?.kind === "generator" ? (
-              <Button type="button" variant="outline" className="w-full justify-start" onClick={onEditCurrentGenerator}>
-                Edit current {selectedBinding.generatorId}@{selectedBinding.generatorVersion} recipe
-              </Button>
-            ) : null}
-            {matchingGenerators.map((definition) => (
-              <Button key={`${definition.id}@${definition.version}`} type="button" variant="outline" className="w-full justify-start" onClick={() => onSelectGenerator(definition)}>
-                {definition.label} · v{definition.version}
-              </Button>
-            ))}
-            {matchingGenerators.length === 0 ? <p className="text-xs text-muted-foreground">No matching generators.</p> : null}
-          </div>
+          {canEditCurrentGenerator || matchingGenerators.length > 0 ? (
+            <div className="mb-4 space-y-2">
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
+              {canEditCurrentGenerator && selectedBinding?.kind === "generator" ? (
+                <Button type="button" variant="outline" className="w-full justify-start" onClick={onEditCurrentGenerator}>
+                  Edit current {selectedBinding.generatorId}@{selectedBinding.generatorVersion} recipe
+                </Button>
+              ) : null}
+              {matchingGenerators.map((definition) => (
+                <Button key={`${definition.id}@${definition.version}`} type="button" variant="outline" className="w-full justify-start" onClick={() => onSelectGenerator(definition)}>
+                  {definition.label} · v{definition.version}
+                </Button>
+              ))}
+            </div>
+          ) : null}
           <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Geometry catalog</div>
           <CategoryLibraryBrowser
             items={matchingGeometries}

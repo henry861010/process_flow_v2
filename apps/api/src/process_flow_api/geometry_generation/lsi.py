@@ -87,11 +87,12 @@ class LsiGenerator:
             )
 
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "id": "lsi",
             "version": 1,
             "label": "LSI generator",
             "description": "Build a one-layer or four-layer LSI die at 8000 x 10000 um.",
+            "uiPlacements": ["management", "templateGeometryLibrary", "flowInputPicker"],
             "entityType": "die",
             "category": "die.lsi",
             "icon": "die.piece",

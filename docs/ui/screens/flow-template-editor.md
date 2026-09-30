@@ -25,7 +25,9 @@ edges. The header contains Home, `Start from template...`, and the single primar
 
 ## Working configuration
 
-The left library offers catalog geometry and available generators. A generator can define a new flow
+The left library offers catalog geometry and generators with `templateGeometryLibrary` placement.
+The geometry input picker offers generators with `flowInputPicker` placement that also match the input's
+geometry constraints. HBM and DRAM are selected from catalog geometry. A generator can define a new flow
 input or serve as the working binding of an existing input. Its parameter editor and preview use the
 backend registry; defining it does not create a geometry catalog record.
 

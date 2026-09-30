@@ -18,6 +18,53 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.client.close()
         self.app.state.store.close()
 
+    def test_generator_ui_placements_are_explicit_in_all_definition_endpoints(self):
+        expected = {
+            "hbm": ["home"],
+            "dram": ["home"],
+            "soc": ["templateGeometryLibrary", "flowInputPicker"],
+            "lsi": ["management", "templateGeometryLibrary", "flowInputPicker"],
+        }
+        listed = self.client.get("/api/geometry-generators")
+        self.assertEqual(listed.status_code, 200, listed.text)
+        self.assertEqual(
+            {item["id"]: item["uiPlacements"] for item in listed.json()}, expected
+        )
+        self.assertTrue(all(item["schemaVersion"] == 2 for item in listed.json()))
+
+        bootstrap = self.client.get("/api/bootstrap")
+        self.assertEqual(bootstrap.status_code, 200, bootstrap.text)
+        self.assertEqual(
+            {
+                item["id"]: (item["schemaVersion"], item["uiPlacements"])
+                for item in bootstrap.json()["geometryGenerators"]
+            },
+            {item["id"]: (item["schemaVersion"], item["uiPlacements"]) for item in listed.json()},
+        )
+        for definition in listed.json():
+            exact = self.client.get(
+                f"/api/geometry-generators/{definition['id']}/versions/{definition['version']}"
+            )
+            self.assertEqual(exact.status_code, 200, exact.text)
+            self.assertEqual(exact.json(), definition)
+
+    def test_registry_rejects_missing_unknown_or_duplicate_ui_placements(self):
+        class InvalidPlacementGenerator(HbmGenerator):
+            def __init__(self, placements):
+                self.placements = placements
+
+            def definition(self):
+                definition = super().definition()
+                if self.placements is None:
+                    del definition["uiPlacements"]
+                else:
+                    definition["uiPlacements"] = self.placements
+                return definition
+
+        for placements in (None, ["unknown"], ["home", "home"]):
+            with self.subTest(placements=placements), self.assertRaises(ValueError):
+                GeometryGeneratorRegistry((InvalidPlacementGenerator(placements),))
+
     def test_generator_catalog_is_backend_driven(self):
         response = self.client.get("/api/geometry-generators")
 

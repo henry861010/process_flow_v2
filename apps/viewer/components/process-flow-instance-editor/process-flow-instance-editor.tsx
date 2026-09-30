@@ -17,6 +17,10 @@ import {
 import { CategoryLibraryBrowser } from "@/components/category-library/category-library-browser";
 import { GeometryGeneratorDialogLauncher } from "@/components/geometry-generator/geometry-generator-registry";
 import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
+import {
+  canEditGeneratorBinding,
+  generatorsForFlowInput,
+} from "@/components/geometry-generator/geometry-generator-placements";
 import { useGeneratorBindingGeometries } from "@/components/geometry-generator/use-generator-binding-geometries";
 import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
 import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
@@ -928,13 +932,8 @@ function GeometryPickerDialog({
   const matchingGeometries = geometries.filter((geometry) =>
     geometryMatchesFlowInput(geometry, flowInput),
   );
-  const matchingGenerators = generatorDefinitions.filter((definition) =>
-    geometryMatchesFlowInput({
-      entityType: definition.entityType,
-      category: definition.category,
-      structureFormat: "standard",
-    }, flowInput),
-  );
+  const matchingGenerators = generatorsForFlowInput(generatorDefinitions, flowInput);
+  const canEditCurrentGenerator = canEditGeneratorBinding(generatorDefinitions, selectedBinding);
 
   React.useEffect(() => {
     const close = (event: KeyboardEvent) => {
@@ -958,20 +957,21 @@ function GeometryPickerDialog({
           </Button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="mb-4 space-y-2">
-            <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
-            {selectedBinding?.kind === "generator" ? (
-              <Button type="button" variant="outline" className="w-full justify-start" onClick={onEditCurrentGenerator}>
-                Edit current {selectedBinding.generatorId}@{selectedBinding.generatorVersion} recipe
-              </Button>
-            ) : null}
-            {matchingGenerators.map((definition) => (
-              <Button key={`${definition.id}@${definition.version}`} type="button" variant="outline" className="w-full justify-start" onClick={() => onSelectGenerator(definition)}>
-                {definition.label} · v{definition.version}
-              </Button>
-            ))}
-            {matchingGenerators.length === 0 ? <p className="text-xs text-muted-foreground">No matching generators.</p> : null}
-          </div>
+          {canEditCurrentGenerator || matchingGenerators.length > 0 ? (
+            <div className="mb-4 space-y-2">
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
+              {canEditCurrentGenerator && selectedBinding?.kind === "generator" ? (
+                <Button type="button" variant="outline" className="w-full justify-start" onClick={onEditCurrentGenerator}>
+                  Edit current {selectedBinding.generatorId}@{selectedBinding.generatorVersion} recipe
+                </Button>
+              ) : null}
+              {matchingGenerators.map((definition) => (
+                <Button key={`${definition.id}@${definition.version}`} type="button" variant="outline" className="w-full justify-start" onClick={() => onSelectGenerator(definition)}>
+                  {definition.label} · v{definition.version}
+                </Button>
+              ))}
+            </div>
+          ) : null}
           <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Geometry catalog</div>
           <CategoryLibraryBrowser
             items={matchingGeometries}

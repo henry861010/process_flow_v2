@@ -3,13 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Boxes,
-  Layers3,
   Plus,
   Settings,
   Workflow,
 } from "lucide-react";
 
+import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
+import {
+  catalogGeneratorHref,
+  generatorDisplayName,
+  generatorsForPlacement,
+} from "@/components/geometry-generator/geometry-generator-placements";
+import { GeometryGeneratorIcon } from "@/components/geometry-generator/geometry-generator-registry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ProcessFlowTemplate } from "@/lib/process-flow/types";
@@ -17,9 +22,10 @@ import { loadBootstrap } from "@/lib/process-flow-api";
 
 type HomeData = {
   flowTemplates: ProcessFlowTemplate[];
+  geometryGenerators: GeometryGeneratorDefinition[];
 };
 
-const emptyHomeData: HomeData = { flowTemplates: [] };
+const emptyHomeData: HomeData = { flowTemplates: [], geometryGenerators: [] };
 
 export default function Home() {
   const [homeData, setHomeData] = React.useState<HomeData>(emptyHomeData);
@@ -32,6 +38,7 @@ export default function Home() {
       const payload = await loadBootstrap();
       setHomeData({
         flowTemplates: payload.processFlowTemplates,
+        geometryGenerators: payload.geometryGenerators,
       });
       setLoadError(null);
     } catch (error) {
@@ -140,12 +147,14 @@ export default function Home() {
             <Button asChild>
               <Link href="/flow-template-editor"><Plus />Create Template</Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href="/hbm-editor"><Layers3 />Create HBM</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/dram-editor"><Boxes />Create DRAM</Link>
-            </Button>
+            {generatorsForPlacement(homeData.geometryGenerators, "home").map((definition) => (
+              <Button key={definition.id} asChild variant="outline">
+                <Link href={catalogGeneratorHref(definition)}>
+                  <GeometryGeneratorIcon definition={definition} />
+                  Create {generatorDisplayName(definition)}
+                </Link>
+              </Button>
+            ))}
           </div>
         </section>
       </div>

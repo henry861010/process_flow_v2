@@ -13,11 +13,12 @@ DEFAULT_PARAMETERS: JsonObject = {"thickness": 150, "material": "Si-SoC"}
 class SocGenerator:
     def definition(self) -> JsonObject:
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "id": "soc",
             "version": 1,
             "label": "SoC generator",
             "description": "Build a single SoC die box with configurable thickness and material.",
+            "uiPlacements": ["templateGeometryLibrary", "flowInputPicker"],
             "entityType": "die",
             "category": "die.soc",
             "icon": "die.piece",

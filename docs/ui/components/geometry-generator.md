@@ -17,9 +17,15 @@ source_of_truth:
 
 # Geometry Generator Framework
 
-所有geometry generators透過後端registry對Flow Template Editor與Flow Instance Editor公開；HBM與DRAM另有Home入口，LSI由Management頁或flow editor進入。Flow editor不得以
-generator id寫HBM/DRAM/SoC/LSI條件分支；新增generator只需在後端註冊definition、validation、geometry
-builder與preview evaluator。只要沿用通用contract，前端不需修改。
+所有geometry generators由後端registry公開。Definition schema version 2的必填
+`uiPlacements`指定建立入口，可選`home`、`management`、`templateGeometryLibrary`與
+`flowInputPicker`；最後一項同時控制Flow Template Editor與Flow Instance Editor的geometry
+input選擇器。Flow editor不得以generator id寫條件分支；新增generator只需在後端註冊
+definition、validation、geometry builder與preview evaluator，並明確宣告入口。
+
+HBM與DRAM只在Home提供catalog建立入口；flow input從Geometry DB選擇公版。SoC出現在
+Template Geometry library及兩種flow input選擇器。LSI另在Management提供catalog建立入口。
+Management和Home的catalog入口共用`/geometry-generator?generatorId=<id>`靜態頁。
 
 SoC generator v1只提供`thickness`及`material`兩個參數，使用8000 × 10000 um作為預覽基準
 footprint，並以`box-rescale@1`在PnP時配合target region調整XY。SoC僅從flow editor的
@@ -29,9 +35,9 @@ LSI generator v1以`generation`參數選擇`gen1`或`gen2`，使用固定8000 ×
 footprint。gen1要求一組material與正的thickness；gen2要求四組，依layer 1至4由下往上
 相貼堆疊。四層提供可編輯的範例材料與厚度；預設為gen1並在開啟時顯示有效預覽，切換
 gen2後也能立即預覽四層。LSI從flow editor的
-generator selector及獨立編輯頁面使用，生成的geometry使用`box-rescale@1`；fixture catalog不提供LSI geometry。
+generator selector及Management的共用catalog頁面使用，生成的geometry使用`box-rescale@1`；fixture catalog不提供LSI geometry。
 
-`GET /api/geometry-generators`提供id/version、label/icon、default parameters、通用
+`GET /api/geometry-generators`提供id/version、`uiPlacements`、label/icon、default parameters、通用
 `ParameterDefinition[]`、optional ordered `parameterGroups`與adaptation contract。前端依definition
 渲染parameter control及分組；沒有groups時維持單一flat parameter card。修改值後debounce呼叫
 `POST /api/geometry-generators/{id}/preview`。編輯舊instance的配方時使用

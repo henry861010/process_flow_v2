@@ -23,8 +23,8 @@ verified_against:
 # HBM Geometry Generator UI
 
 HBM 是通用 [Geometry Generator Framework](./geometry-generator.md) 的 backend manifest，
-不是獨立前端 generator。Home 使用 catalog mode；Flow Template Editor 使用 flow-input mode。
-入口、dialog lifecycle、Save metadata 與 Define result 均由通用 component 負責。
+不是獨立前端 generator。`uiPlacements`只包含`home`，從共用catalog頁建立並Save to DB；
+Flow Template Editor與Flow Instance Editor從Geometry DB選擇公版HBM。
 
 ## Manifest 與 parameters
 
@@ -60,7 +60,7 @@ package X/Y與total thickness產生。
 參數修改後UI debounce呼叫HBM preview endpoint。Valid response顯示backend提供的Top與Cross
 Section views；generic renderer只解讀rectangle/polygon/circle、dimension與semantic role，
 不得自行推導package/core尺寸。Invalid response顯示field-level errors並disable
-Download、Save與Define。
+Download與Save。
 
 Preview是schematic；dimension labels與materialized geometry才是authoritative。Out-of-order HTTP
 response不得取代較新的parameter state；dialog close時必須cancel pending request。
@@ -81,7 +81,6 @@ dimension。DRAM generator沿用相同dimension labels。
 | Mode | Actions | Contract |
 | --- | --- | --- |
 | `catalog` | Download JSON、Save to DB | 先以最後有效`previewToken` materialize，再下載或建立immutable `GeometryEntity`。 |
-| `flowInput` | Define | 保存指定版本與normalized parameters作為generator binding，不寫DB。 |
 
 若目前parameter state與preview不一致，action MUST disabled。Catalog action的token失效時
 顯示error並重新preview，不可在browser fallback build HBM。
@@ -94,7 +93,7 @@ dimension。DRAM generator沿用相同dimension labels。
 | `UI-HBM-002` | 修改core/package參數 | 只呼叫backend preview；stale response不覆蓋最新結果。 |
 | `UI-HBM-003` | Backend回傳validation errors | 對應field顯示error，所有materialize actions disabled。 |
 | `UI-HBM-004` | Valid preview後Download | 下載內容hash對應該preview response的geometry hash。 |
-| `UI-HBM-005` | Flow-input mode Define | Result保存normalized generation parameters與`hbm-package@1`。 |
-| `UI-HBM-006` | 新增另一個backend generator manifest | 不修改viewer registry即可出現在共用入口並渲染fields/preview。 |
-| `UI-HBM-007` | HBM thickness小於base、gaps與core stack總厚度 | `hbmThickness`顯示field error，Download、Save與Define皆disabled。 |
+| `UI-HBM-005` | Flow input選擇HBM | 顯示Geometry DB公版，不顯示HBM generator或Edit current recipe。 |
+| `UI-HBM-006` | 新增另一個backend generator manifest | 依`uiPlacements`出現在共用入口並渲染fields/preview。 |
+| `UI-HBM-007` | HBM thickness小於base、gaps與core stack總厚度 | `hbmThickness`顯示field error，Download與Save皆disabled。 |
 | `UI-HBM-008` | Cross Section真實長寬比超過6:3 | 預設放大厚度至6:3；勾選「Show original aspect ratio」後恢復真實比例，Top View不變。 |

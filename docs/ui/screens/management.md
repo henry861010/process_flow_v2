@@ -21,7 +21,8 @@ Route: `/management`
 
 Management is a bootstrap-backed resource overview. It displays counts and tabbed semantic tables for
 flow templates, flow instances, geometries, and process-step templates. Template rows can open an
-in-page edit modal; template, HBM, and DRAM create commands are available.
+in-page edit modal; template and generators with `management` placement have create commands.
+Currently only LSI has the generator placement.
 
 Every flow-template row has an `Edit` action. The modal keeps id、version、flow inputs、step
 identities/labels and edges locked；only name、owner、description and each existing step ref's scalar

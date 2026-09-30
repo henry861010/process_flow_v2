@@ -12,12 +12,19 @@ export type GeneratorParameterDefinition = ParameterDefinition & {
   } | null;
 };
 
+export type GeometryGeneratorUiPlacement =
+  | "home"
+  | "management"
+  | "templateGeometryLibrary"
+  | "flowInputPicker";
+
 export type GeometryGeneratorDefinition = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   version: number;
   label: string;
   description: string;
+  uiPlacements: GeometryGeneratorUiPlacement[];
   entityType: string;
   category?: string | null;
   icon?: string | null;

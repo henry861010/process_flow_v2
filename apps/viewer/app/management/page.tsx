@@ -16,6 +16,11 @@ import {
 
 import { ProcessFlowTemplateEditDialog } from "@/components/process-flow-template-edit/process-flow-template-edit-dialog";
 import { ProcessStepEditDialog } from "@/components/process-step-edit/process-step-edit-dialog";
+import {
+  catalogGeneratorHref,
+  generatorDisplayName,
+  generatorsForPlacement,
+} from "@/components/geometry-generator/geometry-generator-placements";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -174,9 +179,13 @@ export default function ManagementPage() {
             </TabsList>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm"><Link href="/flow-template-editor"><Plus />Template</Link></Button>
-              <Button asChild size="sm" variant="outline"><Link href="/hbm-editor"><Plus />HBM</Link></Button>
-              <Button asChild size="sm" variant="outline"><Link href="/dram-editor"><Plus />DRAM</Link></Button>
-              <Button asChild size="sm" variant="outline"><Link href="/lsi-editor"><Plus />LSI</Link></Button>
+              {generatorsForPlacement(data.geometryGenerators, "management").map((definition) => (
+                <Button key={definition.id} asChild size="sm" variant="outline">
+                  <Link href={catalogGeneratorHref(definition)}>
+                    <Plus />{generatorDisplayName(definition)}
+                  </Link>
+                </Button>
+              ))}
             </div>
           </div>
 

@@ -1,5 +1,5 @@
 import { GeometryGeneratorPage } from "@/components/geometry-generator/geometry-generator-page";
 
-export default function LsiEditorPage() {
-  return <GeometryGeneratorPage generatorId="lsi" />;
+export default function CatalogGeometryGeneratorPage() {
+  return <GeometryGeneratorPage />;
 }

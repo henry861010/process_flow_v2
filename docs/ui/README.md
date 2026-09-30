@@ -57,7 +57,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/` | [Home](screens/home.md) |
 | `/flow-template-editor` | [Flow Template Editor](screens/flow-template-editor.md) |
 | `/flow-instance-editor` | [Flow Instance Editor](screens/flow-instance-editor.md) |
-| `/hbm-editor`、`/dram-editor` | [Geometry Generator Editors](screens/geometry-generator-editor.md) |
+| `/geometry-generator?generatorId=<id>` | [Geometry Generator Editor](screens/geometry-generator-editor.md) |
 | `/management` | [Management](screens/management.md) |
 | `/cad-viewer` | [CAD Viewer](screens/cad-viewer.md) |
 
@@ -72,7 +72,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `ViewerScene` | [CAD Scene](components/cad-scene.md) |
 | `GeometryPreviewPanel` | [Geometry Preview](components/geometry-preview.md) |
 | `FileExportJobsPanel` | [Export Jobs](components/export-jobs.md) |
-| `HbmGeneratorDialog` | [HBM Geometry Generator](components/hbm-generator.md) |
+| `BackendGeometryGeneratorDialog` | [Geometry Generator Framework](components/geometry-generator.md) |
 
 ## 三種使用模式
 
@@ -89,7 +89,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/` | reset 後 Home ready | template card navigation、create routes、reset | `UI-HOME-001` 至 `UI-HOME-005` |
 | `/flow-template-editor` | fresh draft | click-add step、drag catalog geometry、connect、save、preview | `UI-FTE-001` 至 `UI-FTE-005` |
 | `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA instance | load source instance、edit、preview、save immutable copy | `UI-FIE-001` 至 `UI-FIE-007` |
-| `/hbm-editor`、`/dram-editor` | generator defaults | preview、download、Save to DB | `UI-GEN-001` 至 `UI-GEN-003` |
+| `/geometry-generator?generatorId=<id>` | generator defaults | preview、download、Save to DB | `UI-GEN-001` 至 `UI-GEN-003` |
 | `/management` | bootstrap ready | inspect resources、edit flow-template metadata/defaults、edit process-step settings、open authoring routes | `UI-MGMT-001` 至 `UI-MGMT-005` |
 | `/cad-viewer` | demo workbench | import、section、camera、reset | `UI-CAD-001` 至 `UI-CAD-006` |
 | Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |

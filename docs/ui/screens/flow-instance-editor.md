@@ -43,6 +43,10 @@ confirmation.
 is in progress. Its dialog requires name, id, version, and owner; description is optional. Version
 defaults to `V0.0.0`. Submit calls `POST /api/process-flow-instances`; success returns Home.
 
+The geometry input picker lists only category-compatible generators with `flowInputPicker`
+placement. HBM and DRAM inputs use the Geometry DB catalog records; hidden generators do not
+offer an `Edit current recipe` action.
+
 ## Graph and state
 
 Topology is always view mode and is rebuilt from the selected template. Geometry bindings and step

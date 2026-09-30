@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { Boxes, Loader2 } from "lucide-react";
 
 import { BackendGeometryGeneratorDialog } from "@/components/geometry-generator/backend-geometry-generator-dialog";
+import { generatorAvailableIn } from "@/components/geometry-generator/geometry-generator-placements";
 import { Button } from "@/components/ui/button";
 import { listGeometryGenerators } from "@/lib/process-flow-api";
 import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
 
-export function GeometryGeneratorPage({ generatorId }: { generatorId: "hbm" | "dram" | "lsi" }) {
+export function GeometryGeneratorPage() {
   const router = useRouter();
   const [definition, setDefinition] = React.useState<GeometryGeneratorDefinition | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -17,11 +18,16 @@ export function GeometryGeneratorPage({ generatorId }: { generatorId: "hbm" | "d
 
   React.useEffect(() => {
     let active = true;
+    const generatorId = new URLSearchParams(window.location.search).get("generatorId");
     listGeometryGenerators()
       .then((definitions) => {
         if (!active) return;
+        if (!generatorId) throw new Error("Missing geometry generator id.");
         const match = definitions.find((item) => item.id === generatorId);
         if (!match) throw new Error(`Geometry generator not found: ${generatorId}`);
+        if (!generatorAvailableIn(match, "home") && !generatorAvailableIn(match, "management")) {
+          throw new Error(`Catalog editor unavailable for geometry generator: ${generatorId}`);
+        }
         setDefinition(match);
       })
       .catch((reason) => {
@@ -34,7 +40,7 @@ export function GeometryGeneratorPage({ generatorId }: { generatorId: "hbm" | "d
     return () => {
       active = false;
     };
-  }, [generatorId]);
+  }, []);
 
   if (definition) {
     return (
