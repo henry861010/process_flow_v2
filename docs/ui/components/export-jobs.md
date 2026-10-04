@@ -46,7 +46,8 @@ Symmetry依序顯示`Full`、`Upper Half`、`Right Half`、`Upper-right Quarter`
 上方 `Mesh control set` 下拉預設為 `Manual / custom`，文案明示set會同時填入基本mesh設定與local controls；選擇已登錄 set 會將目前 preview structure 送到
 `POST /api/mesh-control-sets/{id}/apply`，把回傳的 global size、symmetry 與 controls 展開為可編輯欄位，
 並顯示每條規則的解析區間。修改展開結果後標示 `Customized after applying`；套用失敗保留原草稿。
-HBM example 只適用於單一 root HBM generator v2 geometry，其尺寸是示範值而非部門標準。
+Built-in set 只提供 `meshModel1`、`meshModel2` 與 `meshModel3`；三者目前以相同的
+Tim、adhesive、uBump 與 UF rules 為初始值，但各自保留獨立實作與 control sizes。
 `Local controls`區塊預設收合，整列可點擊並顯示控制數量；收合不得清空draft。
 `Add control` 位於右側標題旁，新增時自動展開並捲到新卡片；已有控制時展開清單底部也提供新增按鈕。
 Controls初始為空，可新增/刪除；展開後顯示resolved rules、empty state或control cards。

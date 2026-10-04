@@ -162,14 +162,14 @@ function buildMeshControlEntry(control: MeshControlDraft): MeshControlEntry {
   if (control.method === "Z_POINT") {
     return {
       method: control.method,
-      ...(label ? { label } : {}),
+      label,
       ...(reference ? { reference } : {}),
       z: buildZLocation(control.z),
     };
   }
   return {
     method: control.method,
-    ...(label ? { label } : {}),
+    label,
     ...(reference ? { reference } : {}),
     elementSize: Number(control.elementSize),
     startZ: buildZLocation(control.startZ),
@@ -212,6 +212,9 @@ export function validateMeshControlDraft(
   }
   for (const [index, control] of controls.entries()) {
     const label = `Control ${index + 1}`;
+    if (!control.label.trim()) {
+      return `${label} label is required.`;
+    }
     if (control.method === "Z_POINT") {
       if (!isFiniteInput(control.z.value)) {
         return `${label} Z position must be a finite number.`;

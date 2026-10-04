@@ -113,6 +113,8 @@ class GeometryFixtureTests(unittest.TestCase):
                     "envelope",
                     "molding",
                     "daf",
+                    "tim",
+                    "adh",
                     "hbm.base_die",
                     "hbm.top_die",
                 }

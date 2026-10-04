@@ -408,6 +408,8 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertNotIn("key", Container().tree_json())
 
         for key in (
+            "tim",
+            "adh",
             "hbm.base_die",
             "hbm.core_die_1",
             "hbm.core_die_63",

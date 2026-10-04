@@ -28,7 +28,7 @@ export type MeshControlEntry =
         | "Z_SECTION_TOP"
         | "Z_SECTION_BOT"
         | "Z_SECTION_CENTER";
-      label?: string;
+      label: string;
       reference?: MeshControlReference;
       elementSize: number;
       startZ: MeshControlZLocation;
@@ -36,7 +36,7 @@ export type MeshControlEntry =
     }
   | {
       method: "Z_POINT";
-      label?: string;
+      label: string;
       reference?: MeshControlReference;
       z: MeshControlZLocation;
     };

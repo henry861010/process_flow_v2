@@ -98,8 +98,11 @@ export function FileExportDialog({
   const [libraryError, setLibraryError] = React.useState<string | null>(null);
   const [applyingSet, setApplyingSet] = React.useState(false);
   const applyAbortRef = React.useRef<AbortController | null>(null);
-  const pendingControlScrollRef = React.useRef<string | null>(null);
-  const [meshControlsExpanded, setMeshControlsExpanded] = React.useState(false);
+  const pendingControlNavigationRef = React.useRef<{
+    clientId: string;
+    focusLabel: boolean;
+  } | null>(null);
+  const [expandedControlIds, setExpandedControlIds] = React.useState<string[]>([]);
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
@@ -133,14 +136,20 @@ export function FileExportDialog({
   }, [kind]);
 
   React.useEffect(() => {
-    const clientId = pendingControlScrollRef.current;
-    if (!clientId || !meshControlsExpanded) return;
+    const pending = pendingControlNavigationRef.current;
+    if (!pending || !expandedControlIds.includes(pending.clientId)) return;
+    const { clientId, focusLabel } = pending;
     document.getElementById(`${meshControlsPanelId}-${clientId}`)?.scrollIntoView({
       behavior: "smooth",
       block: "nearest",
     });
-    pendingControlScrollRef.current = null;
-  }, [controls, error, meshControlsExpanded, meshControlsPanelId]);
+    if (focusLabel) {
+      document.getElementById(`${meshControlsPanelId}-${clientId}-label`)?.focus({
+        preventScroll: true,
+      });
+    }
+    pendingControlNavigationRef.current = null;
+  }, [controls, error, expandedControlIds, meshControlsPanelId]);
 
   function markCustomized() {
     setError(null);
@@ -149,10 +158,10 @@ export function FileExportDialog({
 
   function addControl() {
     const draft = newMeshControlDraft();
-    pendingControlScrollRef.current = draft.clientId;
+    pendingControlNavigationRef.current = { clientId: draft.clientId, focusLabel: true };
     markCustomized();
     setControls((items) => [...items, draft]);
-    setMeshControlsExpanded(true);
+    setExpandedControlIds((ids) => [...ids, draft.clientId]);
   }
 
   async function selectControlSet(setId: string) {
@@ -183,7 +192,8 @@ export function FileExportDialog({
       setAppliedSet(definition);
       setSetDetails(applied.details);
       setSetCustomized(false);
-      setMeshControlsExpanded(true);
+      setExpandedControlIds([]);
+      pendingControlNavigationRef.current = null;
       setError(null);
     } catch (requestError) {
       if (!controller.signal.aborted) {
@@ -209,8 +219,12 @@ export function FileExportDialog({
         ? Number(/^Control (\d+)/.exec(meshControlError)?.[1]) - 1
         : -1;
       if (Number.isInteger(invalidControlIndex) && controls[invalidControlIndex]) {
-        pendingControlScrollRef.current = controls[invalidControlIndex].clientId;
-        setMeshControlsExpanded(true);
+        const clientId = controls[invalidControlIndex].clientId;
+        pendingControlNavigationRef.current = {
+          clientId,
+          focusLabel: !controls[invalidControlIndex].label.trim(),
+        };
+        setExpandedControlIds((ids) => [...new Set([...ids, clientId])]);
       }
       setError(validationError);
       return;
@@ -255,6 +269,7 @@ export function FileExportDialog({
         onClick={submitting ? undefined : onClose}
       />
       <form
+        noValidate
         role="dialog"
         aria-modal="true"
         aria-labelledby={exportDialogTitleId}
@@ -387,98 +402,73 @@ export function FileExportDialog({
                 <section className="min-w-0 space-y-4 rounded-lg border bg-white p-4" aria-labelledby="mesh-controls-heading">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h4 id="mesh-controls-heading" className="text-sm font-semibold">Mesh controls</h4>
+                      <h4 id="mesh-controls-heading" className="flex items-center gap-2 text-sm font-semibold">
+                        Mesh controls
+                        <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px] text-secondary-foreground">{controls.length}</span>
+                      </h4>
                       <p className="mt-1 text-xs text-muted-foreground">Refine the mesh at selected Z locations.</p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={submitting || applyingSet}
-                      onClick={addControl}
-                    >
-                      <Plus />
-                      Add control
-                    </Button>
                   </div>
 
-                  <div className="rounded-md border">
-                    <button
-                      type="button"
-                      className={`flex min-h-11 w-full items-center justify-between gap-3 bg-muted/20 px-3 py-2 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${meshControlsExpanded ? "rounded-t-md" : "rounded-md"}`}
-                      aria-expanded={meshControlsExpanded}
-                      aria-controls={meshControlsPanelId}
-                      disabled={submitting || applyingSet}
-                      onClick={() => setMeshControlsExpanded((expanded) => !expanded)}
-                    >
-                      <span className="min-w-0 flex-1 text-xs font-medium text-foreground">
-                        <span className="flex items-center gap-2">
-                          Local controls
-                          <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px] text-secondary-foreground">{controls.length}</span>
-                        </span>
-                        {!meshControlsExpanded && controls.length > 0 ? (
-                          <span className="mt-1 block truncate text-[11px] font-normal text-muted-foreground" title={controls.map(meshControlDisplayLabel).join(" · ")}>
-                            {controls.slice(0, 3).map(meshControlDisplayLabel).join(" · ")}
-                            {controls.length > 3 ? ` · +${controls.length - 3} more` : ""}
-                          </span>
-                        ) : null}
-                      </span>
-                      <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${meshControlsExpanded ? "rotate-180" : ""}`} />
-                    </button>
-
-                    {meshControlsExpanded ? (
-                      <div id={meshControlsPanelId} className="space-y-3 border-t p-3">
-                        {setDetails.length > 0 ? (
-                          <div className="rounded-md border bg-muted/15 p-3">
-                            <p className="mb-2 text-xs font-semibold">{setCustomized ? "Original resolved rules" : "Resolved rules"}</p>
-                            <ul className="space-y-1 text-xs text-muted-foreground">
-                              {setDetails.map((detail, index) => (
-                                <li key={`${detail.label}-${index}`}>
-                                  {detail.label}: {detail.startZ} → {detail.endZ} µm
-                                  {detail.status === "omitted" ? " (zero thickness, omitted)" : ""}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                        {controls.length === 0 ? (
-                          <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">No local mesh controls.</p>
-                        ) : (
-                          <div className="space-y-3">
-                            {controls.map((control, index) => (
-                              <div key={control.clientId} id={`${meshControlsPanelId}-${control.clientId}`}>
-                                <MeshControlEditor
-                                  index={index}
-                                  control={control}
-                                  keyedGeometryReferences={keyedGeometryReferences}
-                                  disabled={submitting || applyingSet}
-                                  onChange={(next) => {
-                                    markCustomized();
-                                    setControls((items) => items.map((item, itemIndex) => itemIndex === index ? next : item));
-                                  }}
-                                  onRemove={() => {
-                                    markCustomized();
-                                    setControls((items) => items.filter((_, itemIndex) => itemIndex !== index));
-                                  }}
-                                />
-                              </div>
-                            ))}
-                            <div className="flex justify-end pt-1">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={submitting || applyingSet}
-                                onClick={addControl}
-                              >
-                                <Plus />
-                                Add control
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                  <div id={meshControlsPanelId} className="space-y-3">
+                    {setDetails.length > 0 ? (
+                      <div className="rounded-md border bg-muted/15 p-3">
+                        <p className="mb-2 text-xs font-semibold">{setCustomized ? "Original resolved rules" : "Resolved rules"}</p>
+                        <ul className="space-y-1 text-xs text-muted-foreground">
+                          {setDetails.map((detail, index) => (
+                            <li key={`${detail.label}-${index}`}>
+                              {detail.label}: {detail.startZ} → {detail.endZ} µm
+                              {detail.status === "omitted" ? " (zero thickness, omitted)" : ""}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     ) : null}
+                    {controls.length === 0 ? (
+                      <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">No local mesh controls.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {controls.map((control, index) => (
+                          <div key={control.clientId} id={`${meshControlsPanelId}-${control.clientId}`}>
+                            <MeshControlEditor
+                              editorId={`${meshControlsPanelId}-${control.clientId}`}
+                              index={index}
+                              control={control}
+                              expanded={expandedControlIds.includes(control.clientId)}
+                              labelInvalid={error === `Control ${index + 1} label is required.`}
+                              keyedGeometryReferences={keyedGeometryReferences}
+                              disabled={submitting || applyingSet}
+                              onToggle={() => {
+                                setExpandedControlIds((ids) => ids.includes(control.clientId)
+                                  ? ids.filter((id) => id !== control.clientId)
+                                  : [...ids, control.clientId]);
+                              }}
+                              onChange={(next) => {
+                                markCustomized();
+                                setControls((items) => items.map((item, itemIndex) => itemIndex === index ? next : item));
+                              }}
+                              onRemove={() => {
+                                markCustomized();
+                                setControls((items) => items.filter((_, itemIndex) => itemIndex !== index));
+                                setExpandedControlIds((ids) => ids.filter((id) => id !== control.clientId));
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={submitting || applyingSet}
+                        onClick={addControl}
+                      >
+                        <Plus />
+                        Add control
+                      </Button>
+                    </div>
                   </div>
                 </section>
               </div>
@@ -549,17 +539,25 @@ export function FileExportDialog({
 }
 
 function MeshControlEditor({
+  editorId,
   index,
   control,
+  expanded,
+  labelInvalid,
   keyedGeometryReferences,
   disabled,
+  onToggle,
   onChange,
   onRemove,
 }: {
+  editorId: string;
   index: number;
   control: MeshControlDraft;
+  expanded: boolean;
+  labelInvalid: boolean;
   keyedGeometryReferences: KeyedGeometryReference[];
   disabled: boolean;
+  onToggle: () => void;
   onChange: (control: MeshControlDraft) => void;
   onRemove: () => void;
 }) {
@@ -603,25 +601,29 @@ function MeshControlEditor({
 
   return (
     <article className="rounded-md border bg-white shadow-sm">
-      <header className="flex items-center justify-between gap-3 rounded-t-md border-b bg-muted/40 px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm bg-primary px-1.5 font-mono text-[10px] font-semibold text-primary-foreground">
-            {index + 1}
+      <header className={`flex items-center gap-2 bg-muted/40 ${expanded ? "rounded-t-md border-b" : "rounded-md"}`}>
+        <button
+          type="button"
+          className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          aria-expanded={expanded}
+          aria-controls={`${editorId}-settings`}
+          disabled={disabled}
+          onClick={() => {
+            setReferenceGuideOpen(false);
+            setReferenceSearch("");
+            onToggle();
+          }}
+        >
+          <span className="truncate text-xs font-semibold text-foreground" title={meshControlDisplayLabel(control, index)}>
+            {meshControlDisplayLabel(control, index)}
           </span>
-          <div className="min-w-0">
-            <h5 className="truncate text-xs font-semibold text-foreground" title={meshControlDisplayLabel(control, index)}>
-              {meshControlDisplayLabel(control, index)}
-            </h5>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {isPoint ? "Point constraint" : "Section constraint"}
-            </p>
-          </div>
-        </div>
+          <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </button>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          className="mr-2 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           title={`Remove control ${index + 1}`}
           aria-label={`Remove control ${index + 1}`}
           disabled={disabled}
@@ -631,11 +633,15 @@ function MeshControlEditor({
         </Button>
       </header>
 
-      <div className="space-y-4 p-3 sm:p-4">
+      <div id={`${editorId}-settings`} hidden={!expanded} className="space-y-4 p-3 sm:p-4">
         <label className="block min-w-0 space-y-1.5">
-          <span className="text-xs font-medium text-foreground">Label (optional)</span>
+          <span className="text-xs font-medium text-foreground">Label <span aria-hidden="true" className="text-destructive">*</span></span>
           <input
-            className={compactInputClass}
+            id={`${editorId}-label`}
+            className={`${compactInputClass} ${labelInvalid ? "border-destructive" : ""}`}
+            required
+            aria-label={`Control ${index + 1} label`}
+            aria-invalid={labelInvalid}
             value={control.label}
             disabled={disabled}
             placeholder="What is this control for?"

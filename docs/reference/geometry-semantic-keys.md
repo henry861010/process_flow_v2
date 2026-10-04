@@ -54,6 +54,8 @@ MUST NOT 放入 key。
 - `envelope`：代表所屬 Container／Entity 整體外形或幾何近似的 Body。
 - `molding`：molding process 建立的實體。
 - `daf`：DAF process step 建立的 DAF 實體。
+- `tim`：thermal interface material 實體。
+- `adh`：adhesive 實體。
 - `hbm.base_die`：HBM generator 建立的 base die。
 - `hbm.core_die_1` 至 `hbm.core_die_63`：HBM generator 建立的一般 core dies；編號從 1
   開始且不得補零。

@@ -419,7 +419,7 @@ def create_app(
         try:
             state = ProcessGeometryState.from_structure(body.geometryStructure)
             definition, result = app.state.mesh_control_sets.apply(set_id, state)
-            validate_mesh_control(result.mesh_control)
+            _validate_mesh_control(result.mesh_control)
         except (MeshControlSetNotApplicable, ValueError, KeyError, TypeError, AttributeError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return {
@@ -482,9 +482,17 @@ def create_app(
     return app
 
 
+def _validate_mesh_control(mesh_control: dict[str, Any]) -> None:
+    validate_mesh_control(mesh_control)
+    for index, control in enumerate(mesh_control["controls"], start=1):
+        label = control.get("label")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError(f"Control {index} label is required and must be a non-empty string.")
+
+
 def _validated_mesh_control(mesh_control: dict[str, Any]) -> dict[str, Any]:
     try:
-        validate_mesh_control(mesh_control)
+        _validate_mesh_control(mesh_control)
     except ValueError as error:
         raise HTTPException(
             status_code=422,

@@ -10,6 +10,7 @@ implementing `definition()` and `build(state)`, then register one instance in
 The result is `MeshControlSetResult(mesh_control=..., details=...)`. The API
 validates `mesh_control` with the installed mesher contract before returning it.
 
-`HbmExampleSet` demonstrates resolving real body boundaries without creating
-gap bodies. Its element sizes are illustrative and are **not** an approved mesh
-standard. It accepts only the standalone HBM generator v2 structure.
+`MeshModel1Set`, `MeshModel2Set`, and `MeshModel3Set` are independent
+implementations. They start with the same geometry-aware Tim, adhesive, uBump,
+and UF rules, but keep their constants and helper functions separate so each
+model can tune control sizes without changing the others.
