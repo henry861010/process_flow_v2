@@ -53,6 +53,9 @@ Topology is always view mode and is rebuilt from the selected template. Geometry
 parameters remain editable through single-click node dialogs. Preview/export behavior is unchanged.
 Dirty state protects reload/close and Home/source replacement. Source metadata is never copied.
 
+Mouse-wheel scrolling zooms around the pointer, matching the template editor. Dragging the canvas
+pans the view; the bottom-left zoom controls remain available. Zoom limits are `0.28` to `1.45`.
+
 The geometry picker filters catalog records and available generators using the selected flow input's
 `geometryConstraints`. A category constraint accepts the exact category and dot-delimited
 descendants, but not sibling categories. A generator opens the shared parameter editor and keeps a
@@ -72,3 +75,5 @@ geometry constraints when an instance is saved.
 - `UI-FIE-008`: geometry browsing and search expose only geometries accepted by the template's category constraints.
 - `UI-FIE-009`: generator recipes can be selected, edited, previewed, copied from a source instance,
   and saved without creating a geometry catalog record.
+- `UI-FIE-010`: scrolling the mouse wheel zooms around the pointer; canvas dragging pans and the
+  bottom-left zoom controls remain usable.

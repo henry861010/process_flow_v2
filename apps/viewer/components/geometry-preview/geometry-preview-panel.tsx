@@ -247,14 +247,6 @@ export function GeometryPreviewPanel({
           <Button
             variant="outline"
             disabled={!ready}
-            onClick={() => openFileExportDialog("step")}
-          >
-            <Download />
-            Export STEP AP242
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!ready}
             onClick={() => openFileExportDialog("cdb")}
           >
             <Download />

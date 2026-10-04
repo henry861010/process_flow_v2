@@ -71,7 +71,7 @@ Outer fixed inset、z `50`、padding base `12px` / `sm` `24px`。Backdrop
 Header：`Geometry Preview`、request badge `Loading/Ready/Error`、source badge
 `Geometry Input/Step output`；次行 `<sourceLabel> -> <slotLabel>`；右側 Close。
 
-Footer actions order固定：`Export JSON`、`Export STEP AP242`、`Export CDB`。非Ready全部disabled。
+Footer actions order固定：`Export JSON`、`Export CDB`。非Ready全部disabled。
 Backdrop、Close、Escape關閉；unmount abort進行中的preview request。關閉不改editor draft，也不取消
 已建立的export jobs。
 
@@ -99,7 +99,7 @@ close/context change -> abort session / mesh / section requests
 | ready, mesh error | workbench + right-pane destructive mesh error | `Ready` | enabled（target semantic snapshot仍存在） |
 | ready | CAD + feature controls | `Ready` | enabled |
 
-Session manifest、decoded binary mesh與section responses只作interaction/cache，不寫catalog。三種export
+Session manifest、decoded binary mesh與section responses只作interaction/cache，不寫catalog。兩種export
 都必須使用`initialSnapshotId`指定的immutable target snapshot。現行transition
 compatibility endpoint仍只把`geometryEntityJson`與decoded base64 GLB留memory。
 
@@ -117,7 +117,7 @@ Viewport使用 [CAD Scene](cad-scene.md)，Grid/Axes永遠on。左上badge顯示
 enabled且total>0時追加 `<n> features`。底部只顯示 Bounds，不顯示mesh stats。
 
 Right pane MUST直接從Axis view開始，不得顯示`Process timeline`或其他upstream snapshot按鈕。即使
-session manifest包含多個snapshots，viewport、mesh、section與三種export也只能使用
+session manifest包含多個snapshots，viewport、mesh、section與兩種export也只能使用
 `initialSnapshotId`指定的target snapshot；使用者在哪一個input／step output開啟preview，就只看到該階段。
 
 ## Right pane 順序與預設值

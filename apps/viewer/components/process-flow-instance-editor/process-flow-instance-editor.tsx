@@ -475,7 +475,6 @@ function ProcessFlowInstanceEditorInner() {
         fitView
         edgesReconnectable={false}
         elementsSelectable
-        panOnScroll
         minZoom={0.28}
         maxZoom={1.45}
         showMiniMap={graph.nodes.length > 0}
