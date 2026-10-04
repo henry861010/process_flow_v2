@@ -17,6 +17,10 @@ CONTAINER_KEYS = frozenset(
     }
 )
 
+_HBM_CORE_DIE_KEYS = frozenset(
+    f"hbm.core_die_{number}" for number in range(1, 64)
+)
+
 BODY_KEYS = frozenset(
     {
         "carrier",
@@ -24,8 +28,10 @@ BODY_KEYS = frozenset(
         "envelope",
         "molding",
         "daf",
+        "hbm.base_die",
+        "hbm.top_die",
     }
-)
+) | _HBM_CORE_DIE_KEYS
 
 
 def validate_container_key(value):

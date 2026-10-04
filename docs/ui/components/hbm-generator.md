@@ -32,10 +32,9 @@ Viewer 從 `GET /api/geometry-generators` 取得 `id="hbm"` 的 label、defaults
 `ParameterDefinition[]` 與 `hbm-package@1` adaptation contract。欄位順序、default、unit、range
 與error以manifest/preview response為準；viewer不得保存另一份HBM constants或validation。
 
-目前 manifest version 是 `2`。厚度輸入使用代表最終封裝厚度的 `hbmThickness`，以及只套用於最上層
-core die 的 `topCoreDieThickness`；v1 的 `topMoldingThickness` 不再顯示或送出。Backend 從總厚度
-扣除 base die、gaps 與所有 core dies 後衍生 top molding thickness。總厚度不足以容納 stack 時，
-error 對應 `hbmThickness` 欄位，所有 materialize actions 維持 disabled。
+目前 manifest version 是 `2`。使用者分別輸入一般 core die 與 top core die 厚度；`hbmThickness`
+及 v1 的 `topMoldingThickness` 不再顯示或送出。Backend 由 base die、gaps、一般 core dies 與
+top core die 自動衍生總厚度，molding 頂面與 top core die 頂面齊平。
 
 目前backend parameters與domain規則見
 [HBM Geometry Generator](../../reference/hbm-generator.md#參數)。Number/material controls依通用
@@ -45,8 +44,8 @@ HBM manifest將parameter editor排成四個card，且card與欄位順序皆由`p
 
 1. `Package & core die size`：Package X、Package Y、Core die X、Core die Y。
 2. `Core die count`：Core die count。
-3. `Thickness & gap`：HBM thickness，接著依stack由下而上排列 Base die
-   thickness、Core-base gap、Core die thickness、Core-core gap、Top core die thickness。
+3. `Thickness & gap`：依stack由下而上排列 Base die thickness、Core-base gap、Core die
+   thickness、Core-core gap、Top core die thickness。
 4. `Material`：Molding material、Die material。
 
 Viewer不得依`generatorId`自行重排欄位；未來版面調整應修改backend manifest。
@@ -95,5 +94,5 @@ dimension。DRAM generator沿用相同dimension labels。
 | `UI-HBM-004` | Valid preview後Download | 下載內容hash對應該preview response的geometry hash。 |
 | `UI-HBM-005` | Flow input選擇HBM | 顯示Geometry DB公版，不顯示HBM generator或Edit current recipe。 |
 | `UI-HBM-006` | 新增另一個backend generator manifest | 依`uiPlacements`出現在共用入口並渲染fields/preview。 |
-| `UI-HBM-007` | HBM thickness小於base、gaps與core stack總厚度 | `hbmThickness`顯示field error，Download與Save皆disabled。 |
+| `UI-HBM-007` | 修改任一 die thickness、gap 或 core die count | Total thickness隨完整stack重新計算，molding頂面維持與top core die齊平。 |
 | `UI-HBM-008` | Cross Section真實長寬比超過6:3 | 預設放大厚度至6:3；勾選「Show original aspect ratio」後恢復真實比例，Top View不變。 |

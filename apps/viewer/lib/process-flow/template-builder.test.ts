@@ -15,7 +15,7 @@ describe("template working generator binding", () => {
       {
         inputBindings: { incoming_hbm: {
           kind: "generator", generatorId: "hbm", generatorVersion: 2,
-          parameters: { hbmThickness: 480 },
+          parameters: { topCoreDieThickness: 50 },
         } },
         stepConfigurations: {},
         embeddedGeometries: {},

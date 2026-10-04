@@ -109,23 +109,23 @@ class AdaptivePnpTests(unittest.TestCase):
         first, second = result.geometry()["root"]["children"]
         first_mold = first["bodies"][0]["geometry"]
         second_mold = second["bodies"][0]["geometry"]
-        first_core = first["children"][1]["bodies"][0]["geometry"]
-        second_core = second["children"][1]["bodies"][0]["geometry"]
+        first_top_core = first["children"][1]["bodies"][0]["geometry"]
+        second_top_core = second["children"][1]["bodies"][0]["geometry"]
         self.assertEqual(first_mold["bottom_left"][:2], [10, 20])
         self.assertEqual(first_mold["top_right"][:2], [18, 26])
         self.assertEqual(second_mold["bottom_left"][:2], [30, 40])
         self.assertEqual(second_mold["top_right"][:2], [36, 45])
         self.assertEqual(
             [
-                first_core["top_right"][0] - first_core["bottom_left"][0],
-                first_core["top_right"][1] - first_core["bottom_left"][1],
+                first_top_core["top_right"][0] - first_top_core["bottom_left"][0],
+                first_top_core["top_right"][1] - first_top_core["bottom_left"][1],
             ],
             [4, 3],
         )
         self.assertEqual(
             [
-                second_core["top_right"][0] - second_core["bottom_left"][0],
-                second_core["top_right"][1] - second_core["bottom_left"][1],
+                second_top_core["top_right"][0] - second_top_core["bottom_left"][0],
+                second_top_core["top_right"][1] - second_top_core["bottom_left"][1],
             ],
             [4, 3],
         )
@@ -832,9 +832,10 @@ def hbm_geometry():
                     "children": [],
                 },
                 {
-                    "id": "container:hbm-core-die-01",
+                    "id": "container:hbm-top-core-die",
                     "bodies": [
                         {
+                            "id": "body:hbm-top-core-die",
                             "geometry": {
                                 "type": "BoxGeometry",
                                 "bottom_left": [-2, -1.5, 2],

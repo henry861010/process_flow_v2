@@ -106,7 +106,20 @@ class GeometryFixtureTests(unittest.TestCase):
         )
         self.assertEqual(
             BODY_KEYS,
-            frozenset({"carrier", "frame", "envelope", "molding", "daf"}),
+            frozenset(
+                {
+                    "carrier",
+                    "frame",
+                    "envelope",
+                    "molding",
+                    "daf",
+                    "hbm.base_die",
+                    "hbm.top_die",
+                }
+            )
+            | frozenset(
+                f"hbm.core_die_{number}" for number in range(1, 64)
+            ),
         )
 
         expected_root_keys = {

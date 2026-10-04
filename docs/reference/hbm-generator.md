@@ -30,8 +30,9 @@ HBM Geometry Generator 將一組 package、base die、core die stack 與 molding
 `standard` GeometryStructure `1.0.0`。產物可以直接下載，或包裝成 immutable
 `GeometryEntity` 寫入 geometry catalog。
 
-本版只描述矩形 HBM package。所有 core dies 使用相同尺寸、間距與材料；最上層可使用獨立厚度，
-其餘 core dies 共用一般 core die 厚度。下列項目不在本版範圍：
+本版只描述矩形 HBM package。所有 core dies 使用相同尺寸、間距與材料；最上層使用獨立的
+top core die 身分與厚度，其餘 core dies 共用一般 core die 厚度。Molding 頂面與 top core die
+頂面齊平，不覆蓋 top core die 上表面。下列項目不在本版範圍：
 
 - 每層 core die 使用不同尺寸、材料，或除最上層外再個別設定厚度；
 - core die XY offset、rotation 或非置中排列；
@@ -43,11 +44,12 @@ HBM Geometry Generator 將一組 package、base die、core die stack 與 molding
 
 - `unitSystem` 必須是 `um`。
 - Package 中心必須位於 XY 原點，底面必須位於 `Z = 0`。
-- Root container key 必須是 `hbm`，且 direct body 是佔滿完整 package envelope 的
-  molding body；該 body key 必須是 `envelope`，供 package adapter 選取可變 footprint。
-- 其餘 child containers 與所有 bodies 不提供 semantic key；它們以 structure-local id
-  區分。
-- Base die 與每一層 core die 必須各自是 root 的 direct child container。
+- Root container key 必須是 `hbm`，且 direct body 是佔滿完整 package footprint、厚度至 top core die
+  頂面的 molding body；該 body key 必須是 `envelope`，供 package adapter 選取可變 footprint。
+- Child containers 不提供 semantic key；base die body 必須使用 `hbm.base_die`，一般 core die
+  bodies 必須依由下到上的 1-based、未補零編號使用 `hbm.core_die_1` 至
+  `hbm.core_die_63`，top core die body 必須使用 `hbm.top_die`。
+- Base die、每一層一般 core die 與 top core die 必須各自是 root 的 direct child container。
 - Base die footprint 必須和 package footprint 完全相同。
 - 所有 core dies 必須在 XY 原點置中；`coreDieX` 與 `coreDieY` 彼此獨立，不要求相等。
 - Base die 與 core dies 必須使用同一個 `dieMaterial`；molding 使用獨立的
@@ -67,7 +69,6 @@ ownership contract。
 | --- | --- | --- | --- |
 | `packageX` | finite number | `> 0` | Package 與 base die 的 X 尺寸。 |
 | `packageY` | finite number | `> 0` | Package 與 base die 的 Y 尺寸。 |
-| `hbmThickness` | finite number | `> 0` 且 `>= occupiedStackThickness` | HBM package 的最終總厚度。 |
 | `moldingMaterial` | string | trim 後非空 | Root molding body material。 |
 | `baseDieThickness` | finite number | `> 0` | Base die 厚度。 |
 | `coreDieX` | finite number | `> 0` 且 `<= packageX` | 每層 core die 的 X 尺寸。 |
@@ -86,15 +87,12 @@ ownership contract。
 令 core die index `i` 從 `0` 開始，`N = coreDieCount`。
 
 ```text
-occupiedStackThickness =
+totalThickness =
     baseDieThickness
   + coreBaseGap
   + (N - 1) * coreDieThickness
   + topCoreDieThickness
   + (N - 1) * coreCoreGap
-
-totalThickness = hbmThickness
-topMoldingThickness = hbmThickness - occupiedStackThickness
 
 sideMoldingX = (packageX - coreDieX) / 2
 sideMoldingY = (packageY - coreDieY) / 2
@@ -109,8 +107,8 @@ coreThickness(i) =
     coreDieThickness     otherwise
 ```
 
-`hbmThickness` 小於 `occupiedStackThickness` 時輸入不合法；兩者相等時
-`topMoldingThickness = 0`，仍是合法 geometry。當 `N = 1` 時沒有一般 core die，唯一一層直接使用
+`totalThickness` 永遠由實際堆疊衍生，molding envelope 的頂面等於 top core die 頂面，因此沒有
+top molding。當 `N = 1` 時沒有一般 core die，唯一一層是專屬 top core die，並使用
 `topCoreDieThickness`。
 
 各 BoxGeometry bounds 必須依下列規則建立：
@@ -119,10 +117,11 @@ coreThickness(i) =
 | --- | --- | --- | --- |
 | Molding | `[-packageX/2, -packageY/2, 0]` | `[packageX/2, packageY/2, 0]` | `totalThickness` |
 | Base die | `[-packageX/2, -packageY/2, 0]` | `[packageX/2, packageY/2, 0]` | `baseDieThickness` |
-| Core die `i` | `[-coreDieX/2, -coreDieY/2, coreBottomZ(i)]` | `[coreDieX/2, coreDieY/2, coreBottomZ(i)]` | `coreThickness(i)` |
+| 一般 core die `i` | `[-coreDieX/2, -coreDieY/2, coreBottomZ(i)]` | `[coreDieX/2, coreDieY/2, coreBottomZ(i)]` | `coreDieThickness` |
+| Top core die | `[-coreDieX/2, -coreDieY/2, coreBottomZ(N-1)]` | `[coreDieX/2, coreDieY/2, coreBottomZ(N-1)]` | `topCoreDieThickness` |
 
-Root 的 molding 會自然保留在 core die 四周、core-base gap、core-core gaps 與 top molding
-區域；producer 不得為這些區域另外建立互相重疊的 sibling molding bodies。
+Root 的 molding 會自然保留在 core die 四周、core-base gap 與 core-core gaps；producer 不得為
+這些區域另外建立互相重疊的 sibling molding bodies，也不得讓 molding 高於 top core die。
 
 Generator輸出的`adaptationContract`是`hbm-package@1`。Unified PnP只改變package/molding
 footprint（以及generator定義的package-sized base die），所有core child bodies維持原XY尺寸；
@@ -140,10 +139,17 @@ body:hbm-base-die
 container:hbm-core-die-01
 body:hbm-core-die-01
 ...
+container:hbm-top-core-die
+body:hbm-top-core-die
 ```
 
-Core sequence 是從 `01` 開始的 zero-padded display sequence。這些 id 只需在單一 structure 內
-unique，不是 catalog identity，也不得被 consumer 當成跨 revision durable reference。
+一般 core sequence 是從 `01` 開始的 zero-padded display sequence；最上層不占用 sequence，固定使用
+top core die 專屬 id。這些 id 只需在單一 structure 內 unique，不是 catalog identity，也不得被
+consumer 當成跨 revision durable reference。
+
+Body semantic key 與 id 的顯示編號不同：一般 core body key 從 `hbm.core_die_1` 開始且不補零；
+base 與 top core body key 分別固定為 `hbm.base_die` 與 `hbm.top_die`。當 `coreDieCount = 1` 時不會
+出現任何 `hbm.core_die_{number}`，唯一的 core body 使用 `hbm.top_die`。
 
 ## 輸出模式
 
@@ -178,8 +184,9 @@ schema version與建立structure所用的完整parameters。此metadata供author
 GeometryStructure仍是compiler與kernel使用的authoritative geometry。
 
 目前 HBM generator parameter schema 是 version `2`。Version `1` 的
-`topMoldingThickness` 已從 authoring parameters 移除，backend 不提供 v1 preview 重算；既有已保存的
-immutable geometry 與其 generation metadata 不遷移也不重建。
+`topMoldingThickness` 與舊 v2 request 的 `hbmThickness` 都不再是 authoring parameters；backend
+會忽略這些 legacy 欄位，normalized generation parameters 不保存它們。Backend 不提供 v1 preview
+重算；既有已保存的 immutable geometry 與其 generation metadata 不遷移也不重建。
 
 `name`、`vendor`、`type1`、`type2`、`owner`與`description`都是Save階段的catalog metadata，
 不得出現在generator engineering parameter editor；該editor只描述dimensions、materials與結構。

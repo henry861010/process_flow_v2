@@ -54,6 +54,10 @@ MUST NOT 放入 key。
 - `envelope`：代表所屬 Container／Entity 整體外形或幾何近似的 Body。
 - `molding`：molding process 建立的實體。
 - `daf`：DAF process step 建立的 DAF 實體。
+- `hbm.base_die`：HBM generator 建立的 base die。
+- `hbm.core_die_1` 至 `hbm.core_die_63`：HBM generator 建立的一般 core dies；編號從 1
+  開始且不得補零。
+- `hbm.top_die`：HBM generator 建立的 top core die。
 
 `envelope` 在本版仍是一般 material-owning physical Body；CAD、mesh 與 section consumer 不得
 只因 key 是 `envelope` 就忽略、改變 priority 或改變 materialization。未來 operation 可以明確以
@@ -64,7 +68,9 @@ MUST NOT 放入 key。
 - Catalog fixture、DB import 與 generator MAY 明確提供 container/body key。
 - `carrier.wafer` 與 `carrier.panel` catalog geometry 的 carrier solid MUST 使用 body key=`carrier`。
 - HBM 與 DRAM generator 標記 root container 為 `hbm`／`dram`，並將代表完整 package
-  footprint 的 root body 標記為 `envelope`；其他內部 containers 與 bodies不提供key。
+  footprint 的 root body 標記為 `envelope`。HBM child containers 不提供 key；其 base、一般 core
+  與 top core bodies 分別使用 `hbm.base_die`、`hbm.core_die_{number}` 與 `hbm.top_die`。DRAM
+  其他內部 containers 與 bodies 不提供 key。
 - SoC 與 VRM generator 分別標記 root container 為 `soc`、`vrm`，唯一的 Box body 標記為 `envelope`。
 - Molding 與 DAF 分別建立 `molding`、`daf` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一

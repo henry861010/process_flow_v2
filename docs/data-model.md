@@ -471,7 +471,7 @@ materialization必須原樣保存metadata。`generation`僅用於重新開啟gen
   "kind": "generator",
   "generatorId": "hbm",
   "generatorVersion": 2,
-  "parameters": { "hbmThickness": 480, "dieMaterial": "Si-HBM" }
+  "parameters": { "topCoreDieThickness": 50, "dieMaterial": "Si-HBM" }
 }
 ```
 

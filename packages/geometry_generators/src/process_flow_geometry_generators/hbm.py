@@ -11,7 +11,6 @@ MAX_CORE_DIE_COUNT = 64
 DEFAULT_PARAMETERS: JsonObject = {
     "packageX": 12000,
     "packageY": 8000,
-    "hbmThickness": 480,
     "moldingMaterial": "EMC",
     "baseDieThickness": 100,
     "coreDieX": 8000,
@@ -32,7 +31,7 @@ class HbmGenerator:
             "id": "hbm",
             "version": 2,
             "label": "HBM generator",
-            "description": "Build an HBM package from a molding envelope and fixed core stack.",
+            "description": "Build an HBM package with a molding envelope and exposed top core die.",
             "uiPlacements": ["home"],
             "entityType": "die",
             "category": "die.hbm",
@@ -45,7 +44,6 @@ class HbmGenerator:
             "parameterDefinitions": [
                 _number("packageX", "Package X", positive=True),
                 _number("packageY", "Package Y", positive=True),
-                _number("hbmThickness", "HBM thickness", positive=True),
                 _text("moldingMaterial", "Molding material", material=True),
                 _number("baseDieThickness", "Base die thickness", positive=True),
                 _number("coreDieX", "Core die X", positive=True),
@@ -84,7 +82,6 @@ class HbmGenerator:
                     "id": "thickness-gap",
                     "label": "Thickness & gap",
                     "parameterIds": [
-                        "hbmThickness",
                         "baseDieThickness",
                         "coreBaseGap",
                         "coreDieThickness",
@@ -105,7 +102,6 @@ class HbmGenerator:
         errors: JsonObject = {}
         _require_positive(parameters, "packageX", "Package X", errors)
         _require_positive(parameters, "packageY", "Package Y", errors)
-        _require_positive(parameters, "hbmThickness", "HBM thickness", errors)
         _require_text(parameters, "moldingMaterial", "Molding material", errors)
         _require_positive(parameters, "baseDieThickness", "Base die thickness", errors)
         _require_positive(parameters, "coreDieX", "Core die X", errors)
@@ -143,22 +139,6 @@ class HbmGenerator:
             and float(parameters["coreDieY"]) > float(parameters["packageY"])
         ):
             errors["coreDieY"] = "Core die Y cannot exceed Package Y."
-        thickness_fields = (
-            "hbmThickness",
-            "baseDieThickness",
-            "coreDieThickness",
-            "topCoreDieThickness",
-            "coreBaseGap",
-            "coreCoreGap",
-            "coreDieCount",
-        )
-        if all(field not in errors for field in thickness_fields):
-            occupied_thickness = _occupied_stack_thickness(parameters)
-            if float(parameters["hbmThickness"]) < occupied_thickness:
-                errors["hbmThickness"] = (
-                    "HBM thickness must be at least the occupied stack thickness "
-                    f"of {format(occupied_thickness, '.15g')} um."
-                )
         return errors
 
     def evaluate(self, parameters: JsonObject) -> GeneratorEvaluation:
@@ -175,11 +155,8 @@ class HbmGenerator:
 
 
 def derive_dimensions(parameters: JsonObject) -> JsonObject:
-    occupied_thickness = _occupied_stack_thickness(parameters)
     return {
-        "totalThickness": float(parameters["hbmThickness"]),
-        "topMoldingThickness": float(parameters["hbmThickness"])
-        - occupied_thickness,
+        "totalThickness": _occupied_stack_thickness(parameters),
         "sideMoldingX": (
             float(parameters["packageX"]) - float(parameters["coreDieX"])
         )
@@ -209,10 +186,11 @@ def build_geometry(parameters: JsonObject, dimensions: JsonObject | None = None)
             package_top_right,
             float(parameters["baseDieThickness"]),
             str(parameters["dieMaterial"]).strip(),
+            key="hbm.base_die",
         )
     ]
-    core_count = int(parameters["coreDieCount"])
-    for index in range(core_count):
+    regular_core_count = int(parameters["coreDieCount"]) - 1
+    for index in range(regular_core_count):
         sequence = str(index + 1).zfill(2)
         bottom_z = (
             float(parameters["baseDieThickness"])
@@ -229,16 +207,31 @@ def build_geometry(parameters: JsonObject, dimensions: JsonObject | None = None)
                 f"body:hbm-core-die-{sequence}",
                 [core_bottom_left_xy[0], core_bottom_left_xy[1], bottom_z],
                 [core_top_right_xy[0], core_top_right_xy[1], bottom_z],
-                float(
-                    parameters[
-                        "topCoreDieThickness"
-                        if index == core_count - 1
-                        else "coreDieThickness"
-                    ]
-                ),
+                float(parameters["coreDieThickness"]),
                 str(parameters["dieMaterial"]).strip(),
+                key=f"hbm.core_die_{index + 1}",
             )
         )
+    top_core_bottom_z = (
+        float(parameters["baseDieThickness"])
+        + float(parameters["coreBaseGap"])
+        + regular_core_count
+        * (
+            float(parameters["coreDieThickness"])
+            + float(parameters["coreCoreGap"])
+        )
+    )
+    children.append(
+        _body_container(
+            "container:hbm-top-core-die",
+            "body:hbm-top-core-die",
+            [core_bottom_left_xy[0], core_bottom_left_xy[1], top_core_bottom_z],
+            [core_top_right_xy[0], core_top_right_xy[1], top_core_bottom_z],
+            float(parameters["topCoreDieThickness"]),
+            str(parameters["dieMaterial"]).strip(),
+            key="hbm.top_die",
+        )
+    )
     return {
         "schemaVersion": "1.0.0",
         "unitSystem": "um",
@@ -273,12 +266,15 @@ def _body_container(
     top_right: list[float],
     thickness: float,
     material: str,
+    *,
+    key: str,
 ) -> JsonObject:
     return {
         "id": container_id,
         "bodies": [
             {
                 "id": body_id,
+                "key": key,
                 "geometry": {
                     "type": "BoxGeometry",
                     "bottom_left": list(bottom_left),
@@ -303,7 +299,6 @@ def _normalized_parameters(parameters: JsonObject) -> JsonObject:
     numeric_fields = {
         "packageX",
         "packageY",
-        "hbmThickness",
         "baseDieThickness",
         "coreDieX",
         "coreDieY",

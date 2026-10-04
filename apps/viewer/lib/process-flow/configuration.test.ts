@@ -45,7 +45,7 @@ describe("flow input geometry category constraints", () => {
       inputBindings: {
         incoming_hbm: {
           kind: "generator", generatorId: "hbm", generatorVersion: 2,
-          parameters: { hbmThickness: 480 },
+          parameters: { topCoreDieThickness: 50 },
         },
       },
       stepConfigurations: {},

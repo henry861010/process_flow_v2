@@ -9,16 +9,40 @@ PACKAGE_X = 8000
 PACKAGE_Y = 10000
 DEFAULT_PARAMETERS: JsonObject = {
     "generation": "gen1",
-    "layer1Material": "Si-LSI",
-    "layer1Thickness": 150,
-    "layer2Material": "SiO2",
-    "layer2Thickness": 20,
-    "layer3Material": "Cu",
-    "layer3Thickness": 10,
-    "layer4Material": "SiN",
-    "layer4Thickness": 20,
+    "bsmcMaterial": "Mat_MCA7UUU0P1",
+    "bsmcThickness": 15,
+    "siMaterial": "Si",
+    "siThickness": 200,
+    "usgMaterial": "usg",
+    "usgThickness": 15.5,
+    "lsiTopMoldingMaterial": "lsi_top_molding",
+    "lsiTopMoldingThickness": 26,
+    "prePm0Material": "Mat_PIBL301UUU0P1",
+    "prePm0Thickness": 15,
 }
-LAYER_COUNTS = {"gen1": 1, "gen2": 4}
+LAYER_ORDERS = {
+    "gen1": ("si", "usg", "lsiTopMolding"),
+    "gen2": ("bsmc", "si", "usg", "prePm0"),
+}
+LAYER_DEFINITIONS = (
+    ("bsmc", "bsmc", "gen2"),
+    ("si", "si", None),
+    ("usg", "usg", None),
+    ("lsiTopMolding", "LSI_top_molding", "gen1"),
+    ("prePm0", "prePm0", "gen2"),
+)
+BODY_IDS = {
+    "bsmc": "body:lsi-bsmc",
+    "si": "body:lsi-si",
+    "usg": "body:lsi-usg",
+    "lsiTopMolding": "body:lsi-top-molding",
+    "prePm0": "body:lsi-pre-pm0",
+}
+LEGACY_PARAMETER_IDS = tuple(
+    f"layer{index}{suffix}"
+    for index in range(1, 5)
+    for suffix in ("Material", "Thickness")
+)
 
 
 class LsiGenerator:
@@ -44,17 +68,17 @@ class LsiGenerator:
         parameter_groups: list[JsonObject] = [
             {"id": "generation", "label": "Generation", "parameterIds": ["generation"]}
         ]
-        for index in range(1, 5):
+        for layer_id, layer_label, generation in LAYER_DEFINITIONS:
             condition = (
-                {"visibleWhen": {"parameterId": "generation", "equals": "gen2"}}
-                if index > 1
+                {"visibleWhen": {"parameterId": "generation", "equals": generation}}
+                if generation is not None
                 else {}
             )
             parameter_definitions.extend(
                 [
                     {
-                        "id": f"layer{index}Material",
-                        "name": f"Layer {index} material",
+                        "id": f"{layer_id}Material",
+                        "name": "Material",
                         "description": "",
                         "valueType": "materialRef",
                         "controlType": "text",
@@ -63,8 +87,8 @@ class LsiGenerator:
                         **condition,
                     },
                     {
-                        "id": f"layer{index}Thickness",
-                        "name": f"Layer {index} thickness",
+                        "id": f"{layer_id}Thickness",
+                        "name": "Thickness",
                         "description": "",
                         "valueType": "float",
                         "controlType": "number",
@@ -77,11 +101,11 @@ class LsiGenerator:
             )
             parameter_groups.append(
                 {
-                    "id": f"layer-{index}",
-                    "label": f"Layer {index}",
+                    "id": f"layer-{layer_id}",
+                    "label": layer_label,
                     "parameterIds": [
-                        f"layer{index}Material",
-                        f"layer{index}Thickness",
+                        f"{layer_id}Material",
+                        f"{layer_id}Thickness",
                     ],
                 }
             )
@@ -91,7 +115,7 @@ class LsiGenerator:
             "id": "lsi",
             "version": 1,
             "label": "LSI generator",
-            "description": "Build a one-layer or four-layer LSI die at 8000 x 10000 um.",
+            "description": "Build a Gen 1 or Gen 2 named-layer LSI die at 8000 x 10000 um.",
             "uiPlacements": ["management", "templateGeometryLibrary", "flowInputPicker"],
             "entityType": "die",
             "category": "die.lsi",
@@ -110,18 +134,22 @@ class LsiGenerator:
     def validate(self, parameters: JsonObject) -> JsonObject:
         errors: JsonObject = {}
         generation = parameters.get("generation")
-        if not isinstance(generation, str) or generation not in LAYER_COUNTS:
+        if not isinstance(generation, str) or generation not in LAYER_ORDERS:
             errors["generation"] = "Generation must be gen1 or gen2."
             return errors
 
+        for parameter_id in LEGACY_PARAMETER_IDS:
+            if parameter_id in parameters:
+                errors[parameter_id] = "Legacy LSI layer parameters are not supported."
+
         total_thickness = 0.0
-        for index in range(1, LAYER_COUNTS[generation] + 1):
-            material_id = f"layer{index}Material"
+        for layer_id in LAYER_ORDERS[generation]:
+            material_id = f"{layer_id}Material"
             material = parameters.get(material_id)
             if not isinstance(material, str) or not material.strip():
-                errors[material_id] = f"Layer {index} material is required."
+                errors[material_id] = f"{material_id} is required."
 
-            thickness_id = f"layer{index}Thickness"
+            thickness_id = f"{layer_id}Thickness"
             thickness = parameters.get(thickness_id)
             if (
                 isinstance(thickness, bool)
@@ -130,13 +158,13 @@ class LsiGenerator:
                 or thickness <= 0
             ):
                 errors[thickness_id] = (
-                    f"Layer {index} thickness must be a finite number greater than 0."
+                    f"{thickness_id} must be a finite number greater than 0."
                 )
             else:
                 total_thickness += float(thickness)
 
         if not math.isfinite(total_thickness):
-            errors[f"layer{LAYER_COUNTS[generation]}Thickness"] = (
+            errors[f"{LAYER_ORDERS[generation][-1]}Thickness"] = (
                 "Total thickness must be finite."
             )
         return errors
@@ -146,34 +174,33 @@ class LsiGenerator:
             raise ValueError("Cannot build LSI geometry from invalid parameters")
 
         generation = parameters["generation"]
-        layer_count = LAYER_COUNTS[generation]
+        layer_order = LAYER_ORDERS[generation]
         normalized: JsonObject = {"generation": generation}
-        for index in range(1, layer_count + 1):
-            normalized[f"layer{index}Material"] = parameters[
-                f"layer{index}Material"
+        for layer_id in layer_order:
+            normalized[f"{layer_id}Material"] = parameters[
+                f"{layer_id}Material"
             ].strip()
-            normalized[f"layer{index}Thickness"] = float(
-                parameters[f"layer{index}Thickness"]
+            normalized[f"{layer_id}Thickness"] = float(
+                parameters[f"{layer_id}Thickness"]
             )
 
         total_thickness = sum(
-            normalized[f"layer{index}Thickness"]
-            for index in range(1, layer_count + 1)
+            normalized[f"{layer_id}Thickness"] for layer_id in layer_order
         )
         cursor_z = -total_thickness / 2
         bodies: list[JsonObject] = []
-        for index in range(1, layer_count + 1):
-            thickness = normalized[f"layer{index}Thickness"]
+        for layer_id in layer_order:
+            thickness = normalized[f"{layer_id}Thickness"]
             bodies.append(
                 {
-                    "id": f"body:lsi-layer-{index}",
+                    "id": BODY_IDS[layer_id],
                     "geometry": {
                         "type": "BoxGeometry",
                         "bottom_left": [-PACKAGE_X / 2, -PACKAGE_Y / 2, cursor_z],
                         "top_right": [PACKAGE_X / 2, PACKAGE_Y / 2, cursor_z],
                         "thk": thickness,
                     },
-                    "material": normalized[f"layer{index}Material"],
+                    "material": normalized[f"{layer_id}Material"],
                 }
             )
             cursor_z += thickness

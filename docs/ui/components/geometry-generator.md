@@ -32,10 +32,14 @@ footprint，並以`box-rescale@1`在PnP時配合target region調整XY。兩者�
 generator selector使用；fixture catalog不提供SoC或VRM geometry。VRM生成的root container key為`vrm`。
 
 LSI generator v1以`generation`參數選擇`gen1`或`gen2`，使用固定8000 × 10000 um
-footprint。gen1要求一組material與正的thickness；gen2要求四組，依layer 1至4由下往上
-相貼堆疊。四層提供可編輯的範例材料與厚度；預設為gen1並在開啟時顯示有效預覽，切換
-gen2後也能立即預覽四層。LSI從flow editor的
-generator selector及Management的共用catalog頁面使用，生成的geometry使用`box-rescale@1`；fixture catalog不提供LSI geometry。
+footprint。gen1由下往上為`si`、`usg`、`LSI_top_molding`；gen2由下往上為
+`bsmc`、`si`、`usg`、`prePm0`，所有層使用完整footprint並相貼堆疊。`si`材料預設`Si`、
+厚度預設200 um，`usg`材料預設`usg`、厚度預設15.5 um，gen1的`LSI_top_molding`材料
+預設`lsi_top_molding`、厚度預設26 um，因此兩個世代首次開啟皆有有效預覽。gen2的`bsmc`材料預設
+`Mat_MCA7UUU0P1`、厚度15 um，`prePm0`材料預設`Mat_PIBL301UUU0P1`、厚度15 um，
+以上預設值皆可修改。LSI從flow editor的generator selector及Management的共用catalog頁面
+使用，生成的geometry使用`box-rescale@1`；fixture catalog不提供LSI geometry。LSI v1已直接
+改用具名參數，舊`layer1*`至`layer4*`recipe不提供遷移或相容處理。
 
 `GET /api/geometry-generators`提供id/version、`uiPlacements`、label/icon、default parameters、通用
 `ParameterDefinition[]`、optional ordered `parameterGroups`與adaptation contract。前端依definition
@@ -59,8 +63,9 @@ HBM/DRAM目前在Top View提供overall與core die X/Y dimensions，Cross Section
 thickness。Renderer依dimension axis各自配置callout offset，新增horizontal或vertical dimension
 不得使另一axis的label產生不必要位移。
 
-HBM與DRAM的version 2 generator都以最終package thickness反推top molding，並允許最上層core die
-使用獨立厚度。DRAM的最終厚度包含既有SBT substrate；substrate layer結構與計算不因v2改變。
+HBM與DRAM的version 2 generator都允許最上層core die使用獨立厚度。HBM總厚度由完整stack自動
+衍生，molding與top core die頂面齊平；DRAM則以最終package thickness反推top molding，且其最終
+厚度包含既有SBT substrate。DRAM substrate layer結構與計算不因v2改變。
 
 Generator parameter editor只放dimensions、materials與其他結構參數；geometry `dim`固定由
 package X/Y與total thickness產生。Name、Vendor、Type 1與Type 2只在使用者按Save後的catalog

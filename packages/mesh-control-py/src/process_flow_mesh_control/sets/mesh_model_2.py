@@ -4,6 +4,7 @@ from process_flow_kernel import ProcessGeometryState
 
 from ..contracts import MeshControlSetResult
 
+METAL_TIM_MATERIAL = ["Mat_metaltime1", "Mat_metaltime2", "Mat_metaltime3"]
 
 class MeshModel2Set:
     def definition(self) -> dict:

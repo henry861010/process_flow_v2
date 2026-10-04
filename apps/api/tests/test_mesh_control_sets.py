@@ -37,7 +37,8 @@ class MeshControlSetApiTests(unittest.TestCase):
         payload = result.json()
         self.assertEqual(payload["geometryHash"], content_hash(structure))
         self.assertEqual(payload["setVersion"], "1")
-        self.assertEqual(payload["details"][-1]["label"], "Top molding")
+        self.assertEqual(payload["details"][-1]["label"], "Top core die")
+        self.assertNotIn("Top molding", [item["label"] for item in payload["details"]])
         validate_mesh_control(payload["meshControl"])
         self.assertEqual(
             [item["label"] for item in payload["meshControl"]["controls"]],

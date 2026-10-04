@@ -127,10 +127,10 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
         hbm_parameter_ids = [item["id"] for item in hbm["parameterDefinitions"]]
         self.assertIn("coreDieCount", hbm_parameter_ids)
-        self.assertIn("hbmThickness", hbm_parameter_ids)
+        self.assertNotIn("hbmThickness", hbm_parameter_ids)
         self.assertIn("topCoreDieThickness", hbm_parameter_ids)
         self.assertNotIn("topMoldingThickness", hbm_parameter_ids)
-        self.assertEqual(hbm["defaultParameters"]["hbmThickness"], 480)
+        self.assertNotIn("hbmThickness", hbm["defaultParameters"])
         self.assertEqual(hbm["defaultParameters"]["topCoreDieThickness"], 50)
         self.assertEqual(
             hbm["parameterGroups"],
@@ -154,7 +154,6 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                     "id": "thickness-gap",
                     "label": "Thickness & gap",
                     "parameterIds": [
-                        "hbmThickness",
                         "baseDieThickness",
                         "coreBaseGap",
                         "coreDieThickness",
@@ -269,66 +268,98 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             lsi["defaultParameters"],
             {
                 "generation": "gen1",
-                "layer1Material": "Si-LSI",
-                "layer1Thickness": 150,
-                "layer2Material": "SiO2",
-                "layer2Thickness": 20,
-                "layer3Material": "Cu",
-                "layer3Thickness": 10,
-                "layer4Material": "SiN",
-                "layer4Thickness": 20,
+                "bsmcMaterial": "Mat_MCA7UUU0P1",
+                "bsmcThickness": 15,
+                "siMaterial": "Si",
+                "siThickness": 200,
+                "usgMaterial": "usg",
+                "usgThickness": 15.5,
+                "lsiTopMoldingMaterial": "lsi_top_molding",
+                "lsiTopMoldingThickness": 26,
+                "prePm0Material": "Mat_PIBL301UUU0P1",
+                "prePm0Thickness": 15,
             },
         )
         self.assertEqual(lsi["adaptationContract"]["adapterId"], "box-rescale")
         self.assertEqual(
             [item["id"] for item in lsi["parameterDefinitions"]],
-            ["generation"]
-            + [
-                field
-                for index in range(1, 5)
-                for field in (f"layer{index}Material", f"layer{index}Thickness")
+            [
+                "generation",
+                "bsmcMaterial",
+                "bsmcThickness",
+                "siMaterial",
+                "siThickness",
+                "usgMaterial",
+                "usgThickness",
+                "lsiTopMoldingMaterial",
+                "lsiTopMoldingThickness",
+                "prePm0Material",
+                "prePm0Thickness",
             ],
         )
         self.assertEqual(
-            [item["visibleWhen"] for item in lsi["parameterDefinitions"][3:]],
-            [{"parameterId": "generation", "equals": "gen2"}] * 6,
+            {
+                item["id"]: item.get("visibleWhen")
+                for item in lsi["parameterDefinitions"]
+            },
+            {
+                "generation": None,
+                "bsmcMaterial": {"parameterId": "generation", "equals": "gen2"},
+                "bsmcThickness": {"parameterId": "generation", "equals": "gen2"},
+                "siMaterial": None,
+                "siThickness": None,
+                "usgMaterial": None,
+                "usgThickness": None,
+                "lsiTopMoldingMaterial": {
+                    "parameterId": "generation",
+                    "equals": "gen1",
+                },
+                "lsiTopMoldingThickness": {
+                    "parameterId": "generation",
+                    "equals": "gen1",
+                },
+                "prePm0Material": {"parameterId": "generation", "equals": "gen2"},
+                "prePm0Thickness": {"parameterId": "generation", "equals": "gen2"},
+            },
+        )
+        self.assertEqual(
+            [(group["id"], group["label"]) for group in lsi["parameterGroups"]],
+            [
+                ("generation", "Generation"),
+                ("layer-bsmc", "bsmc"),
+                ("layer-si", "si"),
+                ("layer-usg", "usg"),
+                ("layer-lsiTopMolding", "LSI_top_molding"),
+                ("layer-prePm0", "prePm0"),
+            ],
         )
         self.assertEqual(lsi["previewViews"], ["top", "cross-section-x"])
 
-    def test_lsi_defaults_preview_both_generations_and_ignore_inactive_values(self):
+    def test_lsi_defaults_preview_both_generations(self):
         initial = self.app.state.geometry_generators.preview("lsi", {}, generator_version=1)
         self.assertTrue(initial["valid"])
-        self.assertEqual(
-            initial["normalizedParameters"],
-            {"generation": "gen1", "layer1Material": "Si-LSI", "layer1Thickness": 150},
-        )
-        self.assertEqual(initial["computedParameters"]["totalThickness"], 150)
+        self.assertEqual(initial["computedParameters"]["totalThickness"], 241.5)
         gen2_default = self.app.state.geometry_generators.preview(
             "lsi", {"generation": "gen2"}, generator_version=1
         )
         self.assertTrue(gen2_default["valid"])
-        self.assertEqual(gen2_default["computedParameters"]["totalThickness"], 200)
-        self.assertEqual(
-            len(gen2_default["geometryEntityJson"]["structure"]["root"]["bodies"]),
-            4,
-        )
+        self.assertEqual(gen2_default["computedParameters"]["totalThickness"], 245.5)
 
-        blank = self.app.state.geometry_generators.preview(
-            "lsi", {"layer1Material": "", "layer1Thickness": ""}, generator_version=1
-        )
-        self.assertFalse(blank["valid"])
-        self.assertEqual(set(blank["errors"]), {"layer1Material", "layer1Thickness"})
-
+    def test_lsi_gen1_stacks_named_layers_and_ignores_gen2_values(self):
         response = self.client.post(
             "/api/geometry-generators/lsi/preview",
             json={
                 "generatorVersion": 1,
                 "parameters": {
                     "generation": "gen1",
-                    "layer1Material": "  Si-LSI  ",
-                    "layer1Thickness": 150,
-                    "layer2Material": "",
-                    "layer2Thickness": -10,
+                    "siMaterial": "  Si  ",
+                    "siThickness": 100,
+                    "usgMaterial": "  USG  ",
+                    "lsiTopMoldingMaterial": "  Mold  ",
+                    "bsmcMaterial": "",
+                    "bsmcThickness": -10,
+                    "prePm0Material": "",
+                    "prePm0Thickness": -10,
                 },
             },
         )
@@ -337,38 +368,42 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertTrue(preview["valid"])
         self.assertEqual(
             preview["normalizedParameters"],
-            {"generation": "gen1", "layer1Material": "Si-LSI", "layer1Thickness": 150},
+            {
+                "generation": "gen1",
+                "siMaterial": "Si",
+                "siThickness": 100,
+                "usgMaterial": "USG",
+                "usgThickness": 15.5,
+                "lsiTopMoldingMaterial": "Mold",
+                "lsiTopMoldingThickness": 26,
+            },
         )
         self.assertEqual(
             preview["computedParameters"],
-            {"packageX": 8000, "packageY": 10000, "totalThickness": 150},
+            {"packageX": 8000, "packageY": 10000, "totalThickness": 141.5},
         )
         entity = preview["geometryEntityJson"]
-        self.assertEqual(entity["dim"], "8000 x 10000 x 150 um")
+        self.assertEqual(entity["dim"], "8000 x 10000 x 141.5 um")
         self.assertEqual(entity["generation"]["parameters"], preview["normalizedParameters"])
         self.assertEqual(entity["structure"]["root"]["key"], "lsi")
-        self.assertEqual(len(entity["structure"]["root"]["bodies"]), 1)
+        bodies = entity["structure"]["root"]["bodies"]
         self.assertEqual(
-            entity["structure"]["root"]["bodies"][0]["geometry"],
-            {
-                "type": "BoxGeometry",
-                "bottom_left": [-4000, -5000, -75],
-                "top_right": [4000, 5000, -75],
-                "thk": 150,
-            },
+            [body["id"] for body in bodies],
+            ["body:lsi-si", "body:lsi-usg", "body:lsi-top-molding"],
+        )
+        self.assertEqual([body["material"] for body in bodies], ["Si", "USG", "Mold"])
+        self.assertEqual([body["geometry"]["thk"] for body in bodies], [100, 15.5, 26])
+        self.assertEqual(
+            [body["geometry"]["bottom_left"][2] for body in bodies],
+            [-70.75, 29.25, 44.75],
         )
 
-    def test_lsi_gen2_stacks_four_layers_and_materializes(self):
+    def test_lsi_gen2_stacks_named_layers_and_materializes(self):
         parameters = {
             "generation": "gen2",
-            "layer1Material": "  Si  ",
-            "layer1Thickness": 10,
-            "layer2Material": "Oxide",
-            "layer2Thickness": 20,
-            "layer3Material": "Cu",
-            "layer3Thickness": 30,
-            "layer4Material": "Nitride",
-            "layer4Thickness": 40,
+            "siMaterial": "  Si  ",
+            "siThickness": 10,
+            "usgMaterial": "USG",
         }
         response = self.client.post(
             "/api/geometry-generators/lsi/preview",
@@ -377,24 +412,36 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         preview = response.json()
         self.assertTrue(preview["valid"])
-        self.assertEqual(preview["normalizedParameters"]["layer1Material"], "Si")
-        self.assertEqual(preview["computedParameters"]["totalThickness"], 100)
-        self.assertEqual(preview["geometryEntityJson"]["dim"], "8000 x 10000 x 100 um")
+        self.assertEqual(preview["normalizedParameters"]["siMaterial"], "Si")
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 55.5)
+        self.assertEqual(preview["geometryEntityJson"]["dim"], "8000 x 10000 x 55.5 um")
         self.assertEqual(
             _dimension_values(preview["engineeringPreview"]["views"][1]),
-            {"Total thickness": 100},
+            {"Total thickness": 55.5},
         )
         bodies = preview["geometryEntityJson"]["structure"]["root"]["bodies"]
         self.assertEqual(len(bodies), 4)
         self.assertEqual(
+            [body["id"] for body in bodies],
+            [
+                "body:lsi-bsmc",
+                "body:lsi-si",
+                "body:lsi-usg",
+                "body:lsi-pre-pm0",
+            ],
+        )
+        self.assertEqual(
             [body["material"] for body in bodies],
-            ["Si", "Oxide", "Cu", "Nitride"],
+            ["Mat_MCA7UUU0P1", "Si", "USG", "Mat_PIBL301UUU0P1"],
         )
         self.assertEqual(
             [body["geometry"]["bottom_left"][2] for body in bodies],
-            [-50, -40, -20, 10],
+            [-27.75, -12.75, -2.75, 12.75],
         )
-        self.assertEqual([body["geometry"]["thk"] for body in bodies], [10, 20, 30, 40])
+        self.assertEqual(
+            [body["geometry"]["thk"] for body in bodies],
+            [15, 10, 15.5, 15],
+        )
         self.assertEqual(
             [body["geometry"]["bottom_left"][:2] for body in bodies],
             [[-4000, -5000]] * 4,
@@ -408,34 +455,69 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(materialized.json()["geometryEntityJson"], preview["geometryEntityJson"])
         saved = self.client.post(
             "/api/geometries",
-            json={**materialized.json()["geometryEntityJson"], "name": "Four-layer LSI", "owner": "test"},
+            json={**materialized.json()["geometryEntityJson"], "name": "Gen 2 LSI", "owner": "test"},
         )
         self.assertEqual(saved.status_code, 201, saved.text)
         self.assertEqual(saved.json()["generation"]["parameters"], preview["normalizedParameters"])
+
+        customized = self.app.state.geometry_generators.preview(
+            "lsi",
+            {
+                **parameters,
+                "bsmcMaterial": "Custom-BSMC",
+                "bsmcThickness": 12,
+                "prePm0Material": "Custom-PrePm0",
+                "prePm0Thickness": 17,
+            },
+            generator_version=1,
+        )
+        self.assertTrue(customized["valid"])
+        customized_bodies = customized["geometryEntityJson"]["structure"]["root"]["bodies"]
+        self.assertEqual(
+            [customized_bodies[index]["material"] for index in (0, 3)],
+            ["Custom-BSMC", "Custom-PrePm0"],
+        )
+        self.assertEqual(
+            [customized_bodies[index]["geometry"]["thk"] for index in (0, 3)],
+            [12, 17],
+        )
 
     def test_lsi_rejects_invalid_generation_and_active_layers(self):
         registry = self.app.state.geometry_generators
         invalid_generation = registry.preview("lsi", {"generation": "gen3"}, generator_version=1)
         self.assertEqual(set(invalid_generation["errors"]), {"generation"})
 
+        legacy_recipe = registry.preview(
+            "lsi",
+            {
+                "generation": "gen1",
+                "layer1Material": "Si-LSI",
+                "layer1Thickness": 150,
+            },
+            generator_version=1,
+        )
+        self.assertEqual(
+            set(legacy_recipe["errors"]),
+            {"layer1Material", "layer1Thickness"},
+        )
+
         invalid_gen2 = registry.preview(
             "lsi",
             {
                 "generation": "gen2",
-                "layer1Material": "Si",
-                "layer1Thickness": 10,
-                "layer2Material": " ",
-                "layer2Thickness": 0,
-                "layer3Material": "Cu",
-                "layer3Thickness": True,
-                "layer4Material": "Nitride",
-                "layer4Thickness": 40,
+                "siMaterial": "Si",
+                "siThickness": 10,
+                "usgMaterial": " ",
+                "usgThickness": 0,
+                "bsmcThickness": True,
+                "lsiTopMoldingMaterial": "",
+                "lsiTopMoldingThickness": -1,
             },
             generator_version=1,
         )
         self.assertEqual(
             set(invalid_gen2["errors"]),
-            {"layer2Material", "layer2Thickness", "layer3Thickness"},
+            {"bsmcThickness", "usgMaterial", "usgThickness"},
         )
         self.assertFalse(invalid_gen2["valid"])
 
@@ -585,12 +667,12 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(registry.generate("hbm", 2, {})["generation"]["schemaVersion"], 2)
         self.assertEqual(registry.generate("hbm", 3, {})["generation"]["schemaVersion"], 3)
 
-    def test_v2_default_structures_remain_stable(self):
+    def test_v2_default_structure_hashes_are_pinned(self):
         registry = GeometryGeneratorRegistry()
         register_builtin_generators(registry)
         self.assertEqual(
             registry.preview("hbm", {}, generator_version=2)["geometryHash"],
-            "sha256:398ea0156cfd06137ae9a573168ba4cca31f040f2c6c3990f86b8681bbd2e371",
+            "sha256:ac806d0526b8c7c6cf9eddad2fe6d505e266d2f5586aa6bec42ccf04524abd53",
         )
         self.assertEqual(
             registry.preview("dram", {}, generator_version=2)["geometryHash"],
@@ -605,7 +687,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 "parameters": {
                     "packageX": 1400,
                     "packageY": 1000,
-                    "hbmThickness": 340,
+                    "hbmThickness": 999,
                     "coreDieX": 800,
                     "coreDieY": 600,
                     "coreDieThickness": 40,
@@ -639,23 +721,43 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             _dimension_values(section_view)["Core die thickness"],
             40,
         )
-        self.assertEqual(_dimension_values(section_view)["Total thickness"], 340)
-        self.assertEqual(preview["computedParameters"]["totalThickness"], 340)
-        self.assertEqual(preview["computedParameters"]["topMoldingThickness"], 30)
+        self.assertEqual(_dimension_values(section_view)["Total thickness"], 310)
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 310)
+        self.assertNotIn("topMoldingThickness", preview["computedParameters"])
+        self.assertNotIn("hbmThickness", preview["normalizedParameters"])
         self.assertNotIn("topMoldingThickness", preview["normalizedParameters"])
         entity = preview["geometryEntityJson"]
         self.assertEqual(entity["adaptationContract"]["adapterId"], "hbm-package")
-        self.assertEqual(entity["dim"], "1400 x 1000 x 340 um")
+        self.assertEqual(entity["dim"], "1400 x 1000 x 310 um")
         self.assertEqual(entity["generation"]["schemaVersion"], 2)
         self.assertNotIn(
             "topMoldingThickness", entity["generation"]["parameters"]
         )
+        self.assertNotIn("hbmThickness", entity["generation"]["parameters"])
         self.assertNotIn("vendor", entity)
         root = entity["structure"]["root"]
         self.assertEqual(root["bodies"][0]["geometry"]["bottom_left"], [-700, -500, 0])
         self.assertEqual(root["bodies"][0]["geometry"]["top_right"], [700, 500, 0])
-        self.assertEqual(root["bodies"][0]["geometry"]["thk"], 340)
+        self.assertEqual(root["bodies"][0]["geometry"]["thk"], 310)
         self.assertEqual(len(root["children"]), 4)
+        self.assertEqual(
+            [child["id"] for child in root["children"]],
+            [
+                "container:hbm-base-die",
+                "container:hbm-core-die-01",
+                "container:hbm-core-die-02",
+                "container:hbm-top-core-die",
+            ],
+        )
+        self.assertEqual(
+            [child["bodies"][0]["key"] for child in root["children"]],
+            [
+                "hbm.base_die",
+                "hbm.core_die_1",
+                "hbm.core_die_2",
+                "hbm.top_die",
+            ],
+        )
         self.assertEqual(
             root["children"][1]["bodies"][0]["geometry"]["bottom_left"][:2],
             [-400, -300],
@@ -671,6 +773,14 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             [geometry["thk"] for geometry in core_geometries],
             [40, 40, 70],
         )
+        self.assertEqual(
+            root["children"][-1]["bodies"][0]["id"],
+            "body:hbm-top-core-die",
+        )
+        self.assertEqual(
+            core_geometries[-1]["bottom_left"][2] + core_geometries[-1]["thk"],
+            root["bodies"][0]["geometry"]["thk"],
+        )
 
         materialized = self.client.post(
             "/api/geometry-materializations",
@@ -680,13 +790,13 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(materialized.json()["geometryHash"], preview["geometryHash"])
         self.assertEqual(materialized.json()["geometryEntityJson"], entity)
 
-    def test_hbm_single_core_uses_top_thickness_and_allows_zero_top_molding(self):
+    def test_hbm_single_core_uses_top_identity_and_derived_total_thickness(self):
         response = self.client.post(
             "/api/geometry-generators/hbm/preview",
             json={
                 "generatorVersion": 2,
                 "parameters": {
-                    "hbmThickness": 200,
+                    "hbmThickness": 999,
                     "baseDieThickness": 100,
                     "coreBaseGap": 20,
                     "coreDieThickness": 40,
@@ -699,9 +809,16 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         preview = response.json()
         self.assertTrue(preview["valid"])
-        self.assertEqual(preview["computedParameters"]["topMoldingThickness"], 0)
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 200)
+        self.assertNotIn("topMoldingThickness", preview["computedParameters"])
+        self.assertNotIn("hbmThickness", preview["normalizedParameters"])
         root = preview["geometryEntityJson"]["structure"]["root"]
         self.assertEqual(len(root["children"]), 2)
+        self.assertEqual(root["children"][1]["id"], "container:hbm-top-core-die")
+        self.assertEqual(
+            [child["bodies"][0]["key"] for child in root["children"]],
+            ["hbm.base_die", "hbm.top_die"],
+        )
         only_core = root["children"][1]["bodies"][0]["geometry"]
         self.assertEqual(only_core["bottom_left"][2], 120)
         self.assertEqual(only_core["thk"], 80)
@@ -711,16 +828,16 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             80,
         )
 
-    def test_hbm_rejects_thickness_smaller_than_occupied_stack(self):
+    def test_hbm_rejects_invalid_top_core_die_thickness(self):
         response = self.client.post(
             "/api/geometry-generators/hbm/preview",
-            json={"generatorVersion": 2, "parameters": {"hbmThickness": 379}},
+            json={"generatorVersion": 2, "parameters": {"topCoreDieThickness": 0}},
         )
 
         self.assertEqual(response.status_code, 200, response.text)
         preview = response.json()
         self.assertFalse(preview["valid"])
-        self.assertIn("hbmThickness", preview["errors"])
+        self.assertIn("topCoreDieThickness", preview["errors"])
         self.assertEqual(preview["computedParameters"], {})
         self.assertIsNone(preview["previewToken"])
         self.assertIsNone(preview["geometryEntityJson"])

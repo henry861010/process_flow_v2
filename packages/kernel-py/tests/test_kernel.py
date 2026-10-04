@@ -401,15 +401,30 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(body.key(), "envelope")
 
     def test_semantic_keys_are_optional_but_empty_unknown_and_null_are_invalid(self):
-        body = Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si")
+        geometry = BoxGeometry([0, 0, 0], [1, 1, 0], 1)
+        body = Body(geometry, "Si")
         self.assertIsNone(body.key())
         self.assertNotIn("key", body.json())
         self.assertNotIn("key", Container().tree_json())
 
+        for key in (
+            "hbm.base_die",
+            "hbm.core_die_1",
+            "hbm.core_die_63",
+            "hbm.top_die",
+        ):
+            with self.subTest(key=key):
+                self.assertEqual(Body(geometry, "Si", key).key(), key)
+
+        for key in ("hbm.core_die_01", "hbm.core_die_0", "hbm.core_die_64"):
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ValueError, "Unsupported body.key"):
+                    Body(geometry, "Si", key)
+
         with self.assertRaisesRegex(ValueError, "body.key must be omitted"):
-            Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si", "")
+            Body(geometry, "Si", "")
         with self.assertRaisesRegex(ValueError, "Unsupported body.key"):
-            Body(BoxGeometry([0, 0, 0], [1, 1, 0], 1), "Si", "die")
+            Body(geometry, "Si", "die")
         with self.assertRaisesRegex(ValueError, "Unsupported container.key"):
             Container(key="root")
         with self.assertRaisesRegex(ValueError, "via.key is not supported"):

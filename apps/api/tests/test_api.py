@@ -1313,14 +1313,10 @@ class ProcessFlowApiTests(unittest.TestCase):
             "generatorVersion": 1,
             "parameters": {
                 "generation": "gen2",
-                "layer1Material": "  Si  ",
-                "layer1Thickness": 10,
-                "layer2Material": "Oxide",
-                "layer2Thickness": 20,
-                "layer3Material": "Cu",
-                "layer3Thickness": 30,
-                "layer4Material": "Nitride",
-                "layer4Thickness": 40,
+                "siMaterial": "  Si  ",
+                "siThickness": 10,
+                "usgMaterial": "Oxide",
+                "usgThickness": 20,
             },
         }
         instance["stepConfigurations"] = {
@@ -1352,7 +1348,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         binding = saved["inputBindings"]["incoming_lsi"]
         self.assertEqual(binding["generatorId"], "lsi")
         self.assertEqual(binding["generatorVersion"], 1)
-        self.assertEqual(binding["parameters"]["layer1Material"], "Si")
+        self.assertEqual(binding["parameters"]["siMaterial"], "Si")
         self.assertEqual(len(binding["parameters"]), 9)
         self.assertEqual(
             self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), saved
@@ -1364,8 +1360,14 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(child["key"], "lsi")
         bodies = child["bodies"]
         self.assertEqual(len(bodies), 4)
-        self.assertEqual([body["material"] for body in bodies], ["Si", "Oxide", "Cu", "Nitride"])
-        self.assertEqual([body["geometry"]["thk"] for body in bodies], [10, 20, 30, 40])
+        self.assertEqual(
+            [body["material"] for body in bodies],
+            ["Mat_MCA7UUU0P1", "Si", "Oxide", "Mat_PIBL301UUU0P1"],
+        )
+        self.assertEqual(
+            [body["geometry"]["thk"] for body in bodies],
+            [15, 10, 20, 15],
+        )
         self.assertTrue(
             all(
                 body["geometry"]["top_right"][0]
@@ -1392,10 +1394,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertIn("version 1 is not available", unavailable.json()["message"])
 
         request["inputBindings"]["incoming_hbm"]["generatorVersion"] = 2
-        request["inputBindings"]["incoming_hbm"]["parameters"] = {"hbmThickness": -1}
+        request["inputBindings"]["incoming_hbm"]["parameters"] = {"topCoreDieThickness": -1}
         invalid_parameters = self.client.post("/api/process-flow-instances", json=request)
         self.assertEqual(invalid_parameters.status_code, 400, invalid_parameters.text)
-        self.assertIn("hbmThickness", invalid_parameters.json()["message"])
+        self.assertIn("topCoreDieThickness", invalid_parameters.json()["message"])
 
         request["inputBindings"]["incoming_hbm"] = {
             "kind": "generator", "generatorId": "missing", "generatorVersion": 2,

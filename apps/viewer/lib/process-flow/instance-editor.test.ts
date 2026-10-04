@@ -98,7 +98,7 @@ describe("instance editor helpers", () => {
     const source = instance("source");
     source.inputBindings.incoming_hbm = {
       kind: "generator", generatorId: "hbm", generatorVersion: 2,
-      parameters: { hbmThickness: 480 },
+      parameters: { topCoreDieThickness: 50 },
     };
     const copied = configurationFromInstance(template, [stepTemplate], source);
     const payload = buildProcessFlowInstanceCreate(
@@ -109,9 +109,9 @@ describe("instance editor helpers", () => {
     expect(payload.inputBindings.incoming_hbm).toEqual(source.inputBindings.incoming_hbm);
     expect(payload.embeddedGeometries).toEqual({});
     if (copied.inputBindings.incoming_hbm.kind !== "generator") throw new Error("Expected generator");
-    copied.inputBindings.incoming_hbm.parameters.hbmThickness = 520;
-    expect(source.inputBindings.incoming_hbm).toMatchObject({ parameters: { hbmThickness: 480 } });
-    expect(payload.inputBindings.incoming_hbm).toMatchObject({ parameters: { hbmThickness: 480 } });
+    copied.inputBindings.incoming_hbm.parameters.topCoreDieThickness = 70;
+    expect(source.inputBindings.incoming_hbm).toMatchObject({ parameters: { topCoreDieThickness: 50 } });
+    expect(payload.inputBindings.incoming_hbm).toMatchObject({ parameters: { topCoreDieThickness: 50 } });
   });
 
   it("uses flow scalar defaults only when no instance is imported", () => {
