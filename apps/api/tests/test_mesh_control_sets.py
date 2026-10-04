@@ -141,6 +141,54 @@ class MeshControlSetApiTests(unittest.TestCase):
                     [item["label"] for item in payload["meshControl"]["controls"]],
                 )
 
+    def test_all_models_return_valid_bottom_carrier_point(self):
+        structure = {
+            "schemaVersion": "1.0.0",
+            "unitSystem": "um",
+            "root": {
+                "id": "container:root",
+                "bodies": [
+                    {
+                        "id": "body:carrier",
+                        "key": "carrier",
+                        "material": "Glass",
+                        "geometry": {
+                            "type": "BoxGeometry",
+                            "bottom_left": [0, 0, -100],
+                            "top_right": [100, 100, -100],
+                            "thk": 100,
+                        },
+                    }
+                ],
+                "vias": [],
+                "circuits": [],
+                "bumps": [],
+                "children": [],
+            },
+        }
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            with self.subTest(set_id=set_id):
+                response = self.client.post(
+                    f"/api/mesh-control-sets/{set_id}/apply",
+                    json={"geometryStructure": structure},
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                payload = response.json()
+                validate_mesh_control(payload["meshControl"])
+                self.assertEqual(
+                    payload["meshControl"]["controls"],
+                    [
+                        {
+                            "method": "Z_POINT",
+                            "label": "Carrier bottom +10",
+                            "reference": {"kind": "body", "id": "body:carrier"},
+                            "z": {"mode": "relative", "anchor": "z_min", "offset": 10},
+                        }
+                    ],
+                )
+                self.assertEqual(payload["details"][0]["startZ"], -90)
+                self.assertEqual(payload["details"][0]["endZ"], -90)
+
 
 if __name__ == "__main__":
     unittest.main()

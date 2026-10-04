@@ -19,7 +19,7 @@ class MeshModel1Set:
             "id": "meshModel1",
             "version": "1",
             "label": "meshModel1",
-            "description": "Geometry-aware Tim, adhesive, uBump, and UF controls.",
+            "description": "Geometry-aware Tim, adhesive, uBump, UF, and bottom carrier controls.",
         }
 
     def build(self, state: ProcessGeometryState) -> MeshControlSetResult:
@@ -80,6 +80,8 @@ class MeshModel1Set:
         elif first_soc is not None:
             _append_soc_uf_controls(controls, details, first_soc)
 
+        _append_bottom_carrier_points(controls, details, nodes)
+
         return MeshControlSetResult(
             mesh_control={
                 "schemaVersion": "1.0.0",
@@ -90,6 +92,41 @@ class MeshModel1Set:
                 "controls": controls,
             },
             details=details,
+        )
+
+
+def _append_bottom_carrier_points(
+    controls: list[dict], details: list[dict], nodes: list[dict]
+) -> None:
+    features = [node for node in nodes if node["kind"] != "container"]
+    if not features:
+        return
+    bottom_z = min(node["zMin"] for node in features)
+    for body in features:
+        if (
+            body["kind"] != "body"
+            or body["key"] != "carrier"
+            or abs(body["zMin"] - bottom_z) > _ZERO_TOLERANCE
+        ):
+            continue
+        label = "Carrier bottom +10"
+        controls.append(
+            {
+                "method": "Z_POINT",
+                "label": label,
+                "reference": {"kind": "body", "id": body["id"]},
+                "z": {"mode": "relative", "anchor": "z_min", "offset": 10},
+            }
+        )
+        point_z = body["zMin"] + 10
+        details.append(
+            {
+                "label": label,
+                "status": "applied",
+                "startZ": point_z,
+                "endZ": point_z,
+                "sourceIds": [body["id"]],
+            }
         )
 
 

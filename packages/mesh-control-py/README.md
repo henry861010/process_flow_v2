@@ -14,3 +14,8 @@ validates `mesh_control` with the installed mesher contract before returning it.
 implementations. They start with the same geometry-aware Tim, adhesive, uBump,
 and UF rules, but keep their constants and helper functions separate so each
 model can tune control sizes without changing the others.
+
+All three models add a `Z_POINT` at `z_min + 10 um` for each body keyed
+`carrier` whose bottom matches the lowest Z of all geometry features (bodies,
+vias, circuits, and bumps), within `1e-9 um`. The point references the carrier
+body by ID and uses a relative `z_min` offset of 10.

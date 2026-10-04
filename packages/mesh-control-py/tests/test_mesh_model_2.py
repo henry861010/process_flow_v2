@@ -121,6 +121,100 @@ class MeshModel2Tests(unittest.TestCase):
                 ["Tim", "adh"],
             )
 
+    def test_all_models_add_relative_point_for_nested_bottom_carrier(self):
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            for bottom_z in (-100, 25):
+                with self.subTest(set_id=set_id, bottom_z=bottom_z):
+                    geometry = structure(
+                        container(
+                            "container:root",
+                            bodies=[body("body:tim", bottom_z + 100, 10, "Tim", "tim")],
+                            children=[
+                                container("container:empty"),
+                                container(
+                                    "container:carrier",
+                                    bodies=[
+                                        body("body:carrier", bottom_z, 100, "Glass", "carrier"),
+                                    ],
+                                ),
+                            ],
+                        )
+                    )
+                    state = ProcessGeometryState.from_structure(geometry)
+                    before = state.to_geometry_structure()
+                    _, result = self.registry.apply(set_id, state)
+                    self.assertEqual(state.to_geometry_structure(), before)
+                    self.assertEqual(
+                        result.mesh_control["controls"],
+                        [
+                            {
+                                "method": "Z_SECTION_AVG",
+                                "label": "Tim",
+                                "reference": {"kind": "body", "id": "body:tim"},
+                                "elementSize": 50,
+                                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
+                                "endZ": {"mode": "relative", "anchor": "z_max", "offset": 0},
+                            },
+                            {
+                                "method": "Z_POINT",
+                                "label": "Carrier bottom +10",
+                                "reference": {"kind": "body", "id": "body:carrier"},
+                                "z": {"mode": "relative", "anchor": "z_min", "offset": 10},
+                            },
+                        ],
+                    )
+                    self.assertEqual(
+                        result.details[-1],
+                        {
+                            "label": "Carrier bottom +10",
+                            "status": "applied",
+                            "startZ": bottom_z + 10,
+                            "endZ": bottom_z + 10,
+                            "sourceIds": ["body:carrier"],
+                        },
+                    )
+
+    def test_all_models_skip_carrier_when_any_feature_is_lower(self):
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            for kind in ("body", "via", "circuit", "bump"):
+                with self.subTest(set_id=set_id, lower_kind=kind):
+                    root = container(
+                        "container:root",
+                        bodies=[body("body:carrier", 0, 100, "Glass", "carrier")],
+                    )
+                    if kind == "body":
+                        root["bodies"].append(body("body:lower", -20, 10, "Si"))
+                    else:
+                        lower = bump(f"{kind}:lower", -20, 10)
+                        if kind == "circuit":
+                            lower.pop("direction")
+                        root[{"via": "vias", "circuit": "circuits", "bump": "bumps"}[kind]] = [lower]
+                    state = ProcessGeometryState.from_structure(structure(root))
+                    _, result = self.registry.apply(set_id, state)
+                    self.assertEqual(result.mesh_control["controls"], [])
+                    self.assertEqual(result.details, [])
+
+    def test_all_models_only_add_points_to_carriers_at_shared_bottom(self):
+        geometry = structure(
+            container(
+                "container:root",
+                bodies=[
+                    body("body:top-carrier", 200, 100, "Glass", "carrier"),
+                    body("body:bottom-carrier-1", 0, 100, "Glass", "carrier"),
+                    body("body:plain", 0, 100, "Glass"),
+                    body("body:bottom-carrier-2", 0, 100, "Glass", "carrier"),
+                ],
+            )
+        )
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            with self.subTest(set_id=set_id):
+                state = ProcessGeometryState.from_structure(geometry)
+                _, result = self.registry.apply(set_id, state)
+                self.assertEqual(
+                    [item["reference"]["id"] for item in result.mesh_control["controls"]],
+                    ["body:bottom-carrier-1", "body:bottom-carrier-2"],
+                )
+
     def test_full_rule_set_preserves_dfs_order_and_resolves_hbm_stack(self):
         hbm = container(
             "container:hbm",
