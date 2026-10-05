@@ -60,6 +60,8 @@ MUST NOT 放入 key。
 - `hbm.core_die_1` 至 `hbm.core_die_63`：HBM generator 建立的一般 core dies；編號從 1
   開始且不得補零。
 - `hbm.top_die`：HBM generator 建立的 top core die。
+- `soc.pass2`、`soc.usg`、`soc.elk`、`soc.si`：SoC generator 由下而上建立的四層實體；
+  厚度為 0 的層不建立 body。
 
 `envelope` 在本版仍是一般 material-owning physical Body；CAD、mesh 與 section consumer 不得
 只因 key 是 `envelope` 就忽略、改變 priority 或改變 materialization。未來 operation 可以明確以
@@ -73,7 +75,9 @@ MUST NOT 放入 key。
   footprint 的 root body 標記為 `envelope`。HBM child containers 不提供 key；其 base、一般 core
   與 top core bodies 分別使用 `hbm.base_die`、`hbm.core_die_{number}` 與 `hbm.top_die`。DRAM
   其他內部 containers 與 bodies 不提供 key。
-- SoC 與 VRM generator 分別標記 root container 為 `soc`、`vrm`，唯一的 Box body 標記為 `envelope`。
+- SoC generator 標記 root container 為 `soc`，各層 Box body 使用 `soc.pass2`、`soc.usg`、
+  `soc.elk`、`soc.si`。VRM generator 標記 root container 為 `vrm`，唯一的 Box body
+  標記為 `envelope`。
 - Molding 與 DAF 分別建立 `molding`、`daf` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
   `daf` role 視為可選的 bonded DAF。

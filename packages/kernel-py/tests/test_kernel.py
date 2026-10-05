@@ -414,6 +414,10 @@ class GeometryDomainTests(unittest.TestCase):
             "hbm.core_die_1",
             "hbm.core_die_63",
             "hbm.top_die",
+            "soc.pass2",
+            "soc.usg",
+            "soc.elk",
+            "soc.si",
         ):
             with self.subTest(key=key):
                 self.assertEqual(Body(geometry, "Si", key).key(), key)

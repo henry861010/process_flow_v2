@@ -7,7 +7,17 @@ from .contracts import GeneratorEvaluation, JsonObject
 
 PACKAGE_X = 8000
 PACKAGE_Y = 10000
-DEFAULT_PARAMETERS: JsonObject = {"thickness": 150, "material": "Si-SoC"}
+LAYERS = (("pass2", "Pass2"), ("usg", "usg"), ("elk", "elk"), ("si", "si"))
+DEFAULT_PARAMETERS: JsonObject = {
+    "pass2Thickness": 5.625,
+    "pass2Material": "pass2",
+    "usgThickness": 2.89,
+    "usgMaterial": "usg",
+    "elkThickness": 1.315,
+    "elkMaterial": "elk",
+    "siThickness": 200,
+    "siMaterial": "si",
+}
 
 
 class SocGenerator:
@@ -17,7 +27,7 @@ class SocGenerator:
             "id": "soc",
             "version": 1,
             "label": "SoC generator",
-            "description": "Build a single SoC die box with configurable thickness and material.",
+            "description": "Build a SoC die with Pass2, usg, elk and si layers from bottom to top. Zero thickness omits a layer.",
             "uiPlacements": ["templateGeometryLibrary", "flowInputPicker"],
             "entityType": "die",
             "category": "die.soc",
@@ -29,60 +39,101 @@ class SocGenerator:
             },
             "defaultParameters": dict(DEFAULT_PARAMETERS),
             "parameterDefinitions": [
-                {
-                    "id": "thickness",
-                    "name": "Thickness",
-                    "description": "",
-                    "valueType": "float",
-                    "controlType": "number",
-                    "required": True,
-                    "unit": "um",
-                    "validation": {"min": 0, "exclusiveMin": True},
-                },
-                {
-                    "id": "material",
-                    "name": "Material",
-                    "description": "",
-                    "valueType": "materialRef",
-                    "controlType": "text",
-                    "required": True,
-                    "validation": {"minLength": 1},
-                },
+                parameter
+                for layer_id, _ in LAYERS
+                for parameter in [
+                    {
+                        "id": f"{layer_id}Thickness",
+                        "name": "Thickness",
+                        "description": "Set to 0 to omit this layer.",
+                        "valueType": "float",
+                        "controlType": "number",
+                        "required": True,
+                        "unit": "um",
+                        "validation": {"min": 0},
+                    },
+                    {
+                        "id": f"{layer_id}Material",
+                        "name": "Material",
+                        "description": "",
+                        "valueType": "materialRef",
+                        "controlType": "text",
+                        "required": True,
+                        "validation": {"minLength": 1},
+                    },
+                ]
             ],
-            "parameterGroups": [],
+            "parameterGroups": [
+                {
+                    "id": f"layer-{layer_id}",
+                    "label": label,
+                    "parameterIds": [f"{layer_id}Thickness", f"{layer_id}Material"],
+                }
+                for layer_id, label in LAYERS
+            ],
             "previewViews": ["top", "cross-section-x"],
         }
 
     def validate(self, parameters: JsonObject) -> JsonObject:
         errors: JsonObject = {}
-        thickness = parameters.get("thickness")
-        if (
-            isinstance(thickness, bool)
-            or not isinstance(thickness, (int, float))
-            or not math.isfinite(thickness)
-            or thickness <= 0
-        ):
-            errors["thickness"] = "Thickness must be a finite number greater than 0."
-        material = parameters.get("material")
-        if not isinstance(material, str) or not material.strip():
-            errors["material"] = "Material is required."
+        total_thickness = 0.0
+        for layer_id, label in LAYERS:
+            thickness_id = f"{layer_id}Thickness"
+            thickness = parameters.get(thickness_id)
+            if (
+                isinstance(thickness, bool)
+                or not isinstance(thickness, (int, float))
+                or not math.isfinite(thickness)
+                or thickness < 0
+            ):
+                errors[thickness_id] = (
+                    f"{label} thickness must be a finite number greater than or equal to 0."
+                )
+            else:
+                total_thickness += float(thickness)
+            material_id = f"{layer_id}Material"
+            material = parameters.get(material_id)
+            if not isinstance(material, str) or not material.strip():
+                errors[material_id] = f"{label} material is required."
+        if not any(f"{layer_id}Thickness" in errors for layer_id, _ in LAYERS):
+            if not math.isfinite(total_thickness) or total_thickness <= 0:
+                errors["siThickness"] = "Total thickness must be finite and greater than 0."
         return errors
 
     def evaluate(self, parameters: JsonObject) -> GeneratorEvaluation:
         if self.validate(parameters):
             raise ValueError("Cannot build SoC geometry from invalid parameters")
-        thickness = float(parameters["thickness"])
-        normalized = {
-            "thickness": thickness,
-            "material": parameters["material"].strip(),
-        }
-        bottom_z = -thickness / 2
+        normalized: JsonObject = {}
+        for layer_id, _ in LAYERS:
+            normalized[f"{layer_id}Thickness"] = float(parameters[f"{layer_id}Thickness"])
+            normalized[f"{layer_id}Material"] = parameters[f"{layer_id}Material"].strip()
+        total_thickness = sum(normalized[f"{layer_id}Thickness"] for layer_id, _ in LAYERS)
+        cursor_z = -total_thickness / 2
+        bodies: list[JsonObject] = []
+        for layer_id, _ in LAYERS:
+            thickness = normalized[f"{layer_id}Thickness"]
+            if thickness == 0:
+                continue
+            bodies.append(
+                {
+                    "id": f"body:soc-{layer_id}",
+                    "key": f"soc.{layer_id}",
+                    "geometry": {
+                        "type": "BoxGeometry",
+                        "bottom_left": [-PACKAGE_X / 2, -PACKAGE_Y / 2, cursor_z],
+                        "top_right": [PACKAGE_X / 2, PACKAGE_Y / 2, cursor_z],
+                        "thk": thickness,
+                    },
+                    "material": normalized[f"{layer_id}Material"],
+                }
+            )
+            cursor_z += thickness
         return GeneratorEvaluation(
             normalized_parameters=normalized,
             computed_parameters={
                 "packageX": PACKAGE_X,
                 "packageY": PACKAGE_Y,
-                "totalThickness": thickness,
+                "totalThickness": total_thickness,
             },
             geometry_structure={
                 "schemaVersion": "1.0.0",
@@ -90,19 +141,7 @@ class SocGenerator:
                 "root": {
                     "id": "container:soc-root",
                     "key": "soc",
-                    "bodies": [
-                        {
-                            "id": "body:soc-envelope",
-                            "key": "envelope",
-                            "geometry": {
-                                "type": "BoxGeometry",
-                                "bottom_left": [-PACKAGE_X / 2, -PACKAGE_Y / 2, bottom_z],
-                                "top_right": [PACKAGE_X / 2, PACKAGE_Y / 2, bottom_z],
-                                "thk": thickness,
-                            },
-                            "material": normalized["material"],
-                        }
-                    ],
+                    "bodies": bodies,
                     "vias": [],
                     "circuits": [],
                     "bumps": [],

@@ -1243,7 +1243,12 @@ class ProcessFlowApiTests(unittest.TestCase):
         binding = saved["inputBindings"]["incoming_soc"]
         self.assertEqual(binding["generatorId"], "soc")
         self.assertEqual(binding["generatorVersion"], 1)
-        self.assertEqual(binding["parameters"], {"thickness": 220, "material": "Si-Custom"})
+        self.assertEqual(binding["parameters"], {
+            "pass2Thickness": 5.625, "pass2Material": "pass2",
+            "usgThickness": 2.89, "usgMaterial": "usg",
+            "elkThickness": 1.315, "elkMaterial": "elk",
+            "siThickness": 200, "siMaterial": "si",
+        })
         self.assertEqual(
             self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), saved
         )
@@ -1251,7 +1256,11 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(definition.status_code, 200, definition.text)
         self.assertEqual(
             [item["id"] for item in definition.json()["parameterDefinitions"]],
-            ["thickness", "material"],
+            [
+                f"{layer}{suffix}"
+                for layer in ("pass2", "usg", "elk", "si")
+                for suffix in ("Thickness", "Material")
+            ],
         )
         self.assertEqual(len(self.client.get("/api/geometries").json()), geometry_count)
 
@@ -1259,9 +1268,17 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(executed.status_code, 200, executed.text)
         child = executed.json()["geometryStructure"]["root"]["children"][0]
         self.assertEqual(child["key"], "soc")
+        self.assertEqual([body["key"] for body in child["bodies"]], ["soc.pass2", "soc.usg", "soc.elk", "soc.si"])
+        self.assertEqual([body["material"] for body in child["bodies"]], ["pass2", "usg", "elk", "si"])
+        self.assertEqual([body["geometry"]["thk"] for body in child["bodies"]], [5.625, 2.89, 1.315, 200])
+        for lower, upper in zip(child["bodies"], child["bodies"][1:]):
+            self.assertAlmostEqual(
+                lower["geometry"]["bottom_left"][2] + lower["geometry"]["thk"],
+                upper["geometry"]["bottom_left"][2],
+            )
         body = child["bodies"][0]
-        self.assertEqual(body["material"], "Si-Custom")
-        self.assertEqual(body["geometry"]["thk"], 220)
+        self.assertEqual(body["material"], "pass2")
+        self.assertEqual(body["geometry"]["thk"], 5.625)
         self.assertEqual(
             body["geometry"]["top_right"][0] - body["geometry"]["bottom_left"][0],
             2000,
@@ -1275,17 +1292,25 @@ class ProcessFlowApiTests(unittest.TestCase):
         edited["id"] = "flow_inst_soc_generator_edited"
         edited["name"] = "Edited SoC placement"
         edited["inputBindings"]["incoming_soc"]["parameters"] = {
-            "thickness": 180,
-            "material": "Si-Edited",
+            "pass2Thickness": 0,
+            "usgThickness": 0,
+            "elkThickness": 0,
+            "siThickness": 180,
+            "siMaterial": "Si-Edited",
         }
         recreated = self.client.post("/api/process-flow-instances", json=edited)
         self.assertEqual(recreated.status_code, 201, recreated.text)
+        self.assertEqual(
+            recreated.json()["inputBindings"]["incoming_soc"]["parameters"]["elkThickness"], 0
+        )
         edited_execution = self.client.post(
             f"/api/process-flow-instances/{edited['id']}/execute"
         )
         self.assertEqual(edited_execution.status_code, 200, edited_execution.text)
         edited_child = edited_execution.json()["geometryStructure"]["root"]["children"][0]
+        self.assertEqual(len(edited_child["bodies"]), 1)
         edited_body = edited_child["bodies"][0]
+        self.assertEqual(edited_body["key"], "soc.si")
         self.assertEqual(edited_body["material"], "Si-Edited")
         self.assertEqual(edited_body["geometry"]["thk"], 180)
         self.assertEqual(len(self.client.get("/api/geometries").json()), geometry_count)

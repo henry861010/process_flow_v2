@@ -32,6 +32,10 @@ BODY_KEYS = frozenset(
         "adh",
         "hbm.base_die",
         "hbm.top_die",
+        "soc.pass2",
+        "soc.usg",
+        "soc.elk",
+        "soc.si",
     }
 ) | _HBM_CORE_DIE_KEYS
 
