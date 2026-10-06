@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import { resolveFlowParameterDefaults } from "./parameter-values";
 import { isPlacementValid } from "./placement-validation";
+import { analyzeFlowDependencies, type FlowDependencies } from "./dependencies";
 
 export function geometryCategoryConstraints(
   geometry: Pick<GeometryEntity, "category">,
@@ -69,6 +70,7 @@ export type ConfigurationReadinessStatus =
 export type ConfigurationReadinessCode =
   | "ready"
   | "optional-unbound"
+  | "unused-dependency"
   | "unbound-geometry"
   | "unresolved-geometry"
   | "geometry-constraint"
@@ -91,6 +93,7 @@ export function getFlowInputReadiness(
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
   flowInputId: string,
+  dependencies = analyzeFlowDependencies(template, stepTemplates, configuration),
 ): ConfigurationReadiness {
   const input = template.flowInputs.find(
     (candidate) => candidate.flowInputId === flowInputId,
@@ -104,12 +107,19 @@ export function getFlowInputReadiness(
     };
   }
 
+  if (template.stepRefs.length > 0 && !dependencies.flowInputIds.has(flowInputId)) {
+    return {
+      status: "neutral", code: "unused-dependency",
+      reason: `${input.name} is unused in this configuration.`, flowInputId,
+    };
+  }
   const binding = configuration.inputBindings[flowInputId];
   if (!binding) {
     const required = isFlowInputBindingRequired(
       template,
       stepTemplates,
       flowInputId,
+      dependencies,
     );
     return required
       ? {
@@ -158,49 +168,28 @@ export function getStepExecutionReadiness(
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
 ): ConfigurationReadiness {
-  const requiredSteps = upstreamStepIds(template, stepRefId);
-  if (hasStepCycle(template, requiredSteps)) {
-    return {
-      status: "error",
-      code: "cycle",
-      reason: "Process flow contains a cycle.",
-      stepRefId,
-    };
-  }
+  const structureError = getTemplateStructureError(template, stepTemplates);
+  if (structureError) return structureError;
+  return getStepDependencyReadiness(stepRefId, template, stepTemplates, configuration, geometries);
+}
+
+function getStepDependencyReadiness(
+  stepRefId: string,
+  template: ProcessFlowTemplate,
+  stepTemplates: ProcessStepTemplate[],
+  configuration: FlowConfiguration,
+  geometries: GeometryEntity[],
+): ConfigurationReadiness {
+  const structureError = getTemplateStructureError(template, stepTemplates, stepRefId);
+  if (structureError) return structureError;
+  const dependencies = analyzeFlowDependencies(
+    template, stepTemplates, configuration, stepRefId,
+  );
+  const requiredSteps = dependencies.stepRefIds;
 
   const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
-  for (const ref of template.stepRefs) {
-    if (!requiredSteps.has(ref.stepRefId)) continue;
-    const stepTemplate = stepTemplateById.get(ref.processStepTemplateId);
-    if (!stepTemplate) {
-      return {
-        status: "error",
-        code: "missing-step-template",
-        reason: `Process step template ${ref.processStepTemplateId} is missing.`,
-        stepRefId: ref.stepRefId,
-      };
-    }
-    const missingPort = stepTemplate.inputPorts.find(
-      (port) =>
-        port.required &&
-        !template.flowEdges.some(
-          (edge) =>
-            edge.target.stepRefId === ref.stepRefId &&
-            edge.target.inputPortId === port.portId,
-        ),
-    );
-    if (missingPort) {
-      return {
-        status: "error",
-        code: "missing-input-edge",
-        reason: `${stepDisplayName(ref.stepLabel, stepTemplate.name)} needs ${missingPort.name}.`,
-        stepRefId: ref.stepRefId,
-      };
-    }
-  }
-
   for (const input of template.flowInputs) {
-    const sourceEdges = template.flowEdges.filter(
+    const sourceEdges = dependencies.edges.filter(
       (edge) =>
         edge.source.kind === "flowInput" &&
         edge.source.flowInputId === input.flowInputId &&
@@ -213,6 +202,7 @@ export function getStepExecutionReadiness(
       configuration,
       geometries,
       input.flowInputId,
+      dependencies,
     );
     if (readiness.status !== "ready" && readiness.status !== "neutral") {
       return { ...readiness, stepRefId: sourceEdges[0].target.stepRefId };
@@ -241,7 +231,7 @@ export function getStepExecutionReadiness(
   return {
     status: "ready",
     code: "ready",
-    reason: "Ready to preview.",
+    reason: "This step and its dependencies are configured.",
     stepRefId,
   };
 }
@@ -293,61 +283,166 @@ export function isConfigurationComplete(
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
 ) {
-  const templatesById = new Map(stepTemplates.map((item) => [item.id, item]));
+  if (getTemplateStructureError(template, stepTemplates)) return false;
+  const knownInputs = new Set(template.flowInputs.map((input) => input.flowInputId));
+  const knownSteps = new Set(template.stepRefs.map((ref) => ref.stepRefId));
   if (
-    template.flowInputs.some((input) => {
-      const geometry = geometryForFlowInput(
-        configuration,
-        input.flowInputId,
-        geometries,
-      );
-      const required = isFlowInputBindingRequired(
-        template,
-        stepTemplates,
-        input.flowInputId,
-      );
-      return required
-        ? !geometryMatchesFlowInput(geometry, input)
-        : geometry != null && !geometryMatchesFlowInput(geometry, input);
-    })
-  ) {
-    return false;
-  }
-  return template.stepRefs.every((stepRef) => {
-    const stepTemplate = templatesById.get(stepRef.processStepTemplateId);
-    if (!stepTemplate) return false;
-    const values = configuration.stepConfigurations[stepRef.stepRefId]?.parameterValues ?? {};
-    return stepTemplate.parameterDefinitions.every((parameter) =>
+    !isRecord(configuration.inputBindings) || !isRecord(configuration.stepConfigurations) ||
+    !isRecord(configuration.embeddedGeometries) ||
+    Object.keys(configuration.inputBindings).some((id) => !knownInputs.has(id)) ||
+    Object.entries(configuration.stepConfigurations).some(([id, step]) =>
+      !knownSteps.has(id) || !isRecord(step) ||
+      !isRecord(step.parameterValues === undefined ? {} : step.parameterValues),
+    )
+  ) return false;
+  const dependencies = analyzeFlowDependencies(template, stepTemplates, configuration);
+  if (template.flowInputs.some((input) => {
+    const readiness = getFlowInputReadiness(
+      template, stepTemplates, configuration, geometries, input.flowInputId, dependencies,
+    );
+    return readiness.status === "error" || readiness.status === "incomplete";
+  })) return false;
+  const templatesById = new Map(stepTemplates.map((item) => [item.id, item]));
+  return template.stepRefs.every((ref) => {
+    if (!dependencies.stepRefIds.has(ref.stepRefId)) return true;
+    const step = templatesById.get(ref.processStepTemplateId);
+    if (!step) return false;
+    const values = configuration.stepConfigurations[ref.stepRefId]?.parameterValues ?? {};
+    return step.parameterDefinitions.every((parameter) =>
       isParameterValueComplete(parameter, values[parameter.id]),
     );
   });
+}
+
+export function getStepConfigurationReadiness(
+  stepRefId: string,
+  template: ProcessFlowTemplate,
+  stepTemplates: ProcessStepTemplate[],
+  configuration: FlowConfiguration,
+  geometries: GeometryEntity[],
+): ConfigurationReadiness {
+  const structureError = getTemplateStructureError(template, stepTemplates, stepRefId);
+  if (structureError) return structureError;
+  const dependencies = analyzeFlowDependencies(template, stepTemplates, configuration);
+  // In an unfinished graph, missing terminal roots may also make a step unreachable.
+  // Only a structurally valid graph can classify a branch as unused.
+  if (!dependencies.stepRefIds.has(stepRefId) && !getTemplateStructureError(template, stepTemplates)) {
+    return {
+      status: "neutral", code: "unused-dependency",
+      reason: "Unused in this configuration. Preview requires this branch's configuration.",
+      stepRefId,
+    };
+  }
+  return getStepDependencyReadiness(stepRefId, template, stepTemplates, configuration, geometries);
 }
 
 export function isFlowInputBindingRequired(
   template: ProcessFlowTemplate,
   stepTemplates: ProcessStepTemplate[],
   flowInputId: string,
+  dependencies?: FlowDependencies,
 ) {
+  if (dependencies && template.stepRefs.length > 0 && !dependencies.flowInputIds.has(flowInputId)) {
+    return false;
+  }
   const stepRefsById = new Map(template.stepRefs.map((item) => [item.stepRefId, item]));
   const templatesById = new Map(stepTemplates.map((item) => [item.id, item]));
-  const flowInput = template.flowInputs.find(
-    (input) => input.flowInputId === flowInputId,
-  );
+  const flowInput = template.flowInputs.find((input) => input.flowInputId === flowInputId);
   if (flowInput?.required !== false) return true;
-  return template.flowEdges.some((edge) => {
-    if (edge.source.kind !== "flowInput" || edge.source.flowInputId !== flowInputId) {
-      return false;
-    }
+  return (dependencies?.edges ?? template.flowEdges).some((edge) => {
+    if (edge.source.kind !== "flowInput" || edge.source.flowInputId !== flowInputId) return false;
     const stepRef = stepRefsById.get(edge.target.stepRefId);
-    const stepTemplate = stepRef
-      ? templatesById.get(stepRef.processStepTemplateId)
-      : undefined;
-    return (
-      stepTemplate?.inputPorts.find(
-        (port) => port.portId === edge.target.inputPortId,
-      )?.required !== false
-    );
+    const step = stepRef ? templatesById.get(stepRef.processStepTemplateId) : undefined;
+    return step?.inputPorts.find((port) => port.portId === edge.target.inputPortId)?.required !== false;
   });
+}
+
+function getTemplateStructureError(
+  template: ProcessFlowTemplate,
+  stepTemplates: ProcessStepTemplate[],
+  outputStepRefId?: string,
+): ConfigurationReadiness | null {
+  if (outputStepRefId !== undefined) {
+    if (!template.stepRefs.some((ref) => ref.stepRefId === outputStepRefId)) {
+      return {
+        status: "error", code: "missing-step-template",
+        reason: `Process step ${outputStepRefId} is missing.`, stepRefId: outputStepRefId,
+      };
+    }
+    // Topology still includes die inputs even when zero placements prune execution.
+    // Downstream and unrelated wiring errors must not change this node's status.
+    const upstream = upstreamStepIds(template, outputStepRefId);
+    const flowEdges = template.flowEdges.filter((edge) => upstream.has(edge.target.stepRefId));
+    const flowInputIds = new Set(flowEdges.flatMap((edge) =>
+      edge.source.kind === "flowInput" ? [edge.source.flowInputId] : [],
+    ));
+    template = {
+      ...template,
+      stepRefs: template.stepRefs.filter((ref) => upstream.has(ref.stepRefId)),
+      flowEdges,
+      flowInputs: template.flowInputs.filter((input) => flowInputIds.has(input.flowInputId)),
+    };
+  }
+  const refs = new Map(template.stepRefs.map((ref) => [ref.stepRefId, ref]));
+  const steps = new Map(stepTemplates.map((step) => [step.id, step]));
+  const inputs = new Set(template.flowInputs.map((input) => input.flowInputId));
+  const invalid = (reason: string): ConfigurationReadiness => ({
+    status: "error", code: "missing-input-edge", reason,
+  });
+  if (refs.size !== template.stepRefs.length || inputs.size !== template.flowInputs.length) {
+    return invalid("Duplicate flow input or step reference.");
+  }
+  if (hasStepCycle(template, new Set(refs.keys()))) {
+    return { status: "error", code: "cycle", reason: "Process flow contains a cycle." };
+  }
+  for (const ref of template.stepRefs) {
+    const step = steps.get(ref.processStepTemplateId);
+    if (!step) return {
+      status: "error", code: "missing-step-template",
+      reason: `Process step template ${ref.processStepTemplateId} is missing.`,
+      stepRefId: ref.stepRefId,
+    };
+    for (const port of step.inputPorts) {
+      if (port.required && !template.flowEdges.some((edge) =>
+        edge.target.stepRefId === ref.stepRefId && edge.target.inputPortId === port.portId,
+      )) {
+        return {
+          ...invalid(`${stepDisplayName(ref.stepLabel, step.name)} needs ${port.name}.`),
+          stepRefId: ref.stepRefId,
+        };
+      }
+    }
+  }
+  const edgeIds = new Set<string>();
+  const targets = new Set<string>();
+  const sources = new Set<string>();
+  for (const edge of template.flowEdges) {
+    const target = refs.get(edge.target.stepRefId);
+    const targetPort = target && steps.get(target.processStepTemplateId)?.inputPorts.find(
+      (port) => port.portId === edge.target.inputPortId,
+    );
+    const key = JSON.stringify([edge.target.stepRefId, edge.target.inputPortId]);
+    if (!targetPort || edgeIds.has(edge.edgeId) || targets.has(key)) {
+      return invalid("Invalid or duplicate flow edge.");
+    }
+    edgeIds.add(edge.edgeId);
+    targets.add(key);
+    if (edge.source.kind === "flowInput") {
+      if (!inputs.has(edge.source.flowInputId)) return invalid("Flow input is missing from the template.");
+    } else {
+      const source = refs.get(edge.source.stepRefId);
+      const outputPortId = edge.source.outputPortId;
+      const sourcePort = source && steps.get(source.processStepTemplateId)?.outputPorts.find(
+        (port) => port.portId === outputPortId,
+      );
+      const sourceKey = JSON.stringify([edge.source.stepRefId, edge.source.outputPortId]);
+      if (!sourcePort || sources.has(sourceKey)) {
+        return invalid("Invalid step output or unsupported fan-out.");
+      }
+      sources.add(sourceKey);
+    }
+  }
+  return null;
 }
 
 function scalarValueIsValid(
@@ -433,24 +528,20 @@ export function geometryMatchesFlowInput(
   );
 }
 
-function upstreamStepIds(template: ProcessFlowTemplate, targetStepRefId: string) {
-  const incoming = new Map<string, string[]>();
-  template.flowEdges.forEach((edge) => {
-    if (edge.source.kind !== "stepOutput") return;
-    incoming.set(edge.target.stepRefId, [
-      ...(incoming.get(edge.target.stepRefId) ?? []),
-      edge.source.stepRefId,
-    ]);
-  });
-  const result = new Set<string>();
-  const pending = [targetStepRefId];
-  while (pending.length > 0) {
-    const current = pending.pop()!;
-    if (result.has(current)) continue;
-    result.add(current);
-    pending.push(...(incoming.get(current) ?? []));
+function upstreamStepIds(template: ProcessFlowTemplate, outputStepRefId: string) {
+  const stepRefIds = new Set<string>();
+  const pending = [outputStepRefId];
+  while (pending.length) {
+    const stepRefId = pending.pop()!;
+    if (stepRefIds.has(stepRefId)) continue;
+    stepRefIds.add(stepRefId);
+    for (const edge of template.flowEdges) {
+      if (edge.target.stepRefId === stepRefId && edge.source.kind === "stepOutput") {
+        pending.push(edge.source.stepRefId);
+      }
+    }
   }
-  return result;
+  return stepRefIds;
 }
 
 function hasStepCycle(

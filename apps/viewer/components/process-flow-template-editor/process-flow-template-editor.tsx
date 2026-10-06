@@ -71,6 +71,7 @@ import {
   createEmptyFlowConfiguration,
   getFlowInputReadiness,
   getStepExecutionReadiness,
+  getStepConfigurationReadiness,
   geometryCategoryConstraints,
   geometryForFlowInput,
   geometryMatchesFlowInput,
@@ -82,6 +83,7 @@ import {
   geometryInputStatusLabel,
   stepReadinessStatusLabel,
 } from "@/lib/process-flow/readiness-presentation";
+import { analyzeFlowDependencies } from "@/lib/process-flow/dependencies";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import { createDefaultParameterValues } from "@/lib/process-flow/parameter-values";
 import { buildTemplatePayload } from "@/lib/process-flow/template-builder";
@@ -242,6 +244,8 @@ function ProcessFlowTemplateEditorInner() {
       : null;
   const pickerNode = nodes.find((node): node is FlowInputNode => node.id === pickerNodeId && isFlowInputNode(node)) ?? null;
 
+  const dependencies = analyzeFlowDependencies(draftTemplate, stepTemplates, configuration);
+
   const displayNodes: FlowNode[] = nodes.map((node) => {
         if (isFlowInputNode(node)) {
           const geometry = geometryForFlowInput(
@@ -284,14 +288,16 @@ function ProcessFlowTemplateEditorInner() {
           };
         }
 
-        const readiness = getStepExecutionReadiness(
+        const readiness = getStepConfigurationReadiness(
           node.data.stepRef.stepRefId,
           draftTemplate,
           stepTemplates,
           configuration,
           resolvedGeometries,
         );
-        const previewAvailability = previewAvailabilityFromReadiness(readiness);
+        const previewAvailability = previewAvailabilityFromReadiness(
+          getStepExecutionReadiness(node.data.stepRef.stepRefId, draftTemplate, stepTemplates, configuration, resolvedGeometries),
+        );
         const terminal = !edges.some(
           (edge) => edge.source === node.id && getEdgeSourceKind(edge, nodes) === "stepOutput",
         );
@@ -340,7 +346,7 @@ function ProcessFlowTemplateEditorInner() {
         );
         const sourceStep = sourceNode && isStepNode(sourceNode) ? sourceNode : null;
         const sourceReadiness = sourceStep
-          ? getStepExecutionReadiness(
+          ? getStepConfigurationReadiness(
               sourceStep.data.stepRef.stepRefId,
               draftTemplate,
               stepTemplates,
@@ -357,7 +363,15 @@ function ProcessFlowTemplateEditorInner() {
               )
             : null;
         const previewAvailability = sourceStep && sourceReadiness
-          ? previewAvailabilityFromReadiness(sourceReadiness)
+          ? previewAvailabilityFromReadiness(
+              getStepExecutionReadiness(
+                sourceStep.data.stepRef.stepRefId,
+                draftTemplate,
+                stepTemplates,
+                configuration,
+                resolvedGeometries,
+              ),
+            )
           : null;
         return {
           ...edge,
@@ -369,7 +383,7 @@ function ProcessFlowTemplateEditorInner() {
             slotLabel: targetPort?.name ?? edge.targetHandle ?? "Input",
             sourceLabel: sourceNode ? nodeSourceLabel(sourceNode) : "Missing source",
             graphMode: topologyLocked ? "view" : "edit",
-            status: sourceReadiness?.status ?? "error",
+            status: dependencies.edgeIds.has(edge.id) ? sourceReadiness?.status ?? "error" : "neutral",
             geometryViewVisible: sourceKind === "stepOutput",
             geometryViewDisabled: previewAvailability ? !previewAvailability.ok : true,
             geometryViewTitle: previewAvailability?.ok

@@ -54,6 +54,7 @@ import {
   createEmptyFlowConfiguration,
   getFlowInputReadiness,
   getStepExecutionReadiness,
+  getStepConfigurationReadiness,
   geometryForFlowInput,
   geometryMatchesFlowInput,
   isConfigurationComplete,
@@ -64,6 +65,7 @@ import {
   geometryInputStatusLabel,
   stepReadinessStatusLabel,
 } from "@/lib/process-flow/readiness-presentation";
+import { analyzeFlowDependencies } from "@/lib/process-flow/dependencies";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import {
   buildProcessFlowInstanceCreate,
@@ -578,6 +580,7 @@ function graphForInstance(
   onPreviewStep: (node: StepNode) => void,
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const layout = computeTemplateLayout(template, stepTemplates);
+  const dependencies = analyzeFlowDependencies(template, stepTemplates, configuration);
   const stepTemplateById = new Map(stepTemplates.map((item) => [item.id, item]));
   const flowInputNodes = new Map<string, FlowInputNode>();
   const stepNodes = new Map<string, StepNode>();
@@ -626,7 +629,7 @@ function graphForInstance(
   template.stepRefs.forEach((stepRef) => {
     const stepTemplate = stepTemplateById.get(stepRef.processStepTemplateId);
     if (!stepTemplate) return;
-    const readiness = getStepExecutionReadiness(
+    const readiness = getStepConfigurationReadiness(
       stepRef.stepRefId,
       template,
       stepTemplates,
@@ -712,7 +715,7 @@ function graphForInstance(
             ? sourceNode.data.definition.name
             : stepLabel(sourceNode.data.stepRef, sourceNode.data.stepTemplate),
           graphMode: "view",
-          status: sourceReadiness?.status ?? "error",
+          status: dependencies.edgeIds.has(savedEdge.edgeId) ? sourceReadiness?.status ?? "error" : "neutral",
           geometryViewVisible: Boolean(sourceStep),
           geometryViewDisabled: !previewReady,
           geometryViewTitle: previewReady
@@ -854,7 +857,7 @@ function FlowInputInspector({
     <section className="p-4">
       <div className="mb-2 flex min-h-8 items-center justify-end">
         <Badge variant={geometry ? "signal" : "outline"}>
-          {geometry ? "Bound" : node.data.statusLabel ?? "Optional"}
+          {node.data.statusLabel === "Unused" ? "Unused" : geometry ? "Bound" : node.data.statusLabel ?? "Optional"}
         </Badge>
       </div>
       <FlowInputBindingControl

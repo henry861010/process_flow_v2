@@ -400,11 +400,22 @@ Edge target：
 
 Binding requirement 是 flow input 與其實際 consumers 的 composite rule：
 
-- `FlowInputDefinition.required: true`：binding MUST 存在。
+- 實際 consumers 由 configuration 的有效 dependency closure 決定。完整 flow 從原本
+  terminal steps 反向追蹤；step-output preview 從指定 target 反向追蹤。
+- 僅 `program: "pnp/pnp"` 且 `placements: []` 的 step 不使用 `die_geometry` dependency；
+  `main_geometry` MUST 保留，PnP 輸出沿用原 state。缺值、null 或錯誤格式不等同零 placement。
+- 沒有有效 consumer 的 input 與上游 steps 不要求 binding、參數完整度或 resource resolution，
+  也不加入 execution plan。若 flow input 還有其他有效 consumer，仍 MUST 檢查。
+- 有有效 consumer 且 `FlowInputDefinition.required: true`：binding MUST 存在。
 - `required: false` 且所有相關 target ports 都 optional：binding MAY 省略。
 - 任一相關 target port required：binding MUST 存在。
-- Partial preview 只計算 target upstream closure 內的 consumers。
-- 若 optional binding 有提供，它仍 MUST resolve 並符合 constraints。
+- Partial preview 只計算 target 有效 upstream closure 內的 consumers；直接 preview 未使用分支
+  仍 MUST 完整配置該 target 的有效 dependencies。
+- 有效 consumer 的 optional binding 若有提供，仍 MUST resolve 並符合 constraints。
+- Template 全圖的拓樸、接線、ports 與 references MUST 維持有效；configuration 的基本 shape
+  與未知 step/input keys MUST reject。停用分支不改寫 template topology。
+- 未使用的 bindings、generator recipes 與 step values MUST 保留以供重新啟用；未使用的
+  generator recipe 不要求生成或正規化，重新啟用時 MUST 驗證。
 
 ### 6.5 未儲存的 preview draft
 
@@ -563,8 +574,8 @@ PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完�
 | `owner` | non-empty string | yes | Owning product、RD team或domain。 |
 | `description` | string | yes | Human-facing description；default `""`。 |
 | `processFlowTemplateId` | identifier | yes | Existing immutable template。 |
-| `inputBindings` | map of catalog or generator bindings | yes | Embedded binding MUST NOT appear；generator parameters MUST 是完整正規化 snapshot；optional inputs MAY be absent。 |
-| `stepConfigurations` | map | yes | Required values complete；steps without values MAY be absent。 |
+| `inputBindings` | map of catalog or generator bindings | yes | Embedded binding MUST NOT appear；使用中的 generator parameters MUST 是完整正規化 snapshot，未使用的 recipes 原樣保留；optional/unused inputs MAY be absent。 |
+| `stepConfigurations` | map | yes | 有效 steps 的 required values MUST complete；未使用的 steps 保留已提供 values，亦 MAY be absent。 |
 
 API MUST NOT provide in-place instance update。新產品、study result 或 recipe change MUST
 建立新的 instance id。目前模型保存通用identity metadata，但不保存 instance lineage、source
@@ -681,12 +692,12 @@ resource id。
 | --- | --- | --- | --- |
 | Step template create | complete | port invariants | definition schema + option enum definition |
 | Flow template create | complete | complete，含 exactly one terminal | definitions resolved |
-| Workspace create / update | complete | referenced template already valid | missing/empty required allowed；provided values validate |
+| Workspace create / update | complete | referenced template already valid | active steps provided values validate；missing/empty required allowed |
 | Flow-input preview | complete | full template valid | unrelated steps MAY be incomplete |
-| Step-output preview | complete | full template valid | target upstream closure MUST complete |
-| Instance create | complete | referenced template valid | full flow MUST complete |
-| Workspace commit | complete | referenced template valid | full flow MUST complete |
-| Execute | stored resource is revalidated | complete | complete |
+| Step-output preview | complete | full template valid | target active upstream closure MUST complete |
+| Instance create | complete | referenced template valid | active flow MUST complete |
+| Workspace commit | complete | referenced template valid | active flow MUST complete |
+| Execute | stored resource is revalidated | complete | active flow complete |
 | Seed/import | MUST pass same validators as create | required | required by resource type |
 
 | 操作邊界 | Resource existence / constraints | Geometry deep validity | Process module load |
@@ -696,7 +707,7 @@ resource id。
 | Workspace create / update | Catalog與generator version existence MAY defer；embedded local ref MUST exist | MAY defer | not executed |
 | Flow-input preview | target binding MUST resolve/match | target geometry MUST hydrate | not executed |
 | Step-output preview | closure bindings MUST resolve/match | closure geometries MUST hydrate | closure modules MUST load/execute |
-| Instance create | all supplied bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable；execution errors remain possible only for domain behavior |
+| Instance create | all used bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable；execution errors remain possible only for domain behavior |
 | Workspace commit | all used bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable before persistence |
 | Execute | resolve again | required | required and executed |
 | Seed/import | required where applicable | required | SHOULD verify program locator |
@@ -715,8 +726,8 @@ writes 則 MUST 位於同一個 SQLite transaction。Write transaction 必須：
    revision。
 3. 只 materialize 被 binding reference 的 embedded geometries；同一 `localId` 被多次
    reference 時只建立一個 catalog entity。
-4. 將 embedded bindings 改寫成 catalog bindings；generator bindings 保留已驗證並正規化的
-   版本與參數，不建立 catalog entity。
+4. 將 embedded bindings 改寫成 catalog bindings；使用中的 generator bindings 保留已驗證並
+   正規化的版本與參數，未使用的 recipes 原樣保留，不建立 catalog entity。
 5. Insert new immutable `ProcessFlowInstance`。
 6. 將 workspace 標記 `committed`、revision 加一、保存 `committedInstanceId`，改寫
    bindings 並清空 `embeddedGeometries`。
@@ -742,8 +753,8 @@ flowchart LR
 Compiler MUST：
 
 - resolve step templates；
-- validate topology、exactly one terminal 與 target closure；
-- validate bindings、parameter types、enum options 與 completeness；
+- validate 完整 template topology、exactly one terminal 與 configuration-dependent target closure；
+- validate 全部 configuration 的基本 shape；驗證有效 bindings、parameter types、enum options 與 completeness；
 - resolve catalog/embedded geometries，確認 `unitSystem: "um"` 與 constraints；
 - hydrate/normalize external structures；
 - normalize persisted parameter values into runtime values；
@@ -756,7 +767,7 @@ Kernel MUST：
 - clone upstream state before mutation；
 - apply material-instance rewriting to normalized `materialRef` values；
 - execute process modules in topological order；
-- return all step outputs plus the unique terminal output。
+- return all executed step outputs plus the unique terminal output；不補造未使用分支的 outputs。
 
 `ExecutionPlan` MAY retain resolved template metadata ids for diagnostics/context；「沒有 DB id」
 表示沒有仍需 repository lookup 的 id。

@@ -34,7 +34,16 @@ export function configurationFromInstance(
   stepTemplates: ProcessStepTemplate[],
   instance?: ProcessFlowInstance,
 ): FlowConfiguration {
-  if (!instance) return createEmptyFlowConfiguration(template, stepTemplates);
+  if (!instance) {
+    const configuration = createEmptyFlowConfiguration(template, stepTemplates);
+    const templatesById = new Map(stepTemplates.map((step) => [step.id, step]));
+    for (const ref of template.stepRefs) {
+      if (templatesById.get(ref.processStepTemplateId)?.program === "pnp/pnp") {
+        configuration.stepConfigurations[ref.stepRefId].parameterValues.placements = [];
+      }
+    }
+    return configuration;
+  }
   return {
     inputBindings: structuredClone(instance.inputBindings),
     stepConfigurations: structuredClone(instance.stepConfigurations),

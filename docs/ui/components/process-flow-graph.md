@@ -164,9 +164,13 @@ layout，並在完成後fit view。若畫布包含多個互不相連的flow comp
 | `ready` | target upstream closure可執行 | `Ready` / geometry `Bound` |
 | `incomplete` | required binding/parameter/upstream未完成 | `Incomplete` / `Unbound` |
 | `error` | topology/reference/value invalid | `Invalid` |
-| `neutral` | optional且未參與 | `Optional` |
+| `neutral` | optional 未綁定，或零 placement 排除的 dependency | `Optional` / `Unused` |
 
 Screen提供的 `statusLabel`優先於fallback。Status不可只靠border color。
+Step node 與其 output edge 的狀態只檢查該 step 及上游依賴；下游或其他分支缺少接線，
+不得讓已完整設定的上游節點變紅。Template 儲存與執行／preview 仍要求全圖拓樸有效。
+`Unused` 表示未參與完整 flow；其節點仍可編輯。分支的直接 preview 依指定 target 的有效
+dependency closure 獨立判斷，完整才啟用；未使用接線維持 neutral 樣式。
 
 ## 響應式與 accessibility
 

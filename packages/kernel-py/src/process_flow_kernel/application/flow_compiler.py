@@ -8,7 +8,8 @@ from typing import Any
 
 from .execution_plan import ExecutionPlan, PlannedGeometryInput, PlannedStep
 from .geometry_artifact import GeometryArtifact
-from .flow_validation import analyze_flow_graph, upstream_step_ref_ids
+from .flow_dependencies import analyze_flow_dependencies
+from .flow_validation import analyze_flow_graph
 from .resource_resolution import GeometryCatalogResolver, GeometryGeneratorResolver
 from ..serialization.schema import normalize_geometry_structure
 
@@ -93,8 +94,9 @@ class FlowCompiler:
         resolve_resources: bool = False,
     ) -> None:
         analysis = analyze_flow_graph(process_flow_template, step_templates)
-        included = included_step_ref_ids or set(analysis.step_refs_by_id)
         _validate_configuration_keys(configuration, analysis)
+        dependencies = analyze_flow_dependencies(analysis, configuration, included_step_ref_ids)
+        included = dependencies.step_ref_ids
         _validate_step_configurations(
             configuration,
             analysis,
@@ -102,10 +104,7 @@ class FlowCompiler:
             require_complete=require_complete,
         )
 
-        used_flow_input_ids = _used_flow_input_ids(
-            analysis.incoming_edges_by_port,
-            included,
-        )
+        used_flow_input_ids = dependencies.flow_input_ids
         bindings = configuration.get("inputBindings", {})
         embedded_geometries = configuration.get("embeddedGeometries", {})
         for flow_input_id in used_flow_input_ids:
@@ -114,7 +113,7 @@ class FlowCompiler:
                 if require_complete and _flow_input_binding_required(
                     analysis,
                     flow_input_id,
-                    included,
+                    dependencies.incoming_edges_by_port,
                 ):
                     raise ValueError(f"Missing input binding: {flow_input_id}")
                 continue
@@ -136,11 +135,13 @@ class FlowCompiler:
         output_step_ref_id: str | None = None,
     ) -> ExecutionPlan:
         analysis = analyze_flow_graph(process_flow_template, step_templates)
-        included = (
-            upstream_step_ref_ids(process_flow_template, output_step_ref_id)
-            if output_step_ref_id is not None
-            else set(analysis.step_refs_by_id)
+        _validate_configuration_keys(configuration, analysis)
+        dependencies = analyze_flow_dependencies(
+            analysis,
+            configuration,
+            {output_step_ref_id} if output_step_ref_id is not None else None,
         )
+        included = dependencies.step_ref_ids
         self.validate_configuration(
             process_flow_template,
             configuration,
@@ -153,7 +154,7 @@ class FlowCompiler:
         bindings = configuration.get("inputBindings", {})
         embedded_geometries = configuration.get("embeddedGeometries", {})
         external_geometries = {}
-        for flow_input_id in _used_flow_input_ids(analysis.incoming_edges_by_port, included):
+        for flow_input_id in dependencies.flow_input_ids:
             if flow_input_id not in bindings:
                 continue
             external_geometries[flow_input_id] = self._resolve_binding(
@@ -179,7 +180,7 @@ class FlowCompiler:
             geometry_inputs = {}
             for port in step_template.get("inputPorts", []):
                 port_id = port["portId"]
-                edge = analysis.incoming_edges_by_port.get((step_ref_id, port_id))
+                edge = dependencies.incoming_edges_by_port.get((step_ref_id, port_id))
                 if edge is None:
                     continue
                 source = edge["source"]
@@ -282,6 +283,8 @@ class FlowCompiler:
 
 
 def _validate_configuration_keys(configuration, analysis):
+    if not isinstance(configuration, Mapping):
+        raise ValueError("Flow configuration must be an object")
     input_bindings = configuration.get("inputBindings", {})
     step_configurations = configuration.get("stepConfigurations", {})
     embedded_geometries = configuration.get("embeddedGeometries", {})
@@ -297,6 +300,13 @@ def _validate_configuration_keys(configuration, analysis):
     unknown_steps = set(step_configurations) - set(analysis.step_refs_by_id)
     if unknown_steps:
         raise ValueError(f"Unknown step configuration: {sorted(unknown_steps)[0]}")
+    for step_ref_id, step_configuration in step_configurations.items():
+        if not isinstance(step_configuration, Mapping):
+            raise ValueError(f"Step {step_ref_id} configuration must be an object")
+        if not isinstance(step_configuration.get("parameterValues", {}), Mapping):
+            raise ValueError(f"Step {step_ref_id} parameterValues must be an object")
+    for flow_input_id, binding in input_bindings.items():
+        _validate_binding_shape(flow_input_id, binding, embedded_geometries)
 
 
 def _validate_step_configurations(configuration, analysis, included, *, require_complete):
@@ -763,21 +773,10 @@ def _validate_geometry_constraints(flow_input, geometry):
         )
 
 
-def _used_flow_input_ids(incoming_edges_by_port, included_step_ref_ids):
-    result = set()
-    for (step_ref_id, _), edge in incoming_edges_by_port.items():
-        source = edge.get("source", {})
-        if step_ref_id in included_step_ref_ids and source.get("kind") == "flowInput":
-            result.add(source["flowInputId"])
-    return result
-
-
-def _flow_input_binding_required(analysis, flow_input_id, included_step_ref_ids):
+def _flow_input_binding_required(analysis, flow_input_id, incoming_edges_by_port):
     if analysis.flow_inputs_by_id[flow_input_id].get("required", True):
         return True
-    for (step_ref_id, input_port_id), edge in analysis.incoming_edges_by_port.items():
-        if step_ref_id not in included_step_ref_ids:
-            continue
+    for (step_ref_id, input_port_id), edge in incoming_edges_by_port.items():
         source = edge.get("source", {})
         if source.get("kind") != "flowInput" or source.get("flowInputId") != flow_input_id:
             continue

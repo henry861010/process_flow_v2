@@ -10,8 +10,10 @@ from .adapters import adapt_geometry_for_placement, rotate_geometry
 
 def execute(context: ProcessStepContext) -> ProcessGeometryState:
     state = context.state
-    source = context.require_geometry_artifact("die_geometry")
     placements = _required_placements(context.get_param("placements"))
+    if not placements:
+        return state
+    source = context.require_geometry_artifact("die_geometry")
     bottom_z = state.cursor_z()
 
     # Materialize and validate the complete batch before mutating the destination.

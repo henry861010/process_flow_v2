@@ -43,7 +43,9 @@ type GeometryPreviewContext = {
 
 Template draft request可帶inline `flowTemplate`；saved Template/Instance request帶
 `processFlowTemplateId`。Target是`flowInput`或`stepOutput`。UI在request前依target upstream
-closure檢查readiness；disabled control顯示第一個 blocking reason。
+有效 dependency closure檢查readiness；零 placement 的 `pnp/pnp` 不追蹤 die input，
+主流程 input 仍必要。直接 preview 未使用分支時重新以該 target 計算 closure；disabled
+control顯示第一個 blocking reason。
 
 ## Session path 與legacy compatibility
 

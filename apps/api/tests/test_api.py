@@ -1122,6 +1122,94 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(saved.status_code, 200, saved.text)
         self.assertEqual(saved.json()["generation"], embedded["generation"])
 
+    def zero_placement_branch(self):
+        bootstrap = self.reset_poc_data()
+        template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
+        template["id"] = "flow_tpl_zero_branch"
+        for name in ("hbm_prepare1", "hbm_prepare2"):
+            template["stepRefs"].append({"stepRefId": name, "processStepTemplateId": "step_tpl_molding"})
+        die_edge = next(edge for edge in template["flowEdges"]
+                        if edge["source"].get("flowInputId") == "incoming_hbm")
+        die_edge["target"] = {"stepRefId": "hbm_prepare1", "inputPortId": "main_geometry"}
+        for source, target, port in (("hbm_prepare1", "hbm_prepare2", "main_geometry"),
+                                     ("hbm_prepare2", "pnp_hbm", "die_geometry")):
+            template["flowEdges"].append({
+                "edgeId": f"edge_{source}_{target}",
+                "source": {"kind": "stepOutput", "stepRefId": source, "outputPortId": "result_geometry"},
+                "target": {"stepRefId": target, "inputPortId": port},
+            })
+        response = self.client.post("/api/process-flow-templates", json=template)
+        self.assertEqual(response.status_code, 201, response.text)
+        instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
+        instance.update(id="flow_inst_zero_branch", processFlowTemplateId=template["id"])
+        instance["stepConfigurations"]["pnp_hbm"]["parameterValues"]["placements"] = []
+        instance["inputBindings"].pop("incoming_hbm")
+        return template, instance
+
+    def test_zero_placement_saves_executes_and_previews_without_subflow_configuration(self):
+        template, instance = self.zero_placement_branch()
+        created = self.client.post("/api/process-flow-instances", json=instance)
+        self.assertEqual(created.status_code, 201, created.text)
+        executed = self.client.post(f"/api/process-flow-instances/{instance['id']}/execute")
+        self.assertEqual(executed.status_code, 200, executed.text)
+        self.assertEqual(set(executed.json()["stepOutputs"]), {"pnp_hbm", "mold_cap", "rdl_build", "c4_bump"})
+        request = preview_session_request(template, instance, target={"type": "stepOutput", "stepRefId": "c4_bump", "outputPortId": "result_geometry"})
+        session = self.client.post("/api/preview-sessions", json=request)
+        self.assertEqual(session.status_code, 200, session.text)
+        self.assertEqual([snapshot["stepRefId"] for snapshot in session.json()["snapshots"]],
+                         ["pnp_hbm", "mold_cap", "rdl_build", "c4_bump"])
+        request["target"]["stepRefId"] = "hbm_prepare2"
+        direct = self.client.post("/api/preview-sessions", json=request)
+        self.assertEqual(direct.status_code, 400, direct.text)
+        source = self.client.get("/api/bootstrap").json()["processFlowInstances"][0]
+        request["configuration"]["inputBindings"]["incoming_hbm"] = source["inputBindings"]["incoming_hbm"]
+        for name in ("hbm_prepare1", "hbm_prepare2"):
+            request["configuration"]["stepConfigurations"][name] = {"parameterValues": {"material": "EMC", "thickness": 2}}
+        direct = self.client.post("/api/preview-sessions", json=request)
+        self.assertEqual(direct.status_code, 200, direct.text)
+        self.assertEqual([snapshot["stepRefId"] for snapshot in direct.json()["snapshots"]], ["hbm_prepare1", "hbm_prepare2"])
+
+    def test_zero_placement_preserves_unused_generator_recipe_and_reactivation_validates_it(self):
+        _, instance = self.zero_placement_branch()
+        binding = {"kind": "generator", "generatorId": "unknown-inactive", "generatorVersion": 1, "parameters": {"draft": "retained"}}
+        instance["inputBindings"]["incoming_hbm"] = binding
+        with mock.patch.object(self.app.state.geometry_generators, "generate", side_effect=AssertionError("Inactive recipe generated")) as generate:
+            created = self.client.post("/api/process-flow-instances", json=instance)
+            self.assertEqual(created.status_code, 201, created.text)
+            self.assertEqual(created.json()["inputBindings"]["incoming_hbm"], binding)
+            loaded = self.client.get(f"/api/process-flow-instances/{instance['id']}")
+            self.assertEqual(loaded.json(), created.json())
+            result = self.client.post(f"/api/process-flow-instances/{instance['id']}/execute")
+            self.assertEqual(result.status_code, 200, result.text)
+            copied = loaded.json()
+            copied["id"] = "flow_inst_zero_copy"
+            self.assertEqual(self.client.post("/api/process-flow-instances", json=copied).status_code, 201)
+            generate.assert_not_called()
+        copied["id"] = "flow_inst_reactivated"
+        copied["stepConfigurations"]["pnp_hbm"]["parameterValues"]["placements"] = [{
+            "targetRegion": {"type": "rectangle", "bottomLeftX": 0, "bottomLeftY": 0, "topRightX": 10, "topRightY": 10},
+            "pose": {"x": 0, "y": 0, "rotationZ": 0}, "anchor": "center",
+        }]
+        for name in ("hbm_prepare1", "hbm_prepare2"):
+            copied["stepConfigurations"][name] = {"parameterValues": {"material": "EMC", "thickness": 2}}
+        rejected = self.client.post("/api/process-flow-instances", json=copied)
+        self.assertEqual(rejected.status_code, 400, rejected.text)
+
+    def test_zero_placement_workspace_commit_uses_same_dependency_rules(self):
+        template, instance = self.zero_placement_branch()
+        workspace = self.client.post("/api/process-flow-workspaces", json={
+            "name": "Zero placement workspace", "processFlowTemplateId": template["id"],
+            "inputBindings": instance["inputBindings"], "stepConfigurations": instance["stepConfigurations"],
+        })
+        self.assertEqual(workspace.status_code, 201, workspace.text)
+        payload = workspace.json()
+        committed = self.client.post(f"/api/process-flow-workspaces/{payload['id']}/commit", json={
+            "revision": payload["revision"], "instanceId": "zero_workspace_commit",
+            "instanceName": "Zero", "instanceVersion": "V0", "instanceOwner": "test",
+        })
+        self.assertEqual(committed.status_code, 200, committed.text)
+        self.assertEqual(committed.json()["processFlowInstance"]["stepConfigurations"], instance["stepConfigurations"])
+
     def test_generator_binding_saves_recipe_and_executes_without_catalog_insert(self):
         bootstrap = self.reset_poc_data()
         source = next(

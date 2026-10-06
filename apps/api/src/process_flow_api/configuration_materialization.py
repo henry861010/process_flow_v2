@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from collections.abc import Mapping
 from typing import Any
 
@@ -49,14 +50,18 @@ def materialize_embedded_bindings(
 
 
 def canonicalize_generator_bindings(configuration: JsonObject, execution_plan) -> JsonObject:
-    """Snapshot complete validated generator parameters from the compiled artifacts."""
+    """Normalize used recipes from artifacts and retain unused recipes verbatim."""
     bindings = {}
     for flow_input_id, binding in configuration.get("inputBindings", {}).items():
         if binding.get("kind") != "generator":
             bindings[flow_input_id] = binding
             continue
         artifact = execution_plan.external_geometries.get(flow_input_id)
-        generation = artifact.generation if artifact is not None else None
+        if artifact is None:
+            # Unused recipes are retained for reactivation without generating them.
+            bindings[flow_input_id] = copy.deepcopy(binding)
+            continue
+        generation = artifact.generation
         if not isinstance(generation, Mapping):
             raise ValueError(f"Generator input {flow_input_id} was not resolved")
         bindings[flow_input_id] = {

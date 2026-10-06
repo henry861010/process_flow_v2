@@ -27,6 +27,7 @@ export function geometryInputStatusLabel(
   readiness: ConfigurationReadiness,
   bindingKind: GeometryBinding["kind"] | undefined,
 ) {
+  if (readiness.code === "unused-dependency") return "Unused";
   if (readiness.status === "ready") {
     if (bindingKind === "embedded") return "Embedded";
     if (bindingKind === "generator") return "Generator";
@@ -38,6 +39,7 @@ export function geometryInputStatusLabel(
 }
 
 export function geometryInputSublabel(readiness: ConfigurationReadiness) {
+  if (readiness.code === "unused-dependency") return "Unused in this configuration";
   if (readiness.status === "neutral") return "Optional - unbound";
   if (readiness.status === "error") return "Invalid geometry binding";
   return "Select geometry - unbound";
@@ -47,6 +49,7 @@ export function stepReadinessStatusLabel(
   readiness: ConfigurationReadiness,
   currentStepRefId: string,
 ) {
+  if (readiness.code === "unused-dependency") return "Unused";
   if (readiness.status === "ready") return "Ready";
   if (readiness.status === "error") {
     if (readiness.code === "missing-input-edge") return "Missing input";
