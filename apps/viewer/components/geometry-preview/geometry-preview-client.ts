@@ -12,12 +12,20 @@ export type GeometryPreviewTarget =
   | { type: "flowInput"; flowInputId: string }
   | { type: "stepOutput"; stepRefId: string; outputPortId?: string };
 
+export type AnalyticsContext = {
+  flowTemplateId?: string;
+  flowInstanceId?: string;
+  workspaceId?: string;
+  sourceKind?: "template" | "instance" | "workspace" | "inline_draft" | "geometry";
+};
+
 export type GeometryPreviewRequest = {
   target: GeometryPreviewTarget;
   sourceLabel?: string | null;
   flowTemplate?: ProcessFlowTemplate;
   processFlowTemplateId?: string;
   configuration: FlowConfiguration;
+  analyticsContext?: AnalyticsContext;
 };
 
 export type GeometryEntityDownload = {

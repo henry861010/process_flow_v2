@@ -457,12 +457,20 @@ GeometryPreviewTarget = Annotated[
 ]
 
 
+class AnalyticsContext(StrictModel):
+    sourceKind: Literal["template", "instance", "workspace", "inline_draft", "geometry"] | None = None
+    flowTemplateId: str | None = Field(default=None, min_length=1, max_length=256)
+    flowInstanceId: str | None = Field(default=None, min_length=1, max_length=256)
+    workspaceId: str | None = Field(default=None, min_length=1, max_length=256)
+
+
 class GeometryPreviewRequest(StrictModel):
     target: GeometryPreviewTarget
     sourceLabel: str | None = None
     flowTemplate: ProcessFlowTemplateDraft | None = None
     processFlowTemplateId: str | None = None
     configuration: FlowConfiguration
+    analyticsContext: AnalyticsContext | None = None
 
     @model_validator(mode="after")
     def exactly_one_template_source(self):
@@ -473,6 +481,7 @@ class GeometryPreviewRequest(StrictModel):
 
 class GeometryPreviewStepRequest(StrictModel):
     geometryStructure: JsonObject
+    analyticsContext: AnalyticsContext | None = None
 
 
 class MeshControlSetDefinition(StrictModel):
@@ -503,6 +512,7 @@ class MeshControlSetApplyResponse(StrictModel):
 
 
 class CdbFileExportCreateRequest(StrictModel):
+    analyticsContext: AnalyticsContext | None = None
     clientId: str = Field(min_length=1, max_length=160)
     kind: Literal["cdb"]
     geometryStructure: JsonObject
@@ -512,6 +522,7 @@ class CdbFileExportCreateRequest(StrictModel):
 
 
 class FileExportCreateRequest(StrictModel):
+    analyticsContext: AnalyticsContext | None = None
     clientId: str = Field(min_length=1, max_length=160)
     kind: Literal["cdb", "json", "step"]
     outputPath: str = Field(min_length=1)

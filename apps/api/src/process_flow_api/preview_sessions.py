@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .analytics import request_context
+
 import asyncio
 import hashlib
 import json
@@ -335,6 +337,11 @@ class PreviewSessionManager:
             preview_request_identity(context),
         )
         session_id = f"preview_{request_hash}"
+
+        analytics_context = request_context.get()
+        if analytics_context is not None and "usage" in analytics_context:
+            async with self._lock:
+                analytics_context["usage"]["properties"]["cache_hit"] = self._sessions.get(session_id) is not None
 
         async def build() -> PreviewSessionRecord:
             return await self._build_session(context, session_id, request_hash)

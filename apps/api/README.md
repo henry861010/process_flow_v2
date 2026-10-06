@@ -20,6 +20,9 @@ source_of_truth:
 
 Canonical model/invariants 見 [`docs/data-model.md`](../../docs/data-model.md)，system flow 見 [System Architecture](../../docs/architecture/system-overview.md)。FastAPI 在 runtime 產生 OpenAPI，local UI 位於 `/docs`；本 README 不重複 schema examples。
 
+Request 與後端操作摘要保存於獨立 analytics SQLite；目前 request owner 為 `unknown`。
+設定、事件格式、SQL 查詢、備份與還原見 [Service 使用紀錄](../../docs/reference/analytics.md)。
+
 ## 啟動方式
 
 在 repository root 完成 Python packages 安裝後：

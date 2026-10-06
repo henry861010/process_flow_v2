@@ -110,6 +110,10 @@ Current required row：
 }
 ```
 
+另有 `analyticsDatasetId` UUID，代表目前業務資料批次。首次開啟時建立；成功 reset 或 ZIP
+匯入時在同一 transaction 更新。它不是 payload schema version，不包含在 fixture 匯出中。
+獨立分析資料庫與使用紀錄規則見 [Service 使用紀錄](analytics.md)。
+
 Database internal marker string `"10"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterable
+import uuid
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -109,7 +110,14 @@ class SQLiteStore:
             """
         )
         self._ensure_schema_version()
+        self._connection.execute(
+            "INSERT OR IGNORE INTO schema_metadata(key,value) VALUES ('analyticsDatasetId', ?)",
+            (str(uuid.uuid4()),),
+        )
         self._connection.commit()
+        self.dataset_id = self._connection.execute(
+            "SELECT value FROM schema_metadata WHERE key='analyticsDatasetId'"
+        ).fetchone()["value"]
 
     def _ensure_schema_version(self) -> None:
         row = self._connection.execute(
@@ -140,6 +148,10 @@ class SQLiteStore:
             # retired identifiers remain. Rebuild the geometry table before seeding.
             for table in TABLES:
                 self._connection.execute(f"DELETE FROM {table}")
+            self._connection.execute(
+                "INSERT INTO schema_metadata(key,value) VALUES ('analyticsDatasetId', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(uuid.uuid4()),),
+            )
             if current_version is not None:
                 self._migrate_v9_to_v10()
             self._set_schema_version()
@@ -433,6 +445,7 @@ class SQLiteStore:
         expected_revision: int,
         geometries: Iterable[JsonObject],
         instance: JsonObject,
+        on_created: Callable[[], None] | None = None,
     ) -> tuple[JsonObject, JsonObject]:
         try:
             with self._connection:
@@ -477,6 +490,8 @@ class SQLiteStore:
                     raise WorkspaceConflictError("Workspace revision changed during commit")
         except sqlite3.IntegrityError as error:
             raise DuplicateItemError(str(error)) from error
+        if on_created is not None:
+            on_created()
         return workspace, instance
 
     def insert_template_and_instance(
@@ -514,10 +529,15 @@ class SQLiteStore:
     def seed(self, fixtures: dict[str, Iterable[JsonObject]], *, reset: bool = False) -> None:
         if not reset and not self.is_empty():
             return
+        dataset_id = str(uuid.uuid4()) if reset else self.dataset_id
         with self._connection:
             if reset:
                 for table in TABLES:
                     self._connection.execute(f"DELETE FROM {table}")
+                self._connection.execute(
+                    "UPDATE schema_metadata SET value=? WHERE key='analyticsDatasetId'",
+                    (dataset_id,),
+                )
             for payload in fixtures["processStepTemplates"]:
                 self._insert_process_step_template_in_transaction(payload)
             for payload in fixtures["processFlowTemplates"]:
@@ -526,6 +546,7 @@ class SQLiteStore:
                 self._insert_process_flow_instance_in_transaction(payload)
             for payload in fixtures["geometries"]:
                 self._insert_geometry_in_transaction(payload)
+        self.dataset_id = dataset_id
 
     def _insert(self, table: str, values: dict[str, Any]) -> JsonObject:
         try:

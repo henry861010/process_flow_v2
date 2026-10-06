@@ -76,6 +76,7 @@ export function FileExportDialog({
   geometryHash,
   geometryEntityJson,
   sourceLabel,
+  analyticsContext,
   onClose,
   onJobCreated,
 }: {
@@ -84,6 +85,7 @@ export function FileExportDialog({
   geometryHash: string;
   geometryEntityJson: unknown;
   sourceLabel: string;
+  analyticsContext?: import("./geometry-preview-client").AnalyticsContext;
   onClose: () => void;
   onJobCreated: (job: FileExportJob) => void;
 }) {
@@ -238,6 +240,7 @@ export function FileExportDialog({
           ? buildMeshControlConfiguration(globalElementSize, symmetry, controls)
           : undefined;
       const job = await createFileExportJob({
+        analyticsContext,
         clientId: getFileExportClientId(),
         kind,
         geometryStructure: kind === "json" ? undefined : geometryStructure,

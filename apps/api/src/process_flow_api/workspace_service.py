@@ -17,6 +17,7 @@ from .models import (
     WorkspaceCommitRequest,
 )
 from .repository import NotFoundError, SQLiteStore, WorkspaceConflictError, utc_now
+from .analytics import request_context
 
 
 JsonObject = dict[str, Any]
@@ -89,6 +90,9 @@ def commit_workspace(
     body: WorkspaceCommitRequest,
     generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
+    analytics_context = request_context.get()
+    if analytics_context is not None:
+        analytics_context["instance_created"] = False
     workspace = _required_workspace(store, workspace_id)
     if workspace.get("status") == "committed":
         instance_id = workspace.get("committedInstanceId")
@@ -126,11 +130,16 @@ def commit_workspace(
         "inputBindings": persisted_bindings,
         "embeddedGeometries": {},
     }
+    def mark_created() -> None:
+        if analytics_context is not None:
+            analytics_context["instance_created"] = True
+
     saved_workspace, saved_instance = store.commit_process_flow_workspace(
         workspace=committed_workspace,
         expected_revision=body.revision,
         geometries=geometries,
         instance=instance,
+        on_created=mark_created,
     )
     return {
         "workspace": saved_workspace,

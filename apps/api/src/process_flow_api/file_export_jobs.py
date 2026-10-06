@@ -17,6 +17,8 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from .analytics import AnalyticsRecorder, current_origin
+
 from .cad_exporter import cad_worker_error_message, start_cad_worker
 from .cdb_exporter import (
     cdb_worker_error_message,
@@ -103,6 +105,9 @@ class FileExportJob:
     progress: FileExportProgress | None = None
     cancel_requested: bool = False
     process: asyncio.subprocess.Process | None = field(default=None, repr=False)
+    analytics_origin: JsonObject | None = field(default=None, repr=False)
+    created_monotonic: float = field(default_factory=time.monotonic, repr=False)
+    started_monotonic: float | None = field(default=None, repr=False)
 
     def public_payload(self, *, queue_position: int | None = None) -> JsonObject:
         return {
@@ -145,6 +150,7 @@ class FileExportJobManager:
         *,
         max_concurrent_jobs: int | None = None,
         retained_jobs_per_client: int = DEFAULT_RETAINED_JOBS_PER_CLIENT,
+        analytics: AnalyticsRecorder | None = None,
     ) -> None:
         configured_concurrency = max_concurrent_jobs
         if configured_concurrency is None:
@@ -159,6 +165,7 @@ class FileExportJobManager:
             )
         self.max_concurrent_jobs = max(1, configured_concurrency)
         self.retained_jobs_per_client = retained_jobs_per_client
+        self.analytics = analytics
         self._jobs: OrderedDict[str, FileExportJob] = OrderedDict()
         self._lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[None]] = set()
@@ -257,6 +264,7 @@ class FileExportJobManager:
             mesh_control=normalized_mesh_control,
             source_label=source_label,
             created_at=created_at,
+            analytics_origin=current_origin(),
         )
 
         async with self._lock:
@@ -274,6 +282,8 @@ class FileExportJobManager:
                     raise ValueError(str(error)) from error
                 raise
             self._prune_locked()
+
+            self._emit_analytics(job, "accepted")
 
         await self._schedule_queued_jobs()
         async with self._lock:
@@ -410,6 +420,7 @@ class FileExportJobManager:
                     continue
                 job.status = "running"
                 job.started_at = _now()
+                job.started_monotonic = time.monotonic()
                 jobs_to_start.append(job)
                 available_slots -= 1
 
@@ -939,6 +950,7 @@ class FileExportJobManager:
                 job.message = f"Export log failed while finalizing output: {log_error}"
                 job.output_path.unlink(missing_ok=True)
                 job.logger.close()
+                self._emit_analytics(job, "finished")
             self._prune_locked()
 
     async def _mark_failed(
@@ -1006,6 +1018,8 @@ class FileExportJobManager:
         stage: FileExportStage | None = None,
         data: JsonObject | None = None,
     ) -> None:
+        if event == "job.started":
+            self._emit_analytics(job, "started")
         job.logger.write(event, level=level, stage=stage, data=data)
 
     def _record_terminal_event_locked(
@@ -1035,8 +1049,43 @@ class FileExportJobManager:
                 message=job.message,
                 data=terminal_data,
             )
+        except ExportJobLogError:
+            if job.status == "success":
+                job.status = "failed"
+            raise
         finally:
-            job.logger.close()
+            try:
+                job.logger.close()
+            finally:
+                self._emit_analytics(job, "finished")
+
+    def _emit_analytics(self, job: FileExportJob, phase: str) -> None:
+        if self.analytics is None:
+            return
+        try:
+            origin = job.analytics_origin
+            if origin is None:
+                return  # Standalone manager users have no HTTP/dataset attribution.
+            properties = dict(origin.get("properties", {}))
+            properties["export_format"] = job.kind
+            duration = None
+            if job.started_monotonic is not None:
+                properties["queue_wait_ms"] = max(0, int((job.started_monotonic - job.created_monotonic) * 1000))
+            if phase == "finished":
+                duration = max(0, int((time.monotonic() - job.started_monotonic) * 1000)) if job.started_monotonic is not None else None
+                properties.update(node_count=job.node_count, element_count=job.element_count)
+                if job.status == "success":
+                    try:
+                        properties["output_bytes"] = job.output_path.stat().st_size
+                    except OSError:
+                        properties["output_bytes"] = None
+            outcome = {"success": "success", "failed": "failure", "canceled": "cancelled"}.get(job.status) if phase == "finished" else None
+            self.analytics.event(origin, event_name="export", phase=phase, outcome=outcome,
+                                 operation_id=job.job_id, duration_ms=duration,
+                                 error_code="EXPORT_FAILED" if outcome == "failure" else None,
+                                 properties=properties)
+        except Exception:
+            self.analytics._loss(1, job.analytics_origin or {})
 
     def _prune_locked(self) -> None:
         client_ids = {job.client_id for job in self._jobs.values()}

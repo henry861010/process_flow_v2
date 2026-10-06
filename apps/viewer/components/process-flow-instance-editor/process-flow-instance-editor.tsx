@@ -358,6 +358,10 @@ function ProcessFlowInstanceEditorInner() {
         target: { type: "flowInput", flowInputId: flowInput.flowInputId },
         sourceLabel: flowInput.name,
         processFlowTemplateId: selectedTemplate.id,
+        analyticsContext: {
+          flowTemplateId: selectedTemplate.id,
+          ...(selectedSourceId ? { flowInstanceId: selectedSourceId } : {}),
+        },
         configuration,
       },
     });
@@ -378,6 +382,10 @@ function ProcessFlowInstanceEditorInner() {
         },
         sourceLabel: stepLabel(step.data.stepRef, step.data.stepTemplate),
         processFlowTemplateId: selectedTemplate.id,
+        analyticsContext: {
+          flowTemplateId: selectedTemplate.id,
+          ...(selectedSourceId ? { flowInstanceId: selectedSourceId } : {}),
+        },
         configuration,
       },
     });

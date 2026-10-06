@@ -146,6 +146,7 @@ export type FileExportJob = {
 };
 
 export type CreateFileExportJobRequest = {
+  analyticsContext?: import("./geometry-preview-client").AnalyticsContext;
   clientId: string;
   kind: FileExportKind;
   outputPath: string;

@@ -262,6 +262,10 @@ export function GeometryPreviewPanel({
           geometryHash={targetSnapshot.geometryHash}
           geometryEntityJson={targetSnapshot.geometryEntityJson}
           sourceLabel={`${preview.sourceLabel} -> ${targetSnapshot.label}`}
+          analyticsContext={preview.request.analyticsContext ?? {
+            flowTemplateId: preview.request.processFlowTemplateId,
+            sourceKind: preview.request.flowTemplate ? "inline_draft" : "template",
+          }}
           onClose={() => setFileExportDialogKind(null)}
           onJobCreated={handleFileExportJobCreated}
         />

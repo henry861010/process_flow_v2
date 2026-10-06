@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,6 +19,8 @@ from process_flow_kernel import ProcessGeometryState, validate_geometry_semantic
 from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry
 
 from .file_export_jobs import FileExportJobManager
+from .analytics import AnalyticsRecorder
+from .analytics_http import AnalyticsMiddleware, AnalyticsRoute
 from .fixture_export import MAX_ARCHIVE_BYTES, build_fixture_archive, load_fixture_archive
 from .identifiers import generated_geometry_id
 from .models import (
@@ -72,11 +75,26 @@ from .workspace_service import commit_workspace, create_workspace, update_worksp
 def create_app(
     *,
     db_path: str | Path | None = None,
+    analytics_db_path: str | Path | None = None,
     generator_registry: GeometryGeneratorRegistry | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Process Flow API", version="0.0.0", lifespan=app_lifespan)
+    app.router.route_class = AnalyticsRoute
     app.state.store = SQLiteStore(db_path or default_db_path())
-    app.state.file_export_jobs = FileExportJobManager()
+    configured_analytics_path = analytics_db_path or os.environ.get("PROCESS_FLOW_API_ANALYTICS_DB_PATH")
+    if configured_analytics_path is None:
+        configured_analytics_path = (
+            Path(":memory:") if app.state.store.db_path == Path(":memory:")
+            else app.state.store.db_path.parent / "analytics.sqlite3"
+        )
+    if (Path(configured_analytics_path) != Path(":memory:") and
+            Path(configured_analytics_path).resolve() == app.state.store.db_path.resolve()):
+        raise ValueError("Analytics and business database paths must be different")
+    backup_path = os.environ.get("PROCESS_FLOW_API_ANALYTICS_BACKUP_DIR")
+    app.state.analytics = AnalyticsRecorder(
+        configured_analytics_path, backup_directory=Path(backup_path) if backup_path else None,
+    )
+    app.state.file_export_jobs = FileExportJobManager(analytics=app.state.analytics)
     if generator_registry is None:
         generator_registry = GeometryGeneratorRegistry()
         register_builtin_generators(generator_registry)
@@ -92,7 +110,10 @@ def create_app(
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-Id"],
     )
+    app.add_middleware(AnalyticsMiddleware, recorder=app.state.analytics, store=app.state.store,
+                       allowed_origins=cors_origins())
 
     @app.exception_handler(DuplicateItemError)
     async def duplicate_handler(_: Request, error: DuplicateItemError):
@@ -504,11 +525,17 @@ def _validated_mesh_control(mesh_control: dict[str, Any]) -> dict[str, Any]:
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
     app.state.store.seed(load_seed_fixtures(), reset=False)
+    await asyncio.to_thread(app.state.analytics.start)
     try:
         yield
     finally:
-        await app.state.file_export_jobs.shutdown()
-        await app.state.preview_sessions.shutdown()
+        try:
+            await app.state.file_export_jobs.shutdown()
+        finally:
+            try:
+                await app.state.preview_sessions.shutdown()
+            finally:
+                await asyncio.to_thread(app.state.analytics.close)
 
 
 def default_db_path() -> Path:
