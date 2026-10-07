@@ -41,7 +41,7 @@ remain unset and geometry bindings remain empty. Template editor drafts do not r
 instance-specific placement default. Replacing dirty values requires
 confirmation.
 
-`Save` becomes enabled when the selected template resolves, configuration is complete, and no save
+`Save` becomes enabled when the selected template resolves and is enabled, configuration is complete, and no save
 is in progress. Its dialog requires name, id, version, and owner; description is optional. Version
 defaults to `V0.0.0`. Submit calls `POST /api/process-flow-instances`; success returns Home.
 
@@ -95,3 +95,10 @@ instance is saved; unused generator-preview errors do not block the main flow.
 - `UI-FIE-012`: zero placements allow an unconfigured die subflow while keeping main requirements.
 - `UI-FIE-013`: reactivation restores validation without discarding unused branch settings or recipes.
 - `UI-FIE-014`: unused branches can be previewed when configured; downstream snapshots omit them.
+
+## Template availability
+
+A direct URL referencing a disabled flow still loads its graph and source instances for viewing and
+previewing. A visible notice explains that Save is disabled, including after copying an instance.
+Referenced disabled steps do not block new instances when the saved flow itself remains enabled.
+The backend also checks status when saving, covering templates disabled after page load.

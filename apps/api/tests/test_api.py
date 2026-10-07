@@ -580,7 +580,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                     json=candidate,
                 )
                 self.assertEqual(rejected.status_code, 409, rejected.text)
-                self.assertIn("Only owner, category, program", rejected.json()["message"])
+                self.assertIn("Only status, owner, category, program", rejected.json()["message"])
 
         invalid_default = copy.deepcopy(original)
         invalid_default["parameterDefinitions"][1]["defaultValue"] = -1

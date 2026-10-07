@@ -14,7 +14,7 @@ import type {
 } from "./types";
 
 const template: ProcessFlowTemplate = {
-  schemaVersion: 2,
+  schemaVersion: 2, status: "enabled",
   id: "flow-template",
   name: "Flow template",
   version: "V0.0.0",
@@ -30,7 +30,7 @@ const template: ProcessFlowTemplate = {
   flowEdges: [],
 };
 const stepTemplate: ProcessStepTemplate = {
-  schemaVersion: 2,
+  schemaVersion: 2, status: "enabled",
   id: "step-template",
   version: "V0.0.0",
   name: "Step",

@@ -10,7 +10,6 @@ import {
   Download,
   GitBranch,
   Layers3,
-  Plus,
   RotateCcw,
   Upload,
   Workflow,
@@ -18,11 +17,6 @@ import {
 
 import { ProcessFlowTemplateEditDialog } from "@/components/process-flow-template-edit/process-flow-template-edit-dialog";
 import { ProcessStepEditDialog } from "@/components/process-step-edit/process-step-edit-dialog";
-import {
-  catalogGeneratorHref,
-  generatorDisplayName,
-  generatorsForPlacement,
-} from "@/components/geometry-generator/geometry-generator-placements";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -198,25 +192,16 @@ export default function ManagementPage() {
               <TabsTrigger value="geometries">Geometries</TabsTrigger>
               <TabsTrigger value="steps">Process steps</TabsTrigger>
             </TabsList>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="sm"><Link href="/flow-template-editor"><Plus />Template</Link></Button>
-              {generatorsForPlacement(data.geometryGenerators, "management").map((definition) => (
-                <Button key={definition.id} asChild size="sm" variant="outline">
-                  <Link href={catalogGeneratorHref(definition)}>
-                    <Plus />{generatorDisplayName(definition)}
-                  </Link>
-                </Button>
-              ))}
-            </div>
           </div>
 
           <TabsContent value="templates">
-            <ResourceTable headings={["Template", "Version", "Owner", "Instances", "Actions"]}>
+            <ResourceTable headings={["Template", "Version", "Owner", "Status", "Instances", "Actions"]}>
               {data.processFlowTemplates.map((template) => (
                 <tr key={template.id} className="border-b last:border-b-0">
                   <IdentityCell name={template.name} id={template.id} description={template.description} />
                   <Cell>{template.version}</Cell>
                   <Cell>{template.owner}</Cell>
+                  <Cell><Badge variant="outline">{template.status === "disabled" ? "Disabled" : "Enabled"}</Badge></Cell>
                   <Cell>{instanceCountByTemplate.get(template.id) ?? 0}</Cell>
                   <td className="px-4 py-3 align-top">
                     <div className="flex justify-end">
@@ -277,13 +262,14 @@ export default function ManagementPage() {
           </TabsContent>
 
           <TabsContent value="steps">
-            <ResourceTable headings={["Process step", "Category", "Version", "Owner", "Program", "Actions"]}>
+            <ResourceTable headings={["Process step", "Category", "Version", "Owner", "Status", "Program", "Actions"]}>
               {data.processStepTemplates.map((step) => (
                 <tr key={step.id} className="border-b last:border-b-0">
                   <IdentityCell name={step.name} id={step.id} description={step.description} />
                   <Cell>{step.category}</Cell>
                   <Cell>{step.version}</Cell>
                   <Cell>{step.owner}</Cell>
+                  <Cell><Badge variant="outline">{step.status === "disabled" ? "Disabled" : "Enabled"}</Badge></Cell>
                   <Cell><span className="font-mono text-xs">{step.program}</span></Cell>
                   <td className="px-4 py-3 text-right align-top">
                     <Button

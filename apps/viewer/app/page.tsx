@@ -18,6 +18,7 @@ import { GeometryGeneratorIcon } from "@/components/geometry-generator/geometry-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ProcessFlowTemplate } from "@/lib/process-flow/types";
+import { isTemplateEnabled } from "@/lib/process-flow/template-availability";
 import { loadBootstrap } from "@/lib/process-flow-api";
 
 type HomeData = {
@@ -37,7 +38,7 @@ export default function Home() {
     try {
       const payload = await loadBootstrap();
       setHomeData({
-        flowTemplates: payload.processFlowTemplates,
+        flowTemplates: payload.processFlowTemplates.filter(isTemplateEnabled),
         geometryGenerators: payload.geometryGenerators,
       });
       setLoadError(null);
@@ -113,6 +114,7 @@ export default function Home() {
                     <h3 className="truncate text-base font-semibold" title={template.name}>
                       {template.name}
                     </h3>
+                    <Badge variant="outline" className="mt-2">Enabled</Badge>
                   </div>
                   <div className="min-w-0 text-right">
                     <Badge variant="outline">{template.version}</Badge>

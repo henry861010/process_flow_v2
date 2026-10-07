@@ -69,7 +69,7 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
                 ids: set[str] = set()
                 for index, item in enumerate(items):
                     try:
-                        models[key].model_validate(item)
+                        validated = models[key].model_validate(item)
                     except ValidationError as error:
                         raise ValueError(f"{filename}[{index}]: {error}") from error
                     item_id = item.get("id")
@@ -78,6 +78,8 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
                     if item_id in ids:
                         raise ValueError(f"{filename} contains duplicate id: {item_id}")
                     ids.add(item_id)
+                    if key in {"processStepTemplates", "processFlowTemplates"}:
+                        item["status"] = validated.status
                     if key == "geometries":
                         validate_geometry_semantic_keys(item["structure"])
                 result[key] = items

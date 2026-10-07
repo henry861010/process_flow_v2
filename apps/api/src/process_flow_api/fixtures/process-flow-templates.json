@@ -1,6 +1,7 @@
 [
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "flow_tpl_aaa_demo",
     "name": "AAA Demo",
     "version": "V0.0.0",

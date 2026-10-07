@@ -7,6 +7,7 @@ from process_flow_geometry_generators import GeometryGeneratorDefinition
 
 
 JsonObject = dict[str, Any]
+TemplateStatus = Literal["enabled", "disabled"]
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 PositiveFiniteFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 NonBlankString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -113,6 +114,7 @@ class GeometryOutputPort(StrictModel):
 
 class ProcessStepTemplate(StrictModel):
     schemaVersion: Literal[2] = 2
+    status: TemplateStatus = "enabled"
     id: str = Field(min_length=1)
     version: str
     name: str
@@ -184,6 +186,7 @@ class StepRef(StrictModel):
 
 class ProcessFlowTemplateDraft(StrictModel):
     schemaVersion: Literal[2] = 2
+    status: TemplateStatus = "enabled"
     id: str = ""
     name: str
     version: str

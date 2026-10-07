@@ -140,9 +140,9 @@ flowchart LR
 2. `ProcessFlowTemplate` 定義 topology；`ProcessFlowWorkspace` 保存可修改的研究設定；
    `ProcessFlowInstance` 保存完整且不可修改的產品設定。
 3. Geometry 只經由 typed ports 與 `inputBindings` 傳遞，不屬於 parameter value union。
-4. Flow template 的 identity/version/topology locked，但 metadata 與 flow-specific scalar
+4. Flow template 的 identity/version/topology locked，但 status、metadata 與 flow-specific scalar
    defaults 可受限更新；instance 與 catalog geometry 是 immutable snapshots。Process step 的
-   identity、ports 與 parameter definition contract locked，但 owner、category、program 與
+   identity、ports 與 parameter definition contract locked，但 status、owner、category、program 與
    parameter defaults 可受限地 in-place update；delete policy 另見 persistence specification。
 5. Compiler 負責解析跨 resource references、驗證 graph 與 configuration，並建立
    `ExecutionPlan`；kernel 不查 repository。
@@ -166,15 +166,15 @@ flowchart TB
 
 | Model | 擁有 | 不擁有 | 可變性 |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Contract locked；metadata/program/defaults 可更新 |
-| `ProcessFlowTemplate` | Flow inputs、step refs、edges、flow-specific scalar defaults | 產品 geometry bindings | Identity/version/topology locked；name/owner/description/defaults 可受限更新 |
+| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Contract locked；status/metadata/program/defaults 可更新 |
+| `ProcessFlowTemplate` | Flow inputs、step refs、edges、flow-specific scalar defaults | 產品 geometry bindings | Identity/version/topology locked；status/name/owner/description/defaults 可受限更新 |
 | `ProcessFlowWorkspace` | Bindings、parameter values、embedded geometries、commit state | Topology | 只有 `draft` 可修改 |
 | `ProcessFlowInstance` | 完整產品設定 | Embedded geometries、topology、instance lineage | Immutable snapshot |
 | `GeometryEntity` | Catalog metadata 與完整 `GeometryStructure` | Flow-specific role | Immutable snapshot |
 | `ExecutionPlan` | 已解析 structures、排序後 steps、明確 input routing | Repository handle 或尚待解析的 repository id | 僅存在於 runtime；nested mappings MUST 視為 read-only |
 
 每個 flow template id 代表一份 topology snapshot；受限 update 只可修改
-`name`、`owner`、`description` 與既有 step refs 的 `parameterDefaults`。需要變更 version、
+`status`、`name`、`owner`、`description` 與既有 step refs 的 `parameterDefaults`。需要變更 version、
 flow inputs、step refs 或 edges 時 MUST 使用新的 `id`。Process step id 是 stable reference，
 受限 update 不得改變 identity、ports 或 parameter definition contract。`version` label、
 identifier 與未採用欄位的完整規則見
@@ -189,6 +189,7 @@ identifier 與未採用欄位的完整規則見
 | 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
 | --- | --- | --- | --- | --- |
 | `schemaVersion` | integer literal | yes | `2` | MUST equal `2`。 |
+| `status` | `enabled \| disabled` | no | create: `enabled`; update: preserve current | Controls new usage; disabled templates retain their references and data。 |
 | `id` | identifier | yes | none | Immutable snapshot identity。 |
 | `version` | non-empty string | yes | none | Opaque metadata label；內建 fixture 與 editor default 使用 `V0.0.0`，不得 parse、sort 或驅動行為。 |
 | `name` | non-empty string | yes | none | Human-facing name。 |
@@ -243,6 +244,7 @@ values。在 PnP 範例中，它以兩條 edges 將 `incoming_panel` 與 `incomi
 | 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
 | --- | --- | --- | --- | --- |
 | `schemaVersion` | integer literal | yes | `2` | MUST equal `2`。 |
+| `status` | `enabled \| disabled` | no | create: `enabled`; update: preserve current | Controls new usage; disabled templates retain their references and data。 |
 | `id` | identifier | persisted: yes; preview draft: no | draft `""` | Persisted template id MUST non-empty。 |
 | `name` | non-empty string | yes | none | Human-facing name。 |
 | `version` | non-empty string | yes | none | Opaque metadata label；內建 fixture 與 editor default 使用 `V0.0.0`，不得 parse、sort 或驅動行為。 |
@@ -251,6 +253,14 @@ values。在 PnP 範例中，它以兩條 edges 將 `incoming_panel` 與 `incomi
 | `flowInputs` | `FlowInputDefinition[]` | yes | none | MUST 至少一個。 |
 | `stepRefs` | `StepRef[]` | yes | none | MUST 至少一個。 |
 | `flowEdges` | `FlowEdge[]` | yes | none | Typed routing。 |
+
+兩種 template 的 `status` 都可受限更新；`null` 與其他值 MUST reject。舊資料缺少欄位時
+MUST 視為 `enabled`，read responses MUST 包含明確狀態。Step `disabled` 禁止建立新的
+flow template 引用它，但已儲存且啟用的 flow 仍可建立 workspace／instance。Flow `disabled`
+禁止建立新 workspace／instance（包含 copy 後另存），既有 draft workspace 仍可修改及預覽，
+但不能 commit。已 commit workspace 的重複 commit 保持冪等。既有 instance 的讀取、預覽、
+執行與匯出 MUST 不受兩種 template 停用影響。停用不刪除資料、不改寫引用，也不封存 program
+實作版本；重新啟用恢復新增能力。
 
 ### 6.1 FlowInputDefinition
 

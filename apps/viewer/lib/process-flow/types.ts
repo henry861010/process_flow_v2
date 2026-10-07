@@ -96,8 +96,11 @@ export type GeometryOutputPort = {
   dataType: "geometry";
 };
 
+export type TemplateStatus = "enabled" | "disabled";
+
 export type ProcessStepTemplate = {
   schemaVersion: 2;
+  status: TemplateStatus;
   id: string;
   version: string;
   name: string;
@@ -147,6 +150,7 @@ export type StepRef = {
 
 export type ProcessFlowTemplate = {
   schemaVersion: 2;
+  status: TemplateStatus;
   id: string;
   name: string;
   version: string;

@@ -9,7 +9,7 @@ import {
 } from "./process-flow-template-update";
 
 const stepTemplate: ProcessStepTemplate = {
-  schemaVersion: 2,
+  schemaVersion: 2, status: "enabled",
   id: "step_tpl_shared",
   version: "V0.0.0",
   name: "Shared step",
@@ -28,7 +28,7 @@ const stepTemplate: ProcessStepTemplate = {
 };
 
 const template: ProcessFlowTemplate = {
-  schemaVersion: 2,
+  schemaVersion: 2, status: "enabled",
   id: "flow_tpl_test",
   name: "Test",
   version: "V0.0.0",

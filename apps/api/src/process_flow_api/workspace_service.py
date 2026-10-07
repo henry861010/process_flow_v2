@@ -18,6 +18,7 @@ from .models import (
 )
 from .repository import NotFoundError, SQLiteStore, WorkspaceConflictError, utc_now
 from .analytics import request_context
+from .services import require_enabled_template
 
 
 JsonObject = dict[str, Any]
@@ -26,6 +27,7 @@ JsonObject = dict[str, Any]
 def create_workspace(store: SQLiteStore, body: ProcessFlowWorkspaceCreate) -> JsonObject:
     configuration = body.payload()
     template = _required_template(store, body.processFlowTemplateId)
+    require_enabled_template(template, kind="Process flow", action="create a new workspace")
     step_templates = _step_templates(store, template)
     _compiler(store).validate_configuration(
         template,
@@ -104,6 +106,7 @@ def commit_workspace(
         raise WorkspaceConflictError("Workspace revision is stale")
 
     template = _required_template(store, workspace["processFlowTemplateId"])
+    require_enabled_template(template, kind="Process flow", action="commit a workspace")
     step_templates = _step_templates(store, template)
     compiler = FlowCompiler(StoreGeometryCatalog(store), generators)
     plan = compiler.compile(template, workspace, step_templates)

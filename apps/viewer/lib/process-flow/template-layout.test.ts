@@ -298,7 +298,7 @@ function stepTemplate(
   metadata: Partial<Pick<ProcessStepTemplate, "name" | "category" | "program">> = {},
 ): ProcessStepTemplate {
   return {
-    schemaVersion: 2,
+    schemaVersion: 2, status: "enabled",
     id,
     version: "V0.0.0",
     name: metadata.name ?? id,
@@ -324,7 +324,7 @@ function flowTemplate(
   flowEdges: SavedFlowEdge[],
 ): ProcessFlowTemplate {
   return {
-    schemaVersion: 2,
+    schemaVersion: 2, status: "enabled",
     id: "layout-test",
     name: "Layout test",
     version: "V0.0.0",

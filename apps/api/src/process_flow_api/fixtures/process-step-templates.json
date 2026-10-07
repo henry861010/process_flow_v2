@@ -1,6 +1,7 @@
 [
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_molding",
     "version": "V0.0.0",
     "name": "molding",
@@ -55,6 +56,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_pnp",
     "version": "V0.0.0",
     "name": "PnP",
@@ -102,6 +104,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_ecl",
     "version": "V0.0.0",
     "name": "ECL",
@@ -166,6 +169,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_daf",
     "version": "V0.0.0",
     "name": "DAF",
@@ -218,6 +222,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_rdl",
     "version": "V0.0.0",
     "name": "RDL layer",
@@ -332,6 +337,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_grinding",
     "version": "V0.0.0",
     "name": "Grinding",
@@ -375,6 +381,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_saw",
     "version": "V0.0.0",
     "name": "saw",
@@ -441,6 +448,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_debond",
     "version": "V0.0.0",
     "name": "Debond",
@@ -470,6 +478,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_carrier_bond",
     "version": "V0.0.0",
     "name": "Carrier Bond",
@@ -507,6 +516,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_flip",
     "version": "V0.0.0",
     "name": "Flip",
@@ -536,6 +546,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_under_fill",
     "version": "V0.0.0",
     "name": "Under Fill",
@@ -600,6 +611,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_ubump_formation",
     "version": "V0.0.0",
     "name": "Micro Bump",
@@ -681,6 +693,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_bga_bump_formation",
     "version": "V0.0.0",
     "name": "BGA Bump",
@@ -762,6 +775,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_c4_bump_formation",
     "version": "V0.0.0",
     "name": "C4 Bump",
@@ -843,6 +857,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_tiv",
     "version": "V0.0.0",
     "name": "tiv",
@@ -908,6 +923,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_frame_mount",
     "version": "V0.0.0",
     "name": "Frame Mount",
@@ -945,6 +961,7 @@
   },
   {
     "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_frame_demount",
     "version": "V0.0.0",
     "name": "Frame Demount",

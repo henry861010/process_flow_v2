@@ -32,7 +32,7 @@ const constrainedInput: FlowInputDefinition = {
 describe("flow input geometry category constraints", () => {
   it("accepts only a resolved generator preview for the current binding", () => {
     const template: ProcessFlowTemplate = {
-      schemaVersion: 2,
+      schemaVersion: 2, status: "enabled",
       id: "flow",
       name: "Flow",
       version: "V0.0.0",

@@ -17,6 +17,7 @@ export function buildTemplatePayload(
 ): ProcessFlowTemplate {
   return {
     schemaVersion: 2,
+    status: "enabled",
     ...metadata,
     flowInputs: structuredClone(flowInputs),
     stepRefs: steps.map(({ ref, template }) => ({

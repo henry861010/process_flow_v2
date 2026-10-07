@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, Pencil, Save, X } from "lucide-react";
 
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
+import { TemplateStatusField } from "@/components/process-flow-fields/template-status-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createDefaultParameterValue } from "@/lib/process-flow/parameter-values";
@@ -60,7 +61,7 @@ export function ProcessStepEditDialog({
     !saving && draft.owner.trim() && draft.category.trim() && draft.program.trim(),
   );
 
-  function patchMetadata(patch: Partial<Pick<ProcessStepTemplate, "owner" | "category" | "program">>) {
+  function patchMetadata(patch: Partial<Pick<ProcessStepTemplate, "owner" | "category" | "program" | "status">>) {
     setDraft((current) => ({ ...current, ...patch }));
     setError(null);
   }
@@ -161,6 +162,12 @@ export function ProcessStepEditDialog({
                 locked
               />
               <MetadataInput label="Version" value={draft.version} disabled locked />
+              <TemplateStatusField
+                value={draft.status}
+                disabled={saving}
+                description="Disabled steps cannot be added to new flow templates. Existing flows remain usable."
+                onChange={(status) => patchMetadata({ status })}
+              />
               <MetadataInput label="Name" value={draft.name} disabled locked />
               <MetadataInput
                 autoFocus

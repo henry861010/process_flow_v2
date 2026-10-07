@@ -98,6 +98,7 @@ import type {
   StepRef,
 } from "@/lib/process-flow/types";
 import { clone, normalizeStepLabel } from "@/lib/process-flow/utils";
+import { disabledStepsForNewFlow, isTemplateEnabled } from "@/lib/process-flow/template-availability";
 import { createProcessFlowTemplate, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
@@ -227,8 +228,12 @@ function ProcessFlowTemplateEditorInner() {
     () => analyzeTemplate(draftTemplate, stepTemplates),
     [draftTemplate, stepTemplates],
   );
+  const disabledSteps = disabledStepsForNewFlow(draftTemplate, stepTemplates);
+  const availabilityError = !topologyLocked && disabledSteps.length > 0
+    ? `Cannot save a new flow with disabled steps: ${disabledSteps.map((step) => step.name).join(", ")}. Remove or replace them.`
+    : null;
   const canSaveTemplate =
-    hydrated && !topologyLocked && !busyAction && !analysis.error;
+    hydrated && !topologyLocked && !busyAction && !analysis.error && !availabilityError;
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
   const editingStepPreviewAvailability =
     editingNode && isStepNode(editingNode)
@@ -510,7 +515,7 @@ function ProcessFlowTemplateEditorInner() {
     template: ProcessStepTemplate,
     position = defaultDropPosition(nodes),
   ) {
-    if (topologyLocked) return;
+    if (topologyLocked || !isTemplateEnabled(template)) return;
     const usedIds = new Set(nodes.filter(isStepNode).map((node) => node.data.stepRef.stepRefId));
     const stepRefId = nextId(slugId(template.name) || "step", usedIds);
     const node: StepNode = {
@@ -829,7 +834,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   const statusText =
-    analysis.error ??
+    availabilityError ?? analysis.error ??
     (topologyLocked
       ? `Template ${savedTemplate.id} is saved and topology is locked.`
       : "Template topology is ready to save. Scalar step values become defaults; geometry bindings and collection values are preview-only.");
@@ -893,7 +898,7 @@ function ProcessFlowTemplateEditorInner() {
         )}
       >
         {message?.kind === "success" ? <Check className="h-4 w-4" /> : <CircleDot className="h-4 w-4" />}
-        <span className="truncate">{message?.text ?? statusText}</span>
+        <span className="truncate">{availabilityError ?? message?.text ?? statusText}</span>
       </div>
 
       <section className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(540px,1fr)_320px] lg:overflow-hidden">
@@ -1007,7 +1012,7 @@ function ProcessFlowTemplateEditorInner() {
                 <StepTemplatePaletteItem
                   template={template}
                   showCategoryPath={showCategoryPath}
-                  disabled={topologyLocked}
+                  disabled={topologyLocked || !isTemplateEnabled(template)}
                   onAdd={() => addStepTemplate(template)}
                 />
               )}
@@ -1193,7 +1198,7 @@ function StepTemplatePaletteItem({
       }}
       onClick={onAdd}
       className="w-full rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary/60 hover:bg-muted/20 disabled:cursor-not-allowed disabled:opacity-50"
-      title={disabled ? "Topology is locked" : "Click to add, or drag to the whiteboard"}
+      title={!isTemplateEnabled(template) ? "Disabled step: cannot add to a new flow" : disabled ? "Topology is locked" : "Click to add, or drag to the whiteboard"}
     >
       <div className="font-medium leading-snug">{template.name}</div>
       {showCategoryPath ? (
@@ -1206,6 +1211,7 @@ function StepTemplatePaletteItem({
       </div>
       <div className="mt-2 flex flex-wrap gap-1">
         <Badge variant="outline">{template.inputPorts.length} geometry inputs</Badge>
+        {!isTemplateEnabled(template) ? <Badge variant="outline">Disabled</Badge> : null}
       </div>
     </button>
   );

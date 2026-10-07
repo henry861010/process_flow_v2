@@ -6,7 +6,7 @@ import { geometryInputStatusLabel, stepReadinessStatusLabel } from "./readiness-
 import type { FlowConfiguration, GeometryEntity, ProcessFlowInstance, ProcessFlowTemplate, ProcessStepTemplate, SavedFlowEdge } from "./types";
 
 const prepare: ProcessStepTemplate = {
-  schemaVersion: 2, id: "prepare", name: "Prepare", version: "V0", category: "layer",
+  schemaVersion: 2, status: "enabled", id: "prepare", name: "Prepare", version: "V0", category: "layer",
   program: "layer/molding", owner: "test", description: "",
   inputPorts: [{ portId: "main_geometry", name: "Main", role: "primary", dataType: "geometry", required: true }],
   outputPorts: [{ portId: "result_geometry", name: "Result", dataType: "geometry" }],
@@ -31,7 +31,7 @@ const outputEdge = (edgeId: string, source: string, stepRefId: string, inputPort
 
 function scenario() {
   const template: ProcessFlowTemplate = {
-    schemaVersion: 2, id: "flow", name: "Flow", version: "V0", owner: "test",
+    schemaVersion: 2, status: "enabled", id: "flow", name: "Flow", version: "V0", owner: "test",
     flowInputs: ["main", "die"].map((flowInputId) => ({ flowInputId, name: flowInputId, dataType: "geometry", required: true })),
     stepRefs: [{ stepRefId: "prepare1", processStepTemplateId: "prepare" }, { stepRefId: "prepare2", processStepTemplateId: "prepare" }, { stepRefId: "place", processStepTemplateId: "pnp" }],
     flowEdges: [inputEdge("main", "main", "place"), inputEdge("die", "die", "prepare1"), outputEdge("prepare", "prepare1", "prepare2"), outputEdge("place", "prepare2", "place", "die_geometry")],
@@ -123,7 +123,7 @@ describe("zero placement dependencies", () => {
     expect(empty.stepConfigurations.another.parameterValues.placements).toEqual([]);
     expect(empty.stepConfigurations.prepare1.parameterValues).toEqual({});
     expect(createEmptyFlowConfiguration(template, steps).stepConfigurations.place.parameterValues).toEqual({});
-    const source: ProcessFlowInstance = { schemaVersion: 2, id: "source", name: "Source", version: "V0", owner: "test", processFlowTemplateId: "flow", inputBindings: {}, stepConfigurations: { place: { parameterValues: { placements: [placement] } } } };
+    const source: ProcessFlowInstance = { schemaVersion: 2, id: "source", name: "Source", version: "V0", owner: "test", description: "", processFlowTemplateId: "flow", inputBindings: {}, stepConfigurations: { place: { parameterValues: { placements: [placement] } } } };
     const copied = configurationFromInstance(template, steps, source);
     expect(copied.stepConfigurations.place).toEqual(source.stepConfigurations.place);
     (copied.stepConfigurations.place.parameterValues.placements as unknown[]).pop();

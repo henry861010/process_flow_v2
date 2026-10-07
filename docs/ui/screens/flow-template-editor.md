@@ -57,3 +57,11 @@ topology while preview-only geometry bindings and collection test values remain 
 - `UI-FTE-003`: valid topology can save while preview-only configuration is incomplete.
 - `UI-FTE-004`: scalar step values are saved as flow defaults; the source geometry category is saved as the flow-input contract, while its catalog id and collection values remain preview-only.
 - `UI-FTE-005`: successful save locks topology and reports the immutable template id.
+
+## Template availability
+
+Disabled steps remain in the library with a Disabled text badge; clicking and dragging them into
+a new flow is disabled. Starting from a saved template preserves its disabled step references for
+inspection and preview. Because this creates a new flow, Save Template is blocked until those steps
+are removed, replaced, or re-enabled, and the editor names the blocking steps. The backend enforces
+the same rule for changes occurring after page load. Already-saved flows keep their references.

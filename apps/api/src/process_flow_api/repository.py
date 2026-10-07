@@ -610,14 +610,14 @@ class SQLiteStore:
             f"SELECT payload FROM {table}{where} ORDER BY {order_by}",
             params,
         ).fetchall()
-        return [json.loads(row["payload"]) for row in rows]
+        return [_normalize_resource_payload(table, json.loads(row["payload"])) for row in rows]
 
     def _get(self, table: str, id_: str) -> JsonObject | None:
         row = self._connection.execute(
             f"SELECT payload FROM {table} WHERE id = ?",
             (id_,),
         ).fetchone()
-        return None if row is None else json.loads(row["payload"])
+        return None if row is None else _normalize_resource_payload(table, json.loads(row["payload"]))
 
     def _delete(self, table: str, id_: str) -> None:
         with self._connection:
@@ -633,6 +633,13 @@ TABLES = (
     "process_flow_instances",
     "geometries",
 )
+
+
+def _normalize_resource_payload(table: str, payload: JsonObject) -> JsonObject:
+    # Older template payloads remain valid without rewriting historical data.
+    if table in {"process_step_templates", "process_flow_templates"}:
+        payload.setdefault("status", "enabled")
+    return payload
 
 
 def _json(payload: JsonObject) -> str:

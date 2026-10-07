@@ -8,7 +8,7 @@ import {
 } from "./process-step-update";
 
 const template: ProcessStepTemplate = {
-  schemaVersion: 2,
+  schemaVersion: 2, status: "enabled",
   id: "step_tpl_test",
   version: "V0.0.0",
   name: "Test",

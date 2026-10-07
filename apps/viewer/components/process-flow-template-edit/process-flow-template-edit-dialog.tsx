@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, Pencil, RotateCcw, Save, X } from "lucide-react";
 
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
+import { TemplateStatusField } from "@/components/process-flow-fields/template-status-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +72,7 @@ export function ProcessFlowTemplateEditDialog({
   const canSave = Boolean(!saving && draft.name.trim() && draft.owner?.trim());
 
   function patchMetadata(
-    patch: Partial<Pick<ProcessFlowTemplate, "name" | "owner" | "description">>,
+    patch: Partial<Pick<ProcessFlowTemplate, "name" | "owner" | "description" | "status">>,
   ) {
     setDraft((current) => ({ ...current, ...patch }));
     setError(null);
@@ -184,6 +185,12 @@ export function ProcessFlowTemplateEditDialog({
                 locked
               />
               <MetadataInput label="Version" value={draft.version} disabled locked />
+              <TemplateStatusField
+                value={draft.status}
+                disabled={saving}
+                description="Disabled flows cannot create workspaces or instances. Existing instances remain usable."
+                onChange={(status) => patchMetadata({ status })}
+              />
               <MetadataInput
                 autoFocus
                 disabled={saving}

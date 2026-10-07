@@ -86,6 +86,7 @@ import type {
   StepRef,
 } from "@/lib/process-flow/types";
 import { normalizeStepLabel } from "@/lib/process-flow/utils";
+import { isTemplateEnabled } from "@/lib/process-flow/template-availability";
 import { createProcessFlowInstance, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
@@ -245,7 +246,7 @@ function ProcessFlowInstanceEditorInner() {
     selectedTemplate &&
       isConfigurationComplete(selectedTemplate, stepTemplates, configuration, resolvedGeometries),
   );
-  const canSave = hydrated && Boolean(selectedTemplate) && configurationComplete && !saving;
+  const canSave = hydrated && isTemplateEnabled(selectedTemplate) && configurationComplete && !saving;
 
   function navigateHome() {
     if (dirty && !window.confirm("Discard this unsaved instance?")) return;
@@ -400,13 +401,15 @@ function ProcessFlowInstanceEditorInner() {
     ? "Loading process flow template..."
     : !selectedTemplate
       ? "Choose a process flow template from Home."
-      : !configurationComplete
-        ? "Complete the required geometry bindings and process values before saving."
-        : selectedSourceId
-          ? "Instance values loaded. Save with a new immutable identity."
-          : dirty
-            ? "Instance has unsaved changes."
-            : "Start from blank or load values from an existing instance.";
+      : !isTemplateEnabled(selectedTemplate)
+        ? "This flow template is disabled. You can view and preview values, but cannot save a new instance."
+        : !configurationComplete
+          ? "Complete the required geometry bindings and process values before saving."
+          : selectedSourceId
+            ? "Instance values loaded. Save with a new immutable identity."
+            : dirty
+              ? "Instance has unsaved changes."
+              : "Start from blank or load values from an existing instance.";
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-background text-foreground">
@@ -438,6 +441,11 @@ function ProcessFlowInstanceEditorInner() {
           </div>
         </div>
 
+        {selectedTemplate && !isTemplateEnabled(selectedTemplate) ? (
+          <p role="status" className="mt-3 rounded-md border bg-muted px-3 py-2 text-sm">
+            Disabled flow template: viewing and previewing are available. Saving a new instance is disabled.
+          </p>
+        ) : null}
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <FormField label="Process flow template">
             <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-muted/20 px-3 text-sm">

@@ -85,6 +85,18 @@ def require_item(item: JsonObject | None, id_: str) -> JsonObject:
     return item
 
 
+def require_enabled_template(template: JsonObject, *, kind: str, action: str) -> None:
+    if template.get("status", "enabled") == "disabled":
+        raise ResourceConflictError(
+            f"{kind} template {template['id']} is disabled; cannot {action}"
+        )
+
+
+def require_enabled_steps_for_new_flow(step_templates: list[JsonObject]) -> None:
+    for template in step_templates:
+        require_enabled_template(template, kind="Process step", action="create a new flow template")
+
+
 def validate_process_step_template(template: JsonObject) -> None:
     validate_step_contract(template)
 
@@ -102,11 +114,13 @@ def update_process_step_template(
     normalized_current = ProcessStepTemplate.model_validate(current).payload()
     if _locked_process_step_template(normalized_current) != _locked_process_step_template(payload):
         raise ResourceConflictError(
-            "Only owner, category, program, and parameter defaultValue fields can be updated"
+            "Only status, owner, category, program, and parameter defaultValue fields can be updated"
         )
 
     validate_process_step_template(payload)
     updated = copy.deepcopy(current)
+    if "status" in body.model_fields_set:
+        updated["status"] = payload["status"]
     for field in ("owner", "category", "program"):
         updated[field] = payload[field]
     _apply_parameter_defaults(
@@ -118,7 +132,7 @@ def update_process_step_template(
 
 def _locked_process_step_template(template: JsonObject) -> JsonObject:
     locked = copy.deepcopy(template)
-    for field in ("owner", "category", "program"):
+    for field in ("status", "owner", "category", "program"):
         locked.pop(field, None)
     _remove_parameter_defaults(locked.get("parameterDefinitions", []))
     return locked
@@ -166,6 +180,7 @@ def _apply_parameter_defaults(target_definitions: Any, source_definitions: Any) 
 def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplate) -> JsonObject:
     payload = body.payload()
     step_templates = load_step_templates_for_template(store, payload)
+    require_enabled_steps_for_new_flow(step_templates)
     materialize_flow_parameter_defaults(payload, step_templates)
     validate_flow_graph(payload, step_templates)
     validate_flow_parameter_defaults(payload, step_templates)
@@ -187,7 +202,7 @@ def update_process_flow_template(
         normalized_current
     ) != _locked_process_flow_template(payload):
         raise ResourceConflictError(
-            "Only name, owner, description, and step parameterDefaults fields can be updated"
+            "Only status, name, owner, description, and step parameterDefaults fields can be updated"
         )
 
     name = payload["name"].strip()
@@ -198,6 +213,8 @@ def update_process_flow_template(
         raise ValueError("ProcessFlowTemplate.owner must not be blank")
 
     updated = copy.deepcopy(current)
+    if "status" in body.model_fields_set:
+        updated["status"] = payload["status"]
     updated["name"] = name
     updated["owner"] = owner
     updated["description"] = payload.get("description", "")
@@ -210,7 +227,7 @@ def update_process_flow_template(
 
 def _locked_process_flow_template(template: JsonObject) -> JsonObject:
     locked = copy.deepcopy(template)
-    for field in ("name", "owner", "description"):
+    for field in ("status", "name", "owner", "description"):
         locked.pop(field, None)
     for step_ref in locked.get("stepRefs", []):
         if isinstance(step_ref, dict):
@@ -269,9 +286,11 @@ def create_template_instance(
 ) -> JsonObject:
     template = body.processFlowTemplate.payload()
     instance = body.processFlowInstance.payload()
+    require_enabled_template(template, kind="Process flow", action="create a new instance")
     if instance.get("processFlowTemplateId") != template.get("id"):
         raise ValueError("ProcessFlowInstance.processFlowTemplateId must match ProcessFlowTemplate.id")
     step_templates = load_step_templates_for_template(store, template)
+    require_enabled_steps_for_new_flow(step_templates)
     materialize_flow_parameter_defaults(template, step_templates)
     validate_flow_graph(template, step_templates)
     validate_flow_parameter_defaults(template, step_templates)
@@ -300,6 +319,7 @@ def create_flow_instance(
         store.get_process_flow_template(payload["processFlowTemplateId"]),
         payload["processFlowTemplateId"],
     )
+    require_enabled_template(template, kind="Process flow", action="create a new instance")
     step_templates = load_step_templates_for_template(store, template)
     plan = _compiler(store, generators).compile(template, payload, step_templates)
     payload = canonicalize_generator_bindings(payload, plan)

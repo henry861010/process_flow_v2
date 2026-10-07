@@ -149,27 +149,51 @@ Normative service rules：
 - Read/execute encountering a broken reference MUST return a domain not-found/conflict error，不得
   silently substitute another resource。
 - A `ProcessFlowTemplate` references a stable process-step id and snapshots its own scalar
-  `parameterDefaults`。Step owner、category、program 與 definition defaults MAY update in place；
+  `parameterDefaults`。Step status、owner、category、program 與 definition defaults MAY update in place；
   existing flow defaults MUST NOT be rewritten by that update。
 - A `ProcessFlowInstance` references an immutable flow-template and either catalog geometry snapshots
   or versioned generator recipes. Catalog references MUST NOT drift；generator implementations MUST
   preserve the behavior of versions referenced by instances。
 - Physical foreign keys MAY 在 future schema 加入，但不得改變 JSON reference contract。
 
+### 3.1 Template status and API boundaries
+
+Both template payloads include `status: "enabled" | "disabled"`. It lives only in JSON payload;
+no physical column or database schema-marker change is required. Repository reads default a missing
+legacy status to `enabled` without rewriting stored historical data. Built-in fixtures carry explicit
+status; fixture ZIP export/import preserves disabled templates and their historical references.
+Old fixture ZIPs without status are accepted as enabled.
+
+Existing `POST /api/process-step-templates` and `POST /api/process-flow-templates` default omitted
+status to `enabled`. Existing `PUT /api/process-step-templates/{id}` and
+`PUT /api/process-flow-templates/{id}` accept status changes; omission preserves current status.
+Null or unsupported values return 422. List, detail, and bootstrap include disabled templates.
+
+Disabled flow templates reject new workspace creation, new instance creation (including copies),
+and draft workspace commit with 409 identifying the template and reason. Draft workspace updates
+and previews remain available; committed-workspace commit retries remain idempotent.
+Disabled step templates reject new flow-template references with 409, including combined
+`POST /api/process-flow-template-instances`. Existing enabled flows referencing them remain usable
+for new workspaces and instances. Combined creation checks both restrictions before any writes.
+Availability checks belong at service entrypoints, not shared reference loading or kernel validation:
+historical instance read, preview, execution, and export remain available. Re-enabling restores new
+usage. Existing referenced-step deletion protection remains unchanged; no flow deletion API is added.
+
 ## 4. Mutability policy
 
 | Resource | Create | Update | Delete |
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | yes | restricted full replace | MAY delete only when no flow template references it。 |
-| `ProcessFlowTemplate` | yes | no | Not part of current public lifecycle。 |
+| `ProcessFlowTemplate` | yes | restricted full replace | Not part of current public lifecycle。 |
 | `ProcessFlowInstance` | yes | no | Not part of current public lifecycle。 |
 | `GeometryEntity` | yes | no | Not part of current public lifecycle。 |
 | Draft `ProcessFlowWorkspace` | yes | revision-checked full replace | Not part of current public lifecycle。 |
 | Committed workspace | no new identity | no | Not part of current public lifecycle。 |
 
-`ProcessStepTemplate` update只允許`owner`、`category`、`program`與recursive parameter
+`ProcessStepTemplate` update只允許`status`、`owner`、`category`、`program`與recursive parameter
 `defaultValue`改變；id、version、name、description、ports與parameter definition contract MUST
-保持相同。其他 immutable resource 的不可更新性是 API/domain guarantee，而不只是 UI
+保持相同。`ProcessFlowTemplate` update只允許`status`、`name`、`owner`、`description`與
+既有step refs的`parameterDefaults`改變；identity、version與topology MUST保持相同。其他 immutable resource 的不可更新性是 API/domain guarantee，而不只是 UI
 disabled state。Repository layer SHOULD 提供 resource-specific methods，MUST NOT expose generic
 overwrite/upsert。
 
