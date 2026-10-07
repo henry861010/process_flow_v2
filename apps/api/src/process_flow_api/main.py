@@ -214,11 +214,6 @@ def create_app(
     ):
         return update_process_step_template(get_store(request), template_id, body)
 
-    @app.delete("/api/process-step-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-    async def delete_process_step_template(request: Request, template_id: str):
-        get_store(request).delete_process_step_template(template_id)
-        return None
-
     @app.get("/api/geometries")
     async def list_geometries(
         request: Request,
@@ -318,6 +313,11 @@ def create_app(
     ):
         return update_process_flow_template(get_store(request), template_id, body)
 
+    @app.delete("/api/process-flow-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_process_flow_template(request: Request, template_id: str):
+        get_store(request).delete_process_flow_template(template_id)
+        return None
+
     @app.post("/api/process-flow-template-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_template_instance(request: Request, body: TemplateInstanceCreateRequest):
         return create_template_instance(get_store(request), body, get_geometry_generators(request))
@@ -333,6 +333,11 @@ def create_app(
     @app.post("/api/process-flow-instances", status_code=status.HTTP_201_CREATED)
     async def create_process_flow_instance(request: Request, body: ProcessFlowInstanceCreate):
         return create_flow_instance(get_store(request), body, get_geometry_generators(request))
+
+    @app.delete("/api/process-flow-instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_process_flow_instance(request: Request, instance_id: str):
+        get_store(request).delete_process_flow_instance(instance_id)
+        return None
 
     @app.post("/api/process-flow-instances/{instance_id}/execute", response_model=ExecuteInstanceResponse)
     async def execute_process_flow_instance(request: Request, instance_id: str):

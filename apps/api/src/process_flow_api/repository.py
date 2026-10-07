@@ -296,17 +296,6 @@ class SQLiteStore:
             raise NotFoundError(payload["id"])
         return payload
 
-    def delete_process_step_template(self, id_: str) -> None:
-        for flow_template in self.list_process_flow_templates():
-            if any(
-                step_ref.get("processStepTemplateId") == id_
-                for step_ref in flow_template.get("stepRefs", [])
-            ):
-                raise ResourceConflictError(
-                    f"Process step template {id_} is referenced by flow template {flow_template['id']}"
-                )
-        self._delete("process_step_templates", id_)
-
     def insert_geometry(self, payload: JsonObject) -> JsonObject:
         return self._insert("geometries", _geometry_values(payload))
 
@@ -351,6 +340,25 @@ class SQLiteStore:
     def get_process_flow_template(self, id_: str) -> JsonObject | None:
         return self._get("process_flow_templates", id_)
 
+    def delete_process_flow_template(self, id_: str) -> None:
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            if self.get_process_flow_template(id_) is None:
+                raise NotFoundError(id_)
+            instance = self._connection.execute(
+                "SELECT id FROM process_flow_instances WHERE process_flow_template_id = ? LIMIT 1",
+                (id_,),
+            ).fetchone()
+            if instance is not None:
+                raise ResourceConflictError(
+                    f"Process flow template {id_} is referenced by instance {instance['id']}"
+                )
+            self._connection.execute(
+                "DELETE FROM process_flow_workspaces WHERE process_flow_template_id = ? AND status = 'draft'",
+                (id_,),
+            )
+            self._delete_in_transaction("process_flow_templates", id_)
+
     def update_process_flow_template(self, payload: JsonObject) -> JsonObject:
         with self._connection:
             cursor = self._connection.execute(
@@ -387,6 +395,17 @@ class SQLiteStore:
 
     def get_process_flow_instance(self, id_: str) -> JsonObject | None:
         return self._get("process_flow_instances", id_)
+
+    def delete_process_flow_instance(self, id_: str) -> None:
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            if self.get_process_flow_instance(id_) is None:
+                raise NotFoundError(id_)
+            self._connection.execute(
+                "DELETE FROM process_flow_workspaces WHERE committed_instance_id = ? AND status = 'committed'",
+                (id_,),
+            )
+            self._delete_in_transaction("process_flow_instances", id_)
 
     def insert_process_flow_workspace(self, payload: JsonObject) -> JsonObject:
         return self._insert(
@@ -619,9 +638,8 @@ class SQLiteStore:
         ).fetchone()
         return None if row is None else _normalize_resource_payload(table, json.loads(row["payload"]))
 
-    def _delete(self, table: str, id_: str) -> None:
-        with self._connection:
-            cursor = self._connection.execute(f"DELETE FROM {table} WHERE id = ?", (id_,))
+    def _delete_in_transaction(self, table: str, id_: str) -> None:
+        cursor = self._connection.execute(f"DELETE FROM {table} WHERE id = ?", (id_,))
         if cursor.rowcount == 0:
             raise NotFoundError(id_)
 

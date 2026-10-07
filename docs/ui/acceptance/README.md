@@ -95,6 +95,7 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-MGMT-001` | bootstrap ready | open Management tabs | 四類resource count與唯讀rows符合bootstrap。 |
 | `UI-MGMT-002` | Process steps tab | click row Edit、change allowed fields/default、Save | 頁內modal只暴露允許欄位；成功後row即時更新且不導頁。 |
 | `UI-MGMT-005` | Templates tab | click row Edit、change metadata/per-step scalar defaults、Save | id/version/topology保持鎖定；flow-local defaults即時更新且只影響未來blank instances。 |
+| `UI-MGMT-006` | Management 的 flow template、instance、相關 workspace 與引用資料 | cancel/confirm Delete；依 instance → flow template 刪除；模擬錯誤與新增引用；查看 Process steps | 引用中的 flow template 停用 Delete，引用數量只顯示於 Instances 欄位；Process steps 只有 Edit，沒有 Delete；取消無請求；busy 防重送並停用其他異動；成功更新 rows/counts、解除引用並顯示訊息；flow 刪除清理草稿、instance 刪除清理已提交 workspace，geometry 與 step templates 保留；409/404 顯示錯誤並刷新 bootstrap，其他錯誤保留資料。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |

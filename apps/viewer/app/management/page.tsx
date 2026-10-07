@@ -22,7 +22,30 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flow/types";
 import type { BootstrapPayload } from "@/lib/process-flow-api";
-import { exportFixtureArchive, loadBootstrap, resetPocData, resetPocDataFromZip } from "@/lib/process-flow-api";
+import {
+  ApiRequestError,
+  deleteProcessFlowInstance,
+  deleteProcessFlowTemplate,
+  exportFixtureArchive,
+  loadBootstrap,
+  resetPocData,
+  resetPocDataFromZip,
+} from "@/lib/process-flow-api";
+
+type DeletableCollection = "processFlowTemplates" | "processFlowInstances";
+
+const deletionActions = {
+  processFlowTemplates: {
+    label: "flow template",
+    remove: deleteProcessFlowTemplate,
+    consequence: "All workspace drafts referencing this template will also be permanently deleted.",
+  },
+  processFlowInstances: {
+    label: "instance",
+    remove: deleteProcessFlowInstance,
+    consequence: "Any committed workspace that produced this instance will also be permanently deleted.",
+  },
+};
 
 const emptyData: BootstrapPayload = {
   processFlowTemplates: [],
@@ -40,6 +63,9 @@ export default function ManagementPage() {
   const [importing, setImporting] = React.useState(false);
   const [fixtureMenuOpen, setFixtureMenuOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState<{ collection: DeletableCollection; id: string } | null>(null);
+  const deletionInProgressRef = React.useRef(false);
   const [editingTemplate, setEditingTemplate] = React.useState<ProcessFlowTemplate | null>(null);
   const [editingStep, setEditingStep] = React.useState<ProcessStepTemplate | null>(null);
   const fixtureMenuRef = React.useRef<HTMLDivElement>(null);
@@ -93,6 +119,39 @@ export default function ManagementPage() {
     return counts;
   }, [data.processFlowInstances]);
   const fixtureBusy = exporting || resetting || importing;
+  const resourceBusy = loading || fixtureBusy || deleting !== null;
+
+  async function handleDelete(collection: DeletableCollection, resource: { id: string; name: string }) {
+    if (deletionInProgressRef.current || resourceBusy || editingTemplate || editingStep) return;
+    const action = deletionActions[collection];
+    if (!window.confirm(`Permanently delete ${action.label} "${resource.name}" (${resource.id})?\n\n${action.consequence}`)) return;
+    deletionInProgressRef.current = true;
+    setDeleting({ collection, id: resource.id });
+    setFixtureMenuOpen(false);
+    setError(null);
+    setSuccess(null);
+    try {
+      await action.remove(resource.id);
+      setData((current) => ({
+        ...current,
+        [collection]: current[collection].filter((item) => item.id !== resource.id),
+      }));
+      setSuccess(`Deleted ${action.label} "${resource.name}" (${resource.id}).`);
+    } catch (reason) {
+      let message = reason instanceof Error ? reason.message : `Unable to delete ${action.label}.`;
+      if (reason instanceof ApiRequestError && (reason.status === 409 || reason.status === 404)) {
+        try {
+          setData(await loadBootstrap());
+        } catch {
+          message += " Unable to refresh resources. Reload the page to see current references.";
+        }
+      }
+      setError(message);
+    } finally {
+      deletionInProgressRef.current = false;
+      setDeleting(null);
+    }
+  }
 
   const resources = [
     { label: "Templates", count: data.processFlowTemplates.length, icon: Workflow },
@@ -102,9 +161,11 @@ export default function ManagementPage() {
   ];
 
   async function handleDatabaseReset() {
+    if (resourceBusy || deletionInProgressRef.current) return;
     setFixtureMenuOpen(false);
     if (!window.confirm("Reset the database and restore the default POC data?")) return;
     setResetting(true);
+    setSuccess(null);
     try {
       setData(await resetPocData());
       setEditingTemplate(null);
@@ -119,6 +180,7 @@ export default function ManagementPage() {
   }
 
   async function handleFixtureExport() {
+    if (resourceBusy || deletionInProgressRef.current) return;
     setFixtureMenuOpen(false);
     setExporting(true);
     try {
@@ -133,8 +195,10 @@ export default function ManagementPage() {
   }
 
   async function handleZipReset(file: File) {
+    if (resourceBusy || deletionInProgressRef.current) return;
     if (!window.confirm(`Reset the database using ${file.name}? Current data will be replaced.`)) return;
     setImporting(true);
+    setSuccess(null);
     try {
       setData(await resetPocDataFromZip(file));
       setEditingTemplate(null);
@@ -167,8 +231,13 @@ export default function ManagementPage() {
         </header>
 
         {error ? (
-          <div className="mt-5 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <div role="alert" className="mt-5 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}
+          </div>
+        ) : null}
+        {success ? (
+          <div role="status" className="mt-5 rounded-md border bg-muted/30 px-4 py-3 text-sm">
+            {success}
           </div>
         ) : null}
 
@@ -204,15 +273,22 @@ export default function ManagementPage() {
                   <Cell><Badge variant="outline">{template.status === "disabled" ? "Disabled" : "Enabled"}</Badge></Cell>
                   <Cell>{instanceCountByTemplate.get(template.id) ?? 0}</Cell>
                   <td className="px-4 py-3 align-top">
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
+                        disabled={resourceBusy}
                         onClick={() => setEditingTemplate(template)}
                       >
                         Edit
                       </Button>
+                      <DeleteButton
+                        name={template.name}
+                        disabled={resourceBusy || (instanceCountByTemplate.get(template.id) ?? 0) > 0}
+                        deleting={deleting?.collection === "processFlowTemplates" && deleting.id === template.id}
+                        onClick={() => void handleDelete("processFlowTemplates", template)}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -221,13 +297,23 @@ export default function ManagementPage() {
           </TabsContent>
 
           <TabsContent value="instances">
-            <ResourceTable headings={["Instance", "Template", "Version", "Owner"]}>
+            <ResourceTable headings={["Instance", "Template", "Version", "Owner", "Actions"]}>
               {data.processFlowInstances.map((instance) => (
                 <tr key={instance.id} className="border-b last:border-b-0">
                   <IdentityCell name={instance.name} id={instance.id} description={instance.description} />
                   <Cell>{templateById.get(instance.processFlowTemplateId)?.name ?? instance.processFlowTemplateId}</Cell>
                   <Cell>{instance.version}</Cell>
                   <Cell>{instance.owner}</Cell>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex justify-end">
+                      <DeleteButton
+                        name={instance.name}
+                        disabled={resourceBusy}
+                        deleting={deleting?.collection === "processFlowInstances" && deleting.id === instance.id}
+                        onClick={() => void handleDelete("processFlowInstances", instance)}
+                      />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </ResourceTable>
@@ -276,6 +362,7 @@ export default function ManagementPage() {
                       type="button"
                       size="sm"
                       variant="outline"
+                      disabled={resourceBusy}
                       onClick={() => setEditingStep(step)}
                     >
                       Edit
@@ -312,7 +399,7 @@ export default function ManagementPage() {
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              disabled={fixtureBusy || loading}
+              disabled={resourceBusy}
               onClick={() => void handleFixtureExport()}
             >
               <Download className="h-4 w-4" />Export fixture
@@ -320,7 +407,7 @@ export default function ManagementPage() {
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              disabled={fixtureBusy || loading}
+              disabled={resourceBusy}
               onClick={() => {
                 setFixtureMenuOpen(false);
                 fixtureFileRef.current?.click();
@@ -331,7 +418,7 @@ export default function ManagementPage() {
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              disabled={fixtureBusy || loading}
+              disabled={resourceBusy}
               onClick={() => void handleDatabaseReset()}
             >
               <RotateCcw className="h-4 w-4" />Reset
@@ -343,7 +430,7 @@ export default function ManagementPage() {
           size="icon-sm"
           variant="outline"
           className="ml-auto flex rounded-full bg-background shadow-md"
-          disabled={fixtureBusy}
+          disabled={resourceBusy}
           aria-label={
             importing ? "Resetting from fixture ZIP"
               : resetting ? "Resetting database"
@@ -394,6 +481,29 @@ export default function ManagementPage() {
   );
 }
 
+function DeleteButton({ name, disabled, deleting, onClick }: {
+  name: string;
+  disabled: boolean;
+  deleting: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="max-w-xs text-right">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        disabled={disabled}
+        aria-label={`Delete ${name}`}
+        onClick={onClick}
+      >
+        {deleting ? "Deleting…" : "Delete"}
+      </Button>
+    </div>
+  );
+}
+
 function ResourceTable({ headings, children }: { headings: string[]; children: React.ReactNode }) {
   return (
     <div className="overflow-hidden rounded-md border bg-white shadow-sm">
@@ -426,5 +536,5 @@ function IdentityCell({ name, id, description }: { name: string; id: string; des
 }
 
 function Cell({ children }: { children: React.ReactNode }) {
-  return <td className="px-4 py-3 align-top text-sm text-muted-foreground">{children || "—"}</td>;
+  return <td className="px-4 py-3 align-top text-sm text-muted-foreground">{children === 0 ? 0 : children || "—"}</td>;
 }

@@ -18,8 +18,10 @@ from .repository import DuplicateItemError, NotFoundError, ResourceConflictError
 OPERATIONS = {
     ("POST", "/api/process-flow-templates"): "flow_template.create",
     ("PUT", "/api/process-flow-templates/{template_id}"): "flow_template.update",
+    ("DELETE", "/api/process-flow-templates/{template_id}"): "flow_template.delete",
     ("POST", "/api/process-flow-template-instances"): "flow_template.create",
     ("POST", "/api/process-flow-instances"): "flow_instance.create",
+    ("DELETE", "/api/process-flow-instances/{instance_id}"): "flow_instance.delete",
     ("POST", "/api/process-flow-instances/{instance_id}/execute"): "flow_instance.execute",
     ("POST", "/api/process-flow-workspaces"): "workspace.create",
     ("PUT", "/api/process-flow-workspaces/{workspace_id}"): "workspace.update",
@@ -39,7 +41,6 @@ OPERATIONS = {
     ("GET", "/api/fixture-export"): "data.export",
     ("POST", "/api/process-step-templates"): "step_template.create",
     ("PUT", "/api/process-step-templates/{template_id}"): "step_template.update",
-    ("DELETE", "/api/process-step-templates/{template_id}"): "step_template.delete",
 }
 
 

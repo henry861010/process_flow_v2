@@ -421,7 +421,7 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404, response.text)
 
-    def test_step_template_create_duplicate_and_delete(self):
+    def test_step_template_create_duplicate_and_delete_unavailable(self):
         self.reset_poc_data()
         template = {
             "schemaVersion": 2,
@@ -457,9 +457,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         duplicate = self.client.post("/api/process-step-templates", json=template)
         self.assertEqual(duplicate.status_code, 409, duplicate.text)
         deleted = self.client.delete("/api/process-step-templates/custom_step")
-        self.assertEqual(deleted.status_code, 204, deleted.text)
-        missing = self.client.get("/api/process-step-templates/custom_step")
-        self.assertEqual(missing.status_code, 404, missing.text)
+        self.assertEqual(deleted.status_code, 405, deleted.text)
+        preserved = self.client.get("/api/process-step-templates/custom_step")
+        self.assertEqual(preserved.status_code, 200, preserved.text)
+        self.assertEqual(preserved.json(), created.json())
 
     def test_step_template_update_is_restricted_and_preserves_existing_flow_defaults(self):
         bootstrap = self.reset_poc_data()
@@ -920,7 +921,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(rejected.status_code, 400, rejected.text)
         self.assertIn("must use a scalar valueType", rejected.json()["message"])
 
-    def test_referenced_step_template_cannot_be_deleted(self):
+    def test_step_template_delete_is_not_a_public_operation(self):
         bootstrap = self.reset_poc_data()
         step_template_id = bootstrap["processFlowTemplates"][0]["stepRefs"][0][
             "processStepTemplateId"
@@ -928,8 +929,9 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         response = self.client.delete(f"/api/process-step-templates/{step_template_id}")
 
-        self.assertEqual(response.status_code, 409, response.text)
-        self.assertIn("is referenced by flow template", response.json()["message"])
+        self.assertEqual(response.status_code, 405, response.text)
+        operations = self.client.get("/openapi.json").json()["paths"]["/api/process-step-templates/{template_id}"]
+        self.assertNotIn("delete", operations)
         self.assertEqual(
             self.client.get(f"/api/process-step-templates/{step_template_id}").status_code,
             200,

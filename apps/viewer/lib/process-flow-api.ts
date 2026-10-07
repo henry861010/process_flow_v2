@@ -192,14 +192,20 @@ export async function updateProcessStepTemplate<T>(
   );
 }
 
-export async function deleteProcessStepTemplate(templateId: string): Promise<void> {
-  await apiFetch<unknown>(`/api/process-step-templates/${encodeURIComponent(templateId)}`, {
+export async function listProcessFlowTemplates<T>(): Promise<T[]> {
+  return apiFetch<T[]>("/api/process-flow-templates");
+}
+
+export async function deleteProcessFlowTemplate(templateId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/process-flow-templates/${encodeURIComponent(templateId)}`, {
     method: "DELETE",
   });
 }
 
-export async function listProcessFlowTemplates<T>(): Promise<T[]> {
-  return apiFetch<T[]>("/api/process-flow-templates");
+export async function deleteProcessFlowInstance(instanceId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/process-flow-instances/${encodeURIComponent(instanceId)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function createProcessFlowTemplate<T>(template: T): Promise<T> {

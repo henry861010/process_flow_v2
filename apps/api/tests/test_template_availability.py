@@ -129,7 +129,6 @@ class TemplateAvailabilityTests(unittest.TestCase):
         committed = self.client.post(f"/api/process-flow-workspaces/{workspace['id']}/commit",
                                      json=self.commit_body(workspace["revision"]))
         self.assertEqual(committed.status_code, 200, committed.text)
-        self.assertEqual(self.client.delete(f"/api/process-step-templates/{self.step['id']}").status_code, 409)
         self.set_status("step", self.step, "enabled")
         response = self.client.post("/api/process-flow-templates", json=new_flow)
         self.assertEqual(response.status_code, 201, response.text)

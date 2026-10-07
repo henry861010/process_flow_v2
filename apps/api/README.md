@@ -69,7 +69,9 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | `GET` | `/api/process-step-templates/{id}` | Detail |
 | `POST` | `/api/process-step-templates` | Validate and insert template |
 | `PUT` | `/api/process-step-templates/{id}` | Update owner、category、program 與 parameter defaults |
-| `DELETE` | `/api/process-step-templates/{id}` | Delete only when no flow template references it |
+
+Process-step template deletion is not supported. `DELETE /api/process-step-templates/{id}` returns
+`405 Method Not Allowed`; existing templates remain available for reading and editing.
 
 ### Geometry catalog
 
@@ -98,10 +100,19 @@ missing token必須重新preview，不可在前端自行重建geometry。
 | `GET`/`POST` | `/api/process-flow-templates` | List or validate/insert template |
 | `GET` | `/api/process-flow-templates/{id}` | Template detail |
 | `PUT` | `/api/process-flow-templates/{id}` | Restricted metadata and scalar flow-default update |
+| `DELETE` | `/api/process-flow-templates/{id}` | Delete unused template and its draft workspaces; `409` if any instance references it |
 | `POST` | `/api/process-flow-template-instances` | Atomic template + first instance insert |
 | `GET`/`POST` | `/api/process-flow-instances` | List or compile/insert complete instance |
 | `GET` | `/api/process-flow-instances/{id}` | Instance detail |
+| `DELETE` | `/api/process-flow-instances/{id}` | Delete instance and committed workspaces that produced it |
 | `POST` | `/api/process-flow-instances/{id}/execute` | Compile and execute saved instance |
+
+Deletion returns `204` with no body, or `404` for an absent resource. Reference checks and related
+workspace deletion run in one transaction; failures roll back all deletions. Process-step templates
+are retained when their flow templates are deleted.
+Geometry catalog entries are retained. Deletion uses the existing trusted-local API access model;
+there is no new login or role enforcement. Flow and instance deletion record `flow_template.delete`
+and `flow_instance.delete` analytics events with their resource context before deletion.
 
 ### Workspace
 

@@ -177,18 +177,19 @@ Disabled step templates reject new flow-template references with 409, including 
 for new workspaces and instances. Combined creation checks both restrictions before any writes.
 Availability checks belong at service entrypoints, not shared reference loading or kernel validation:
 historical instance read, preview, execution, and export remain available. Re-enabling restores new
-usage. Existing referenced-step deletion protection remains unchanged; no flow deletion API is added.
+usage. Process-step template deletion is not supported. Flow-template deletion is permitted only
+when no instance references it, and also removes its draft workspaces in the same transaction.
 
 ## 4. Mutability policy
 
 | Resource | Create | Update | Delete |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | yes | restricted full replace | MAY delete only when no flow template references it。 |
-| `ProcessFlowTemplate` | yes | restricted full replace | Not part of current public lifecycle。 |
-| `ProcessFlowInstance` | yes | no | Not part of current public lifecycle。 |
+| `ProcessStepTemplate` | yes | restricted full replace | Not supported; DELETE returns 405。 |
+| `ProcessFlowTemplate` | yes | restricted full replace | Only without referencing instances; also deletes its draft workspaces。 |
+| `ProcessFlowInstance` | yes | no | Deletes the instance and committed workspaces that produced it。 |
 | `GeometryEntity` | yes | no | Not part of current public lifecycle。 |
-| Draft `ProcessFlowWorkspace` | yes | revision-checked full replace | Not part of current public lifecycle。 |
-| Committed workspace | no new identity | no | Not part of current public lifecycle。 |
+| Draft `ProcessFlowWorkspace` | yes | revision-checked full replace | Removed with its flow template; no standalone delete API。 |
+| Committed workspace | no new identity | no | Removed with its committed instance; no standalone delete API。 |
 
 `ProcessStepTemplate` update只允許`status`、`owner`、`category`、`program`與recursive parameter
 `defaultValue`改變；id、version、name、description、ports與parameter definition contract MUST
