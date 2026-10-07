@@ -91,6 +91,22 @@ npm run start
 
 `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` 在 build time bake into output；API host 改變後必須 rebuild。`npm run start` 只用 Python static server serve `apps/viewer/out`。
 
+### 即時 job dashboard
+
+開啟 `http://localhost:3001/dashboard`，或部署後的 viewer 網址 `/dashboard`。
+這是任何持有網址的人都可查看的唯讀頁面，顯示所有 client 的 CDB/STEP/JSON active exports：
+執行中數量／並行上限、等待數量、stage、細部動作說明、耗時與全域 FIFO 順位。細部說明與
+使用者 export drawer 同源，只公開固定文案或純數字進度；終態不保留在畫面。
+
+有工作時每 2 秒更新，閒置時每 5 秒；頁面隱藏時暫停，回前景立即更新。
+失敗或超過 10 秒沒有成功快照會標示 stale 並凍結耗時，不代表 job 已失敗。可手動 Refresh。
+API 的 `GET /api/dashboard/jobs` 不需 clientId，僅回傳公開監控欄位。
+
+正式 viewer build 的 API base URL 必須是瀏覽器可連到的 API 位址，CORS 必須包含 viewer
+origin；不可把正式 build 指向訪客電腦的 localhost。沿用 static export 的
+`dashboard/index.html`，不需要新增 port 80 proxy。Queue 限單一 API process，restart 後清空；
+不要用多個 API workers 分攤同一 dashboard。
+
 ## 環境設定
 
 | Variable | Component | Default | Notes |
@@ -98,8 +114,8 @@ npm run start
 | `PROCESS_FLOW_API_DB_PATH` | API | `apps/api/.data/process-flow.sqlite3` | SQLite path；parent 自動建立 |
 | `PROCESS_FLOW_API_CORS_ORIGINS` | API | localhost/127.0.0.1 ports 3000/3001 | Comma-separated exact origins |
 | `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | API sync preview | `30` | 只適用 synchronous CAD preview helper |
-| `EXPORT_MAX_CONCURRENT_JOBS` | API export jobs | `1` | Preferred queue concurrency variable |
-| `CDB_EXPORT_MAX_CONCURRENT_JOBS` | API export jobs | `1` | Legacy fallback；preferred variable 有設定時忽略 |
+| `EXPORT_MAX_CONCURRENT_JOBS` | API export jobs | `3` | Preferred queue concurrency variable |
+| `CDB_EXPORT_MAX_CONCURRENT_JOBS` | API export jobs | `3` | Legacy fallback；preferred variable 有設定時忽略 |
 | `NEXT_PUBLIC_PROCESS_FLOW_API_BASE_URL` | Viewer build | `http://localhost:8000` | Frontend-only；API 不讀取 |
 | `MPLCONFIGDIR` | CDB worker | system/default | 未設定時 API bridge 指向 temp directory |
 

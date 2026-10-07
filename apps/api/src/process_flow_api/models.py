@@ -623,20 +623,18 @@ class GeometryPreviewStepResponse(StrictModel):
     stepBase64: str
 
 
+FileExportStage = Literal[
+    "preparing", "validating", "analyzing_geometry", "building_2d_mesh",
+    "building_3d_mesh", "building_cad_model", "writing_output", "finalizing",
+]
+FileExportProgressUnit = Literal["features", "layers", "bodies", "records"]
+
+
 class FileExportProgress(StrictModel):
-    stage: Literal[
-        "preparing",
-        "validating",
-        "analyzing_geometry",
-        "building_2d_mesh",
-        "building_3d_mesh",
-        "building_cad_model",
-        "writing_output",
-        "finalizing",
-    ]
+    stage: FileExportStage
     current: int | None = Field(default=None, ge=0)
     total: int | None = Field(default=None, ge=0)
-    unit: Literal["features", "layers", "bodies", "records"] | None = None
+    unit: FileExportProgressUnit | None = None
     message: str | None = None
     stageStartedAt: str
     updatedAt: str
@@ -673,3 +671,33 @@ class FileExportJobResponse(StrictModel):
 
 class FileExportJobListResponse(StrictModel):
     jobs: list[FileExportJob]
+
+
+class DashboardJobProgress(StrictModel):
+    stage: FileExportStage
+    message: str | None = Field(default=None, max_length=256)
+    current: int | None = Field(default=None, ge=0)
+    total: int | None = Field(default=None, ge=0)
+    unit: FileExportProgressUnit | None = None
+    stageStartedAt: str
+    updatedAt: str
+
+
+class DashboardJob(StrictModel):
+    jobId: str
+    kind: Literal["cdb", "json", "step"]
+    status: Literal["queued", "running", "canceling"]
+    createdAt: str
+    startedAt: str | None = None
+    queuePosition: int | None = Field(default=None, ge=1)
+    runElapsedSeconds: FiniteFloat | None = Field(default=None, ge=0)
+    queueElapsedSeconds: FiniteFloat | None = Field(default=None, ge=0)
+    progress: DashboardJobProgress | None = None
+
+
+class DashboardJobsResponse(StrictModel):
+    generatedAt: str
+    maxConcurrentJobs: int = Field(ge=0)
+    runningCount: int = Field(ge=0)
+    queuedCount: int = Field(ge=0)
+    jobs: list[DashboardJob]

@@ -55,6 +55,7 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Process health |
+| `GET` | `/api/dashboard/jobs` | Public read-only active export snapshot across all clients; no clientId required |
 | `GET` | `/api/bootstrap` | Templates、instances、geometry catalog bootstrap |
 | `GET` | `/api/fixture-export` | Current step/template/instance/geometry fixture ZIP snapshot |
 | `POST` | `/api/reset` | Destructive fixture reset |
@@ -126,6 +127,24 @@ missing token必須重新preview，不可在前端自行重建geometry。
 | `POST` | `/api/export-jobs/{jobId}/cancel` | Request cancellation |
 
 Exact preview request shape、worker paths、timeouts 與 file replacement semantics 見 [Preview and Export Pipeline](../../docs/architecture/preview-export-pipeline.md)。
+
+### 公開 job dashboard
+
+`GET /api/dashboard/jobs` 回傳 `generatedAt`、`maxConcurrentJobs`、`runningCount`（包含
+canceling）、`queuedCount` 與 `jobs`。僅列 queued/running/canceling；running/canceling 在前，
+queued 依 FIFO 排列。Snapshot 在同一 manager lock 內產生，不套用每 client 20 筆限制，
+以 `Cache-Control: no-store` 回應，analytics traffic kind 為 polling。
+
+Job 欄位為 `jobId`、`kind`、`status`、`createdAt`、`startedAt`、`queuePosition`、
+`runElapsedSeconds`、`queueElapsedSeconds`、`progress`。Queued 的 run elapsed 為 null；
+其他 active status 的 queue elapsed 為 null。耗時以 monotonic clock 計算。Progress 僅包含
+`stage`、`message`、`current`、`total`、`unit`、`stageStartedAt`、`updatedAt`。
+`message` 僅公開內建 worker 的固定文案與純數字進度模板，例如
+`Imprinting feature 3 of 10.`、`Built layer 3 of 12.`；未知訊息回 null。
+
+此端點不要求 authentication，不回傳 clientId、sourceLabel、paths、meshControl、worker
+任意 message/warning 或完整輸入。現有 client-filtered export API 不變。資料限單一 API process，
+restart 清空；這不是歷史、preview 或 analytics dashboard。
 
 ## 驗證與錯誤
 

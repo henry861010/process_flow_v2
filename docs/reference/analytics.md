@@ -1,3 +1,18 @@
+---
+title: Service 使用紀錄
+status: descriptive
+owner: integration.platform
+audience:
+  - operators
+  - backend engineers
+last_verified: 2026-10-07
+last_verified_commit: 7308bb19
+source_of_truth:
+  - apps/api/src/process_flow_api/analytics.py
+  - apps/api/src/process_flow_api/analytics_http.py
+  - apps/api/src/process_flow_api/analytics_cli.py
+---
+
 # Service 使用紀錄
 
 API 將 request 摘要與後端操作事件存入独立的 `analytics.sqlite3`。沒有登入時，
@@ -9,7 +24,7 @@ API 將 request 摘要與後端操作事件存入独立的 `analytics.sqlite3`�
 
 | 環境變數 | 預設 |
 | --- | --- |
-| `PROCESS_FLOW_API_ANALYTICS_DB_PATH` | 業務 DB 同目錄的 `analytics.sqlite3`；標準路徑為 `apps/api/.data/analytics.sqlite3` |
+| `PROCESS_FLOW_API_ANALYTICS_DB_PATH` | 業務 DB 同目錄的 `analytics.sqlite3`；標準為 `apps/api` 下的 `.data/analytics.sqlite3` |
 | `PROCESS_FLOW_API_ANALYTICS_BACKUP_DIR` | 分析 DB 同目錄的 `analytics-backups` |
 | `PROCESS_FLOW_API_ENVIRONMENT` | `development`；正式部署應設為 `production` |
 | `PROCESS_FLOW_API_VERSION` | `unknown`；建議設為部署 commit SHA |
@@ -84,7 +99,9 @@ Validation 在 endpoint 前失敗時，只保存最小失敗事件，不保留�
 不把兩者相加；輪詢與 mesh/section 下載不算 flow 操作。
 Step/generator 指標是被操作引用的次数，不代表每個 step 實際執行次數。
 目前無法計算使用人數、活躍度或回訪率；未来 user count 排除 unknown。
-沒有前端點擊事件、分析 dashboard 或啟用前的歷史回填。
+沒有前端點擊事件、分析 dashboard 或啟用前的歷史回填。公開的
+[Job Dashboard](../ui/screens/dashboard.md) 只讀取記憶體中的 active export jobs，
+不是 analytics 報表；其 `GET /api/dashboard/jobs` requests 分類為 polling。
 
 在專案根目錄執行：
 

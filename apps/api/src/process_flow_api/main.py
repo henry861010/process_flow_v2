@@ -25,6 +25,7 @@ from .fixture_export import MAX_ARCHIVE_BYTES, build_fixture_archive, load_fixtu
 from .identifiers import generated_geometry_id
 from .models import (
     CdbFileExportCreateRequest,
+    DashboardJobsResponse,
     ExecuteInstanceResponse,
     FileExportCancelRequest,
     FileExportCreateRequest,
@@ -480,6 +481,11 @@ def create_app(
             mesh_control=mesh_control,
         )
         return {"job": job}
+
+    @app.get("/api/dashboard/jobs", response_model=DashboardJobsResponse)
+    async def dashboard_jobs(response: Response):
+        response.headers["Cache-Control"] = "no-store"
+        return await app.state.file_export_jobs.dashboard_snapshot()
 
     @app.get("/api/export-jobs", response_model=FileExportJobListResponse)
     async def list_file_export_jobs(clientId: str):

@@ -59,6 +59,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/flow-instance-editor` | [Flow Instance Editor](screens/flow-instance-editor.md) |
 | `/geometry-generator?generatorId=<id>` | [Geometry Generator Editor](screens/geometry-generator-editor.md) |
 | `/management` | [Management](screens/management.md) |
+| `/dashboard` | [Job Dashboard](screens/dashboard.md) |
 | `/cad-viewer` | [CAD Viewer](screens/cad-viewer.md) |
 
 ### 共用 components
@@ -91,6 +92,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA instance | load source instance、edit、preview、save immutable copy | `UI-FIE-001` 至 `UI-FIE-007` |
 | `/geometry-generator?generatorId=<id>` | generator defaults | preview、download、Save to DB | `UI-GEN-001` 至 `UI-GEN-003` |
 | `/management` | bootstrap ready | inspect resources、edit flow-template metadata/defaults、edit process-step settings、open authoring routes | `UI-MGMT-001` 至 `UI-MGMT-005` |
+| `/dashboard` | active export snapshot | all-client counts、stage/detail/elapsed、FIFO queue、refresh/stale recovery | `UI-DASH-001` 至 `UI-DASH-008` |
 | `/cad-viewer` | demo workbench | import、section、camera、reset | `UI-CAD-001` 至 `UI-CAD-006` |
 | Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |
 

@@ -218,7 +218,7 @@ layers時套用local Z-plane controls。正常套用controls不產生job warning
 失敗等實際警告仍透過既有`warning`欄位回報。
 
 Job state transition 是 `queued → running → success/failed`，取消路徑可經
-`canceling → canceled`。Manager 預設同時執行一個 job；`EXPORT_MAX_CONCURRENT_JOBS`
+`canceling → canceled`。Manager 預設同時執行三個 job（CDB、JSON、STEP 共用額度）；`EXPORT_MAX_CONCURRENT_JOBS`
 優先於 legacy `CDB_EXPORT_MAX_CONCURRENT_JOBS`。每個 `clientId` 最多保留 20 個
 terminal jobs。
 
@@ -231,6 +231,13 @@ writing_output → finalizing`。Circle imprint/extension屬於`building_2d_mesh
 Queued job另提供dynamic 1-based`queuePosition`；`runElapsedSeconds`在running時依現在時間計算。
 
 Job list/get/cancel 以 browser-generated `clientId` filter。這是 UI isolation，不是 authentication；知道 client id 的 caller 可讀取或取消該 client jobs。
+
+另有公開唯讀 `GET /api/dashboard/jobs`，提供所有 client 的 active jobs 原子快照與
+running/queued counts，canceling 計入 running。它只公開 job ID、格式、狀態、時間、FIFO
+順位、stage/count progress 與 allowlisted 細部動作說明，省略 clientId、sourceLabel、paths、meshControl
+及任意 message/warning。耗時由 manager 的 monotonic clock 計算，快照不受 client history
+筆數限制，terminal job 不列入。Viewer `/dashboard` 顯示此快照；完整契約見
+[API README](../../apps/api/README.md) 與 [Dashboard](../ui/screens/dashboard.md)。
 
 ## 檔案寫入行為
 

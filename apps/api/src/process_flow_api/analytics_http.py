@@ -321,6 +321,8 @@ class AnalyticsRoute(APIRoute):
 
 
 def traffic_kind(method: str, route: str) -> str:
+    if route == "/api/dashboard/jobs" and method == "GET":
+        return "polling"
     if route.startswith("/api/export-jobs") and method == "GET":
         return "polling"
     if route.startswith("/api/preview-sessions/") and method == "GET":

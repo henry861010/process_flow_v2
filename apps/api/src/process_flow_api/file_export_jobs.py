@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from .analytics import AnalyticsRecorder, current_origin
+from .dashboard_progress import public_progress_message
 
 from .cad_exporter import cad_worker_error_message, start_cad_worker
 from .cdb_exporter import (
@@ -49,7 +50,7 @@ FileExportProgressUnit = Literal["features", "layers", "bodies", "records"]
 
 TERMINAL_STATUSES = {"success", "failed", "canceled"}
 DEFAULT_RETAINED_JOBS_PER_CLIENT = 20
-DEFAULT_MAX_CONCURRENT_EXPORT_JOBS = 1
+DEFAULT_MAX_CONCURRENT_EXPORT_JOBS = 3
 WORKER_PROGRESS_PREFIX = "PROCESS_FLOW_PROGRESS "
 MAX_WORKER_DIAGNOSTIC_TAIL = 16_000
 
@@ -306,6 +307,53 @@ class FileExportJobManager:
             output_path=output_path,
             source_label=source_label,
         )
+
+    async def dashboard_snapshot(self) -> JsonObject:
+        """Return an atomic, allowlisted view of active exports across all clients."""
+        async with self._lock:
+            generated_at = _now()
+            now_monotonic = time.monotonic()
+            running: list[JsonObject] = []
+            queued: list[JsonObject] = []
+            for job in self._jobs.values():
+                if job.status not in {"queued", "running", "canceling"}:
+                    continue
+                is_queued = job.status == "queued"
+                progress = job.progress
+                payload = {
+                    "jobId": job.job_id,
+                    "kind": job.kind,
+                    "status": job.status,
+                    "createdAt": _iso(job.created_at),
+                    "startedAt": _iso(job.started_at),
+                    "queuePosition": len(queued) + 1 if is_queued else None,
+                    "runElapsedSeconds": (
+                        round(max(0, now_monotonic - job.started_monotonic), 3)
+                        if not is_queued and job.started_monotonic is not None
+                        else None
+                    ),
+                    "queueElapsedSeconds": (
+                        round(max(0, now_monotonic - job.created_monotonic), 3)
+                        if is_queued else None
+                    ),
+                    "progress": {
+                        "stage": progress.stage,
+                        "message": public_progress_message(progress.stage, progress.message),
+                        "current": progress.current,
+                        "total": progress.total,
+                        "unit": progress.unit,
+                        "stageStartedAt": _iso(progress.stage_started_at),
+                        "updatedAt": _iso(progress.updated_at),
+                    } if progress is not None else None,
+                }
+                (queued if is_queued else running).append(payload)
+            return {
+                "generatedAt": _iso(generated_at),
+                "maxConcurrentJobs": self.max_concurrent_jobs,
+                "runningCount": len(running),
+                "queuedCount": len(queued),
+                "jobs": running + queued,
+            }
 
     async def list_jobs(self, *, client_id: str) -> list[JsonObject]:
         normalized_client_id = _normalize_client_id(client_id)
