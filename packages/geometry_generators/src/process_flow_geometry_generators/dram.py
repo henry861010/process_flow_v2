@@ -65,13 +65,13 @@ class DramGenerator:
             "parameterDefinitions": [
                 _number("packageX", "Package X", positive=True),
                 _number("packageY", "Package Y", positive=True),
-                _number("dramThickness", "DRAM thickness", positive=True),
+                _number("dramThickness", "DRAM thickness", minimum=0),
                 _text("moldingMaterial", "Molding material"),
                 _number("coreDieX", "Core die X", positive=True),
                 _number("coreDieY", "Core die Y", positive=True),
-                _number("coreDieThickness", "Core die thickness", positive=True),
+                _number("coreDieThickness", "Core die thickness", minimum=0),
                 _number(
-                    "topCoreDieThickness", "Top core die thickness", positive=True
+                    "topCoreDieThickness", "Top core die thickness", minimum=0
                 ),
                 _integer(
                     "coreDieCount",
@@ -81,14 +81,14 @@ class DramGenerator:
                 ),
                 _number("dieGapThickness", "Die gap thickness", minimum=0),
                 _text("dieMaterial", "Die material"),
-                _number("topSolderMaskThickness", "Top solder mask thickness", positive=True),
+                _number("topSolderMaskThickness", "Top solder mask thickness", minimum=0),
                 _number(
                     "bottomSolderMaskThickness",
                     "Bottom solder mask thickness",
-                    positive=True,
+                    minimum=0,
                 ),
                 _text("solderMaskMaterial", "Solder mask material"),
-                _number("sbtCoreLayerThickness", "SBT core layer thickness", positive=True),
+                _number("sbtCoreLayerThickness", "SBT core layer thickness", minimum=0),
                 _text("sbtCoreMaterial", "SBT core material"),
                 _text("buildupDielectricMaterial", "Buildup dielectric material"),
                 _text("buildupConductiveMaterial", "Buildup conductive material"),
@@ -155,18 +155,21 @@ class DramGenerator:
         positive_fields = (
             ("packageX", "Package X"),
             ("packageY", "Package Y"),
-            ("dramThickness", "DRAM thickness"),
             ("coreDieX", "Core die X"),
             ("coreDieY", "Core die Y"),
+        )
+        for key, label in positive_fields:
+            _require_positive(parameters, key, label, errors)
+        for key, label in (
+            ("dramThickness", "DRAM thickness"),
             ("coreDieThickness", "Core die thickness"),
             ("topCoreDieThickness", "Top core die thickness"),
             ("topSolderMaskThickness", "Top solder mask thickness"),
             ("bottomSolderMaskThickness", "Bottom solder mask thickness"),
             ("sbtCoreLayerThickness", "SBT core layer thickness"),
-        )
-        for key, label in positive_fields:
-            _require_positive(parameters, key, label, errors)
-        _require_non_negative(parameters, "dieGapThickness", "Die gap thickness", errors)
+            ("dieGapThickness", "Die gap thickness"),
+        ):
+            _require_non_negative(parameters, key, label, errors)
         for key, label in (
             ("moldingMaterial", "Molding material"),
             ("dieMaterial", "Die material"),
@@ -564,9 +567,9 @@ def _validate_layers(side: str, value: Any, errors: JsonObject) -> None:
             errors[f"{key}.{index}"] = f"{label} layer {index + 1} must be an object."
             continue
         thickness = layer.get("thickness")
-        if not _positive_number(thickness):
+        if not _finite_number(thickness) or float(thickness) < 0:
             errors[f"{key}.{index}.thickness"] = (
-                f"{label} layer {index + 1} thickness must be greater than 0."
+                f"{label} layer {index + 1} thickness must be a finite number greater than or equal to 0."
             )
         if (index + 1) % 2 == 0:
             density = layer.get("density")
@@ -594,7 +597,7 @@ def _layer_definition(id_: str, name: str, side: str) -> JsonObject:
             "minItems": 1,
             "maxItems": MAX_BUILDUP_LAYER_COUNT,
             "itemParameterDefinitions": [
-                _number("thickness", "Thickness", positive=True),
+                _number("thickness", "Thickness", minimum=0),
                 {
                     "id": "density",
                     "name": "Circuit density",

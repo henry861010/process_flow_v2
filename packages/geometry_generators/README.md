@@ -26,10 +26,16 @@ registered so compilation can resolve their exact recipes.
 SoC uses four fixed layers from bottom to top: Pass2 (5.625 um, `pass2`),
 usg (2.89 um, `usg`), elk (1.315 um, `elk`), and si (200 um, `si`). Each layer
 has editable `<layer>Thickness` and `<layer>Material` parameters. Thickness 0
-omits that layer without leaving a gap; negative thickness and an all-zero stack
-are invalid. The default stack is 209.83 um thick at 8000 x 10000 um, centered
+omits that layer without leaving a gap; an all-zero stack is also valid.
+Negative thickness is invalid. The default stack is 209.83 um thick at 8000 x 10000 um, centered
 on Z. SoC intentionally retains generator version 1: legacy single-box
 `thickness`/`material` parameters are ignored on regeneration and replaced by
 the four-layer defaults. Explicit new layer parameters take precedence, and saved
 recipes retain zero thickness values. Existing static catalog geometry is updated
 only when regenerated. VRM remains a separate single-box generator.
+
+All built-in generators accept finite thickness values greater than or equal to
+0, including DRAM buildup layer thicknesses and both LSI generations. Their
+manifests use an inclusive minimum of 0. DRAM package thickness must still
+contain its substrate and occupied die stack; a zero package thickness requires
+all internal thicknesses and die gaps to be zero.

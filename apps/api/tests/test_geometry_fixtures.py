@@ -117,6 +117,13 @@ class GeometryFixtureTests(unittest.TestCase):
                     "adh",
                     "hbm.base_die",
                     "hbm.top_die",
+                    "hbm.pass2",
+                    "hbm.usg",
+                    "hbm.elk",
+                    "soc.pass2",
+                    "soc.usg",
+                    "soc.elk",
+                    "soc.si",
                 }
             )
             | frozenset(

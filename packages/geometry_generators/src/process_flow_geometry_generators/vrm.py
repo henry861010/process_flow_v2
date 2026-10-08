@@ -37,7 +37,7 @@ class VrmGenerator:
                     "controlType": "number",
                     "required": True,
                     "unit": "um",
-                    "validation": {"min": 0, "exclusiveMin": True},
+                    "validation": {"min": 0},
                 },
                 {
                     "id": "material",
@@ -60,9 +60,9 @@ class VrmGenerator:
             isinstance(thickness, bool)
             or not isinstance(thickness, (int, float))
             or not math.isfinite(thickness)
-            or thickness <= 0
+            or thickness < 0
         ):
-            errors["thickness"] = "Thickness must be a finite number greater than 0."
+            errors["thickness"] = "Thickness must be a finite number greater than or equal to 0."
         material = parameters.get("material")
         if not isinstance(material, str) or not material.strip():
             errors["material"] = "Material is required."

@@ -322,6 +322,24 @@ class SQLiteStore:
     def get_geometry(self, id_: str) -> JsonObject | None:
         return self._get("geometries", id_)
 
+    def delete_geometry(self, id_: str) -> None:
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            if self.get_geometry(id_) is None:
+                raise NotFoundError(id_)
+            for table, label in (
+                ("process_flow_instances", "instance"),
+                ("process_flow_workspaces", "workspace"),
+            ):
+                for row in self._connection.execute(f"SELECT id, payload FROM {table}"):
+                    bindings = json.loads(row["payload"]).get("inputBindings", {})
+                    if any(binding.get("kind") == "catalog" and binding.get("geometryId") == id_
+                           for binding in bindings.values()):
+                        raise ResourceConflictError(
+                            f"Geometry {id_} is referenced by {label} {row['id']}"
+                        )
+            self._delete_in_transaction("geometries", id_)
+
     def insert_process_flow_template(self, payload: JsonObject) -> JsonObject:
         return self._insert(
             "process_flow_templates",

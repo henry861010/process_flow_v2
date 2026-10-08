@@ -94,7 +94,7 @@ class LsiGenerator:
                         "controlType": "number",
                         "required": True,
                         "unit": "um",
-                        "validation": {"min": 0, "exclusiveMin": True},
+                        "validation": {"min": 0},
                         **condition,
                     },
                 ]
@@ -155,10 +155,10 @@ class LsiGenerator:
                 isinstance(thickness, bool)
                 or not isinstance(thickness, (int, float))
                 or not math.isfinite(thickness)
-                or thickness <= 0
+                or thickness < 0
             ):
                 errors[thickness_id] = (
-                    f"{thickness_id} must be a finite number greater than 0."
+                    f"{thickness_id} must be a finite number greater than or equal to 0."
                 )
             else:
                 total_thickness += float(thickness)

@@ -275,6 +275,15 @@ def _hbm_package(structure: JsonObject, region: JsonObject) -> JsonObject:
     envelope = _envelope_body(root)
     _replace_footprint(envelope["geometry"], target, region)
 
+    bottom_layers = [
+        body
+        for body in root.get("bodies", [])
+        if isinstance(body, dict)
+        and body.get("key") in {"hbm.pass2", "hbm.usg", "hbm.elk"}
+    ]
+    for body in bottom_layers:
+        _replace_footprint(body["geometry"], target, region)
+
     children = root.get("children", [])
     base_children = [
         child
@@ -292,6 +301,7 @@ def _hbm_package(structure: JsonObject, region: JsonObject) -> JsonObject:
         for feature in root.get(collection, [])
         if isinstance(feature, dict)
         and feature is not envelope
+        and feature not in bottom_layers
         and isinstance(feature.get("geometry"), dict)
     ]
     fixed_geometries = [

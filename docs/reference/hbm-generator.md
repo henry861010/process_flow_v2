@@ -7,7 +7,7 @@ audience:
   - frontend 開發者
   - process-flow 整合開發者
   - QA 與自動化 agent
-last_verified: 2026-07-13
+last_verified: 2026-10-08
 last_verified_commit: 7a94eded086c7a18bd082cf315e413cf97fc698c
 source_of_truth:
   - docs/reference/geometry-structure.md
@@ -26,7 +26,7 @@ preview renderer，不保存另一份HBM計算邏輯。
 
 ## 目的與範圍
 
-HBM Geometry Generator 將一組 package、base die、core die stack 與 molding 參數轉為
+HBM Geometry Generator 將一組 package、底部 pass2/usg/elk、base die、core die stack 與 molding 參數轉為
 `standard` GeometryStructure `1.0.0`。產物可以直接下載，或包裝成 immutable
 `GeometryEntity` 寫入 geometry catalog。
 
@@ -44,8 +44,12 @@ top core die 身分與厚度，其餘 core dies 共用一般 core die 厚度。M
 
 - `unitSystem` 必須是 `um`。
 - Package 中心必須位於 XY 原點，底面必須位於 `Z = 0`。
-- Root container key 必須是 `hbm`，且 direct body 是佔滿完整 package footprint、厚度至 top core die
+- Root container key 必須是 `hbm`，其 molding direct body 佔滿完整 package footprint、厚度至 top core die
   頂面的 molding body；該 body key 必須是 `envelope`，供 package adapter 選取可變 footprint。
+- Base die 下方只有一組 pass2 → usg → elk，由 `Z = 0` 向上堆疊；三層是 root direct bodies，
+  footprint 與 package 相同，keys 分別為 `hbm.pass2`、`hbm.usg`、`hbm.elk`。厚度為 `0` 時省略該層。
+- Molding 從底部三層頂面開始，與 base die、所有 core dies 一起向上平移底部三層總厚度，
+  不填入這三層的體積。
 - Child containers 不提供 semantic key；base die body 必須使用 `hbm.base_die`，一般 core die
   bodies 必須依由下到上的 1-based、未補零編號使用 `hbm.core_die_1` 至
   `hbm.core_die_63`，top core die body 必須使用 `hbm.top_die`。
@@ -70,35 +74,46 @@ ownership contract。
 | `packageX` | finite number | `> 0` | Package 與 base die 的 X 尺寸。 |
 | `packageY` | finite number | `> 0` | Package 與 base die 的 Y 尺寸。 |
 | `moldingMaterial` | string | trim 後非空 | Root molding body material。 |
-| `baseDieThickness` | finite number | `> 0` | Base die 厚度。 |
+| `baseDieThickness` | finite number | `>= 0` | Base die 厚度。 |
 | `coreDieX` | finite number | `> 0` 且 `<= packageX` | 每層 core die 的 X 尺寸。 |
 | `coreDieY` | finite number | `> 0` 且 `<= packageY` | 每層 core die 的 Y 尺寸。 |
-| `coreDieThickness` | finite number | `> 0` | 除最上層外，各 core die 的共用厚度。 |
-| `topCoreDieThickness` | finite number | `> 0` | 最上層 core die 的厚度。 |
+| `coreDieThickness` | finite number | `>= 0` | 除最上層外，各 core die 的共用厚度。 |
+| `topCoreDieThickness` | finite number | `>= 0` | 最上層 core die 的厚度。 |
 | `coreDieCount` | integer | `1..64` | 包含最上層在內的 core die 總層數。 |
 | `coreBaseGap` | finite number | `>= 0` | Base die 上表面至第一層 core die 下表面的距離。 |
 | `coreCoreGap` | finite number | `>= 0` | 相鄰 core dies 之間的距離。 |
 | `dieMaterial` | string | trim 後非空 | Base die 與所有 core dies 共用的 material。 |
+| `pass2Thickness` | finite number | `>= 0` | 底部 Pass2 厚度；預設 `5.625`。 |
+| `pass2Material` | string | trim 後非空 | Pass2 material；預設 `pass2`。 |
+| `usgThickness` | finite number | `>= 0` | 底部 usg 厚度；預設 `2.89`。 |
+| `usgMaterial` | string | trim 後非空 | usg material；預設 `usg`。 |
+| `elkThickness` | finite number | `>= 0` | 底部 elk 厚度；預設 `1.315`。 |
+| `elkMaterial` | string | trim 後非空 | elk material；預設 `elk`。 |
 
 所有 geometry 數值的單位都是 `um`；UI 不提供 unit selector。
+三層與 SoC 共用預設值來源；即使厚度為 `0`，material 仍必須有效。總厚度必須為有限數值。
 
 ## 衍生尺寸與座標
 
 令 core die index `i` 從 `0` 開始，`N = coreDieCount`。
 
 ```text
-totalThickness =
+S = pass2Thickness + usgThickness + elkThickness
+
+moldedStackThickness =
     baseDieThickness
   + coreBaseGap
   + (N - 1) * coreDieThickness
   + topCoreDieThickness
   + (N - 1) * coreCoreGap
 
+totalThickness = S + moldedStackThickness
+
 sideMoldingX = (packageX - coreDieX) / 2
 sideMoldingY = (packageY - coreDieY) / 2
 
 coreBottomZ(i) =
-    baseDieThickness
+    S + baseDieThickness
   + coreBaseGap
   + i * (coreDieThickness + coreCoreGap)
 
@@ -110,13 +125,17 @@ coreThickness(i) =
 `totalThickness` 永遠由實際堆疊衍生，molding envelope 的頂面等於 top core die 頂面，因此沒有
 top molding。當 `N = 1` 時沒有一般 core die，唯一一層是專屬 top core die，並使用
 `topCoreDieThickness`。
+預設 `S = 9.83`，`moldedStackThickness = 380`，因此 `totalThickness = 389.83 um`。
 
 各 BoxGeometry bounds 必須依下列規則建立：
 
 | Body | `bottom_left` | `top_right` | `thk` |
 | --- | --- | --- | --- |
-| Molding | `[-packageX/2, -packageY/2, 0]` | `[packageX/2, packageY/2, 0]` | `totalThickness` |
-| Base die | `[-packageX/2, -packageY/2, 0]` | `[packageX/2, packageY/2, 0]` | `baseDieThickness` |
+| Pass2（若非零） | `[-packageX/2, -packageY/2, 0]` | `[packageX/2, packageY/2, 0]` | `pass2Thickness` |
+| usg（若非零） | `[-packageX/2, -packageY/2, pass2Thickness]` | `[packageX/2, packageY/2, pass2Thickness]` | `usgThickness` |
+| elk（若非零） | `[-packageX/2, -packageY/2, pass2Thickness+usgThickness]` | `[packageX/2, packageY/2, pass2Thickness+usgThickness]` | `elkThickness` |
+| Molding | `[-packageX/2, -packageY/2, S]` | `[packageX/2, packageY/2, S]` | `moldedStackThickness` |
+| Base die | `[-packageX/2, -packageY/2, S]` | `[packageX/2, packageY/2, S]` | `baseDieThickness` |
 | 一般 core die `i` | `[-coreDieX/2, -coreDieY/2, coreBottomZ(i)]` | `[coreDieX/2, coreDieY/2, coreBottomZ(i)]` | `coreDieThickness` |
 | Top core die | `[-coreDieX/2, -coreDieY/2, coreBottomZ(N-1)]` | `[coreDieX/2, coreDieY/2, coreBottomZ(N-1)]` | `topCoreDieThickness` |
 
@@ -124,7 +143,7 @@ Root 的 molding 會自然保留在 core die 四周、core-base gap 與 core-cor
 這些區域另外建立互相重疊的 sibling molding bodies，也不得讓 molding 高於 top core die。
 
 Generator輸出的`adaptationContract`是`hbm-package@1`。Unified PnP只改變package/molding
-footprint（以及generator定義的package-sized base die），所有core child bodies維持原XY尺寸；
+footprint（以及generator定義的package-sized base die、pass2、usg、elk），所有core child bodies維持原XY尺寸；
 target無法容納fixed core時必須失敗。
 
 ## Structure identity
@@ -134,6 +153,9 @@ Generator 必須輸出 normalized empty arrays與structure-local ids：
 ```text
 container:hbm-root
 body:hbm-molding
+body:hbm-pass2
+body:hbm-usg
+body:hbm-elk
 container:hbm-base-die
 body:hbm-base-die
 container:hbm-core-die-01
@@ -187,6 +209,8 @@ GeometryStructure仍是compiler與kernel使用的authoritative geometry。
 `topMoldingThickness` 與舊 v2 request 的 `hbmThickness` 都不再是 authoring parameters；backend
 會忽略這些 legacy 欄位，normalized generation parameters 不保存它們。Backend 不提供 v1 preview
 重算；既有已保存的 immutable geometry 與其 generation metadata 不遷移也不重建。
+底部三層直接擴充 v2：既有 v2 配方重新計算時，缺少的六個參數套用上述預設值，
+新產生的 generation metadata 保存完整六個參數。三層厚度都設為 `0` 可還原新增前的幾何結構。
 
 `name`、`vendor`、`type1`、`type2`、`owner`與`description`都是Save階段的catalog metadata，
 不得出現在generator engineering parameter editor；該editor只描述dimensions、materials與結構。

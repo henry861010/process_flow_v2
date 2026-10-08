@@ -24,6 +24,7 @@ import type { ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flo
 import type { BootstrapPayload } from "@/lib/process-flow-api";
 import {
   ApiRequestError,
+  deleteGeometry,
   deleteProcessFlowInstance,
   deleteProcessFlowTemplate,
   exportFixtureArchive,
@@ -32,9 +33,14 @@ import {
   resetPocDataFromZip,
 } from "@/lib/process-flow-api";
 
-type DeletableCollection = "processFlowTemplates" | "processFlowInstances";
+type DeletableCollection = "processFlowTemplates" | "processFlowInstances" | "geometries";
 
 const deletionActions = {
+  geometries: {
+    label: "geometry",
+    remove: deleteGeometry,
+    consequence: "This geometry will be permanently deleted. Geometries referenced by an instance or workspace cannot be deleted.",
+  },
   processFlowTemplates: {
     label: "flow template",
     remove: deleteProcessFlowTemplate,
@@ -330,6 +336,7 @@ export default function ManagementPage() {
                 "Type 1",
                 "Type 2",
                 "Owner",
+                "Actions",
               ]}
             >
               {data.geometries.map((geometry) => (
@@ -342,6 +349,16 @@ export default function ManagementPage() {
                   <Cell>{geometry.type1 || "—"}</Cell>
                   <Cell>{geometry.type2 || "—"}</Cell>
                   <Cell>{geometry.owner}</Cell>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex justify-end">
+                      <DeleteButton
+                        name={geometry.name}
+                        disabled={resourceBusy}
+                        deleting={deleting?.collection === "geometries" && deleting.id === geometry.id}
+                        onClick={() => void handleDelete("geometries", geometry)}
+                      />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </ResourceTable>

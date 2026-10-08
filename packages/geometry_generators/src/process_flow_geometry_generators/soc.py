@@ -3,18 +3,14 @@ from __future__ import annotations
 import math
 
 from .contracts import GeneratorEvaluation, JsonObject
+from .die_layers import BOTTOM_DIE_DEFAULT_PARAMETERS, BOTTOM_DIE_LAYERS
 
 
 PACKAGE_X = 8000
 PACKAGE_Y = 10000
-LAYERS = (("pass2", "Pass2"), ("usg", "usg"), ("elk", "elk"), ("si", "si"))
+LAYERS = (*BOTTOM_DIE_LAYERS, ("si", "si"))
 DEFAULT_PARAMETERS: JsonObject = {
-    "pass2Thickness": 5.625,
-    "pass2Material": "pass2",
-    "usgThickness": 2.89,
-    "usgMaterial": "usg",
-    "elkThickness": 1.315,
-    "elkMaterial": "elk",
+    **BOTTOM_DIE_DEFAULT_PARAMETERS,
     "siThickness": 200,
     "siMaterial": "si",
 }
@@ -96,8 +92,8 @@ class SocGenerator:
             if not isinstance(material, str) or not material.strip():
                 errors[material_id] = f"{label} material is required."
         if not any(f"{layer_id}Thickness" in errors for layer_id, _ in LAYERS):
-            if not math.isfinite(total_thickness) or total_thickness <= 0:
-                errors["siThickness"] = "Total thickness must be finite and greater than 0."
+            if not math.isfinite(total_thickness):
+                errors["siThickness"] = "Total thickness must be finite."
         return errors
 
     def evaluate(self, parameters: JsonObject) -> GeneratorEvaluation:

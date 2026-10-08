@@ -163,6 +163,9 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                         "topCoreDieThickness",
                     ],
                 },
+                {"id": "layer-pass2", "label": "Pass2", "parameterIds": ["pass2Thickness", "pass2Material"]},
+                {"id": "layer-usg", "label": "usg", "parameterIds": ["usgThickness", "usgMaterial"]},
+                {"id": "layer-elk", "label": "elk", "parameterIds": ["elkThickness", "elkMaterial"]},
                 {
                     "id": "material",
                     "label": "Material",
@@ -538,7 +541,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         )
         self.assertEqual(
             set(invalid_gen2["errors"]),
-            {"bsmcThickness", "usgMaterial", "usgThickness"},
+            {"bsmcThickness", "usgMaterial"},
         )
         self.assertFalse(invalid_gen2["valid"])
 
@@ -611,7 +614,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
     def test_soc_zero_thickness_omits_any_combination_of_layers(self):
         layers = ("pass2", "usg", "elk", "si")
         registry = self.app.state.geometry_generators
-        for mask in range(1, 16):
+        for mask in range(16):
             with self.subTest(mask=mask):
                 parameters = {f"{layer}Thickness": 10 if mask & (1 << index) else 0
                               for index, layer in enumerate(layers)}
@@ -679,7 +682,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                             ))
                     self.assertEqual(entity["structure"], original)
 
-    def test_soc_rejects_invalid_thickness_material_and_empty_stack(self):
+    def test_soc_rejects_invalid_thickness_material_and_overflow(self):
         registry = self.app.state.geometry_generators
         for layer in ("pass2", "usg", "elk", "si"):
             thickness_id = f"{layer}Thickness"
@@ -697,7 +700,6 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                     self.assertFalse(preview["valid"])
                     self.assertIn(material_id, preview["errors"])
         for parameters in (
-            {f"{layer}Thickness": 0 for layer in ("pass2", "usg", "elk", "si")},
             {"pass2Thickness": 1e308, "usgThickness": 1e308},
         ):
             preview = registry.preview("soc", parameters, generator_version=1)
@@ -754,7 +756,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         })
 
         invalid = self.app.state.geometry_generators.preview(
-            "vrm", {"thickness": 0, "material": " "}, generator_version=1
+            "vrm", {"thickness": -1, "material": " "}, generator_version=1
         )
         self.assertEqual(set(invalid["errors"]), {"thickness", "material"})
 
@@ -782,7 +784,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         register_builtin_generators(registry)
         self.assertEqual(
             registry.preview("hbm", {}, generator_version=2)["geometryHash"],
-            "sha256:ac806d0526b8c7c6cf9eddad2fe6d505e266d2f5586aa6bec42ccf04524abd53",
+            "sha256:d7f34275b489c159ef38a7fe096d2ec791dc06a0097e00c9b0d2cf8cb82e47c4",
         )
         self.assertEqual(
             registry.preview("dram", {}, generator_version=2)["geometryHash"],
@@ -831,14 +833,14 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             _dimension_values(section_view)["Core die thickness"],
             40,
         )
-        self.assertEqual(_dimension_values(section_view)["Total thickness"], 310)
-        self.assertEqual(preview["computedParameters"]["totalThickness"], 310)
+        self.assertAlmostEqual(_dimension_values(section_view)["Total thickness"], 319.83)
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 319.83)
         self.assertNotIn("topMoldingThickness", preview["computedParameters"])
         self.assertNotIn("hbmThickness", preview["normalizedParameters"])
         self.assertNotIn("topMoldingThickness", preview["normalizedParameters"])
         entity = preview["geometryEntityJson"]
         self.assertEqual(entity["adaptationContract"]["adapterId"], "hbm-package")
-        self.assertEqual(entity["dim"], "1400 x 1000 x 310 um")
+        self.assertEqual(entity["dim"], "1400 x 1000 x 319.83 um")
         self.assertEqual(entity["generation"]["schemaVersion"], 2)
         self.assertNotIn(
             "topMoldingThickness", entity["generation"]["parameters"]
@@ -846,8 +848,8 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertNotIn("hbmThickness", entity["generation"]["parameters"])
         self.assertNotIn("vendor", entity)
         root = entity["structure"]["root"]
-        self.assertEqual(root["bodies"][0]["geometry"]["bottom_left"], [-700, -500, 0])
-        self.assertEqual(root["bodies"][0]["geometry"]["top_right"], [700, 500, 0])
+        self.assertEqual(root["bodies"][0]["geometry"]["bottom_left"], [-700, -500, 9.83])
+        self.assertEqual(root["bodies"][0]["geometry"]["top_right"], [700, 500, 9.83])
         self.assertEqual(root["bodies"][0]["geometry"]["thk"], 310)
         self.assertEqual(len(root["children"]), 4)
         self.assertEqual(
@@ -877,7 +879,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         ]
         self.assertEqual(
             [geometry["bottom_left"][2] for geometry in core_geometries],
-            [120, 180, 240],
+            [129.83, 189.83, 249.83],
         )
         self.assertEqual(
             [geometry["thk"] for geometry in core_geometries],
@@ -887,9 +889,9 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             root["children"][-1]["bodies"][0]["id"],
             "body:hbm-top-core-die",
         )
-        self.assertEqual(
+        self.assertAlmostEqual(
             core_geometries[-1]["bottom_left"][2] + core_geometries[-1]["thk"],
-            root["bodies"][0]["geometry"]["thk"],
+            root["bodies"][0]["geometry"]["bottom_left"][2] + root["bodies"][0]["geometry"]["thk"],
         )
 
         materialized = self.client.post(
@@ -919,7 +921,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         preview = response.json()
         self.assertTrue(preview["valid"])
-        self.assertEqual(preview["computedParameters"]["totalThickness"], 200)
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 209.83)
         self.assertNotIn("topMoldingThickness", preview["computedParameters"])
         self.assertNotIn("hbmThickness", preview["normalizedParameters"])
         root = preview["geometryEntityJson"]["structure"]["root"]
@@ -930,7 +932,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             ["hbm.base_die", "hbm.top_die"],
         )
         only_core = root["children"][1]["bodies"][0]["geometry"]
-        self.assertEqual(only_core["bottom_left"][2], 120)
+        self.assertEqual(only_core["bottom_left"][2], 129.83)
         self.assertEqual(only_core["thk"], 80)
         section_view = preview["engineeringPreview"]["views"][1]
         self.assertEqual(
@@ -938,10 +940,159 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             80,
         )
 
+    def test_hbm_bottom_layers_share_soc_defaults_and_package_footprint(self):
+        registry = self.app.state.geometry_generators
+        preview = registry.preview("hbm", {}, generator_version=2)
+        soc = registry.definition("soc")["defaultParameters"]
+        definition = registry.definition("hbm", 2)
+        definitions = {item["id"]: item for item in definition["parameterDefinitions"]}
+        for layer in ("pass2", "usg", "elk"):
+            self.assertEqual(definitions[f"{layer}Thickness"]["validation"], {"min": 0})
+            self.assertEqual(definitions[f"{layer}Thickness"]["unit"], "um")
+            self.assertEqual(definitions[f"{layer}Material"]["valueType"], "materialRef")
+            for suffix in ("Thickness", "Material"):
+                key = f"{layer}{suffix}"
+                self.assertTrue(definitions[key]["required"])
+                self.assertEqual(definition["defaultParameters"][key], soc[key])
+        entity = preview["geometryEntityJson"]
+        root = entity["structure"]["root"]
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 389.83)
+        self.assertEqual(entity["dim"], "12000 x 8000 x 389.83 um")
+        self.assertEqual(_dimension_values(preview["engineeringPreview"]["views"][1])["Total thickness"], 389.83)
+        self.assertEqual(root["bodies"][0]["geometry"]["thk"], 380)
+        cursor = 0
+        for body, layer in zip(root["bodies"][1:], ("pass2", "usg", "elk"), strict=True):
+            for suffix in ("Thickness", "Material"):
+                key = f"{layer}{suffix}"
+                self.assertEqual(preview["normalizedParameters"][key], soc[key])
+            self.assertEqual(body["id"], f"body:hbm-{layer}")
+            self.assertEqual(body["key"], f"hbm.{layer}")
+            self.assertEqual(body["material"], soc[f"{layer}Material"])
+            self.assertEqual(body["geometry"], {
+                "type": "BoxGeometry", "bottom_left": [-6000, -4000, cursor],
+                "top_right": [6000, 4000, cursor], "thk": soc[f"{layer}Thickness"],
+            })
+            cursor += soc[f"{layer}Thickness"]
+        self.assertEqual(root["children"][0]["bodies"][0]["geometry"]["bottom_left"][2], cursor)
+        section_ids = {item["sourceId"] for item in preview["engineeringPreview"]["views"][1]["entities"]}
+        self.assertTrue({f"body:hbm-{layer}" for layer in ("pass2", "usg", "elk")} <= section_ids)
+
+    def test_hbm_custom_bottom_layers_materialize_and_save(self):
+        parameters = {
+            "pass2Thickness": 10, "pass2Material": "  Custom-Pass2  ",
+            "usgThickness": 20, "usgMaterial": "  Custom-USG  ",
+            "elkThickness": 30, "elkMaterial": "  Custom-ELK  ",
+        }
+        response = self.client.post("/api/geometry-generators/hbm/preview", json={
+            "generatorVersion": 2, "parameters": parameters,
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"])
+        entity = preview["geometryEntityJson"]
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 440)
+        for key, value in parameters.items():
+            self.assertEqual(preview["normalizedParameters"][key], value.strip() if isinstance(value, str) else value)
+        self.assertEqual([body["material"] for body in entity["structure"]["root"]["bodies"][1:]],
+                         ["Custom-Pass2", "Custom-USG", "Custom-ELK"])
+        materialized = self.client.post("/api/geometry-materializations", json={"previewToken": preview["previewToken"]})
+        self.assertEqual(materialized.status_code, 200, materialized.text)
+        self.assertEqual(materialized.json()["geometryEntityJson"], entity)
+        self.assertEqual(materialized.json()["geometryHash"], preview["geometryHash"])
+        saved = self.client.post("/api/geometries", json={**entity, "name": "Layered HBM", "owner": "test"})
+        self.assertEqual(saved.status_code, 201, saved.text)
+        self.assertEqual(saved.json()["structure"], entity["structure"])
+        self.assertEqual(saved.json()["generation"]["parameters"], preview["normalizedParameters"])
+        loaded = self.client.get(f"/api/geometries/{saved.json()['id']}")
+        self.assertEqual(loaded.status_code, 200, loaded.text)
+        self.assertEqual(loaded.json()["structure"], entity["structure"])
+        self.assertEqual(loaded.json()["generation"], entity["generation"])
+
+    def test_hbm_zero_bottom_thickness_omits_any_combination(self):
+        registry = self.app.state.geometry_generators
+        layers = ("pass2", "usg", "elk")
+        for mask in range(8):
+            with self.subTest(mask=mask):
+                parameters = {f"{layer}Thickness": 10 if mask & (1 << index) else 0
+                              for index, layer in enumerate(layers)}
+                preview = registry.preview("hbm", parameters, generator_version=2)
+                self.assertTrue(preview["valid"], preview["errors"])
+                root = preview["geometryEntityJson"]["structure"]["root"]
+                expected_layers = [layer for layer in layers if parameters[f"{layer}Thickness"] > 0]
+                self.assertEqual([body["key"] for body in root["bodies"][1:]], [f"hbm.{layer}" for layer in expected_layers])
+                offset = 10 * len(expected_layers)
+                self.assertEqual(preview["computedParameters"]["totalThickness"], 380 + offset)
+                self.assertEqual(root["bodies"][0]["geometry"]["thk"], 380)
+                self.assertEqual(root["bodies"][0]["geometry"]["bottom_left"][2], offset)
+                self.assertEqual(root["children"][0]["bodies"][0]["geometry"]["bottom_left"][2], offset)
+                self.assertEqual([body["geometry"]["bottom_left"][2] for body in root["bodies"][1:]],
+                                 [10 * index for index in range(len(expected_layers))])
+                if mask == 0:
+                    self.assertEqual(preview["geometryHash"],
+                                     "sha256:ac806d0526b8c7c6cf9eddad2fe6d505e266d2f5586aa6bec42ccf04524abd53")
+
+    def test_hbm_bottom_layers_adapt_with_package_and_preserve_fixed_cores(self):
+        registry = self.app.state.geometry_generators
+        for parameters in ({}, {"usgThickness": 0}):
+            entity = registry.generate("hbm", 2, parameters)
+            original = copy.deepcopy(entity["structure"])
+            for region in (
+                {"type": "rectangle", "width": 10000, "height": 7000},
+                {"type": "polygon", "points": [[0, 0], [10000, 0], [10000, 7000], [0, 7000]]},
+            ):
+                with self.subTest(parameters=parameters, region=region):
+                    adapted = adapt_geometry(GeometryArtifact.from_entity(entity), region)
+                    root = adapted["root"]
+                    self.assertEqual(root["children"][1:], original["root"]["children"][1:])
+                    base_geometry = root["children"][0]["bodies"][0]["geometry"]
+                    for source, body in zip(original["root"]["bodies"], root["bodies"], strict=True):
+                        self.assertEqual(body["id"], source["id"])
+                        self.assertEqual(body["key"], source["key"])
+                        self.assertEqual(body["material"], source["material"])
+                        geometry = body["geometry"]
+                        self.assertEqual(geometry["thk"], source["geometry"]["thk"])
+                        if region["type"] == "rectangle":
+                            self.assertEqual(geometry["bottom_left"][:2], [-5000, -3500])
+                            self.assertEqual(geometry["top_right"][:2], [5000, 3500])
+                            self.assertEqual(geometry["bottom_left"][2], source["geometry"]["bottom_left"][2])
+                            self.assertEqual(geometry["bottom_left"][:2], base_geometry["bottom_left"][:2])
+                        else:
+                            self.assertEqual(geometry["type"], "PolygonGeometry")
+                            self.assertEqual([p[:2] for p in geometry["polys"][0]],
+                                             [[-5000, -3500], [5000, -3500], [5000, 3500], [-5000, 3500]])
+                            self.assertTrue(all(p[2] == source["geometry"]["bottom_left"][2] for p in geometry["polys"][0]))
+                            self.assertEqual([p[:2] for p in geometry["polys"][0]], [p[:2] for p in base_geometry["polys"][0]])
+                    self.assertEqual(entity["structure"], original)
+            for region in (
+                {"type": "rectangle", "width": 7000, "height": 5000},
+                {"type": "polygon", "points": [[0, 0], [7000, 0], [7000, 5000], [0, 5000]]},
+            ):
+                with self.subTest(region=region), self.assertRaisesRegex(ValueError, "fixed core geometry does not fit"):
+                    adapt_geometry(GeometryArtifact.from_entity(entity), region)
+
+    def test_hbm_rejects_invalid_bottom_layer_parameters(self):
+        registry = self.app.state.geometry_generators
+        for layer in ("pass2", "usg", "elk"):
+            for suffix, values in (
+                ("Thickness", (-1, float("inf"), float("nan"), True, "5", None)),
+                ("Material", ("", "  ", None, 5)),
+            ):
+                key = f"{layer}{suffix}"
+                for value in values:
+                    with self.subTest(key=key, value=value):
+                        preview = registry.preview("hbm", {key: value}, generator_version=2)
+                        self.assertFalse(preview["valid"])
+                        self.assertIn(key, preview["errors"])
+                        self.assertIsNone(preview["previewToken"])
+                        self.assertIsNone(preview["geometryEntityJson"])
+        overflow = registry.preview("hbm", {"pass2Thickness": 1e308, "usgThickness": 1e308}, generator_version=2)
+        self.assertFalse(overflow["valid"])
+        self.assertIsNone(overflow["previewToken"])
+
     def test_hbm_rejects_invalid_top_core_die_thickness(self):
         response = self.client.post(
             "/api/geometry-generators/hbm/preview",
-            json={"generatorVersion": 2, "parameters": {"topCoreDieThickness": 0}},
+            json={"generatorVersion": 2, "parameters": {"topCoreDieThickness": -1}},
         )
 
         self.assertEqual(response.status_code, 200, response.text)
@@ -1097,6 +1248,37 @@ class GeometryGeneratorApiTests(unittest.TestCase):
 
         self.assertEqual(unknown_generator.status_code, 404)
         self.assertEqual(missing_preview.status_code, 404)
+
+    def test_all_generators_preview_and_materialize_zero_thickness_over_http(self):
+        cases = (
+            ("hbm", 2, {"baseDieThickness": 0, "coreDieThickness": 0, "topCoreDieThickness": 0}),
+            ("dram", 2, {
+                "dramThickness": 0, "coreDieThickness": 0, "topCoreDieThickness": 0,
+                "dieGapThickness": 0, "topSolderMaskThickness": 0,
+                "bottomSolderMaskThickness": 0, "sbtCoreLayerThickness": 0,
+                "topBuildupLayers": [{"thickness": 0}],
+                "bottomBuildupLayers": [{"thickness": 0}],
+            }),
+            ("soc", 1, {f"{layer}Thickness": 0 for layer in ("pass2", "usg", "elk", "si")}),
+            ("vrm", 1, {"thickness": 0}),
+            ("lsi", 1, {"generation": "gen1", "siThickness": 0, "usgThickness": 0, "lsiTopMoldingThickness": 0}),
+            ("lsi", 1, {"generation": "gen2", "bsmcThickness": 0, "siThickness": 0, "usgThickness": 0, "prePm0Thickness": 0}),
+        )
+        for generator_id, version, parameters in cases:
+            with self.subTest(generator=generator_id, parameters=parameters):
+                response = self.client.post(
+                    f"/api/geometry-generators/{generator_id}/preview",
+                    json={"generatorVersion": version, "parameters": parameters},
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                preview = response.json()
+                self.assertTrue(preview["valid"], preview["errors"])
+                materialized = self.client.post(
+                    "/api/geometry-materializations",
+                    json={"previewToken": preview["previewToken"]},
+                )
+                self.assertEqual(materialized.status_code, 200, materialized.text)
+                self.assertEqual(materialized.json()["geometryEntityJson"], preview["geometryEntityJson"])
 
 
 def _dimension_values(view):

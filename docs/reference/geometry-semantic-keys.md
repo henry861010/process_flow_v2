@@ -6,7 +6,7 @@ audience:
   - geometry producers
   - process-step authors
   - kernel、CAD、viewer 與 API 開發者
-last_verified: 2026-08-26
+last_verified: 2026-10-08
 last_verified_commit: 754a4e03
 source_of_truth:
   - docs/reference/geometry-structure.md
@@ -60,6 +60,7 @@ MUST NOT 放入 key。
 - `hbm.core_die_1` 至 `hbm.core_die_63`：HBM generator 建立的一般 core dies；編號從 1
   開始且不得補零。
 - `hbm.top_die`：HBM generator 建立的 top core die。
+- `hbm.pass2`、`hbm.usg`、`hbm.elk`：HBM base die 下方由下而上的三層實體；厚度為 0 時省略。
 - `soc.pass2`、`soc.usg`、`soc.elk`、`soc.si`：SoC generator 由下而上建立的四層實體；
   厚度為 0 的層不建立 body。
 
@@ -73,7 +74,8 @@ MUST NOT 放入 key。
 - `carrier.wafer` 與 `carrier.panel` catalog geometry 的 carrier solid MUST 使用 body key=`carrier`。
 - HBM 與 DRAM generator 標記 root container 為 `hbm`／`dram`，並將代表完整 package
   footprint 的 root body 標記為 `envelope`。HBM child containers 不提供 key；其 base、一般 core
-  與 top core bodies 分別使用 `hbm.base_die`、`hbm.core_die_{number}` 與 `hbm.top_die`。DRAM
+  與 top core bodies 分別使用 `hbm.base_die`、`hbm.core_die_{number}` 與 `hbm.top_die`。
+  HBM 底部三層為 root direct bodies，使用 `hbm.pass2`、`hbm.usg`、`hbm.elk`。DRAM
   其他內部 containers 與 bodies 不提供 key。
 - SoC generator 標記 root container 為 `soc`，各層 Box body 使用 `soc.pass2`、`soc.usg`、
   `soc.elk`、`soc.si`。VRM generator 標記 root container 為 `vrm`，唯一的 Box body

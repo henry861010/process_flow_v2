@@ -54,7 +54,7 @@ topology, save refresh, and the future-instance-only explanation.
 
 ## Resource deletion
 
-Flow templates 與 Instances 每列都有 `Delete`，flow template 保留 `Edit`。
+Flow templates、Instances 與 Geometries 每列都有 `Delete`，flow template 保留 `Edit`。
 Process steps 每列只提供 `Edit`，沒有 Delete，也沒有 process-step template 刪除 API。
 沿用現有 management 存取方式，不新增登入或角色驗證。Flow template 被任何 instance
 引用時停用 Delete，按鈕下方不顯示引用數量，instance 數量保留於 Instances 欄位。
@@ -66,9 +66,17 @@ Process steps 每列只提供 `Edit`，沒有 Delete，也沒有 process-step te
 失敗保留資料，使用 `role="alert"` 顯示原因；遇到 `409` 或 `404` 重新載入 bootstrap，
 刷新引用狀態。刷新失敗時保留原畫面並提示重新載入頁面。
 
-後端以同一交易檢查引用與刪除相關 workspace，衝突或失敗不留下部分刪除；geometry 保留。
+Flow template／instance 刪除在同一交易檢查引用與清理相關 workspace，衝突或失敗不留下部分刪除；geometry 保留。
+Geometry 刪除使用 `DELETE /api/geometries/{geometry_id}`，確認視窗顯示名稱、ID 與永久刪除說明。
+後端在同一 SQLite 交易中檢查 instance 與所有 draft／committed workspace 的 `inputBindings`；
+只有 `kind: "catalog"` 且 `geometryId` 完全相符才算引用，embedded／generator binding 不阻擋。
+引用中回傳 `409`，頁面顯示引用資源類型與 ID 並刷新 bootstrap；不存在回傳 `404`。
+成功回傳空內容 `204`，只移除該 geometry 並更新 row、count 與成功訊息，不連帶刪除其他資源。
+Geometry 沿用上述取消、busy、防重送及錯誤處理，並記錄 `geometry.delete` 操作事件。
 `UI-MGMT-006` 驗證 flow template 與 instance 刪除、確認與取消、引用保護、busy 與錯誤狀態，
 以及 instance → flow template 的解除引用流程，並確認 process steps 只有 Edit 操作。
+`UI-MGMT-007` 驗證 geometry 刪除、確認與取消、instance／workspace 引用保護、解除引用後刪除、
+busy 防重送、成功更新 row／count 與錯誤刷新。
 
 ## Template availability
 

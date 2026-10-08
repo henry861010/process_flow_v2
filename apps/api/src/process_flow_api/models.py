@@ -352,8 +352,8 @@ class EngineeringPreviewBounds(StrictModel):
 
     @model_validator(mode="after")
     def validate_area(self):
-        if self.uMax <= self.uMin or self.vMax <= self.vMin:
-            raise ValueError("Engineering preview bounds require positive area")
+        if self.uMax < self.uMin or self.vMax < self.vMin:
+            raise ValueError("Engineering preview bounds require non-negative spans")
         return self
 
 
@@ -376,8 +376,8 @@ class EngineeringPreviewEntity(StrictModel):
         if self.kind == "rectangle":
             if None in (self.uMin, self.uMax, self.vMin, self.vMax):
                 raise ValueError("Rectangle preview entity requires u/v bounds")
-            if self.uMax <= self.uMin or self.vMax <= self.vMin:
-                raise ValueError("Rectangle preview entity requires positive area")
+            if self.uMax < self.uMin or self.vMax < self.vMin:
+                raise ValueError("Rectangle preview entity requires non-negative spans")
         elif self.kind == "circle":
             if self.center is None or self.radius is None:
                 raise ValueError("Circle preview entity requires center and radius")

@@ -130,6 +130,12 @@ export async function createGeometry(geometry: unknown): Promise<GeometryEntity>
   });
 }
 
+export async function deleteGeometry(geometryId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/geometries/${encodeURIComponent(geometryId)}`, {
+    method: "DELETE",
+  });
+}
+
 export async function listGeometryGenerators(): Promise<GeometryGeneratorDefinition[]> {
   return apiFetch<GeometryGeneratorDefinition[]>("/api/geometry-generators");
 }

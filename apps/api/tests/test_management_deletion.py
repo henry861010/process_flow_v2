@@ -69,6 +69,127 @@ class ManagementDeletionTests(unittest.TestCase):
         self.assertNotIn(identifier, [item["id"] for item in self.client.get(f"/api/{collection}").json()])
         self.assertEqual(self.client.delete(path).status_code, 404)
 
+    def create_deletable_geometry(self):
+        self.instance = copy.deepcopy(self.instance)
+        binding = next(binding for binding in self.instance["inputBindings"].values()
+                       if binding["kind"] == "catalog")
+        geometry = copy.deepcopy(next(item for item in self.bootstrap["geometries"]
+                                      if item["id"] == binding["geometryId"]))
+        geometry.update(id="deletion-geometry", name="Deletion geometry")
+        response = self.client.post("/api/geometries", json=geometry)
+        self.assertEqual(response.status_code, 201, response.text)
+        binding["geometryId"] = geometry["id"]
+        return response.json()
+
+    def assert_geometry_conflict(self, geometry, resource_type, resource_id):
+        before = self.client.get("/api/bootstrap").json()
+        workspaces = self.store.list_process_flow_workspaces()
+        response = self.client.delete(f"/api/geometries/{geometry['id']}")
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertIn(f"{resource_type} {resource_id}", response.json()["message"])
+        self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+        self.assertEqual(self.store.list_process_flow_workspaces(), workspaces)
+
+    def test_unreferenced_geometry_deletion_preserves_other_resources(self):
+        geometry = self.create_deletable_geometry()
+        before = self.client.get("/api/bootstrap").json()
+        before["geometries"] = [item for item in before["geometries"] if item["id"] != geometry["id"]]
+        self.assert_deleted("geometries", geometry["id"])
+        self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+        self.assertEqual(self.client.delete("/api/geometries/missing").status_code, 404)
+
+    def test_geometry_referenced_by_instance_is_protected_until_instance_is_deleted(self):
+        geometry = self.create_deletable_geometry()
+        response = self.client.post("/api/process-flow-instances", json=self.instance)
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assert_geometry_conflict(geometry, "instance", self.instance["id"])
+        self.assert_deleted("process-flow-instances", self.instance["id"])
+        self.assert_deleted("geometries", geometry["id"])
+
+    def test_geometry_referenced_by_draft_workspace_is_protected(self):
+        geometry = self.create_deletable_geometry()
+        workspace = self.create_workspace()
+        self.assert_geometry_conflict(geometry, "workspace", workspace["id"])
+        # Removing the binding from a draft releases the geometry.
+        response = self.client.put(f"/api/process-flow-workspaces/{workspace['id']}", json={
+            "revision": workspace["revision"], "name": workspace["name"],
+            "inputBindings": {}, "stepConfigurations": workspace["stepConfigurations"],
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assert_deleted("geometries", geometry["id"])
+        self.assertIsNotNone(self.store.get_process_flow_workspace(workspace["id"]))
+
+    def test_geometry_referenced_only_by_committed_workspace_is_protected(self):
+        geometry = self.create_deletable_geometry()
+        workspace = self.create_workspace()
+        # Isolate the workspace guard from the instance guard, including orphan snapshots.
+        committed = {**workspace, "id": "geometry-committed-workspace", "status": "committed",
+                     "committedInstanceId": "missing-instance"}
+        self.store.insert_process_flow_workspace(committed)
+        self.store.update_process_flow_workspace(
+            {**workspace, "revision": workspace["revision"] + 1, "inputBindings": {}},
+            expected_revision=workspace["revision"],
+        )
+        self.assert_geometry_conflict(geometry, "workspace", committed["id"])
+
+    def test_geometry_reference_check_requires_exact_catalog_binding(self):
+        geometry = self.create_deletable_geometry()
+        workspace = self.create_workspace()
+        bindings = {
+            "embedded": {"kind": "embedded", "localId": geometry["id"]},
+            "generator": {"kind": "generator", "generatorId": geometry["id"],
+                          "generatorVersion": 1, "parameters": {"geometryId": geometry["id"]}},
+            "similar-id": {"kind": "catalog", "geometryId": geometry["id"] + "-other"},
+        }
+        # Direct storage isolates reference matching from configuration validation.
+        self.store.insert_process_flow_instance({**self.instance, "inputBindings": bindings})
+        self.store.update_process_flow_workspace(
+            {**workspace, "revision": workspace["revision"] + 1, "inputBindings": bindings,
+             "name": geometry["id"]},
+            expected_revision=workspace["revision"],
+        )
+        self.assert_deleted("geometries", geometry["id"])
+        self.assertIsNotNone(self.store.get_process_flow_instance(self.instance["id"]))
+        self.assertIsNotNone(self.store.get_process_flow_workspace(workspace["id"]))
+
+    def test_geometry_delete_failure_rolls_back_and_releases_transaction(self):
+        geometry = self.create_deletable_geometry()
+        before = self.client.get("/api/bootstrap").json()
+        with self.store._connection:
+            self.store._connection.execute(
+                "CREATE TRIGGER reject_geometry_delete BEFORE DELETE ON geometries "
+                "BEGIN SELECT RAISE(ABORT, 'test deletion failure'); END"
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.store.delete_geometry(geometry["id"])
+        self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+        with self.store._connection:
+            self.store._connection.execute("DROP TRIGGER reject_geometry_delete")
+        self.assert_deleted("geometries", geometry["id"])
+
+    def test_geometry_delete_analytics_record_conflict_success_and_missing(self):
+        geometry = self.create_deletable_geometry()
+        response = self.client.post("/api/process-flow-instances", json=self.instance)
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assert_geometry_conflict(geometry, "instance", self.instance["id"])
+        self.assert_deleted("process-flow-instances", self.instance["id"])
+        self.assert_deleted("geometries", geometry["id"])
+        self.assertTrue(self.app.state.analytics.flush())
+        with sqlite3.connect(self.app.state.analytics.db_path) as connection:
+            connection.row_factory = sqlite3.Row
+            events = [dict(row) for row in connection.execute(
+                "SELECT * FROM usage_events WHERE event_name = 'geometry.delete' ORDER BY rowid"
+            )]
+        self.assertEqual([event["outcome"] for event in events], ["failure", "success", "failure"])
+        self.assertEqual([event["error_code"] for event in events], ["RESOURCE_CONFLICT", None, "NOT_FOUND"])
+        for event in events:
+            self.assertEqual(event["source_kind"], "geometry")
+            self.assertEqual(json.loads(event["properties_json"])["geometry_id"], geometry["id"])
+        for event in events[:2]:
+            properties = json.loads(event["properties_json"])
+            self.assertEqual(properties["geometry_name"], geometry["name"])
+            self.assertEqual(properties["geometry_type"], geometry["entityType"])
+
     def test_instance_then_flow_and_related_workspace_cleanup_preserves_steps(self):
         draft = self.create_workspace()
         committed = self.create_workspace()

@@ -231,6 +231,11 @@ def create_app(
     async def get_geometry(request: Request, geometry_id: str):
         return require_item(get_store(request).get_geometry(geometry_id), geometry_id)
 
+    @app.delete("/api/geometries/{geometry_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_geometry(request: Request, geometry_id: str):
+        get_store(request).delete_geometry(geometry_id)
+        return None
+
     @app.post("/api/geometries", status_code=status.HTTP_201_CREATED)
     async def create_geometry(request: Request, body: GeometryEntity):
         payload = body.payload()

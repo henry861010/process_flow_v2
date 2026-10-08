@@ -8,7 +8,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-08-31
+last_verified: 2026-10-08
 last_verified_commit: 283d28057aae3d2cde2a6383740f4c2551cb2a6a
 source_of_truth:
   - docs/reference/hbm-generator.md
@@ -34,19 +34,24 @@ Viewer 從 `GET /api/geometry-generators` 取得 `id="hbm"` 的 label、defaults
 
 目前 manifest version 是 `2`。使用者分別輸入一般 core die 與 top core die 厚度；`hbmThickness`
 及 v1 的 `topMoldingThickness` 不再顯示或送出。Backend 由 base die、gaps、一般 core dies 與
-top core die 自動衍生總厚度，molding 頂面與 top core die 頂面齊平。
+top core die 及底部 pass2/usg/elk 自動衍生總厚度，molding 頂面與 top core die 頂面齊平。
+三層位於整個 base die 下方，預設厚度分別是 `5.625`、`2.89`、`1.315 um`，材料名稱與 SoC
+相同，依序是 `pass2`、`usg`、`elk`。預設總厚度為 `389.83 um`；厚度設為 `0` 時省略該層。
 
 目前backend parameters與domain規則見
 [HBM Geometry Generator](../../reference/hbm-generator.md#參數)。Number/material controls依通用
 parameter editor渲染，所有dimension使用`um`。
 
-HBM manifest將parameter editor排成四個card，且card與欄位順序皆由`parameterGroups`決定：
+HBM manifest將parameter editor排成七個card，且card與欄位順序皆由`parameterGroups`決定：
 
 1. `Package & core die size`：Package X、Package Y、Core die X、Core die Y。
 2. `Core die count`：Core die count。
 3. `Thickness & gap`：依stack由下而上排列 Base die thickness、Core-base gap、Core die
    thickness、Core-core gap、Top core die thickness。
-4. `Material`：Molding material、Die material。
+4. `Pass2`：Thickness、Material。
+5. `usg`：Thickness、Material。
+6. `elk`：Thickness、Material。
+7. `Material`：Molding material、Die material。
 
 Viewer不得依`generatorId`自行重排欄位；未來版面調整應修改backend manifest。
 
@@ -96,3 +101,4 @@ dimension。DRAM generator沿用相同dimension labels。
 | `UI-HBM-006` | 新增另一個backend generator manifest | 依`uiPlacements`出現在共用入口並渲染fields/preview。 |
 | `UI-HBM-007` | 修改任一 die thickness、gap 或 core die count | Total thickness隨完整stack重新計算，molding頂面維持與top core die齊平。 |
 | `UI-HBM-008` | Cross Section真實長寬比超過6:3 | 預設放大厚度至6:3；勾選「Show original aspect ratio」後恢復真實比例，Top View不變。 |
+| `UI-HBM-009` | 修改底部 pass2/usg/elk 厚度或材料 | Preview 與下載／儲存反映參數，總厚度包含三層；厚度為 0 的層省略，其他 die 厚度與 gap 不變。 |

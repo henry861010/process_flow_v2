@@ -32,6 +32,7 @@ OPERATIONS = {
     ("POST", "/api/geometry-generators/{generator_id}/preview"): "generator.preview",
     ("POST", "/api/geometry-materializations"): "geometry.materialize",
     ("POST", "/api/geometries"): "geometry.create",
+    ("DELETE", "/api/geometries/{geometry_id}"): "geometry.delete",
     ("POST", "/api/mesh-control-sets/{set_id}/apply"): "mesh_control.apply",
     ("POST", "/api/geometry-preview/export-jobs"): "export",
     ("POST", "/api/geometry-preview/cdb-jobs"): "export",
@@ -176,6 +177,12 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
     if route == "/api/geometries":
         properties.update(geometry_name=(value(body, "name", "") or "")[:256],
                           geometry_type=text_value(value(body, "entityType")))
+    if route == "/api/geometries/{geometry_id}":
+        geometry = store.get_geometry(arguments["geometry_id"])
+        result["source_kind"] = "geometry"
+        properties.update(geometry_id=text_value(arguments["geometry_id"]),
+                          geometry_name=(value(geometry, "name", "") or "")[:256],
+                          geometry_type=text_value(value(geometry, "entityType")))
     if route in ("/api/geometry-preview/export-jobs", "/api/geometry-preview/cdb-jobs"):
         properties["export_format"] = value(body, "kind", "cdb")
     context = value(body, "analyticsContext")
