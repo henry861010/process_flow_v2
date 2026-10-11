@@ -48,6 +48,7 @@ from .models import (
     PreviewSessionResponse,
     ProcessFlowInstanceCreate,
     ProcessFlowTemplate,
+    ProcessFlowTemplateCreate,
     ProcessFlowWorkspaceCreate,
     ProcessFlowWorkspaceUpdate,
     ProcessStepTemplate,
@@ -307,7 +308,7 @@ def create_app(
         return require_item(get_store(request).get_process_flow_template(template_id), template_id)
 
     @app.post("/api/process-flow-templates", status_code=status.HTTP_201_CREATED)
-    async def create_process_flow_template(request: Request, body: ProcessFlowTemplate):
+    async def create_process_flow_template(request: Request, body: ProcessFlowTemplateCreate):
         return create_flow_template(get_store(request), body)
 
     @app.put("/api/process-flow-templates/{template_id}")

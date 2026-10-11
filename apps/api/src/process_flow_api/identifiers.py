@@ -11,6 +11,14 @@ def generated_geometry_id(payload: JsonObject) -> str:
     return f"geom_{base}_{uuid.uuid4().hex[:12]}"
 
 
+def generated_flow_template_id() -> str:
+    return uuid.uuid4().hex
+
+
+def generated_flow_instance_id() -> str:
+    return uuid.uuid4().hex
+
+
 def generated_workspace_id() -> str:
     return f"workspace_{uuid.uuid4().hex}"
 

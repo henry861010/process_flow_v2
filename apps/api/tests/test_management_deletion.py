@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from flow_requests import instance_create_payload, template_create_payload
 from process_flow_api.main import create_app
 
 
@@ -33,8 +34,9 @@ class ManagementDeletionTests(unittest.TestCase):
             self.step_ids.append(step["id"])
         for ref in self.flow["stepRefs"]:
             ref["processStepTemplateId"] = f"deletion-{ref['processStepTemplateId']}"
-        response = self.client.post("/api/process-flow-templates", json=self.flow)
+        response = self.client.post("/api/process-flow-templates", json=template_create_payload(self.flow))
         self.assertEqual(response.status_code, 201, response.text)
+        self.flow["id"] = response.json()["id"]
         self.instance = {**source, "id": "deletion-instance", "processFlowTemplateId": self.flow["id"]}
         self.steps_before_deletion = self.client.get("/api/process-step-templates").json()
 
@@ -52,12 +54,13 @@ class ManagementDeletionTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
-    def commit_workspace(self, workspace, instance_id="deletion-instance"):
+    def commit_workspace(self, workspace):
         response = self.client.post(f"/api/process-flow-workspaces/{workspace['id']}/commit", json={
-            "revision": workspace["revision"], "instanceId": instance_id,
+            "revision": workspace["revision"],
             "instanceName": "Deletion instance", "instanceVersion": "V0", "instanceOwner": "test",
         })
         self.assertEqual(response.status_code, 200, response.text)
+        self.instance["id"] = response.json()["processFlowInstance"]["id"]
         return response.json()
 
     def assert_deleted(self, collection, identifier):
@@ -100,8 +103,9 @@ class ManagementDeletionTests(unittest.TestCase):
 
     def test_geometry_referenced_by_instance_is_protected_until_instance_is_deleted(self):
         geometry = self.create_deletable_geometry()
-        response = self.client.post("/api/process-flow-instances", json=self.instance)
+        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(self.instance))
         self.assertEqual(response.status_code, 201, response.text)
+        self.instance["id"] = response.json()["id"]
         self.assert_geometry_conflict(geometry, "instance", self.instance["id"])
         self.assert_deleted("process-flow-instances", self.instance["id"])
         self.assert_deleted("geometries", geometry["id"])
@@ -169,8 +173,9 @@ class ManagementDeletionTests(unittest.TestCase):
 
     def test_geometry_delete_analytics_record_conflict_success_and_missing(self):
         geometry = self.create_deletable_geometry()
-        response = self.client.post("/api/process-flow-instances", json=self.instance)
+        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(self.instance))
         self.assertEqual(response.status_code, 201, response.text)
+        self.instance["id"] = response.json()["id"]
         self.assert_geometry_conflict(geometry, "instance", self.instance["id"])
         self.assert_deleted("process-flow-instances", self.instance["id"])
         self.assert_deleted("geometries", geometry["id"])
@@ -209,8 +214,9 @@ class ManagementDeletionTests(unittest.TestCase):
 
     def test_flow_conflict_preserves_instances_and_drafts_even_when_disabled(self):
         draft = self.create_workspace()
-        response = self.client.post("/api/process-flow-instances", json=self.instance)
+        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(self.instance))
         self.assertEqual(response.status_code, 201, response.text)
+        self.instance["id"] = response.json()["id"]
         response = self.client.put(f"/api/process-flow-templates/{self.flow['id']}",
                                    json={**self.flow, "status": "disabled"})
         self.assertEqual(response.status_code, 200, response.text)
@@ -270,8 +276,9 @@ class ManagementDeletionTests(unittest.TestCase):
                     self.store.delete_process_flow_instance(identifier)
 
     def test_delete_analytics_record_resource_context_and_conflict(self):
-        response = self.client.post("/api/process-flow-instances", json=self.instance)
+        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(self.instance))
         self.assertEqual(response.status_code, 201, response.text)
+        self.instance["id"] = response.json()["id"]
         self.assertEqual(self.client.delete(f"/api/process-flow-templates/{self.flow['id']}").status_code, 409)
         self.assertEqual(self.client.delete(f"/api/process-flow-instances/{self.instance['id']}").status_code, 204)
         self.assertEqual(self.client.delete(f"/api/process-flow-templates/{self.flow['id']}").status_code, 204)

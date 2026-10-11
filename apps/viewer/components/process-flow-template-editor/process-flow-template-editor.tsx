@@ -424,7 +424,6 @@ function ProcessFlowTemplateEditorInner() {
     if (!template) return;
     const graph = graphFromTemplate(template, stepTemplates);
     setMetadata({
-      id: "",
       name: template.name,
       version: template.version,
       description: template.description ?? "",
@@ -805,7 +804,7 @@ function ProcessFlowTemplateEditorInner() {
 
   async function saveTemplateOnly() {
     if (!canSaveTemplate) return;
-    const validationError = validateTemplateSaveInformation(metadata, flowTemplates);
+    const validationError = validateTemplateSaveInformation(metadata);
     if (validationError) {
       setSaveDialogError(validationError);
       return;
@@ -814,7 +813,8 @@ function ProcessFlowTemplateEditorInner() {
     setSaveDialogError(null);
     setMessage(null);
     try {
-      const saved = await createProcessFlowTemplate<ProcessFlowTemplate>(draftTemplate);
+      const { id: _draftId, ...createPayload } = draftTemplate;
+      const saved = await createProcessFlowTemplate(createPayload);
       setSavedTemplate(saved);
       setFlowTemplates((current) => [...current, saved]);
       setSaveDialogMode(null);
@@ -1684,7 +1684,7 @@ function buildTemplate(
   configuration: FlowConfiguration,
 ): ProcessFlowTemplate {
   return buildTemplatePayload(
-    metadata,
+    { ...metadata, id: "" },
     nodes.filter(isFlowInputNode).map((node) => node.data.definition),
     nodes.filter(isStepNode).map((node) => ({
       ref: node.data.stepRef,
@@ -1978,7 +1978,6 @@ function getEdgeSourceKind(edge: FlowEdge, nodes: FlowNode[]) {
 
 function newMetadata(): TemplateMetadata {
   return {
-    id: "",
     name: "",
     version: "V0.0.0",
     description: "",
@@ -2049,22 +2048,14 @@ function validIdentifier(value: string) {
 
 function validateTemplateSaveInformation(
   metadata: TemplateMetadata,
-  templates: ProcessFlowTemplate[],
 ) {
   const requiredFields: Array<[string, string]> = [
     ["Template name", metadata.name],
-    ["Template id", metadata.id],
     ["Version", metadata.version],
     ["Owner", metadata.owner],
   ];
   const missingField = requiredFields.find(([, value]) => !value.trim());
   if (missingField) return `${missingField[0]} is required.`;
-  if (!validIdentifier(metadata.id)) {
-    return "Template id contains unsupported characters.";
-  }
-  if (templates.some((template) => template.id === metadata.id)) {
-    return "Template id already exists.";
-  }
   return null;
 }
 

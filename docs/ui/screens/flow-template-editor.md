@@ -46,8 +46,11 @@ the existing topology lock makes those constraints read-only.
 `Save Instance` and `Save Template & Instance`, their dialogs, and their materialization flows are
 not part of this screen.
 
-Saving validates template name, id, version, owner, topology, and uniqueness. Success locks
-topology while preview-only geometry bindings and collection test values remain usable.
+Saving validates template name, version, owner, and topology. The dialog has no ID field;
+`POST /api/process-flow-templates` omits `id`, and the server assigns a 32-character lowercase
+UUID4 hex ID without a prefix.
+Success uses the returned ID and locks topology while preview-only geometry bindings and
+collection test values remain usable.
 
 ## Acceptance
 

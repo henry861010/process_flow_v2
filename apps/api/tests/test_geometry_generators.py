@@ -5,6 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
+from flow_requests import instance_create_payload
 from process_flow_api.main import create_app
 from process_flow_geometry_generators import GeometryGeneratorRegistry, register_builtin_generators
 from process_flow_geometry_generators.hbm import HbmGenerator
@@ -78,8 +79,9 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                     "generatorVersion": 2,
                     "parameters": {},
                 }
-                enabled = client.post("/api/process-flow-instances", json=request)
+                enabled = client.post("/api/process-flow-instances", json=instance_create_payload(request))
                 self.assertEqual(enabled.status_code, 201, enabled.text)
+                request["id"] = enabled.json()["id"]
 
                 request["id"] = "flow_inst_unregistered_generator"
                 request["inputBindings"]["incoming_hbm"] = {
@@ -88,7 +90,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                     "generatorVersion": 1,
                     "parameters": {},
                 }
-                disabled = client.post("/api/process-flow-instances", json=request)
+                disabled = client.post("/api/process-flow-instances", json=instance_create_payload(request))
                 self.assertEqual(disabled.status_code, 400, disabled.text)
                 self.assertIn("Geometry generator soc version 1 is not available", disabled.json()["message"])
                 self.assertEqual(

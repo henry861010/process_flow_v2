@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import ClientDisconnect
 
+from flow_requests import instance_create_payload
 from process_flow_api.analytics import AnalyticsRecorder, consistent_backup, request_context
 from process_flow_api.analytics_cli import main as maintenance
 from process_flow_api.analytics_http import AnalyticsMiddleware
@@ -79,14 +80,17 @@ def test_success_conflict_and_validation_events_do_not_save_body_owner(service):
     app, client = service
     template, source = instance_source(client)
     payload = {**source, "id": "analytics-copy", "owner": "resource-owner-not-actor"}
-    created = client.post("/api/process-flow-instances", json=payload)
+    created = client.post("/api/process-flow-instances", json=instance_create_payload(payload))
     assert created.status_code == 201
-    assert client.post("/api/process-flow-instances", json=payload).status_code == 409
+    payload["id"] = created.json()["id"]
+    with mock.patch("process_flow_api.services.generated_flow_instance_id", return_value=created.json()["id"]):
+        assert client.post("/api/process-flow-instances", json=instance_create_payload(payload)).status_code == 409
     assert client.post("/api/process-flow-instances", json={"owner": "injected-owner"}).status_code == 422
     events = rows(app, "usage_events", "event_name='flow_instance.create'")
     assert len(events) == 3
     assert [event["outcome"] for event in events] == ["success", "failure", "failure"]
     assert events[0]["flow_template_id"] == template["id"]
+    assert events[0]["flow_instance_id"] == created.json()["id"]
     properties = json.loads(events[0]["properties_json"])
     assert properties["step_count"] == len(template["stepRefs"])
     assert properties["instance_name"] == source["name"]
@@ -121,9 +125,9 @@ def test_operation_400_and_500(service):
     template, source = instance_source(client)
     payload = {**source, "id": "analytics-error"}
     with mock.patch("process_flow_api.main.create_flow_instance", side_effect=ValueError("secret-body")):
-        assert client.post("/api/process-flow-instances", json=payload).status_code == 400
+        assert client.post("/api/process-flow-instances", json=instance_create_payload(payload)).status_code == 400
     with mock.patch("process_flow_api.main.create_flow_instance", side_effect=RuntimeError("secret-body")):
-        assert client.post("/api/process-flow-instances", json=payload).status_code == 500
+        assert client.post("/api/process-flow-instances", json=instance_create_payload(payload)).status_code == 500
     events = rows(app, "usage_events")
     assert [event["error_code"] for event in events] == ["INVALID_INPUT", "INTERNAL_ERROR"]
     assert "secret-body" not in json.dumps(events)
@@ -139,11 +143,11 @@ def test_workspace_commit_retry_and_reset_history(service):
     })
     assert response.status_code == 201, response.text
     workspace = response.json()
-    commit = {"instanceId": "analytics-committed", "instanceName": "Analytics build",
+    commit = {"instanceName": "Analytics build",
               "instanceVersion": "V1", "instanceOwner": "not-request-owner", "revision": 1}
     route = f"/api/process-flow-workspaces/{workspace['id']}/commit"
     assert client.post(route, json=commit).status_code == 200
-    assert client.post(route, json={**commit, "instanceId": "ignored-retry"}).status_code == 200
+    assert client.post(route, json=commit).status_code == 200
     creates = rows(app, "usage_events", "event_name='flow_instance.create' AND outcome='success'")
     assert len(creates) == 1
     commits = rows(app, "usage_events", "event_name='workspace.commit'")

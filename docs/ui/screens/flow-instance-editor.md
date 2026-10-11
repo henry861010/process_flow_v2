@@ -42,8 +42,9 @@ instance-specific placement default. Replacing dirty values requires
 confirmation.
 
 `Save` becomes enabled when the selected template resolves and is enabled, configuration is complete, and no save
-is in progress. Its dialog requires name, id, version, and owner; description is optional. Version
-defaults to `V0.0.0`. Submit calls `POST /api/process-flow-instances`; success returns Home.
+is in progress. Its dialog requires name, version, and owner; description is optional. Version
+defaults to `V0.0.0`. Submit calls `POST /api/process-flow-instances` without `id`; the server assigns
+a 32-character lowercase UUID4 hex ID without a prefix, and success returns Home.
 
 The geometry input picker lists only category-compatible generators with `flowInputPicker`
 placement. HBM and DRAM inputs use the Geometry DB catalog records; hidden generators do not
@@ -83,8 +84,8 @@ instance is saved; unused generator-preview errors do not block the main flow.
 - `UI-FIE-002`: source list contains only instances of that template.
 - `UI-FIE-003`: loading a source copies values without carrying id/name/version/owner/description.
 - `UI-FIE-004`: missing template and legacy workspace URLs render a recoverable error without a selector.
-- `UI-FIE-005`: complete values plus valid unique metadata create a new immutable instance and return Home.
-- `UI-FIE-006`: duplicate/invalid id or empty required metadata preserves the dialog and configuration.
+- `UI-FIE-005`: complete values plus valid required metadata create a new immutable instance and return Home.
+- `UI-FIE-006`: empty required metadata or a failed save preserves the dialog and configuration.
 - `UI-FIE-007`: input and step preview/export journeys remain available.
 - `UI-FIE-008`: geometry browsing and search expose only geometries accepted by the template's category constraints.
 - `UI-FIE-009`: generator recipes can be selected, edited, previewed, copied from a source instance,

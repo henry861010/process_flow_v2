@@ -161,6 +161,8 @@ export type ProcessFlowTemplate = {
   flowEdges: SavedFlowEdge[];
 };
 
+export type ProcessFlowTemplateCreate = Omit<ProcessFlowTemplate, "id">;
+
 export type CatalogGeometryBinding = {
   kind: "catalog";
   geometryId: string;
@@ -249,9 +251,19 @@ export type ProcessFlowInstance = {
 
 export type ProcessFlowInstanceCreate = Omit<
   ProcessFlowInstance,
-  "inputBindings"
+  "id" | "inputBindings"
 > &
   FlowConfiguration;
+
+export type ProcessFlowInstanceForNewTemplateCreate = Omit<
+  ProcessFlowInstanceCreate,
+  "processFlowTemplateId"
+>;
+
+export type TemplateInstanceCreateRequest = {
+  processFlowTemplate: ProcessFlowTemplateCreate;
+  processFlowInstance: ProcessFlowInstanceForNewTemplateCreate;
+};
 
 export type GeometryEntity = {
   id: string;

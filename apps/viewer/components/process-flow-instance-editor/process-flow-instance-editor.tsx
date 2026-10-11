@@ -325,7 +325,7 @@ function ProcessFlowInstanceEditorInner() {
 
   async function saveInstance() {
     if (!canSave || !selectedTemplate) return;
-    const validationError = validateInstanceIdentity(instanceIdentity, instances);
+    const validationError = validateInstanceIdentity(instanceIdentity);
     if (validationError) {
       setSaveDialogError(validationError);
       return;

@@ -10,6 +10,7 @@ import zipfile
 
 from fastapi.testclient import TestClient
 
+from flow_requests import instance_create_payload, template_create_payload
 from process_flow_api.main import create_app
 from process_flow_api.repository import SQLiteStore
 
@@ -48,7 +49,7 @@ class TemplateAvailabilityTests(unittest.TestCase):
         return response.json()
 
     def commit_body(self, revision):
-        return {"revision": revision, "instanceId": "committed-availability",
+        return {"revision": revision,
                 "instanceName": "Committed availability", "instanceVersion": "V0.0.0",
                 "instanceOwner": "test", "instanceDescription": ""}
 
@@ -64,10 +65,11 @@ class TemplateAvailabilityTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 422, response.text)
                 legacy_create = {**template, "id": f"legacy-created-{kind}"}
                 legacy_create.pop("status")
-                created = self.client.post(path, json=legacy_create)
+                created = self.client.post(path, json=template_create_payload(legacy_create) if kind == "flow" else legacy_create)
                 self.assertEqual(created.status_code, 201, created.text)
                 self.assertEqual(created.json()["status"], "enabled")
-                disabled_create = self.client.post(path, json={**template, "id": f"disabled-created-{kind}", "status": "disabled"})
+                disabled_create = self.client.post(path, json=(template_create_payload({**template, "status": "disabled"}) if kind == "flow"
+                      else {**template, "id": f"disabled-created-{kind}", "status": "disabled"}))
                 self.assertEqual(disabled_create.status_code, 201, disabled_create.text)
                 self.assertEqual(disabled_create.json()["status"], "disabled")
                 disabled = self.set_status(kind, template, "disabled")
@@ -86,7 +88,7 @@ class TemplateAvailabilityTests(unittest.TestCase):
         workspace = self.create_workspace()
         disabled = self.set_status("flow", self.flow, "disabled")
         source = {**self.instance, "id": "new-availability-instance"}
-        response = self.client.post("/api/process-flow-instances", json=source)
+        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(source))
         self.assertEqual(response.status_code, 409, response.text)
         self.assertIn(self.flow["id"], response.text)
         response = self.client.post("/api/process-flow-workspaces", json={
@@ -117,41 +119,45 @@ class TemplateAvailabilityTests(unittest.TestCase):
         self.set_status("step", self.step, "disabled")
         new_flow = {**self.flow, "id": "new-availability-flow"}
         for status in ("enabled", "disabled"):
-            response = self.client.post("/api/process-flow-templates", json={**new_flow, "status": status})
+            response = self.client.post("/api/process-flow-templates", json=template_create_payload({**new_flow, "status": status}))
             self.assertEqual(response.status_code, 409, response.text)
             self.assertIn(self.step["id"], response.text)
         updated = self.client.put(f"/api/process-flow-templates/{self.flow['id']}",
                                   json={**self.flow, "description": "Still editable"})
         self.assertEqual(updated.status_code, 200, updated.text)
-        instance = self.client.post("/api/process-flow-instances", json={**self.instance, "id": "new-existing-flow"})
+        instance = self.client.post("/api/process-flow-instances", json=instance_create_payload({**self.instance, "id": "new-existing-flow"}))
         self.assertEqual(instance.status_code, 201, instance.text)
         workspace = self.create_workspace()
         committed = self.client.post(f"/api/process-flow-workspaces/{workspace['id']}/commit",
                                      json=self.commit_body(workspace["revision"]))
         self.assertEqual(committed.status_code, 200, committed.text)
         self.set_status("step", self.step, "enabled")
-        response = self.client.post("/api/process-flow-templates", json=new_flow)
+        response = self.client.post("/api/process-flow-templates", json=template_create_payload(new_flow))
         self.assertEqual(response.status_code, 201, response.text)
+        new_flow["id"] = response.json()["id"]
 
     def test_combined_create_enforces_both_rules_without_partial_writes(self):
         flow = {**self.flow, "id": "combined-availability"}
         instance = {**self.instance, "id": "combined-availability-instance", "processFlowTemplateId": flow["id"]}
         response = self.client.post("/api/process-flow-template-instances", json={
-            "processFlowTemplate": {**flow, "status": "disabled"}, "processFlowInstance": instance,
+            "processFlowTemplate": template_create_payload({**flow, "status": "disabled"}), "processFlowInstance": instance_create_payload(instance, for_new_template=True),
         })
         self.assertEqual(response.status_code, 409, response.text)
         self.set_status("step", self.step, "disabled")
         response = self.client.post("/api/process-flow-template-instances", json={
-            "processFlowTemplate": flow, "processFlowInstance": instance,
+            "processFlowTemplate": template_create_payload(flow), "processFlowInstance": instance_create_payload(instance, for_new_template=True),
         })
         self.assertEqual(response.status_code, 409, response.text)
         self.assertEqual(self.client.get(f"/api/process-flow-templates/{flow['id']}").status_code, 404)
         self.assertEqual(self.client.get(f"/api/process-flow-instances/{instance['id']}").status_code, 404)
         self.set_status("step", self.step, "enabled")
         response = self.client.post("/api/process-flow-template-instances", json={
-            "processFlowTemplate": flow, "processFlowInstance": instance,
+            "processFlowTemplate": template_create_payload(flow), "processFlowInstance": instance_create_payload(instance, for_new_template=True),
         })
         self.assertEqual(response.status_code, 201, response.text)
+        flow["id"] = response.json()["processFlowTemplate"]["id"]
+        instance["id"] = response.json()["processFlowInstance"]["id"]
+        instance["processFlowTemplateId"] = response.json()["processFlowInstance"]["processFlowTemplateId"]
 
     def test_disabled_templates_preserve_execution_preview_and_export(self):
         path = f"/api/process-flow-instances/{self.instance['id']}"

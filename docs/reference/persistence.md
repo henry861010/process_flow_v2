@@ -202,13 +202,24 @@ overwrite/upsert。
 
 | Resource | Generator |
 | --- | --- |
-| Step/flow template | Client/authoring tool，MUST choose unused id。 |
-| Instance | Client/commit request，MUST choose unused id。 |
+| Step template | Client/authoring tool，MUST choose unused id。 |
+| Flow template | Server-generated 32 字元小寫 UUID4 hex（不帶前綴）。 |
+| Instance | Server-generated 32 字元小寫 UUID4 hex（不帶前綴），包括 direct create、combined create 與 workspace commit。 |
 | Workspace | Server-generated `workspace_<uuid>`。 |
 | GeometryEntity | Client MAY provide；null/omitted create request由 server 生成 `geom_<slug>_<random>`。 |
 | Materialized embedded geometry | Server-generated once per referenced local id inside commit transaction。 |
 
-Generated ids MUST match Process Flow identifier grammar。Geometry generation is not
+Flow template／instance create requests MUST omit `id`；workspace commit MUST omit
+`instanceId`。傳入這些欄位（包含空字串或 null）回傳 422。Combined create 的
+`processFlowInstance` MUST 同時省略 `processFlowTemplateId`，由 server 指向此次建立的
+flow template。Create responses 保留完整 persisted records 與 generated ids；呼叫端 MUST
+使用 response ids 進行後續查詢與引用。每次成功 POST 建立獨立 records；已 committed
+workspace 的 commit retries 回傳原 instance。既有 records、fixture import 與 template
+updates 保留原 id，不需 database migration。SQLite primary keys 保證 uniqueness；
+generated id collision 回傳 409 並 rollback 整筆 transaction。
+
+Flow template／instance 的 generated ids 為 opaque UUID4 hex，允許數字開頭；
+圖內節點與連線仍沿用既有 identifier grammar。Geometry generation is not
 content-addressed；identical payloads MAY produce different ids and are independent immutable
 snapshots。
 

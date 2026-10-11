@@ -1,9 +1,12 @@
 import type {
   GeometryEntity,
   ProcessFlowInstance,
+  ProcessFlowInstanceCreate,
   ProcessFlowTemplate,
+  ProcessFlowTemplateCreate,
   ProcessFlowWorkspace,
   ProcessStepTemplate,
+  TemplateInstanceCreateRequest,
 } from "@/lib/process-flow/types";
 import type {
   GeometryGeneratorDefinition,
@@ -214,8 +217,10 @@ export async function deleteProcessFlowInstance(instanceId: string): Promise<voi
   });
 }
 
-export async function createProcessFlowTemplate<T>(template: T): Promise<T> {
-  return apiFetch<T>("/api/process-flow-templates", {
+export async function createProcessFlowTemplate(
+  template: ProcessFlowTemplateCreate,
+): Promise<ProcessFlowTemplate> {
+  return apiFetch<ProcessFlowTemplate>("/api/process-flow-templates", {
     method: "POST",
     body: JSON.stringify(template),
   });
@@ -234,16 +239,11 @@ export async function updateProcessFlowTemplate<T>(
   );
 }
 
-export async function createProcessFlowTemplateInstance<
-  TTemplate,
-  TInstanceCreate,
-  TInstance = TInstanceCreate,
->(payload: {
-  processFlowTemplate: TTemplate;
-  processFlowInstance: TInstanceCreate;
-}): Promise<{
-  processFlowTemplate: TTemplate;
-  processFlowInstance: TInstance;
+export async function createProcessFlowTemplateInstance(
+  payload: TemplateInstanceCreateRequest,
+): Promise<{
+  processFlowTemplate: ProcessFlowTemplate;
+  processFlowInstance: ProcessFlowInstance;
 }> {
   return apiFetch("/api/process-flow-template-instances", {
     method: "POST",
@@ -251,11 +251,10 @@ export async function createProcessFlowTemplateInstance<
   });
 }
 
-export async function createProcessFlowInstance<
-  TCreate,
-  TInstance = TCreate,
->(instance: TCreate): Promise<TInstance> {
-  return apiFetch<TInstance>("/api/process-flow-instances", {
+export async function createProcessFlowInstance(
+  instance: ProcessFlowInstanceCreate,
+): Promise<ProcessFlowInstance> {
+  return apiFetch<ProcessFlowInstance>("/api/process-flow-instances", {
     method: "POST",
     body: JSON.stringify(instance),
   });
@@ -306,7 +305,6 @@ export async function updateProcessFlowWorkspace(
 export async function commitProcessFlowWorkspace(
   workspaceId: string,
   request: {
-    instanceId: string;
     instanceName: string;
     instanceVersion: string;
     instanceOwner: string;

@@ -129,7 +129,8 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
         result["workspace_id"] = text_value(value(workspace, "id"))
         properties["previous_status"] = value(workspace, "status")
         if route.endswith("/commit"):
-            instance = {"id": value(body, "instanceId"), "processFlowTemplateId": value(workspace, "processFlowTemplateId")}
+            instance = {"name": value(body, "instanceName"), "version": value(body, "instanceVersion"),
+                        "processFlowTemplateId": value(workspace, "processFlowTemplateId")}
     if instance is not None:
         result["flow_instance_id"] = text_value(value(instance, "id"))
         properties.update(instance_name=(value(instance, "name", "") or "")[:256],
@@ -272,6 +273,12 @@ class AnalyticsRoute(APIRoute):
         if event_name == "export":
             return  # The manager records accepted/started/finished against the job id.
         properties = summary["properties"]
+        if event_name == "flow_template.create":
+            template = value(result, "processFlowTemplate", result)
+            summary["flow_template_id"] = text_value(value(template, "id"))
+        if event_name == "flow_instance.create" or path == "/api/process-flow-template-instances":
+            instance = value(result, "processFlowInstance", result)
+            summary["flow_instance_id"] = text_value(value(instance, "id"))
         if event_name == "generator.preview":
             properties["generator_version"] = value(result, "generatorVersion")
             if value(result, "valid") is False:

@@ -10,7 +10,7 @@ from .configuration_materialization import (
     materialize_embedded_bindings,
 )
 from .geometry_resolver import StoreGeometryCatalog
-from .identifiers import generated_workspace_id
+from .identifiers import generated_flow_instance_id, generated_workspace_id
 from .models import (
     ProcessFlowWorkspaceCreate,
     ProcessFlowWorkspaceUpdate,
@@ -113,9 +113,10 @@ def commit_workspace(
     workspace = canonicalize_generator_bindings(workspace, plan)
 
     geometries, persisted_bindings = materialize_embedded_bindings(workspace)
+    instance_id = generated_flow_instance_id()
     instance = {
         "schemaVersion": 2,
-        "id": body.instanceId,
+        "id": instance_id,
         "name": body.instanceName,
         "version": body.instanceVersion,
         "owner": body.instanceOwner,
@@ -128,7 +129,7 @@ def commit_workspace(
         **workspace,
         "revision": body.revision + 1,
         "status": "committed",
-        "committedInstanceId": body.instanceId,
+        "committedInstanceId": instance_id,
         "updatedAt": utc_now(),
         "inputBindings": persisted_bindings,
         "embeddedGeometries": {},

@@ -25,11 +25,13 @@ from .configuration_materialization import (
 )
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
+from .identifiers import generated_flow_instance_id, generated_flow_template_id
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,
     ProcessFlowInstanceCreate,
     ProcessFlowTemplate,
+    ProcessFlowTemplateCreate,
     ProcessStepTemplate,
     TemplateInstanceCreateRequest,
 )
@@ -177,8 +179,8 @@ def _apply_parameter_defaults(target_definitions: Any, source_definitions: Any) 
             )
 
 
-def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplate) -> JsonObject:
-    payload = body.payload()
+def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplateCreate) -> JsonObject:
+    payload = {**body.payload(), "id": generated_flow_template_id()}
     step_templates = load_step_templates_for_template(store, payload)
     require_enabled_steps_for_new_flow(step_templates)
     materialize_flow_parameter_defaults(payload, step_templates)
@@ -284,11 +286,13 @@ def create_template_instance(
     body: TemplateInstanceCreateRequest,
     generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
-    template = body.processFlowTemplate.payload()
-    instance = body.processFlowInstance.payload()
+    template = {**body.processFlowTemplate.payload(), "id": generated_flow_template_id()}
+    instance = {
+        **body.processFlowInstance.payload(),
+        "id": generated_flow_instance_id(),
+        "processFlowTemplateId": template["id"],
+    }
     require_enabled_template(template, kind="Process flow", action="create a new instance")
-    if instance.get("processFlowTemplateId") != template.get("id"):
-        raise ValueError("ProcessFlowInstance.processFlowTemplateId must match ProcessFlowTemplate.id")
     step_templates = load_step_templates_for_template(store, template)
     require_enabled_steps_for_new_flow(step_templates)
     materialize_flow_parameter_defaults(template, step_templates)
@@ -314,7 +318,7 @@ def create_flow_instance(
     body: ProcessFlowInstanceCreate,
     generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
-    payload = body.payload()
+    payload = {**body.payload(), "id": generated_flow_instance_id()}
     template = require_item(
         store.get_process_flow_template(payload["processFlowTemplateId"]),
         payload["processFlowTemplateId"],

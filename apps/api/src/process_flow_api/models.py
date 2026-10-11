@@ -184,10 +184,9 @@ class StepRef(StrictModel):
         return data
 
 
-class ProcessFlowTemplateDraft(StrictModel):
+class ProcessFlowTemplateCreate(StrictModel):
     schemaVersion: Literal[2] = 2
     status: TemplateStatus = "enabled"
-    id: str = ""
     name: str
     version: str
     description: str = ""
@@ -195,6 +194,10 @@ class ProcessFlowTemplateDraft(StrictModel):
     flowInputs: list[FlowInputDefinition]
     stepRefs: list[StepRef]
     flowEdges: list[FlowEdge]
+
+
+class ProcessFlowTemplateDraft(ProcessFlowTemplateCreate):
+    id: str = ""
 
 
 class ProcessFlowTemplate(ProcessFlowTemplateDraft):
@@ -281,13 +284,15 @@ class ProcessFlowInstance(StrictModel):
     stepConfigurations: dict[str, StepConfiguration]
 
 
-class ProcessFlowInstanceCreate(FlowConfiguration):
+class ProcessFlowInstanceForNewTemplateCreate(FlowConfiguration):
     schemaVersion: Literal[2] = 2
-    id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     version: NonBlankString
     owner: NonBlankString
     description: str = ""
+
+
+class ProcessFlowInstanceCreate(ProcessFlowInstanceForNewTemplateCreate):
     processFlowTemplateId: str = Field(min_length=1)
 
 
@@ -314,7 +319,6 @@ class ProcessFlowWorkspaceUpdate(FlowConfiguration):
 
 
 class WorkspaceCommitRequest(StrictModel):
-    instanceId: str = Field(min_length=1)
     instanceName: str = Field(min_length=1)
     instanceVersion: NonBlankString
     instanceOwner: NonBlankString
@@ -439,8 +443,8 @@ class GeometryMaterializationResponse(StrictModel):
 
 
 class TemplateInstanceCreateRequest(StrictModel):
-    processFlowTemplate: ProcessFlowTemplate
-    processFlowInstance: ProcessFlowInstanceCreate
+    processFlowTemplate: ProcessFlowTemplateCreate
+    processFlowInstance: ProcessFlowInstanceForNewTemplateCreate
 
 
 class FlowInputPreviewTarget(StrictModel):

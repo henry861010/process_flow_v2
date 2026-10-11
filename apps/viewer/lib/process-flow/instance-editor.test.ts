@@ -6,6 +6,7 @@ import {
   instanceEditorEntry,
   instancesForTemplate,
   newInstanceIdentity,
+  validateInstanceIdentity,
 } from "./instance-editor";
 import type {
   ProcessFlowInstance,
@@ -103,7 +104,7 @@ describe("instance editor helpers", () => {
     const copied = configurationFromInstance(template, [stepTemplate], source);
     const payload = buildProcessFlowInstanceCreate(
       template.id,
-      { ...newInstanceIdentity(), id: "copy", name: "Copy", owner: "test" },
+      { ...newInstanceIdentity(), name: "Copy", owner: "test" },
       copied,
     );
     expect(payload.inputBindings.incoming_hbm).toEqual(source.inputBindings.incoming_hbm);
@@ -140,16 +141,24 @@ describe("instance editor helpers", () => {
   });
 
   it("builds a trimmed create payload without copying source identity", () => {
-    const identity = { ...newInstanceIdentity(), id: " new.instance ", name: " New ", owner: " owner " };
+    const identity = { ...newInstanceIdentity(), name: " New ", owner: " owner " };
     const configuration = configurationFromInstance(template, [stepTemplate], instance("source"));
     const payload = buildProcessFlowInstanceCreate(template.id, identity, configuration);
     expect(payload).toMatchObject({
-      id: "new.instance",
       name: "New",
       owner: "owner",
       version: "V0.0.0",
       processFlowTemplateId: template.id,
     });
-    expect(payload.id).not.toBe("source");
+    expect(payload).not.toHaveProperty("id");
   });
+  it("validates required metadata without a client ID", () => {
+    const identity = { ...newInstanceIdentity(), name: "New", owner: "test" };
+    expect(newInstanceIdentity()).not.toHaveProperty("id");
+    expect(validateInstanceIdentity(identity)).toBeNull();
+    expect(validateInstanceIdentity({ ...identity, name: " " })).toBe("Instance name is required.");
+    expect(validateInstanceIdentity({ ...identity, version: " " })).toBe("Version is required.");
+    expect(validateInstanceIdentity({ ...identity, owner: " " })).toBe("Owner is required.");
+  });
+
 });

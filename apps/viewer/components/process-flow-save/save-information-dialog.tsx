@@ -11,7 +11,6 @@ const textareaClass =
   "min-h-[88px] w-full resize-y rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
 export type TemplateSaveInformation = {
-  id: string;
   name: string;
   version: string;
   owner: string;
@@ -19,7 +18,6 @@ export type TemplateSaveInformation = {
 };
 
 export type InstanceSaveInformation = {
-  id: string;
   name: string;
   version: string;
   owner: string;
@@ -177,14 +175,6 @@ export function SaveInformationDialog({
                     onChange={(event) => onTemplateChange({ name: event.target.value })}
                   />
                 </FormField>
-                <FormField label="Template id" required>
-                  <input
-                    className={inputClass}
-                    value={template.id}
-                    disabled={submitting}
-                    onChange={(event) => onTemplateChange({ id: event.target.value })}
-                  />
-                </FormField>
                 <FormField label="Version" required>
                   <input
                     className={inputClass}
@@ -239,14 +229,6 @@ export function SaveInformationDialog({
                     value={instance.name}
                     disabled={submitting}
                     onChange={(event) => onInstanceChange({ name: event.target.value })}
-                  />
-                </FormField>
-                <FormField label="Instance id" required>
-                  <input
-                    className={inputClass}
-                    value={instance.id}
-                    disabled={submitting}
-                    onChange={(event) => onInstanceChange({ id: event.target.value })}
                   />
                 </FormField>
                 <FormField label="Version" required>

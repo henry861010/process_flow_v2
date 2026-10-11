@@ -107,6 +107,13 @@ missing token必須重新preview，不可在前端自行重建geometry。
 | `DELETE` | `/api/process-flow-instances/{id}` | Delete instance and committed workspaces that produced it |
 | `POST` | `/api/process-flow-instances/{id}/execute` | Compile and execute saved instance |
 
+Flow template／instance create requests 不接受 `id`；server 在儲存時產生
+32 字元小寫 UUID4 hex（不帶前綴），response 回傳完整 record 與 ID。
+Combined create 的 instance 同時不傳 `processFlowTemplateId`，由 server 建立引用。
+Workspace commit 不接受 `instanceId`；重試已 committed workspace 回傳原 instance。
+呼叫端傳入上述 server-owned fields 回傳 `422`；既有 record、update 與 fixture import
+保留原 ID。
+
 Deletion returns `204` with no body, or `404` for an absent resource. Reference checks and related
 workspace deletion run in one transaction; failures roll back all deletions. Process-step templates
 are retained when their flow templates are deleted.

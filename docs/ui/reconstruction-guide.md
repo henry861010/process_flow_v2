@@ -92,7 +92,8 @@ Home AAA template card
 - Template只能由route決定；不得render selector。
 - From instance只列同template records，只copy values並重設new identity。
 - dirty時啟用離頁與source-replacement protection。
-- complete configuration才可Save；duplicate/invalid identity留在dialog顯示error。
+- complete configuration才可Save；required metadata不完整或save失敗留在dialog顯示error。
+  Flow template／instance的ID由server在create時產生，save dialog不提供ID輸入。
 - Save使用direct create且不得修改source instance；成功後返回Home。
 - `workspaceId`顯示unsupported message；backend workspace API保留。
 

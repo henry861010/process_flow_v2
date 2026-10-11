@@ -9,7 +9,7 @@ import type {
 
 export type InstanceIdentityDraft = Pick<
   ProcessFlowInstance,
-  "id" | "name" | "version" | "owner" | "description"
+  "name" | "version" | "owner" | "description"
 >;
 
 export function instanceEditorEntry(search: string) {
@@ -52,21 +52,13 @@ export function configurationFromInstance(
 }
 
 export function newInstanceIdentity(): InstanceIdentityDraft {
-  return { id: "", name: "", version: "V0.0.0", owner: "", description: "" };
+  return { name: "", version: "V0.0.0", owner: "", description: "" };
 }
 
 export function validateInstanceIdentity(
   identity: InstanceIdentityDraft,
-  instances: ProcessFlowInstance[],
 ) {
   if (!identity.name.trim()) return "Instance name is required.";
-  if (!identity.id.trim()) return "Instance id is required.";
-  if (!/^[A-Za-z][A-Za-z0-9_.-]*$/.test(identity.id.trim())) {
-    return "Instance id must start with a letter and use only letters, numbers, _, -, or .";
-  }
-  if (instances.some((instance) => instance.id === identity.id.trim())) {
-    return "Instance id already exists.";
-  }
   if (!identity.version.trim()) return "Version is required.";
   if (!identity.owner.trim()) return "Owner is required.";
   return null;
@@ -79,7 +71,6 @@ export function buildProcessFlowInstanceCreate(
 ): ProcessFlowInstanceCreate {
   return {
     schemaVersion: 2,
-    id: identity.id.trim(),
     name: identity.name.trim(),
     version: identity.version.trim(),
     owner: identity.owner.trim(),
