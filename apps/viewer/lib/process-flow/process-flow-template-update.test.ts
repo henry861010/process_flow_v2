@@ -6,7 +6,9 @@ import {
   initialFlowParameterDefault,
   resetFlowStepDefaults,
   setFlowParameterDefault,
+  setFlowStepLabel,
 } from "./process-flow-template-update";
+import { normalizeStepLabel } from "./utils";
 
 const stepTemplate: ProcessStepTemplate = {
   schemaVersion: 2, status: "enabled",
@@ -51,6 +53,39 @@ const template: ProcessFlowTemplate = {
 };
 
 describe("process flow template default editing", () => {
+  it("keeps labels isolated by stepRefId without changing defaults or the source", () => {
+    const before = structuredClone(template);
+    const updated = setFlowStepLabel(template, "first", "First molding");
+
+    expect(updated.stepRefs[0]).toEqual({ ...template.stepRefs[0], stepLabel: "First molding" });
+    expect(updated.stepRefs[1]).toEqual(template.stepRefs[1]);
+    expect(updated.flowInputs).toEqual(template.flowInputs);
+    expect(updated.flowEdges).toEqual(template.flowEdges);
+    expect(template).toEqual(before);
+
+    const repeated = setFlowStepLabel(updated, "second", "First molding");
+    expect(repeated.stepRefs.map((ref) => ref.stepLabel)).toEqual([
+      "First molding",
+      "First molding",
+    ]);
+    expect(repeated.stepRefs.map((ref) => ref.parameterDefaults)).toEqual([
+      { count: 1 },
+      { count: 9 },
+    ]);
+  });
+
+  it("keeps raw label input while displaying trimmed labels and the blank fallback", () => {
+    const renamed = setFlowStepLabel(template, "first", "  Custom step  ");
+    expect(renamed.stepRefs[0].stepLabel).toBe("  Custom step  ");
+    expect(normalizeStepLabel(renamed.stepRefs[0].stepLabel, stepTemplate.name)).toBe("Custom step");
+
+    for (const label of ["", "   "]) {
+      const cleared = setFlowStepLabel(renamed, "first", label);
+      expect(normalizeStepLabel(cleared.stepRefs[0].stepLabel, stepTemplate.name)).toBe(stepTemplate.name);
+      expect(cleared.stepRefs[0].parameterDefaults).toEqual({ count: 1 });
+    }
+  });
+
   it("keeps defaults isolated by stepRefId", () => {
     const updated = setFlowParameterDefault(template, "first", "count", 4);
     const cleared = clearFlowParameterDefault(updated, "first", "count");

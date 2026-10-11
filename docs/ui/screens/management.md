@@ -24,12 +24,21 @@ flow templates, flow instances, geometries, and process-step templates. Template
 in-page edit modal. The tab bar has no Template or LSI create commands.
 
 Every flow-template row has an `Edit` action. The modal keeps id、version、flow inputs、step
-identities/labels and edges locked；only status、name、owner、description and each existing step ref's scalar
-`parameterDefaults` are editable. Defaults are grouped by flow-local `stepRefId`, so repeated uses of
-the same process-step template remain independent. Enabling a default starts from the current
+identities/order and edges locked；status、name、owner、description and each existing step ref's
+`stepLabel` and scalar `parameterDefaults` are editable. Labels and defaults are grouped by flow-local
+`stepRefId`, so repeated uses of the same process-step template remain independent and labels may
+repeat. Each optional Step label input updates its section heading immediately; clearing it uses the
+process-step template name. Saving trims label whitespace and updates local bootstrap state.
+All instances sharing the template display the saved labels after reloading; their configurations
+and the process-step template names remain unchanged. The update API preserves omitted labels and
+clears labels explicitly set to an empty/whitespace string or `null`.
+Enabling a default starts from the current
 process-step default when one exists；`Reset to process-step defaults` copies the current eligible
-scalar values as a snapshot. Existing instances and instances copied from another instance remain
-unchanged. Locked metadata、flow-input definitions and constraints、step reference fields and
+scalar values as a snapshot. Parameter defaults only affect future instances created from blank;
+existing instances and instances copied from another instance keep their parameter values.
+Cancel、X、backdrop and Escape discard the draft. Saving disables editable fields and duplicate
+submission; failures retain the draft and show an error. Locked metadata、flow-input definitions and
+constraints、step identity fields and
 topology edges remain visible in disabled controls for reference.
 
 Every process-step row has an `Edit` action. It opens an in-page modal without navigation. The modal
@@ -49,8 +58,9 @@ Acceptance: `UI-MGMT-001` validates counts and rows; `UI-MGMT-002` validates the
 process-step edit modal; `UI-MGMT-003` validates missing references remain visible using their raw ids.
 `UI-MGMT-004` validates the fixture menu, ZIP selection and validation, confirmation, busy state,
 reset success refresh, and reset error feedback.
-`UI-MGMT-005` validates flow-template metadata/default editing, flow-local default isolation, locked
-topology, save refresh, and the future-instance-only explanation.
+`UI-MGMT-005` validates flow-template metadata/label/default editing, flow-local label/default
+isolation, blank-label fallback, locked topology, save refresh, cancel and error behavior,
+shared labels after reloading, and the future-instance-only parameter defaults explanation.
 
 ## Resource deletion
 

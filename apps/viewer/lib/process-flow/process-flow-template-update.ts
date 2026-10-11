@@ -34,6 +34,17 @@ export function initialFlowParameterDefault(definition: ParameterDefinition) {
   return createDefaultParameterValue(definition);
 }
 
+export function setFlowStepLabel(
+  template: ProcessFlowTemplate,
+  stepRefId: string,
+  stepLabel: string,
+): ProcessFlowTemplate {
+  return updateStepRef(template, stepRefId, (stepRef) => ({
+    ...stepRef,
+    stepLabel,
+  }));
+}
+
 export function setFlowParameterDefault(
   template: ProcessFlowTemplate,
   stepRefId: string,

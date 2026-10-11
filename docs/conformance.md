@@ -12,6 +12,7 @@ source_of_truth:
   - docs/data-model.md
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
+  - docs/architecture/decisions/0010-editable-flow-step-labels.md
   - apps/api/src/process_flow_api/
   - apps/viewer/
   - packages/kernel-py/
@@ -48,6 +49,7 @@ UI normative reference 為準。本頁的 `Open` 不會降低 target contract �
 | DM-019 | Normalized structure-local ids 保留或 deterministic 產生，且全 structure 唯一 | Hydration/serialization 未完整保留 explicit ids，也未一致驗 uniqueness。`packages/kernel-py/src/process_flow_kernel/serialization` | integration.platform | Open |
 | DM-020 | 未正式發行前，內建 template fixture/default 使用 `V0.0.0`、geometry fixture/default 使用 `v0.0.0`，且 label 不驅動行為 | Fixtures、editor defaults 與 generator save default 已歸零；API 仍保留使用者提供的 opaque non-empty label。Evidence：`apps/api/tests/test_api.py` 的 `test_seed_resources_use_unreleased_versions_and_resolvable_ids` 與 `test_step_template_create_duplicate_and_delete_unavailable` | integration.platform | Closed |
 | DM-021 | 同一PnP batch可交錯absolute rectangle與polygon target；Box source的所有root direct features可轉exact polygon，children維持relative rigid translation | Runtime逐筆將absolute target轉成adapter-local frame並以absolute center放回；compiler固定zero pose／center anchor。測試覆蓋mixed order、root bump metadata、突出child translation、source immutability與atomic rejection。`packages/process-step-py/src/process_flow_steps/pnp/pnp.py`、`packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py`、`packages/kernel-py/tests/test_adaptive_pnp.py` | integration.platform | Closed |
+| DM-022 | Management 可按 stepRefId 更新 stepLabel；trim、空白/null清空、省略保留、重複引用獨立；共用instances重新載入使用新label，identity/version/topology及配置不變 | API restricted update 與 Management label input 已支援。`apps/api/tests/test_api.py` 的 flow_template_update tests、`apps/viewer/lib/process-flow/process-flow-template-update.test.ts` 與 `UI-MGMT-005` 驗證契約。 | integration.platform | Closed |
 
 ## Semantic preview session
 

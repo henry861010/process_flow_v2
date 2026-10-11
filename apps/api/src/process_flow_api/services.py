@@ -204,7 +204,7 @@ def update_process_flow_template(
         normalized_current
     ) != _locked_process_flow_template(payload):
         raise ResourceConflictError(
-            "Only status, name, owner, description, and step parameterDefaults fields can be updated"
+            "Only status, name, owner, description, stepLabel, and step parameterDefaults fields can be updated"
         )
 
     name = payload["name"].strip()
@@ -221,6 +221,14 @@ def update_process_flow_template(
     updated["owner"] = owner
     updated["description"] = payload.get("description", "")
     _apply_flow_parameter_defaults(updated, payload)
+    labels_by_ref_id = {
+        step_ref.stepRefId: (step_ref.stepLabel or "").strip()
+        for step_ref in body.stepRefs
+        if "stepLabel" in step_ref.model_fields_set
+    }
+    for step_ref in updated["stepRefs"]:
+        if step_ref["stepRefId"] in labels_by_ref_id:
+            step_ref["stepLabel"] = labels_by_ref_id[step_ref["stepRefId"]]
 
     step_templates = load_step_templates_for_template(store, updated)
     validate_flow_parameter_defaults(updated, step_templates)
@@ -233,6 +241,7 @@ def _locked_process_flow_template(template: JsonObject) -> JsonObject:
         locked.pop(field, None)
     for step_ref in locked.get("stepRefs", []):
         if isinstance(step_ref, dict):
+            step_ref.pop("stepLabel", None)
             step_ref.pop("parameterDefaults", None)
     return locked
 

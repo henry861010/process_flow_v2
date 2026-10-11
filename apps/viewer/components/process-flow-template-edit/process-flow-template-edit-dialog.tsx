@@ -14,6 +14,7 @@ import {
   resetFlowStepDefaults,
   scalarParameterDefinitions,
   setFlowParameterDefault,
+  setFlowStepLabel,
 } from "@/lib/process-flow/process-flow-template-update";
 import type {
   ParameterDefinition,
@@ -93,6 +94,11 @@ export function ProcessFlowTemplateEditDialog({
           )
         : clearFlowParameterDefault(current, stepRefId, definition.id),
     );
+    setError(null);
+  }
+
+  function updateStepLabel(stepRefId: string, stepLabel: string) {
+    setDraft((current) => setFlowStepLabel(current, stepRefId, stepLabel));
     setError(null);
   }
 
@@ -250,8 +256,10 @@ export function ProcessFlowTemplateEditDialog({
             <div>
               <h3 className="text-sm font-semibold">Steps and flow parameter defaults</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Step definitions are locked. Defaults only affect future instances created from
-                blank. Existing instances and instances copied from another instance are unchanged.
+                Step labels apply to all instances using this template after reloading. Leave a
+                label blank to use the process-step name. Step identities and topology are locked.
+                Parameter defaults only affect future instances created from blank; existing
+                instances and instances copied from another instance keep their parameter values.
               </p>
             </div>
             <div className="space-y-4">
@@ -306,9 +314,13 @@ export function ProcessFlowTemplateEditDialog({
                     </div>
                     <div className="grid gap-3 border-b bg-muted/10 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
                       <ReadOnlyField label="Step ref ID" value={stepRef.stepRefId} mono />
-                      <ReadOnlyField
+                      <MetadataInput
+                        disabled={saving}
                         label="Step label"
-                        value={stepRef.stepLabel?.trim() || "—"}
+                        placeholder={stepTemplate.name}
+                        required={false}
+                        value={stepRef.stepLabel ?? ""}
+                        onChange={(stepLabel) => updateStepLabel(stepRef.stepRefId, stepLabel)}
                       />
                       <ReadOnlyField
                         label="Process step template ID"
@@ -435,6 +447,8 @@ function MetadataInput({
   locked = false,
   autoFocus,
   mono = false,
+  placeholder,
+  required = !locked,
   onChange,
 }: {
   label: string;
@@ -443,6 +457,8 @@ function MetadataInput({
   locked?: boolean;
   autoFocus?: boolean;
   mono?: boolean;
+  placeholder?: string;
+  required?: boolean;
   onChange?: (value: string) => void;
 }) {
   return (
@@ -455,8 +471,9 @@ function MetadataInput({
         autoFocus={autoFocus}
         className={`${inputClass} ${mono ? "font-mono text-xs" : ""}`}
         disabled={disabled}
+        placeholder={placeholder}
         readOnly={locked}
-        required={!locked}
+        required={required}
         value={value}
         onChange={onChange ? (event) => onChange(event.target.value) : undefined}
       />

@@ -699,7 +699,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             {"material": "SAC305", "thk": 65, "density": 58, "koz": 18},
         )
 
-    def test_flow_template_update_persists_metadata_and_defaults_without_changing_instances(self):
+    def test_flow_template_update_persists_metadata_labels_and_defaults_without_changing_instances(self):
         bootstrap = self.reset_poc_data()
         original = next(
             item
@@ -726,6 +726,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             "material": "EMC-UPDATED",
             "thickness": 205,
         }
+        molding_ref["stepLabel"] = "  Production molding  "
 
         response = self.client.put(
             "/api/process-flow-templates/flow_tpl_aaa_demo",
@@ -735,6 +736,17 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["name"], "AAA Production Flow")
         self.assertEqual(response.json()["owner"], "process.integration")
+        expected_refs = copy.deepcopy(updated["stepRefs"])
+        next(ref for ref in expected_refs if ref["stepRefId"] == "mold_cap")[
+            "stepLabel"
+        ] = "Production molding"
+        self.assertEqual(response.json()["stepRefs"], expected_refs)
+        self.assertEqual(response.json()["flowInputs"], original["flowInputs"])
+        self.assertEqual(response.json()["flowEdges"], original["flowEdges"])
+        self.assertEqual(
+            self.client.get("/api/process-step-templates").json(),
+            bootstrap["processStepTemplates"],
+        )
         self.assertEqual(
             next(
                 step_ref
@@ -842,13 +854,34 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         self.assertEqual(version_response.status_code, 409, version_response.text)
 
-        topology_change = copy.deepcopy(original)
-        topology_change["stepRefs"][0]["stepLabel"] = "Changed step"
-        topology_response = self.client.put(
-            "/api/process-flow-templates/flow_tpl_aaa_demo",
-            json=topology_change,
-        )
-        self.assertEqual(topology_response.status_code, 409, topology_response.text)
+        locked_changes = {}
+        for field, value in (
+            ("stepRefId", "changed_ref"),
+            ("processStepTemplateId", "step_tpl_molding"),
+        ):
+            changed = copy.deepcopy(original)
+            changed["stepRefs"][0][field] = value
+            locked_changes[field] = changed
+        changed_order = copy.deepcopy(original)
+        changed_order["stepRefs"].reverse()
+        locked_changes["step order"] = changed_order
+        changed_edge = copy.deepcopy(original)
+        changed_edge["flowEdges"][0]["target"]["stepRefId"] = "mold_cap"
+        locked_changes["edge"] = changed_edge
+        changed_input = copy.deepcopy(original)
+        changed_input["flowInputs"][0]["name"] = "Changed input"
+        locked_changes["flow input"] = changed_input
+        for field, changed in locked_changes.items():
+            with self.subTest(locked_field=field):
+                changed["stepRefs"][0]["stepLabel"] = "Otherwise allowed label"
+                rejected = self.client.put(
+                    "/api/process-flow-templates/flow_tpl_aaa_demo", json=changed,
+                )
+                self.assertEqual(rejected.status_code, 409, rejected.text)
+                self.assertEqual(
+                    self.client.get("/api/process-flow-templates/flow_tpl_aaa_demo").json(),
+                    original,
+                )
 
         unknown_default = copy.deepcopy(original)
         unknown_default["stepRefs"][0]["parameterDefaults"] = {"missing": 1}
@@ -888,6 +921,76 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         self.assertEqual(collection_response.status_code, 400, collection_response.text)
         self.assertIn("must use a scalar valueType", collection_response.json()["message"])
+
+    def test_flow_template_update_preserves_omitted_labels_and_clears_explicit_blank_labels(self):
+        original = self.client.get("/api/process-flow-templates/flow_tpl_aaa_demo").json()
+        omitted = copy.deepcopy(original)
+        omitted["name"] = "Updated without labels"
+        for step_ref in omitted["stepRefs"]:
+            step_ref.pop("stepLabel", None)
+
+        preserved = self.client.put(
+            "/api/process-flow-templates/flow_tpl_aaa_demo", json=omitted,
+        )
+        self.assertEqual(preserved.status_code, 200, preserved.text)
+        self.assertEqual(preserved.json()["stepRefs"], original["stepRefs"])
+
+        for label in ("", " \t\n ", None):
+            with self.subTest(label=label):
+                renamed = copy.deepcopy(original)
+                renamed["stepRefs"][0]["stepLabel"] = "Custom label"
+                response = self.client.put(
+                    "/api/process-flow-templates/flow_tpl_aaa_demo", json=renamed,
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                cleared = copy.deepcopy(response.json())
+                cleared["stepRefs"][0]["stepLabel"] = label
+                response = self.client.put(
+                    "/api/process-flow-templates/flow_tpl_aaa_demo", json=cleared,
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                expected = copy.deepcopy(renamed["stepRefs"])
+                expected[0]["stepLabel"] = ""
+                self.assertEqual(response.json()["stepRefs"], expected)
+                self.assertEqual(
+                    self.client.get("/api/process-flow-templates/flow_tpl_aaa_demo").json(),
+                    response.json(),
+                )
+
+    def test_flow_template_update_keeps_repeated_step_labels_independent(self):
+        source = self.client.get("/api/process-flow-templates/flow_tpl_aaa_demo").json()
+        source["name"] = "Repeated molding labels"
+        repeated_ref = copy.deepcopy(source["stepRefs"][1])
+        repeated_ref["stepRefId"] = "second_mold_cap"
+        repeated_ref["stepLabel"] = "Second molding"
+        repeated_ref["parameterDefaults"]["thickness"] = 250
+        source["stepRefs"].insert(2, repeated_ref)
+        mold_to_rdl = next(
+            edge for edge in source["flowEdges"]
+            if edge["target"]["stepRefId"] == "rdl_build"
+        )
+        mold_to_second = copy.deepcopy(mold_to_rdl)
+        mold_to_second["edgeId"] = "edge_mold_to_second_mold"
+        mold_to_second["target"]["stepRefId"] = "second_mold_cap"
+        mold_to_rdl["source"]["stepRefId"] = "second_mold_cap"
+        source["flowEdges"].append(mold_to_second)
+        created = self.client.post(
+            "/api/process-flow-templates", json=template_create_payload(source),
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        original = created.json()
+        updated = copy.deepcopy(original)
+        updated["stepRefs"][1]["stepLabel"] = "First molding"
+        url = f"/api/process-flow-templates/{original['id']}"
+        response = self.client.put(url, json=updated)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), updated)
+        self.assertEqual(response.json()["stepRefs"][2], original["stepRefs"][2])
+
+        updated["stepRefs"][2]["stepLabel"] = "First molding"
+        response = self.client.put(url, json=updated)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), updated)
 
     def test_flow_template_explicit_defaults_are_exact_and_scalar_only(self):
         bootstrap = self.reset_poc_data()

@@ -151,7 +151,7 @@ Normative service rules：
 - A `ProcessFlowTemplate` references a stable process-step id and snapshots its own scalar
   `parameterDefaults`。Step status、owner、category、program 與 definition defaults MAY update in place；
   existing flow defaults MUST NOT be rewritten by that update。
-- A `ProcessFlowInstance` references an immutable flow-template and either catalog geometry snapshots
+- A `ProcessFlowInstance` references a flow-template with locked identity/version/topology and either catalog geometry snapshots
   or versioned generator recipes. Catalog references MUST NOT drift；generator implementations MUST
   preserve the behavior of versions referenced by instances。
 - Physical foreign keys MAY 在 future schema 加入，但不得改變 JSON reference contract。
@@ -194,7 +194,10 @@ when no instance references it, and also removes its draft workspaces in the sam
 `ProcessStepTemplate` update只允許`status`、`owner`、`category`、`program`與recursive parameter
 `defaultValue`改變；id、version、name、description、ports與parameter definition contract MUST
 保持相同。`ProcessFlowTemplate` update只允許`status`、`name`、`owner`、`description`與
-既有step refs的`parameterDefaults`改變；identity、version與topology MUST保持相同。其他 immutable resource 的不可更新性是 API/domain guarantee，而不只是 UI
+既有step refs的`stepLabel`與`parameterDefaults`改變；identity、version與topology MUST保持相同。
+Label update 的清空、省略及共用顯示規則見
+[StepRef contract](../data-model.md#6-processflowtemplate) 與
+[ADR-0010](../architecture/decisions/0010-editable-flow-step-labels.md)。其他 immutable resource 的不可更新性是 API/domain guarantee，而不只是 UI
 disabled state。Repository layer SHOULD 提供 resource-specific methods，MUST NOT expose generic
 overwrite/upsert。
 
