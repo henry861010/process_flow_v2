@@ -38,7 +38,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Micro Bump | `bump/uBump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
-| tiv | `tiv/tiv` | `main_geometry` | `thk`, `material`, `density` | 在 cursor 上方建立 `+z` via feature |
+| tmv | `tmv/tmv` | `main_geometry` | `thk`, `material`, `density` | 在 cursor 上方建立 `+z` via feature |
 | PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `placements` | 依 explicit或primitive-default adapter materialize absolute rectangle/polygon target |
 
 ## 共同行為
@@ -65,7 +65,7 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 bump envelope。 |
-| tiv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
+| tmv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
 | PnP | 不變 | 不變 | 依placements order將absolute target轉為adapter-local frame整批adapt；全部成功後attach到target center。 |
 
 ## 重要 operation 說明
@@ -105,7 +105,7 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
   必須完整位於target內。Unknown adapter id/version明確失敗。
 - PnP先完成整個placements batch的validation/materialization；任一筆失敗時不得attach任何child。
 - Bump feature envelope 不會預先套用 `koz`；各 exporter 的 current behavior 見 [geometry-semantics.md](../../concepts/geometry-semantics.md)。
-- TIV 需要既有 process footprint、正的 `thk`、非空 `material` 與 `0` 到 `100`（含端點）的 `density`；輸出的 via direction 固定為 `+z`、`koz` 為 `0`，且不推進 cursor。
+- TMV 需要既有 process footprint、正的 `thk`、非空 `material` 與 `0` 到 `100`（含端點）的 `density`；輸出的 via direction 固定為 `+z`、`koz` 為 `0`，且不推進 cursor。
 
 ## 開發與驗證
 

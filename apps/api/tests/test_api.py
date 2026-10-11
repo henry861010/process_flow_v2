@@ -324,32 +324,33 @@ class ProcessFlowApiTests(unittest.TestCase):
         api_services.validate_process_step_template(daf)
         self.assertTrue(callable(ProcessStepModuleResolver().resolve(daf).execute))
 
-    def test_tiv_fixture_exposes_via_contract(self):
+    def test_tmv_fixture_exposes_via_contract(self):
         payload = self.client.get("/api/bootstrap").json()
-        tiv = next(
+        tmv = next(
             template
             for template in payload["processStepTemplates"]
-            if template["id"] == "step_tpl_tiv"
+            if template["id"] == "step_tpl_tmv"
         )
 
-        self.assertEqual(tiv["version"], "V0.0.0")
-        self.assertEqual(tiv["name"], "tiv")
-        self.assertEqual(tiv["category"], "tiv")
-        self.assertEqual(tiv["program"], "tiv/tiv")
-        api_services.validate_process_step_template(tiv)
+        self.assertEqual(tmv["version"], "V0.0.0")
+        self.assertEqual(tmv["name"], "tmv")
+        self.assertEqual(tmv["category"], "tmv")
+        self.assertEqual(tmv["program"], "tmv/tmv")
+        api_services.validate_process_step_template(tmv)
+        self.assertTrue(callable(ProcessStepModuleResolver().resolve(tmv).execute))
         self.assertEqual(
             [
                 (definition["id"], definition["valueType"])
-                for definition in tiv["parameterDefinitions"]
+                for definition in tmv["parameterDefinitions"]
             ],
             [("thk", "float"), ("material", "materialRef"), ("density", "float")],
         )
         self.assertEqual(
-            tiv["parameterDefinitions"][0]["validation"],
+            tmv["parameterDefinitions"][0]["validation"],
             {"min": 0, "exclusiveMin": True},
         )
         self.assertEqual(
-            tiv["parameterDefinitions"][2]["validation"],
+            tmv["parameterDefinitions"][2]["validation"],
             {"min": 0, "max": 100},
         )
 

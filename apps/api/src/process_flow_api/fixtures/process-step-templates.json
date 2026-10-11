@@ -858,18 +858,18 @@
   {
     "schemaVersion": 2,
     "status": "enabled",
-    "id": "step_tpl_tiv",
+    "id": "step_tpl_tmv",
     "version": "V0.0.0",
-    "name": "tiv",
-    "category": "tiv",
-    "program": "tiv/tiv",
-    "description": "Forms an upward TIV via feature above cursorZ using the current process footprint without advancing the cursor.",
+    "name": "tmv",
+    "category": "tmv",
+    "program": "tmv/tmv",
+    "description": "Forms an upward TMV via feature above cursorZ using the current process footprint without advancing the cursor.",
     "owner": "integration.platform",
     "inputPorts": [
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Geometry state consumed by TIV formation. The state must already carry a process footprint.",
+        "description": "Geometry state consumed by TMV formation. The state must already carry a process footprint.",
         "dataType": "geometry",
         "role": "primary",
         "required": true
@@ -887,7 +887,7 @@
       {
         "id": "thk",
         "name": "thk",
-        "description": "Positive TIV thickness. The via bottom is aligned to cursorZ and extends upward without advancing the cursor.",
+        "description": "Positive TMV thickness. The via bottom is aligned to cursorZ and extends upward without advancing the cursor.",
         "valueType": "float",
         "controlType": "number",
         "selectionMode": null,
@@ -900,7 +900,7 @@
       {
         "id": "material",
         "name": "material",
-        "description": "TIV material name or material entity id.",
+        "description": "TMV material name or material entity id.",
         "valueType": "materialRef",
         "controlType": "text",
         "selectionMode": null,
@@ -909,7 +909,7 @@
       {
         "id": "density",
         "name": "density",
-        "description": "TIV density recorded as a 0 to 100 percentage value.",
+        "description": "TMV density recorded as a 0 to 100 percentage value.",
         "valueType": "float",
         "controlType": "number",
         "selectionMode": null,
