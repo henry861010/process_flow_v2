@@ -14,6 +14,7 @@ CONTAINER_KEYS = frozenset(
         "lsi",
         "cpo",
         "vrm",
+        "wafer-dmy",
     }
 )
 
@@ -39,6 +40,7 @@ BODY_KEYS = frozenset(
         "soc.usg",
         "soc.elk",
         "soc.si",
+        "wafer-dmy.si",
     }
 ) | _HBM_CORE_DIE_KEYS
 

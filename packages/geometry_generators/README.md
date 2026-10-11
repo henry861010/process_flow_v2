@@ -34,6 +34,16 @@ the four-layer defaults. Explicit new layer parameters take precedence, and save
 recipes retain zero thickness values. Existing static catalog geometry is updated
 only when regenerated. VRM remains a separate single-box generator.
 
+Wafer dmy (`wafer-dmy` v1, category `die.wafer-dmy`) builds one Si dummy die
+for wafer-edge placement to control warpage. Its editable `siThickness` and
+`siMaterial` default to 200 um and `si`, grouped under `si`. It uses an
+8000 x 10000 um preview footprint centered on XYZ and `box-rescale@1` for PnP
+rectangle or polygon targets. The root key is `wafer-dmy`; its sole body key
+is `wafer-dmy.si`. Zero thickness retains that body. It is available only in
+the template geometry library and flow input pickers, with no Home or Management
+entry or catalog fixture. Placement positions and counts remain flow/PnP inputs;
+the generator does not arrange dies automatically or calculate warpage.
+
 All built-in generators accept finite thickness values greater than or equal to
 0, including DRAM buildup layer thicknesses and both LSI generations. Their
 manifests use an inclusive minimum of 0. DRAM package thickness must still

@@ -9,6 +9,7 @@ import {
   catalogGeneratorHref,
   generatorsForFlowInput,
   generatorsForPlacement,
+  generatorDisplayName,
 } from "./geometry-generator-placements";
 import type { FlowInputDefinition } from "@/lib/process-flow/types";
 
@@ -40,6 +41,10 @@ const definitions = [
   definition("soc", "die.soc", ["templateGeometryLibrary", "flowInputPicker"]),
   definition("vrm", "die.vrm", ["templateGeometryLibrary", "flowInputPicker"]),
   definition("lsi", "die.lsi", ["management", "templateGeometryLibrary", "flowInputPicker"]),
+  {
+    ...definition("wafer-dmy", "die.wafer-dmy", ["templateGeometryLibrary", "flowInputPicker"]),
+    label: "wafer dmy generator",
+  },
 ];
 
 function input(category: string): FlowInputDefinition {
@@ -57,7 +62,7 @@ describe("generator UI placements", () => {
     expect(generatorsForPlacement(definitions, "home").map((item) => item.id)).toEqual(["hbm", "dram"]);
     expect(generatorsForPlacement(definitions, "management").map((item) => item.id)).toEqual(["lsi"]);
     expect(generatorsForPlacement(definitions, "templateGeometryLibrary").map((item) => item.id))
-      .toEqual(["soc", "vrm", "lsi"]);
+      .toEqual(["soc", "vrm", "lsi", "wafer-dmy"]);
     expect(catalogGeneratorHref(definitions[0])).toBe("/geometry-generator?generatorId=hbm");
   });
 
@@ -67,6 +72,9 @@ describe("generator UI placements", () => {
     expect(generatorsForFlowInput(definitions, input("die.soc")).map((item) => item.id)).toEqual(["soc"]);
     expect(generatorsForFlowInput(definitions, input("die.vrm")).map((item) => item.id)).toEqual(["vrm"]);
     expect(generatorsForFlowInput(definitions, input("die.lsi")).map((item) => item.id)).toEqual(["lsi"]);
+    expect(generatorsForFlowInput(definitions, input("die.wafer-dmy")).map((item) => item.id)).toEqual(["wafer-dmy"]);
+    expect(generatorsForFlowInput(definitions, input("die")).map((item) => item.id))
+      .toEqual(["soc", "vrm", "lsi", "wafer-dmy"]);
   });
 
   it("hides recipe editing when a generator is absent from the flow input picker", () => {
@@ -76,5 +84,10 @@ describe("generator UI placements", () => {
     expect(canEditGeneratorBinding(definitions, {
       kind: "generator", generatorId: "soc", generatorVersion: 1, parameters: {},
     })).toBe(true);
+    expect(canEditGeneratorBinding(definitions, {
+      kind: "generator", generatorId: "wafer-dmy", generatorVersion: 1,
+      parameters: { siThickness: 200, siMaterial: "si" },
+    })).toBe(true);
+    expect(generatorDisplayName(definitions[5])).toBe("wafer dmy");
   });
 });

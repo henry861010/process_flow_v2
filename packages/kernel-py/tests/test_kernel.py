@@ -421,6 +421,7 @@ class GeometryDomainTests(unittest.TestCase):
             "soc.usg",
             "soc.elk",
             "soc.si",
+            "wafer-dmy.si",
         ):
             with self.subTest(key=key):
                 self.assertEqual(Body(geometry, "Si", key).key(), key)

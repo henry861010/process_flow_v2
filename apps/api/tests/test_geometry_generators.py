@@ -29,6 +29,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             "soc": ["templateGeometryLibrary", "flowInputPicker"],
             "vrm": ["templateGeometryLibrary", "flowInputPicker"],
             "lsi": ["management", "templateGeometryLibrary", "flowInputPicker"],
+            "wafer-dmy": ["templateGeometryLibrary", "flowInputPicker"],
         }
         listed = self.client.get("/api/geometry-generators")
         self.assertEqual(listed.status_code, 200, listed.text)
@@ -126,7 +127,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         definitions = response.json()
-        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc", "vrm", "lsi"])
+        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc", "vrm", "lsi", "wafer-dmy"])
         hbm = definitions[0]
         self.assertEqual(hbm["version"], 2)
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
@@ -1264,6 +1265,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             }),
             ("soc", 1, {f"{layer}Thickness": 0 for layer in ("pass2", "usg", "elk", "si")}),
             ("vrm", 1, {"thickness": 0}),
+            ("wafer-dmy", 1, {"siThickness": 0}),
             ("lsi", 1, {"generation": "gen1", "siThickness": 0, "usgThickness": 0, "lsiTopMoldingThickness": 0}),
             ("lsi", 1, {"generation": "gen2", "bsmcThickness": 0, "siThickness": 0, "usgThickness": 0, "prePm0Thickness": 0}),
         )

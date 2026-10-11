@@ -41,6 +41,7 @@ Key 不存在表示 producer 未指定 semantic tag。Producer MUST omit 未指�
 - `lsi`
 - `cpo`
 - `vrm`
+- `wafer-dmy`
 
 `carrier` family query MAY 匹配 `carrier`、`carrier.panel` 與 `carrier.wafer`；process
 operation 預設仍使用 exact matching。未登記的 display label、尺寸、產品世代與 sibling sequence
@@ -63,6 +64,7 @@ MUST NOT 放入 key。
 - `hbm.pass2`、`hbm.usg`、`hbm.elk`：HBM base die 下方由下而上的三層實體；厚度為 0 時省略。
 - `soc.pass2`、`soc.usg`、`soc.elk`、`soc.si`：SoC generator 由下而上建立的四層實體；
   厚度為 0 的層不建立 body。
+- `wafer-dmy.si`：wafer dmy generator 建立的唯一 Si dummy die body；厚度為 0 時仍保留。
 
 `envelope` 在本版仍是一般 material-owning physical Body；CAD、mesh 與 section consumer 不得
 只因 key 是 `envelope` 就忽略、改變 priority 或改變 materialization。未來 operation 可以明確以
@@ -80,6 +82,8 @@ MUST NOT 放入 key。
 - SoC generator 標記 root container 為 `soc`，各層 Box body 使用 `soc.pass2`、`soc.usg`、
   `soc.elk`、`soc.si`。VRM generator 標記 root container 為 `vrm`，唯一的 Box body
   標記為 `envelope`。
+- wafer dmy generator 標記 root container 為 `wafer-dmy`，唯一 Si Box body 使用
+  `wafer-dmy.si`。
 - Molding 與 DAF 分別建立 `molding`、`daf` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
   `daf` role 視為可選的 bonded DAF。

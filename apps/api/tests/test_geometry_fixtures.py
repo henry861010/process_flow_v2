@@ -58,6 +58,7 @@ class GeometryFixtureTests(unittest.TestCase):
         )
         self.assertEqual(counts["die.soc"], 0)
         self.assertEqual(counts["die.lsi"], 0)
+        self.assertEqual(counts["die.wafer-dmy"], 0)
 
     def test_geometry_ids_are_unique(self):
         ids = [item["id"] for item in self.geometries]
@@ -101,6 +102,7 @@ class GeometryFixtureTests(unittest.TestCase):
                     "lsi",
                     "cpo",
                     "vrm",
+                    "wafer-dmy",
                 }
             ),
         )
@@ -124,6 +126,7 @@ class GeometryFixtureTests(unittest.TestCase):
                     "soc.usg",
                     "soc.elk",
                     "soc.si",
+                    "wafer-dmy.si",
                 }
             )
             | frozenset(
