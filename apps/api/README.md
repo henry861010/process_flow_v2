@@ -189,6 +189,12 @@ parse 完整字串。
 
 Current API 沒有 authentication/authorization。Reset endpoint 可刪除資料；export endpoint 可寫入/replace API host absolute path；`clientId` 不是 identity。只可部署在受信任 local environment。
 
+File export 的 JSON、CDB、STEP 主檔、CDB 附帶的 geometry／mesh-control JSON，以及每個
+job 的 log，皆明確設定為 `0777`（所有使用者可讀、寫與執行）。主檔在發布至最終路徑前
+設定權限；附帶 JSON 在寫入後、log 在建立後設定。權限設定失敗時工作不會回報成功；
+log 權限設定失敗則拒絕建立工作並清除該 log。此設定只套用後續匯出（包含覆蓋匯出），
+不修改輸出目錄、內部輸入暫存檔、全域 umask，也不批次修改既有檔案。
+
 ## 測試
 
 ```bash

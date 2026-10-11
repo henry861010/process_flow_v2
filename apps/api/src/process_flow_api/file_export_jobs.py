@@ -26,6 +26,7 @@ from .cdb_exporter import (
     parse_cdb_worker_stdout,
     start_cdb_worker,
 )
+from .export_file_permissions import set_export_file_permissions
 from .export_job_logging import (
     ExportJobLogError,
     ExportJobLogger,
@@ -904,7 +905,9 @@ class FileExportJobManager:
             raise RuntimeError("CDB export sidecar paths are unavailable.")
 
         _write_pretty_json_export(geometry_input_path, geometry_output_path)
+        set_export_file_permissions(geometry_output_path)
         _write_pretty_json_export(mesh_control_input_path, mesh_control_output_path)
+        set_export_file_permissions(mesh_control_output_path)
         return {
             "geometryOutputPath": str(geometry_output_path),
             "meshControlOutputPath": str(mesh_control_output_path),
@@ -929,12 +932,17 @@ class FileExportJobManager:
                 self._record_terminal_event_locked(job, "job.canceled")
                 self._prune_locked()
                 return
+            operation = "set_output_permissions"
+            action = "setting temp file permissions"
             try:
+                set_export_file_permissions(job.temp_output_path)
+                operation = "finalize_output"
+                action = "moving temp file"
                 job.temp_output_path.replace(job.output_path)
             except Exception as error:
                 job.status = "failed"
                 job.finished_at = _now()
-                job.message = f"{_kind_label(job.kind)} export failed while moving temp file: {error}"
+                job.message = f"{_kind_label(job.kind)} export failed while {action}: {error}"
                 job.warning = _merge_warnings(
                     job.warning,
                     _cleanup_job_artifacts(job, include_temp_output=True),
@@ -945,7 +953,7 @@ class FileExportJobManager:
                     data={
                         "exceptionType": type(error).__name__,
                         "message": str(error),
-                        "operation": "finalize_output",
+                        "operation": operation,
                     },
                 )
                 self._prune_locked()

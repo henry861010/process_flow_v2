@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TextIO
 
+from .export_file_permissions import set_export_file_permissions
+
 JsonObject = dict[str, Any]
 
 
@@ -62,13 +64,19 @@ class ExportJobLogger:
             handle = path.open("x", encoding="utf-8", buffering=1)
         except Exception as error:
             raise ExportJobLogError(f"Could not create export log {path}: {error}") from error
-        return cls(
+        logger = cls(
             path=path,
             handle=handle,
             job_id=job_id,
             kind=kind,
             created_at=created_at,
         )
+        try:
+            set_export_file_permissions(path)
+        except Exception as error:
+            logger.abort()
+            raise ExportJobLogError(f"Could not create export log {path}: {error}") from error
+        return logger
 
     def write_header(
         self,

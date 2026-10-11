@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import sqlite3
+import stat
 import sys
 import tempfile
 import threading
@@ -2383,6 +2384,10 @@ class ProcessFlowApiTests(unittest.TestCase):
 
     def test_cdb_export_job_writes_text_cdb_file(self):
         output_path = Path(self.tmp.name) / "MODEL.CDB"
+        for suffix in (".cdb", ".geometry.json", ".mesh-control.json"):
+            existing_path = output_path.with_suffix(suffix)
+            existing_path.write_text("previous output", encoding="utf-8")
+            existing_path.chmod(0o600)
 
         response = self.client.post(
             "/api/geometry-preview/cdb-jobs",
@@ -2413,6 +2418,13 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["progress"]["stage"], "finalizing")
         self.assertEqual(job["logPath"], str(Path(self.tmp.name) / f"{job['jobId']}.log"))
         self.assertTrue(normalized_output_path.exists())
+        for path in (
+            normalized_output_path,
+            geometry_output_path,
+            mesh_control_output_path,
+            Path(job["logPath"]),
+        ):
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o777, str(path))
         self.assertEqual(
             json.loads(geometry_output_path.read_text(encoding="utf-8")),
             simple_structure(),
@@ -2499,6 +2511,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         mesh_control_output_path = Path(job["meshControlOutputPath"])
         self.assertEqual(job["status"], "failed", job)
         self.assertFalse(output_path.exists())
+        for path in (geometry_output_path, mesh_control_output_path, Path(job["logPath"])):
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o777, str(path))
         self.assertEqual(
             json.loads(geometry_output_path.read_text(encoding="utf-8")),
             simple_structure(),
@@ -2632,12 +2646,15 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         self.assertEqual(completed["status"], "canceled", completed)
         self.assertFalse(output_path.exists())
+        self.assertEqual(stat.S_IMODE(Path(completed["logPath"]).stat().st_mode), 0o777)
         log_text = Path(completed["logPath"]).read_text(encoding="utf-8")
         self.assertIn("Cancellation requested", log_text)
         self.assertIn("Status: canceled", log_text)
 
     def test_json_export_job_writes_geometry_entity_file(self):
         output_path = Path(self.tmp.name) / "PREVIEW.JSON"
+        output_path.with_suffix(".json").write_text("previous output", encoding="utf-8")
+        output_path.with_suffix(".json").chmod(0o600)
         geometry_entity = preview_geometry_entity()
 
         response = self.client.post(
@@ -2661,6 +2678,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertTrue(normalized_output_path.exists())
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertEqual(json.loads(content), geometry_entity)
+        for path in (normalized_output_path, Path(job["logPath"])):
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o777, str(path))
         self.assertIn('\n  "entityType": "preview"', content)
         json_log = Path(job["logPath"]).read_text(encoding="utf-8")
         self.assert_log_actions_in_order(
@@ -2720,6 +2739,8 @@ class ProcessFlowApiTests(unittest.TestCase):
 
     def test_step_export_job_writes_step_file(self):
         output_path = Path(self.tmp.name) / "MODEL.STEP"
+        output_path.with_suffix(".step").write_text("previous output", encoding="utf-8")
+        output_path.with_suffix(".step").chmod(0o600)
 
         response = self.client.post(
             "/api/geometry-preview/export-jobs",
@@ -2740,6 +2761,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(job["outputPath"], str(normalized_output_path))
         self.assertIsNone(job["meshControl"])
         self.assertTrue(normalized_output_path.exists())
+        for path in (normalized_output_path, Path(job["logPath"])):
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o777, str(path))
         content = normalized_output_path.read_text(encoding="utf-8", errors="replace")
         self.assertIn("ISO-10303-21", content)
         step_log = Path(job["logPath"]).read_text(encoding="utf-8")
@@ -3068,6 +3091,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         log_path = Path(response.json()["job"]["logPath"])
         self.assertEqual(log_path.name, f"{job_id}.log")
         self.assertTrue(log_path.exists())
+        self.assertEqual(stat.S_IMODE(log_path.stat().st_mode), 0o777)
         internal_job = self.app.state.file_export_jobs._jobs[job_id]
         input_directory = internal_job.input_directory
         self.assertIsNotNone(input_directory)
@@ -3088,6 +3112,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         log_text = log_path.read_text(encoding="utf-8")
         self.assertIn("Cancellation requested", log_text)
         self.assertIn("Status: canceled", log_text)
+        self.assertEqual(stat.S_IMODE(log_path.stat().st_mode), 0o777)
 
 
 def preview_session_request(
