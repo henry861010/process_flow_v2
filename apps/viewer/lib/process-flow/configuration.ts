@@ -12,10 +12,12 @@ import { isPlacementValid } from "./placement-validation";
 import { analyzeFlowDependencies, type FlowDependencies } from "./dependencies";
 
 export function geometryCategoryConstraints(
-  geometry: Pick<GeometryEntity, "category">,
+  geometry: Pick<GeometryEntity, "category"> & Partial<Pick<GeometryEntity, "entityType">>,
 ): GeometryConstraints | null {
-  const category = geometry.category;
-  return category.trim() ? { categories: [category] } : null;
+  const category = geometry.category ?? "";
+  if (category.trim()) return { categories: [category] };
+  const entityType = geometry.entityType?.trim();
+  return entityType ? { entityTypes: [entityType] } : null;
 }
 
 export function createEmptyFlowConfiguration(

@@ -329,8 +329,8 @@ class WorkspaceCommitRequest(StrictModel):
 class GeometryEntity(StrictModel):
     id: str | None = None
     category: str | None = None
-    entityType: str
-    name: str
+    entityType: NonBlankString
+    name: NonBlankString
     dim: str
     vendor: str | None = Field(default=None, exclude_if=lambda value: value is None)
     type1: str | None = Field(default=None, exclude_if=lambda value: value is None)
@@ -338,7 +338,7 @@ class GeometryEntity(StrictModel):
     owner: str | None = None
     description: str | None = None
     icon: str | None = None
-    iconScale: float | None = None
+    iconScale: PositiveFiniteFloat | None = None
     structureFormat: str = "standard"
     structure: JsonObject
     generation: GeometryGeneration | None = None

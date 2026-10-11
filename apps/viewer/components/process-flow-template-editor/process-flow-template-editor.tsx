@@ -460,7 +460,7 @@ function ProcessFlowTemplateEditorInner() {
   function addFlowInput(
     position: { x: number; y: number },
     source: {
-      geometry: { id: string; category: string };
+      geometry: { id: string; category?: string | null; entityType?: string };
       binding: GeometryBinding;
       suggestedName?: string;
     },

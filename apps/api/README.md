@@ -6,8 +6,8 @@ audience:
   - API consumers
   - backend engineers
   - operators
-last_verified: 2026-07-11
-last_verified_commit: b01b1e70
+last_verified: 2026-10-11
+last_verified_commit: 990aaf71
 source_of_truth:
   - apps/api/src/process_flow_api/main.py
   - apps/api/src/process_flow_api/models.py
@@ -79,7 +79,12 @@ Process-step template deletion is not supported. `DELETE /api/process-step-templ
 | --- | --- | --- |
 | `GET` | `/api/geometries` | List；支援 `search`、`category`、`entityType` |
 | `GET` | `/api/geometries/{id}` | Detail |
-| `POST` | `/api/geometries` | Insert；missing/empty id 由 API generate |
+| `POST` | `/api/geometries` | Validate standard structure, normalize IDs/collections, insert；missing/empty id 由 API generate |
+
+Geometry creation accepts a complete GeometryStructure wrapper (`schemaVersion: "1.0.0"`,
+`unitSystem: "um"`, `root`). Invalid structures return a `400` message with a field path before
+any insert; malformed metadata returns `422`. Valid explicit structure IDs are preserved, while
+omitted IDs and empty collections are filled deterministically. Catalog owner remains optional.
 
 ### Geometry generator
 

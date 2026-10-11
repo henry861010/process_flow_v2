@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-09-15
-last_verified_commit: 04a77e132dd0777e3ddc029dd77f56a0c25b0692
+last_verified: 2026-10-11
+last_verified_commit: 990aaf71
 source_of_truth:
   - apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx
 ---
@@ -40,6 +40,8 @@ Adding a catalog geometry or generator creates a flow input whose
 `geometryConstraints.categories` contains that geometry's category. The category is part of the
 saved template contract, while the selected catalog geometry id or generator recipe remains a
 preview-only binding.
+Catalog geometry with an omitted or blank category uses an `entityTypes` constraint instead;
+the library groups these records under `uncategorized`.
 Before saving, the author may adjust the allowed category list in Advanced settings; after saving,
 the existing topology lock makes those constraints read-only.
 

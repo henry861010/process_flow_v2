@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-09-15
-last_verified_commit: 04a77e132dd0777e3ddc029dd77f56a0c25b0692
+last_verified: 2026-10-11
+last_verified_commit: 990aaf71
 source_of_truth:
   - apps/viewer/app/page.tsx
 ---
@@ -30,6 +30,8 @@ Home is the primary entry point for creating immutable `ProcessFlowInstance` rec
 - A card links to `/flow-instance-editor?templateId=<encoded id>`.
 - The lower `Create resources` area links to `/flow-template-editor` and all generators whose
   `uiPlacements` includes `home`. HBM and DRAM use `/geometry-generator?generatorId=<id>`.
+- A `+ Geometry` command follows the generator commands and links to `/geometry-editor` for
+  direct GeometryStructure JSON authoring. It remains available during loading and API errors.
 - Loading uses stable card skeletons. API errors keep known content and expose `Retry`. Empty data
   shows `No process flow templates` while preserving all create commands.
 
@@ -38,7 +40,8 @@ Home is the primary entry point for creating immutable `ProcessFlowInstance` rec
 - `UI-HOME-001`: enabled bootstrap templates produce one keyboard-accessible card each; disabled templates are hidden.
 - `UI-HOME-002`: every card carries the correct encoded `templateId` route and only the required
   name, owner, version, and Enabled status metadata.
-- `UI-HOME-003`: Create Template/HBM/DRAM and Management navigate to their configured routes.
+- `UI-HOME-003`: Create Template/HBM/DRAM, Geometry, and Management navigate to their configured routes;
+  Geometry appears after the generator commands.
 - `UI-HOME-004`: loading, empty, and API-error states do not flash false data.
 - `UI-HOME-005`: 390px viewport has no document-level horizontal overflow.
 

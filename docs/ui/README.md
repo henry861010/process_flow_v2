@@ -8,8 +8,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-13
-last_verified_commit: 7a94eded086c7a18bd082cf315e413cf97fc698c
+last_verified: 2026-10-11
+last_verified_commit: 990aaf71
 source_of_truth:
   - apps/viewer/app
   - apps/viewer/components
@@ -58,6 +58,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/flow-template-editor` | [Flow Template Editor](screens/flow-template-editor.md) |
 | `/flow-instance-editor` | [Flow Instance Editor](screens/flow-instance-editor.md) |
 | `/geometry-generator?generatorId=<id>` | [Geometry Generator Editor](screens/geometry-generator-editor.md) |
+| `/geometry-editor` | [Geometry JSON Editor](screens/geometry-editor.md) |
 | `/management` | [Management](screens/management.md) |
 | `/dashboard` | [Job Dashboard](screens/dashboard.md) |
 | `/cad-viewer` | [CAD Viewer](screens/cad-viewer.md) |

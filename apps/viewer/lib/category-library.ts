@@ -1,5 +1,5 @@
 export type CategoryRecord = {
-  category: string;
+  category?: string | null;
 };
 
 export type CategoryFolder = {
@@ -14,15 +14,15 @@ export type CategoryHierarchyLevel<T extends CategoryRecord> = {
   items: T[];
 };
 
-export function getCategoryPath(category: string) {
-  const segments = category
+export function getCategoryPath(category?: string | null) {
+  const segments = (category ?? "")
     .split(".")
     .map((segment) => segment.trim())
     .filter(Boolean);
   return segments.length > 0 ? segments : ["uncategorized"];
 }
 
-export function formatCategoryPath(category: string) {
+export function formatCategoryPath(category?: string | null) {
   return getCategoryPath(category).join(" / ");
 }
 

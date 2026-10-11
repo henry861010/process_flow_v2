@@ -267,7 +267,7 @@ export type TemplateInstanceCreateRequest = {
 
 export type GeometryEntity = {
   id: string;
-  category: string;
+  category?: string | null;
   name: string;
   dim: string;
   vendor?: string | null;
@@ -282,6 +282,14 @@ export type GeometryEntity = {
   structure?: unknown;
   generation?: GeometryGeneration;
   adaptationContract?: GeometryAdaptationContract;
+};
+
+export type GeometryEntityCreate = Omit<GeometryEntity, "id" | "structure" | "category" | "owner" | "description"> & {
+  id?: null;
+  structure: Record<string, unknown>;
+  category?: string;
+  owner?: string;
+  description?: string;
 };
 
 export type StepCompletion = {

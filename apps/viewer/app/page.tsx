@@ -157,6 +157,9 @@ export default function Home() {
                 </Link>
               </Button>
             ))}
+            <Button asChild variant="outline">
+              <Link href="/geometry-editor"><Plus />Geometry</Link>
+            </Button>
           </div>
         </section>
       </div>

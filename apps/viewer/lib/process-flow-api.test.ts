@@ -8,9 +8,32 @@ import {
   deleteGeometry,
   deleteProcessFlowInstance,
   deleteProcessFlowTemplate,
+  createGeometry,
 } from "./process-flow-api";
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("manual geometry creation requests", () => {
+  const request = {
+    name: "Custom die", entityType: "die", owner: "engineering", dim: "", structureFormat: "standard",
+    structure: { schemaVersion: "1.0.0", unitSystem: "um", root: {} },
+  };
+
+  it("posts a structure and metadata without a caller-generated ID", async () => {
+    const saved = { ...request, id: "geom_custom_die_123" };
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(createGeometry(request)).resolves.toEqual(saved);
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/geometries"), expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(request);
+  });
+
+  it("keeps the structure validation path from the API for inline display", async () => {
+    const message = "structure.root.bodies[0].geometry.thk: must be positive";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ message }), { status: 400 })));
+    await expect(createGeometry(request)).rejects.toMatchObject({ status: 400, message });
+  });
+});
 
 describe("resource deletion requests", () => {
   it.each([

@@ -15,7 +15,7 @@ from process_flow_geometry_generators import (
     GeometryGeneratorRegistry,
     register_builtin_generators,
 )
-from process_flow_kernel import ProcessGeometryState, validate_geometry_semantic_keys
+from process_flow_kernel import ProcessGeometryState
 from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry
 
 from .file_export_jobs import FileExportJobManager
@@ -23,6 +23,7 @@ from .analytics import AnalyticsRecorder
 from .analytics_http import AnalyticsMiddleware, AnalyticsRoute
 from .fixture_export import MAX_ARCHIVE_BYTES, build_fixture_archive, load_fixture_archive
 from .identifiers import generated_geometry_id
+from .geometry_validation import validate_catalog_structure
 from .models import (
     CdbFileExportCreateRequest,
     DashboardJobsResponse,
@@ -240,7 +241,7 @@ def create_app(
     @app.post("/api/geometries", status_code=status.HTTP_201_CREATED)
     async def create_geometry(request: Request, body: GeometryEntity):
         payload = body.payload()
-        validate_geometry_semantic_keys(payload["structure"])
+        payload["structure"] = validate_catalog_structure(payload)
         if payload.get("id") in (None, ""):
             payload["id"] = generated_geometry_id(payload)
         return get_store(request).insert_geometry(payload)

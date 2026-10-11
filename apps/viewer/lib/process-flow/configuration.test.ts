@@ -72,6 +72,16 @@ describe("flow input geometry category constraints", () => {
 
   it("does not create an unrestricted constraint for an uncategorized geometry", () => {
     expect(geometryCategoryConstraints({ category: "  " })).toBeNull();
+    expect(geometryCategoryConstraints({})).toBeNull();
+    expect(geometryCategoryConstraints({ category: null })).toBeNull();
+  });
+
+  it("uses entity type constraints when a manual geometry has no category", () => {
+    expect(geometryCategoryConstraints({ entityType: "die" })).toEqual({ entityTypes: ["die"] });
+    const { category: _category, ...manual } = baseGeometry;
+    const input = { ...constrainedInput, geometryConstraints: geometryCategoryConstraints(manual) ?? undefined };
+    expect(geometryMatchesFlowInput(manual, input)).toBe(true);
+    expect(geometryMatchesFlowInput({ ...manual, entityType: "panel" }, input)).toBe(false);
   });
 
   it("accepts an exact category and its descendants", () => {
