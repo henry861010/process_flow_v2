@@ -30,7 +30,7 @@ def test_create_assigns_unique_ids_and_preserves_existing_records(service, kind)
     app, client, snapshot, template, instance = service
     request = template_create_payload(template) if kind == "templates" else instance_create_payload(instance)
     route = f"/api/process-flow-{kind}"
-    created = [client.post(route, json=request) for _ in range(2)]
+    created = [client.post(route, json={**request, "name": f"Generated {kind} {index}"}) for index in range(2)]
     assert all(response.status_code == 201 for response in created)
     identifiers = [response.json()["id"] for response in created]
     assert identifiers[0] != identifiers[1]
@@ -81,7 +81,10 @@ def test_combined_create_assigns_relationship_and_analytics_ids(service):
     app, client, before, template, instance = service
     request = {"processFlowTemplate": template_create_payload(template),
                "processFlowInstance": instance_create_payload(instance, for_new_template=True)}
-    created = [client.post("/api/process-flow-template-instances", json=request) for _ in range(2)]
+    created = [client.post("/api/process-flow-template-instances", json={
+        "processFlowTemplate": {**request["processFlowTemplate"], "name": f"Generated template {index}"},
+        "processFlowInstance": {**request["processFlowInstance"], "name": f"Generated instance {index}"},
+    }) for index in range(2)]
     for response in created:
         assert response.status_code == 201, response.text
         saved_template = response.json()["processFlowTemplate"]
@@ -109,7 +112,7 @@ def test_combined_create_assigns_relationship_and_analytics_ids(service):
 @pytest.mark.parametrize("kind", ["template", "instance", "combined-template", "combined-instance"])
 def test_id_collision_rolls_back_all_records(service, kind):
     app, client, before, template, instance = service
-    instance_request = instance_create_payload(instance)
+    instance_request = {**instance_create_payload(instance), "name": "ID collision instance"}
     geometry = next(item for item in before["geometries"] if item["id"] == "hbm3_8hi")
     instance_request["inputBindings"] = copy.deepcopy(instance_request["inputBindings"])
     instance_request["inputBindings"]["incoming_hbm"] = {"kind": "embedded", "localId": "collision-geometry"}
@@ -117,12 +120,12 @@ def test_id_collision_rolls_back_all_records(service, kind):
         "collision-geometry": {key: value for key, value in geometry.items() if key != "id"},
     }
     if kind == "template":
-        route, request = "/api/process-flow-templates", template_create_payload(template)
+        route, request = "/api/process-flow-templates", {**template_create_payload(template), "name": "ID collision template"}
     elif kind == "instance":
         route, request = "/api/process-flow-instances", instance_request
     else:
         route = "/api/process-flow-template-instances"
-        request = {"processFlowTemplate": template_create_payload(template),
+        request = {"processFlowTemplate": {**template_create_payload(template), "name": "ID collision template"},
                    "processFlowInstance": instance_create_payload(instance_request, for_new_template=True)}
     resource = "template" if kind.endswith("template") else "instance"
     existing_id = template["id"] if resource == "template" else instance["id"]

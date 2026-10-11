@@ -37,7 +37,7 @@ class ManagementDeletionTests(unittest.TestCase):
         response = self.client.post("/api/process-flow-templates", json=template_create_payload(self.flow))
         self.assertEqual(response.status_code, 201, response.text)
         self.flow["id"] = response.json()["id"]
-        self.instance = {**source, "id": "deletion-instance", "processFlowTemplateId": self.flow["id"]}
+        self.instance = {**source, "id": "deletion-instance", "name": "Deletion instance", "processFlowTemplateId": self.flow["id"]}
         self.steps_before_deletion = self.client.get("/api/process-step-templates").json()
 
     def tearDown(self):

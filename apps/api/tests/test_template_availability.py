@@ -63,12 +63,12 @@ class TemplateAvailabilityTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 422, response.text)
                     response = self.client.post(path, json={**template, "id": f"invalid-{kind}", "status": invalid})
                     self.assertEqual(response.status_code, 422, response.text)
-                legacy_create = {**template, "id": f"legacy-created-{kind}"}
+                legacy_create = {**template, "id": f"legacy-created-{kind}", "name": f"Legacy created {kind}"}
                 legacy_create.pop("status")
                 created = self.client.post(path, json=template_create_payload(legacy_create) if kind == "flow" else legacy_create)
                 self.assertEqual(created.status_code, 201, created.text)
                 self.assertEqual(created.json()["status"], "enabled")
-                disabled_create = self.client.post(path, json=(template_create_payload({**template, "status": "disabled"}) if kind == "flow"
+                disabled_create = self.client.post(path, json=(template_create_payload({**template, "name": "Disabled created flow", "status": "disabled"}) if kind == "flow"
                       else {**template, "id": f"disabled-created-{kind}", "status": "disabled"}))
                 self.assertEqual(disabled_create.status_code, 201, disabled_create.text)
                 self.assertEqual(disabled_create.json()["status"], "disabled")
@@ -117,7 +117,7 @@ class TemplateAvailabilityTests(unittest.TestCase):
 
     def test_disabled_step_blocks_new_flows_but_existing_flows_remain_usable(self):
         self.set_status("step", self.step, "disabled")
-        new_flow = {**self.flow, "id": "new-availability-flow"}
+        new_flow = {**self.flow, "id": "new-availability-flow", "name": "New availability flow"}
         for status in ("enabled", "disabled"):
             response = self.client.post("/api/process-flow-templates", json=template_create_payload({**new_flow, "status": status}))
             self.assertEqual(response.status_code, 409, response.text)
@@ -125,7 +125,7 @@ class TemplateAvailabilityTests(unittest.TestCase):
         updated = self.client.put(f"/api/process-flow-templates/{self.flow['id']}",
                                   json={**self.flow, "description": "Still editable"})
         self.assertEqual(updated.status_code, 200, updated.text)
-        instance = self.client.post("/api/process-flow-instances", json=instance_create_payload({**self.instance, "id": "new-existing-flow"}))
+        instance = self.client.post("/api/process-flow-instances", json=instance_create_payload({**self.instance, "id": "new-existing-flow", "name": "New existing flow"}))
         self.assertEqual(instance.status_code, 201, instance.text)
         workspace = self.create_workspace()
         committed = self.client.post(f"/api/process-flow-workspaces/{workspace['id']}/commit",
@@ -137,8 +137,8 @@ class TemplateAvailabilityTests(unittest.TestCase):
         new_flow["id"] = response.json()["id"]
 
     def test_combined_create_enforces_both_rules_without_partial_writes(self):
-        flow = {**self.flow, "id": "combined-availability"}
-        instance = {**self.instance, "id": "combined-availability-instance", "processFlowTemplateId": flow["id"]}
+        flow = {**self.flow, "id": "combined-availability", "name": "Combined availability flow"}
+        instance = {**self.instance, "id": "combined-availability-instance", "name": "Combined availability instance", "processFlowTemplateId": flow["id"]}
         response = self.client.post("/api/process-flow-template-instances", json={
             "processFlowTemplate": template_create_payload({**flow, "status": "disabled"}), "processFlowInstance": instance_create_payload(instance, for_new_template=True),
         })

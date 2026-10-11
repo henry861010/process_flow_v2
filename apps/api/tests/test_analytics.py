@@ -79,7 +79,7 @@ def test_request_routes_owner_cors_and_privacy(service):
 def test_success_conflict_and_validation_events_do_not_save_body_owner(service):
     app, client = service
     template, source = instance_source(client)
-    payload = {**source, "id": "analytics-copy", "owner": "resource-owner-not-actor"}
+    payload = {**source, "id": "analytics-copy", "name": "Analytics copy", "owner": "resource-owner-not-actor"}
     created = client.post("/api/process-flow-instances", json=instance_create_payload(payload))
     assert created.status_code == 201
     payload["id"] = created.json()["id"]
@@ -93,7 +93,7 @@ def test_success_conflict_and_validation_events_do_not_save_body_owner(service):
     assert events[0]["flow_instance_id"] == created.json()["id"]
     properties = json.loads(events[0]["properties_json"])
     assert properties["step_count"] == len(template["stepRefs"])
-    assert properties["instance_name"] == source["name"]
+    assert properties["instance_name"] == payload["name"]
     assert all(event["request_owner"] == "unknown" for event in events)
     serialized = json.dumps(events)
     assert "resource-owner-not-actor" not in serialized

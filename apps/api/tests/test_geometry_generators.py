@@ -73,6 +73,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 )
                 request = copy.deepcopy(source)
                 request["id"] = "flow_inst_registered_generator"
+                request["name"] = "Registered generator instance"
                 request["inputBindings"]["incoming_hbm"] = {
                     "kind": "generator",
                     "generatorId": "hbm",

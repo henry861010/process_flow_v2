@@ -530,6 +530,7 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         future_flow = copy.deepcopy(existing_flow)
         future_flow["id"] = "flow_tpl_updated_step_defaults"
+        future_flow["name"] = "Updated step defaults"
         for step_ref in future_flow["stepRefs"]:
             step_ref.pop("parameterDefaults", None)
         created_flow = self.client.post("/api/process-flow-templates", json=template_create_payload(future_flow))
@@ -675,6 +676,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         template = copy.deepcopy(source)
         template["id"] = "flow_tpl_default_materialization"
+        template["name"] = "Default materialization"
         for step_ref in template["stepRefs"]:
             step_ref.pop("parameterDefaults", None)
 
@@ -896,6 +898,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         explicit = copy.deepcopy(source)
         explicit["id"] = "flow_tpl_explicit_empty_defaults"
+        explicit["name"] = "Explicit empty defaults"
         next(
             step_ref
             for step_ref in explicit["stepRefs"]
@@ -1138,6 +1141,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         bootstrap = self.reset_poc_data()
         template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
         template["id"] = "flow_tpl_zero_branch"
+        template["name"] = "Zero placement branch"
         for name in ("hbm_prepare1", "hbm_prepare2"):
             template["stepRefs"].append({"stepRefId": name, "processStepTemplateId": "step_tpl_molding"})
         die_edge = next(edge for edge in template["flowEdges"]
@@ -1154,7 +1158,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         template["id"] = response.json()["id"]
         instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
-        instance.update(id="flow_inst_zero_branch", processFlowTemplateId=template["id"])
+        instance.update(id="flow_inst_zero_branch", name="Zero placement instance", processFlowTemplateId=template["id"])
         instance["stepConfigurations"]["pnp_hbm"]["parameterValues"]["placements"] = []
         instance["inputBindings"].pop("incoming_hbm")
         return template, instance
@@ -1199,6 +1203,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             self.assertEqual(result.status_code, 200, result.text)
             copied = loaded.json()
             copied["id"] = "flow_inst_zero_copy"
+            copied["name"] = "Zero placement copy"
             self.assertEqual(self.client.post("/api/process-flow-instances", json=instance_create_payload(copied)).status_code, 201)
             generate.assert_not_called()
         copied["id"] = "flow_inst_reactivated"
@@ -1557,8 +1562,10 @@ class ProcessFlowApiTests(unittest.TestCase):
         bootstrap = self.reset_poc_data()
         template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
         template["id"] = "flow_tpl_generator_combined"
+        template["name"] = "Combined generator template"
         instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
         instance["id"] = "flow_inst_generator_combined"
+        instance["name"] = "Combined generator instance"
         instance["processFlowTemplateId"] = template["id"]
         instance["inputBindings"]["incoming_hbm"] = {
             "kind": "generator", "generatorId": "hbm", "generatorVersion": 2,

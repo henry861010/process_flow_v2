@@ -173,6 +173,12 @@ flowchart TB
 | `GeometryEntity` | Catalog metadata 與完整 `GeometryStructure` | Flow-specific role | Immutable snapshot |
 | `ExecutionPlan` | 已解析 structures、排序後 steps、明確 input routing | Repository handle 或尚待解析的 repository id | 僅存在於 runtime；nested mappings MUST 視為 read-only |
 
+`ProcessFlowTemplate` 與 `ProcessFlowInstance` MUST 各自在其 resource collection 中保持
+`(name, version)` 唯一；以儲存的字串精確比對，大小寫不同視為不同值。Instance 的唯一範圍
+跨所有 flow templates，與 owner、status 或 template id 無關。同名不同版本可存在；更新原
+template 不變更此組合時可正常儲存。重複新增或改名 MUST 回傳 HTTP 409，transaction
+不得留下部分 template、instance、geometry 或 workspace commit。
+
 每個 flow template id 代表一份 topology snapshot；受限 update 只可修改
 `status`、`name`、`owner`、`description` 與既有 step refs 的 `parameterDefaults`。需要變更 version、
 flow inputs、step refs 或 edges 時 MUST 使用新的 `id`。Process step id 是 stable reference，
@@ -627,7 +633,7 @@ negotiation 或依版號切換行為。
 | --- | --- | --- | --- | --- |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"10"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"11"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Process resource metadata label | `version` | string | Default `"V0.0.0"` | Template、step與instance的opaque display/source label；不得解析、排序或推導行為差異。 |
 | Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 

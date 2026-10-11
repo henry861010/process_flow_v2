@@ -67,6 +67,7 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
                 if not isinstance(items, list):
                     raise ValueError(f"{filename} must contain a JSON array")
                 ids: set[str] = set()
+                identities: set[tuple[str, str]] = set()
                 for index, item in enumerate(items):
                     try:
                         validated = models[key].model_validate(item)
@@ -78,6 +79,11 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
                     if item_id in ids:
                         raise ValueError(f"{filename} contains duplicate id: {item_id}")
                     ids.add(item_id)
+                    if key in {"processFlowTemplates", "processFlowInstances"}:
+                        identity = (item["name"], item["version"])
+                        if identity in identities:
+                            raise ValueError(f"{filename} contains duplicate name and version: {identity!r}")
+                        identities.add(identity)
                     if key in {"processStepTemplates", "processFlowTemplates"}:
                         item["status"] = validated.status
                     if key == "geometries":

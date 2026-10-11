@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "10"
+DATABASE_SCHEMA_VERSION = "11"
 
 
 class DuplicateItemError(ValueError):
@@ -35,7 +35,11 @@ class SQLiteStore:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._connection = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
-        self.initialize()
+        try:
+            self.initialize()
+        except Exception:
+            self._connection.close()
+            raise
 
     def close(self) -> None:
         self._connection.close()
@@ -134,6 +138,9 @@ class SQLiteStore:
                 f"{row['value']} -> {DATABASE_SCHEMA_VERSION}"
             )
         with self._connection:
+            # Explicitly include DDL in the transaction and prevent writes
+            # between checking existing identities and installing the indexes.
+            self._connection.execute("BEGIN IMMEDIATE")
             current_version = int(row["value"]) if row is not None else None
             if current_version == 8:
                 self._migrate_v8_to_v9()
@@ -142,6 +149,7 @@ class SQLiteStore:
                 self._migrate_v9_to_v10()
                 current_version = 10
             if current_version == 10:
+                self._migrate_v10_to_v11()
                 self._set_schema_version()
                 return
             # Older local data is rebuilt from fixtures so no stale references to
@@ -154,6 +162,7 @@ class SQLiteStore:
             )
             if current_version is not None:
                 self._migrate_v9_to_v10()
+            self._migrate_v10_to_v11()
             self._set_schema_version()
 
     def _set_schema_version(self) -> None:
@@ -187,6 +196,34 @@ class SQLiteStore:
             self._connection.execute(
                 "UPDATE process_flow_instances SET payload = ? WHERE id = ?",
                 (_json(payload), row["id"]),
+            )
+
+    def _migrate_v10_to_v11(self) -> None:
+        # Instances keep version in their JSON payload. Index the same value
+        # used by the API so every write path enforces the identity atomically.
+        identities = (
+            ("process_flow_templates", "version"),
+            ("process_flow_instances", "COALESCE(json_extract(payload, '$.version'), '')"),
+        )
+        conflicts = []
+        for table, version_expression in identities:
+            rows = self._connection.execute(
+                f"SELECT name, {version_expression} AS version, GROUP_CONCAT(id) AS ids "
+                f"FROM {table} GROUP BY name, {version_expression} HAVING COUNT(*) > 1"
+            ).fetchall()
+            conflicts.extend(
+                f"{table}: name={row['name']!r}, version={row['version']!r}, ids={row['ids']}"
+                for row in rows
+            )
+        if conflicts:
+            raise RuntimeError(
+                "Cannot enforce unique flow names and versions; resolve existing duplicates "
+                "before restarting: " + "; ".join(conflicts)
+            )
+        for table, version_expression in identities:
+            self._connection.execute(
+                f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_name_version "
+                f"ON {table}(name, {version_expression})"
             )
 
     def _migrate_v9_to_v10(self) -> None:
@@ -378,21 +415,24 @@ class SQLiteStore:
             self._delete_in_transaction("process_flow_templates", id_)
 
     def update_process_flow_template(self, payload: JsonObject) -> JsonObject:
-        with self._connection:
-            cursor = self._connection.execute(
-                """
-                UPDATE process_flow_templates
-                SET name = ?, version = ?, owner = ?, payload = ?
-                WHERE id = ?
-                """,
-                (
-                    payload.get("name", ""),
-                    payload.get("version", ""),
-                    payload.get("owner", ""),
-                    _json(payload),
-                    payload["id"],
-                ),
-            )
+        try:
+            with self._connection:
+                cursor = self._connection.execute(
+                    """
+                    UPDATE process_flow_templates
+                    SET name = ?, version = ?, owner = ?, payload = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        payload.get("name", ""),
+                        payload.get("version", ""),
+                        payload.get("owner", ""),
+                        _json(payload),
+                        payload["id"],
+                    ),
+                )
+        except sqlite3.IntegrityError as error:
+            raise _duplicate_item_error(error) from error
         if cursor.rowcount == 0:
             raise NotFoundError(payload["id"])
         return payload
@@ -526,7 +566,7 @@ class SQLiteStore:
                 if cursor.rowcount == 0:
                     raise WorkspaceConflictError("Workspace revision changed during commit")
         except sqlite3.IntegrityError as error:
-            raise DuplicateItemError(str(error)) from error
+            raise _duplicate_item_error(error) from error
         if on_created is not None:
             on_created()
         return workspace, instance
@@ -545,7 +585,7 @@ class SQLiteStore:
                     self._insert_geometry_in_transaction(geometry)
                 self._insert_process_flow_instance_in_transaction(instance)
         except sqlite3.IntegrityError as error:
-            raise DuplicateItemError(str(error)) from error
+            raise _duplicate_item_error(error) from error
         return template, instance
 
     def insert_instance_with_geometries(
@@ -560,7 +600,7 @@ class SQLiteStore:
                     self._insert_geometry_in_transaction(geometry)
                 self._insert_process_flow_instance_in_transaction(instance)
         except sqlite3.IntegrityError as error:
-            raise DuplicateItemError(str(error)) from error
+            raise _duplicate_item_error(error) from error
         return instance
 
     def seed(self, fixtures: dict[str, Iterable[JsonObject]], *, reset: bool = False) -> None:
@@ -590,7 +630,7 @@ class SQLiteStore:
             with self._connection:
                 self._insert_values(table, values)
         except sqlite3.IntegrityError as error:
-            raise DuplicateItemError(str(error)) from error
+            raise _duplicate_item_error(error) from error
         return json.loads(values["payload"])
 
     def _insert_values(self, table: str, values: dict[str, Any]) -> None:
@@ -669,6 +709,15 @@ TABLES = (
     "process_flow_instances",
     "geometries",
 )
+
+
+def _duplicate_item_error(error: sqlite3.IntegrityError) -> DuplicateItemError:
+    message = str(error)
+    if "process_flow_templates.name, process_flow_templates.version" in message:
+        message = "A process flow template with this name and version already exists."
+    elif "idx_process_flow_instances_name_version" in message:
+        message = "A process flow instance with this name and version already exists."
+    return DuplicateItemError(message)
 
 
 def _normalize_resource_payload(table: str, payload: JsonObject) -> JsonObject:
