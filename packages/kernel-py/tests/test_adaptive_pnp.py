@@ -4,6 +4,7 @@ import copy
 import unittest
 
 from process_flow_kernel import (
+    BUMP_STAGES,
     FlowCompiler,
     GeometryArtifact,
     GeometryKernel,
@@ -16,6 +17,24 @@ from process_flow_steps.pnp.pnp import execute as execute_pnp_step
 
 
 class AdaptivePnpTests(unittest.TestCase):
+    def test_pnp_preserves_all_bump_stages_for_mixed_target_shapes(self):
+        for stage in BUMP_STAGES:
+            with self.subTest(stage=stage):
+                structure = legacy_soc_geometry()
+                structure["root"]["bumps"][0]["stage"] = stage
+                source = geometry_entity("soc", structure)
+                result = execute_pnp(source, [
+                    rectangle_placement(10, 20, 6, 5),
+                    polygon_placement(30, 40, [[0, 0], [5, 0], [6, 3], [1, 4]]),
+                ])
+                children = result.geometry()["root"]["children"]
+                self.assertEqual([child["bumps"][0]["stage"] for child in children], [stage, stage])
+                self.assertEqual(children[0]["bumps"][0]["geometry"]["type"], "BoxGeometry")
+                self.assertEqual(children[1]["bumps"][0]["geometry"]["type"], "PolygonGeometry")
+                rotated = rotate_geometry(structure, 45, "center")
+                self.assertEqual(ProcessGeometryState.from_structure(rotated).to_geometry_structure()["root"]["bumps"][0]["stage"], stage)
+                self.assertEqual(source["structure"], structure)
+
     def test_unmarked_box_geometry_uses_box_rescale(self):
         source = geometry_entity("soc", legacy_soc_geometry())
         result = execute_pnp(source, [rectangle_placement(10, 20, 6, 5)])
@@ -718,6 +737,7 @@ def legacy_soc_geometry():
                     "density": 80,
                     "direction": "-z",
                     "koz": 0,
+                    "stage": "reflowed",
                 }
             ],
             "children": [],

@@ -37,6 +37,7 @@ def bump(bump_id: str, z: float, thickness: float, material="Sn") -> dict:
         "density": 50,
         "direction": "+z",
         "koz": 0,
+        "stage": "reflowed",
     }
 
 
@@ -186,6 +187,8 @@ class MeshModel2Tests(unittest.TestCase):
                         root["bodies"].append(body("body:lower", -20, 10, "Si"))
                     else:
                         lower = bump(f"{kind}:lower", -20, 10)
+                        if kind != "bump":
+                            lower.pop("stage")
                         if kind == "circuit":
                             lower.pop("direction")
                         root[{"via": "vias", "circuit": "circuits", "bump": "bumps"}[kind]] = [lower]

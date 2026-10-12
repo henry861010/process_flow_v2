@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 
+from ..domain.bump_stage import validate_bump_stage
 from ..domain.semantic_keys import validate_body_key, validate_container_key
 
 GEOMETRY_SCHEMA_VERSION = "1.0.0"
@@ -48,7 +49,7 @@ def deep_copy(value):
     return copy.deepcopy(value)
 
 
-def assign_container_ids(container, path):
+def assign_container_ids(container, path, *, field_path="structure.root"):
     container.setdefault("bodies", [])
     container.setdefault("vias", [])
     container.setdefault("circuits", [])
@@ -65,20 +66,22 @@ def assign_container_ids(container, path):
     identity_payload = None if container_key is None else {"key": container_key}
     container.setdefault("id", stable_id("container", container_path, identity_payload))
 
-    _assign_feature_ids(container["bodies"], "body", container_path)
-    _assign_feature_ids(container["vias"], "via", container_path)
-    _assign_feature_ids(container["circuits"], "circuit", container_path)
-    _assign_feature_ids(container["bumps"], "bump", container_path)
+    _assign_feature_ids(container["bodies"], "body", container_path, field_path=field_path)
+    _assign_feature_ids(container["vias"], "via", container_path, field_path=field_path)
+    _assign_feature_ids(container["circuits"], "circuit", container_path, field_path=field_path)
+    _assign_feature_ids(container["bumps"], "bump", container_path, field_path=field_path)
 
     for index, child in enumerate(container["children"]):
         child_key = child.get("key")
         child_label = f"child:{index}" if child_key is None else f"child:{index}:{child_key}"
         child_path = [*container_path, child_label]
-        assign_container_ids(child, child_path)
+        assign_container_ids(child, child_path, field_path=f"{field_path}.children[{index}]")
 
 
-def _assign_feature_ids(features, kind, container_path):
+def _assign_feature_ids(features, kind, container_path, *, field_path):
     for index, feature in enumerate(features):
+        if kind == "bump":
+            validate_bump_stage(feature.get("stage"), f"{field_path}.bumps[{index}].stage")
         if kind == "body" and "key" in feature:
             if feature["key"] is None:
                 raise ValueError("body.key must be omitted instead of null")

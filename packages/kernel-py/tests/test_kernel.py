@@ -164,7 +164,7 @@ class GeometryDomainTests(unittest.TestCase):
         root.add_body(Body(u_shape(0), "Si", "carrier"))
         root.add_via(Via(u_shape(1), 0.5, "Cu", "+z", 2))
         root.add_circuit(Circuit(u_shape(2), 0.4, "Cu", 3))
-        root.add_bump(Bump(u_shape(3), 0.8, "SnAg", "-z", 4))
+        root.add_bump(Bump(u_shape(3), 0.8, "SnAg", "-z", 4, stage="reflowed"))
         child = Container(key="soc")
         child.add_body(Body(u_shape(4), "Si", "envelope"))
         root.attach_child(child)
@@ -186,6 +186,7 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(output["bumps"][0]["density"], 0.8)
         self.assertEqual(output["bumps"][0]["direction"], "-z")
         self.assertEqual(output["bumps"][0]["koz"], 4)
+        self.assertEqual(output["bumps"][0]["stage"], "reflowed")
         self.assertEqual(output["children"][0]["key"], "soc")
         self.assertEqual(output["children"][0]["bodies"][0]["key"], "envelope")
 
@@ -268,7 +269,7 @@ class GeometryDomainTests(unittest.TestCase):
         root.add_body(Body(CylinderGeometry([0, 0, 0], 10, 1), "Si", "carrier"))
         root.add_via(Via(CylinderGeometry([0, 0, 1], 10, 1), 0.5, "Cu", "+z", 2))
         root.add_circuit(Circuit(CylinderGeometry([0, 0, 2], 10, 1), 0.4, "Cu", 3))
-        root.add_bump(Bump(CylinderGeometry([0, 0, 3], 10, 1), 0.8, "SnAg", "-z", 4))
+        root.add_bump(Bump(CylinderGeometry([0, 0, 3], 10, 1), 0.8, "SnAg", "-z", 4, stage="reflowed"))
         child = Container(key="soc")
         child.add_body(Body(CylinderGeometry([0, 0, 4], 10, 1), "Si", "envelope"))
         root.attach_child(child)
@@ -290,6 +291,7 @@ class GeometryDomainTests(unittest.TestCase):
         self.assertEqual(output["bumps"][0]["density"], 0.8)
         self.assertEqual(output["bumps"][0]["direction"], "-z")
         self.assertEqual(output["bumps"][0]["koz"], 4)
+        self.assertEqual(output["bumps"][0]["stage"], "reflowed")
         self.assertEqual(output["children"][0]["key"], "soc")
         self.assertEqual(
             output["children"][0]["bodies"][0]["geometry"],
@@ -461,11 +463,11 @@ class GeometryDomainTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r'Via direction must be "\+z" or "-z"'):
             Via(BoxGeometry([0, 0, 0], [1, 1, 0], 1), 0.5, "Cu", None)
         with self.assertRaisesRegex(ValueError, r'Bump direction must be "\+z" or "-z"'):
-            Bump(BoxGeometry([0, 0, 0], [1, 1, 0], 1), 0.5, "SnAg", "z")
+            Bump(BoxGeometry([0, 0, 0], [1, 1, 0], 1), 0.5, "SnAg", "z", stage="reflowed")
 
         root = Container()
         root.add_via(Via(BoxGeometry([0, 0, 0], [1, 1, 0], 2), 0.5, "Cu", "+z"))
-        root.add_bump(Bump(BoxGeometry([0, 0, -1], [1, 1, -1], 1), 0.8, "SnAg", "-z"))
+        root.add_bump(Bump(BoxGeometry([0, 0, -1], [1, 1, -1], 1), 0.8, "SnAg", "-z", stage="reflowed"))
         root.flip(0)
         self.assertEqual(root.vias()[0].direction(), "-z")
         self.assertEqual(root.bumps()[0].direction(), "+z")
@@ -474,7 +476,7 @@ class GeometryDomainTests(unittest.TestCase):
         root = Container()
         root.add_via(Via(BoxGeometry([0, 0, 0], [10, 10, 0], 2), 0.5, "Cu", "+z", 3))
         root.add_circuit(Circuit(BoxGeometry([0, 0, 2], [10, 10, 2], 1), 0.4, "Cu", 4))
-        root.add_bump(Bump(BoxGeometry([0, 0, 3], [10, 10, 3], 2), 0.8, "SnAg", "+z", 5))
+        root.add_bump(Bump(BoxGeometry([0, 0, 3], [10, 10, 3], 2), 0.8, "SnAg", "+z", 5, stage="reflowed"))
         output = root.json()["root"]
         self.assertEqual(output["vias"][0]["koz"], 3)
         self.assertEqual(output["circuits"][0]["koz"], 4)
@@ -733,6 +735,7 @@ class GeometryDomainTests(unittest.TestCase):
 
         extra_feature = ProcessGeometryState.from_structure(frame_geometry())
         extra_feature.add_bump(
+            stage="reflowed",
             material="SnAg",
             density=50,
             direction="+z",
@@ -827,6 +830,7 @@ class GeometryDomainTests(unittest.TestCase):
         covered_feature = process_state_with_derived_footprint(main_geometry())
         covered_feature.mount_frame_geometry(ProcessGeometryState.from_structure(frame_geometry()))
         covered_feature.add_bump(
+            stage="reflowed",
             material="SnAg",
             density=50,
             direction="+z",
@@ -946,6 +950,7 @@ class GeometryDomainTests(unittest.TestCase):
 
         feature_at_top = debond_state()
         feature_at_top.add_bump(
+            stage="reflowed",
             material="SnAg",
             density=50,
             direction="+z",
@@ -2701,6 +2706,7 @@ def die_geometry():
                     "density": 80,
                     "direction": "-z",
                     "koz": 0,
+                    "stage": "reflowed",
                 }
             ],
             "children": [],

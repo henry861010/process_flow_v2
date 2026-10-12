@@ -164,6 +164,7 @@ Via/Circuit/Bump 是 owner container 內的 density features。Feature 不因 sp
 | `density` | not allowed | `0..100` | `0..100` | `0..100` |
 | `direction` | not allowed | `+z \| -z` | not allowed | `+z \| -z` |
 | `koz` | not allowed | non-negative `um` | non-negative `um` | non-negative `um` |
+| `stage` | not allowed | not allowed | not allowed | required `deposited \| reflowed \| joined` |
 
 Canonical feature examples：
 
@@ -193,6 +194,42 @@ Rules：
 - `koz` 不預先改寫 geometry envelope。Downstream materialization MAY 對 XY footprint
   做 inward inset。
 - Runtime material-instance suffix MAY 改寫 `material`，但不得改變 feature type/scope。
+
+### 6.2 Bump stage
+
+`Bump.stage` MUST 是下列精確字串之一，描述整個 bump feature envelope 內的共同處理階段：
+
+| Value | Meaning |
+| --- | --- |
+| `deposited` | 已放置或沉積 solder，尚未完成單側回焊成形。 |
+| `reflowed` | 已完成單側回焊成形，尚未與另一側接合。 |
+| `joined` | 已完成兩側 bump 接合。 |
+
+```json
+{
+  "id": "bump:root:example",
+  "geometry": {
+    "type": "BoxGeometry",
+    "bottom_left": [0, 0, 5],
+    "top_right": [10, 10, 5],
+    "thk": 2
+  },
+  "material": "SnAg",
+  "density": 80,
+  "direction": "+z",
+  "koz": 0,
+  "stage": "reflowed"
+}
+```
+
+Authoring、normalization 與 hydration 都 MUST 明確提供 `stage`；缺少、`null`、空字串、
+其他值或不同大小寫皆不合法，不補預設值。此欄位只允許出現在 Bump，不接受 `stag` alias。
+Root 與巢狀 container 皆遵守相同規則。尚未發布，直接採用新 contract，geometry format
+marker 仍為 `"1.0.0"`，不提供舊格式 migration。
+
+Copy、厚度調整、move、resize、flip、clip 與 PnP MUST 保留 `stage`。PnP 表達放置關係，
+不自動將 bump 標記成 `joined`；同一 envelope 若要表達不同階段，必須拆成不同 bump features。
+現有 Micro／C4／BGA formation 統一輸出 `reflowed`。獨立 joint step 與其幾何融合行為尚未實作。
 
 ## 7. Geometry primitive union
 

@@ -18,6 +18,25 @@ from process_flow_cad.exporter import CadQueryConverter
 
 
 class CadExporterTests(unittest.TestCase):
+    def test_bump_stages_export_as_features_without_mutating_input(self):
+        for stage in ("deposited", "reflowed", "joined"):
+            with self.subTest(stage=stage):
+                structure = box_structure()
+                structure["root"]["bumps"] = [{
+                    "id": "bump:known",
+                    "geometry": {"type": "BoxGeometry", "bottom_left": [0, 0, 5],
+                                 "top_right": [10, 10, 5], "thk": 2},
+                    "material": "SnAg", "density": 80, "direction": "+z", "koz": 0,
+                    "stage": stage,
+                }]
+                original = json.dumps(structure, sort_keys=True)
+                bodies = convert_cad_bodies(structure, include_feature_bodies=True)
+                bumps = [body for body in bodies if body.feature_type == "bump"]
+                self.assertEqual(len(bumps), 1)
+                self.assertEqual(bumps[0].source_ids, ["bump:known"])
+                self.assertIn(b"ISO-10303-21", export_cad_bytes(structure, format="step"))
+                self.assertEqual(json.dumps(structure, sort_keys=True), original)
+
     def test_glb_export_returns_binary_glb(self):
         glb = export_cad_bytes(box_structure(), format="glb")
 

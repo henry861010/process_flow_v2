@@ -29,6 +29,7 @@ bump0 = {
     "thk": 20
     },
   "density": 50,
+  "stage": "reflowed",
   "material": "bump0"
 }
 

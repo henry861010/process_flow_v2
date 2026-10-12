@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .bump_stage import BumpStage
 from .container import Container
 from .features import Body, Bump, Circuit, Via
 from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
@@ -482,7 +483,7 @@ class ProcessGeometryState:
             scope,
         )
 
-    def add_bump(self, *, material, density, direction, geometry, scope=ROOT_SCOPE, koz=0):
+    def add_bump(self, *, material, density, direction, geometry, stage: BumpStage, scope=ROOT_SCOPE, koz=0):
         return self._add_feature_object(
             Bump(
                 _geometry_from_spec(geometry),
@@ -490,6 +491,7 @@ class ProcessGeometryState:
                 _require_string(material, "material"),
                 _require_direction(direction, "bump direction"),
                 _non_negative_number(koz, "koz"),
+                stage=stage,
             ),
             "bump",
             scope,
@@ -501,6 +503,7 @@ class ProcessGeometryState:
         material,
         density,
         thickness,
+        stage: BumpStage,
         direction="+z",
         scope=ROOT_SCOPE,
         koz=0,
@@ -518,6 +521,7 @@ class ProcessGeometryState:
                 _require_string(material, "material"),
                 _require_direction(direction, "bump direction"),
                 _non_negative_number(koz, "koz"),
+                stage=stage,
             ),
             "bump",
             scope,
@@ -1142,6 +1146,7 @@ def _container_from_payload(container):
                 bump.get("direction"),
                 bump["koz"],
                 bump.get("id"),
+                stage=bump["stage"],
             )
         )
     for child in container.get("children", []):

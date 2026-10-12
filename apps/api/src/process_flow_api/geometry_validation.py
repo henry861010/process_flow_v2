@@ -5,7 +5,7 @@ import copy
 import math
 from typing import Any
 
-from process_flow_kernel import ProcessGeometryState, normalize_geometry_structure
+from process_flow_kernel import ProcessGeometryState, normalize_geometry_structure, validate_bump_stage
 from process_flow_kernel.domain.semantic_keys import validate_body_key, validate_container_key
 from process_flow_kernel.utils.polygon import validate_polygon_loops
 
@@ -99,6 +99,8 @@ def _feature(value, kind, path):
         allowed.update(("density", "koz"))
         if kind in ("vias", "bumps"):
             allowed.add("direction")
+        if kind == "bumps":
+            allowed.add("stage")
     _object(value, path, allowed)
     _identity(value, path, key_validator=validate_body_key if kind == "bodies" else None)
     _text(value.get("material"), f"{path}.material")
@@ -108,6 +110,8 @@ def _feature(value, kind, path):
         _number(value.get("koz"), f"{path}.koz", minimum=0)
     if kind in ("vias", "bumps") and value.get("direction") not in ("+z", "-z"):
         raise ValueError(f"{path}.direction: expected +z or -z")
+    if kind == "bumps":
+        validate_bump_stage(value.get("stage"), f"{path}.stage")
 
 
 def _primitive(value, path):

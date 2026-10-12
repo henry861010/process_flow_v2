@@ -49,6 +49,12 @@ collection 決定，不會因空間 overlap 自動傳播到 parent、child 或 s
 
 Via 與 bump 必須有 global-Z `direction`（`+z` 或 `-z`）；circuit 沒有 direction。XY-plane flip 會反轉被 flip scope 內 via 與 bump 的 direction。
 
+Bump 必須有 `stage`，描述整個 feature 的處理階段：`deposited`、`reflowed` 或 `joined`。
+Kernel 以共用驗證拒絕缺少或非法值，不從 geometry、material 或放置關係推論階段。所有
+copy、move、flip、clip 與 PnP 保留 `stage`；現有 bump formation 輸出 `reflowed`。
+欄位不改變 CAD／mesh 的 materialization 行為。完整 contract 見
+[Bump stage](../reference/geometry-structure.md#62-bump-stage)。
+
 Feature `geometry` 是 envelope，`density` 是 0–100 percentage，`koz` 是保留給 consumer 的 non-negative distance。Kernel 保存 `koz`，不會在建立 feature 時預先 inset envelope。
 
 ## 空間優先順序

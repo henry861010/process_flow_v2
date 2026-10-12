@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .bump_stage import BumpStage, validate_bump_stage
 from .semantic_keys import validate_body_key
 
 
@@ -217,8 +218,9 @@ class Circuit:
 
 
 class Bump:
-    def __init__(self, geometry, density, material, direction, koz=0, structure_id=None):
+    def __init__(self, geometry, density, material, direction, koz=0, structure_id=None, *, stage: BumpStage):
         _assert_direction(direction, "Bump")
+        self._stage = validate_bump_stage(stage)
         self._geometry = geometry
         self._density = density
         self._material = material
@@ -250,11 +252,14 @@ class Bump:
     def koz(self):
         return self._koz
 
+    def stage(self) -> BumpStage:
+        return self._stage
+
     def copy(self):
-        return Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id)
+        return Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id, stage=self._stage)
 
     def copy_with_thk(self, thk):
-        return Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id)
+        return Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id, stage=self._stage)
 
     def clear_structure_id(self):
         self._structure_id = None
@@ -286,6 +291,7 @@ class Bump:
             "density": self._density,
             "direction": self._direction,
             "koz": self._koz,
+            "stage": self._stage,
         }
         if self._structure_id is not None:
             payload["id"] = self._structure_id

@@ -93,6 +93,15 @@ validation enforce。
 
 Via/bump require direction；feature methods保存 0–100 density 與 non-negative `koz`。
 
+`Bump(..., *, stage: BumpStage)`、`add_bump(..., stage=...)` 與
+`add_bump_above_cursor(..., stage=...)` 都要求明確提供 `stage`。`BumpStage` 是
+`Literal["deposited", "reflowed", "joined"]`；package 同時 export `BUMP_STAGES` 與
+`validate_bump_stage(value, path="bump.stage")` 供 consumers 共用 runtime validation。
+`Bump.stage()` 讀取目前值，`Bump.json()` 固定輸出 `stage`。Copy、厚度調整、幾何變換與
+placement 保留此欄位，不推進製程階段。JSON 缺少或含非法值時 normalization／hydration
+會以 `ValueError` 指出 `structure.root...bumps[index].stage`。
+階段語意見 [Bump stage](../geometry-structure.md#62-bump-stage)。
+
 ### Process operation
 
 - `apply_under_fill(material, thickness=None, thk=None, gap, scope="root", key=None)`

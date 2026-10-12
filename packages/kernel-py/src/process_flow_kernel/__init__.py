@@ -21,6 +21,7 @@ from .application.resource_resolution import (
     GeometryGeneratorResolver,
     InMemoryGeometryCatalog,
 )
+from .domain.bump_stage import BUMP_STAGES, BumpStage, validate_bump_stage
 from .domain.container import Container
 from .domain.features import Body, Bump, Circuit, Via
 from .domain.geometry import BoxGeometry, ConeGeometry, CylinderGeometry, Geometry, PolygonGeometry
@@ -52,6 +53,8 @@ __all__ = [
     "BODY_KEYS",
     "BoxGeometry",
     "Bump",
+    "BumpStage",
+    "BUMP_STAGES",
     "Circuit",
     "ConeGeometry",
     "Container",
@@ -95,6 +98,7 @@ __all__ = [
     "validate_flow_graph",
     "validate_flow_parameter_defaults",
     "validate_body_key",
+    "validate_bump_stage",
     "validate_container_key",
     "validate_geometry_semantic_keys",
     "validate_process_step_template",

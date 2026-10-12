@@ -617,7 +617,7 @@
     "name": "Micro Bump",
     "category": "bump",
     "program": "bump/uBump_formation",
-    "description": "Forms upward micro bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
+    "description": "Forms upward reflowed micro bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -699,7 +699,7 @@
     "name": "BGA Bump",
     "category": "bump",
     "program": "bump/bga_bump_formation",
-    "description": "Forms upward BGA bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
+    "description": "Forms upward reflowed BGA bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -781,7 +781,7 @@
     "name": "C4 Bump",
     "category": "bump",
     "program": "bump/c4_bump_formation",
-    "description": "Forms upward C4 bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
+    "description": "Forms upward reflowed C4 bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
     "owner": "integration.platform",
     "inputPorts": [
       {

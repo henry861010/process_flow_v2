@@ -13,5 +13,6 @@ def execute_bump_formation(context: ProcessStepContext, *, name: str) -> Process
         thickness=thk,
         direction="+z",
         koz=koz,
+        stage="reflowed",
     )
     return state

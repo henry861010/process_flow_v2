@@ -61,6 +61,8 @@ class GeometryCreationTests(unittest.TestCase):
             feature = {"geometry": primitives[1], "material": "Cu", "density": 100, "koz": 0}
             if kind != "circuits":
                 feature["direction"] = "+z"
+            if kind == "bumps":
+                feature["stage"] = "reflowed"
             root[kind] = [feature]
         response = self.client.post("/api/geometries", json=entity(root))
         self.assertEqual(response.status_code, 201, response.text)
@@ -72,6 +74,48 @@ class GeometryCreationTests(unittest.TestCase):
         response = self.client.post("/api/geometries", json=payload)
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.json()["structure"]["root"]["bodies"], [])
+
+    def test_all_bump_stages_persist_at_root_and_nested_scopes(self):
+        for stage in ("deposited", "reflowed", "joined"):
+            with self.subTest(stage=stage):
+                feature = {"geometry": box(), "material": "SnAg", "density": 80,
+                           "direction": "+z", "koz": 0, "stage": stage}
+                payload = entity({"bumps": [feature], "children": [{"bumps": [feature]}]})
+                response = self.client.post("/api/geometries", json=payload)
+                self.assertEqual(response.status_code, 201, response.text)
+                saved = response.json()
+                root = saved["structure"]["root"]
+                self.assertEqual(root["bumps"][0]["stage"], stage)
+                self.assertEqual(root["children"][0]["bumps"][0]["stage"], stage)
+                self.assertEqual(self.client.get(f"/api/geometries/{saved['id']}").json(), saved)
+
+    def test_missing_and_invalid_bump_stages_are_rejected_without_writing(self):
+        count = len(self.client.get("/api/geometries").json())
+        feature = {"geometry": box(), "material": "SnAg", "density": 80, "direction": "+z", "koz": 0}
+        for nested in (False, True):
+            for stage_fields in ({}, *({"stage": value} for value in (None, "", "placed", "Reflowed", " reflowed", 0, False, [], {}))):
+                with self.subTest(nested=nested, stage_fields=stage_fields):
+                    root = {"bumps": [{**feature, **stage_fields}]}
+                    path = "structure.root.bumps[0].stage"
+                    if nested:
+                        root = {"children": [root]}
+                        path = "structure.root.children[0].bumps[0].stage"
+                    response = self.client.post("/api/geometries", json=entity(root))
+                    self.assertEqual(response.status_code, 400, response.text)
+                    self.assertIn(path, response.json()["message"])
+        self.assertEqual(len(self.client.get("/api/geometries").json()), count)
+
+    def test_stage_is_only_allowed_on_bumps(self):
+        for kind in ("bodies", "vias", "circuits"):
+            with self.subTest(kind=kind):
+                feature = {"geometry": box(), "material": "Cu", "stage": "reflowed"}
+                if kind != "bodies":
+                    feature.update(density=80, koz=0)
+                if kind == "vias":
+                    feature["direction"] = "+z"
+                response = self.client.post("/api/geometries", json=entity({kind: [feature]}))
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertIn(f"{kind}[0].stage", response.json()["message"])
 
     def test_manual_geometry_can_bind_to_a_process_flow_instance(self):
         payload = entity()
@@ -140,6 +184,8 @@ class GeometryCreationTests(unittest.TestCase):
             feature = {"geometry": box(), "material": "Cu", "density": 50, "koz": 0}
             if kind != "circuits":
                 feature["direction"] = "+z"
+            if kind == "bumps":
+                feature["stage"] = "reflowed"
             for field, value in (("density", -1), ("density", 101), ("density", True), ("koz", -1), ("key", "hbm")):
                 invalid = {**feature, field: value}
                 cases.append((entity({kind: [invalid]}), f"{kind}[0].{field}"))

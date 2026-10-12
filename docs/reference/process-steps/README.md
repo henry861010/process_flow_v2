@@ -64,12 +64,15 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Debond | 設為移除 carrier／DAF 後的 overall geometry top Z | 不變 | 驗證成功後原子性移除一個頂層 carrier 與零或一個相連 DAF；保留空 container。 |
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
-| Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 bump envelope。 |
+| Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 `stage="reflowed"` bump envelope。 |
 | tmv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
 | PnP | 不變 | 不變 | 依placements order將absolute target轉為adapter-local frame整批adapt；全部成功後attach到target center。 |
 
 ## 重要 operation 說明
 
+- Micro／BGA／C4 formation 視為完成單側回焊成形，明確建立 `stage="reflowed"` 的 bump，
+  不提供 stage parameter。PnP 保留來源 bump stage。目前尚未實作獨立 joint step；未來
+  雙邊 formation → PnP → joint 流程中，joint 完成後才標記 `joined`。
 - `molding` 需要既有 process footprint 與正的 thickness。
 - ECL `koz` 在此 operation 直接用作 body footprint inset；這與 feature payload 中保存、交由 consumer 解讀的 `koz` 不同。
 - RDL `layers` 是 repeatable group；每 item 必須含 stable `itemId`，runtime normalized item 另含 `_itemId`/`_index`。

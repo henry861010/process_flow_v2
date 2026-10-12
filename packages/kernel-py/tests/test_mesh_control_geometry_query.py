@@ -22,7 +22,7 @@ class MeshControlGeometryQueryTests(unittest.TestCase):
             "bodies": [{"id": "body:source", "key": "envelope", "material": "EMC", "geometry": box(0, 10)}],
             "vias": [{"id": "via:source", "material": "Cu", "geometry": box(1, 2), "density": 50, "direction": "+z", "koz": 0}],
             "circuits": [{"id": "circuit:source", "material": "Cu", "geometry": box(3, 2), "density": 50, "koz": 0}],
-            "bumps": [{"id": "bump:source", "material": "Sn", "geometry": box(5, 2), "density": 50, "direction": "+z", "koz": 0}],
+            "bumps": [{"id": "bump:source", "material": "Sn", "geometry": box(5, 2), "density": 50, "direction": "+z", "koz": 0, "stage": "reflowed"}],
             "children": [{"id": "container:child", "bodies": [{"id": "body:child", "material": "Si", "geometry": box(2, 4)}]}],
         })
         state = ProcessGeometryState.from_structure(structure)
