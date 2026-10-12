@@ -912,6 +912,7 @@ function PreviewCadWorkbench({
                         )})`,
                       ],
                       ["Direction", selectedFeature.direction ?? "n/a"],
+                      ...(selectedFeature.bumpStage ? [["Stage", selectedFeature.bumpStage] as [string, string]] : []),
                       ["KOZ", formatLength(selectedFeature.koz)],
                       ["Container", selectedFeature.containerPath],
                       ["Bounds", formatFeatureBounds(selectedFeature)],

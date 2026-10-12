@@ -139,5 +139,154 @@
         }
       }
     ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "flow_tpl_dual_bump_demo",
+    "name": "Dual-side Bump Study",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Independent wafer and die bump formation, die flip, PnP contact, and explicit bump joint using envelope footprints.",
+    "flowInputs": [
+      {
+        "flowInputId": "incoming_main",
+        "name": "Incoming wafer or panel",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": ["wafer", "panel"],
+          "categories": ["carrier.wafer", "carrier.panel"],
+          "structureFormats": ["standard"]
+        }
+      },
+      {
+        "flowInputId": "incoming_die",
+        "name": "Incoming die",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": ["die"],
+          "categories": ["die.hbm", "die.dram", "die.soic", "die.cpo"],
+          "structureFormats": ["standard"]
+        }
+      }
+    ],
+    "stepRefs": [
+      {
+        "stepRefId": "main_bump",
+        "stepLabel": "Main bump formation",
+        "processStepTemplateId": "step_tpl_c4_bump_formation",
+        "parameterDefaults": {
+          "material": "SnAg",
+          "thk": 20,
+          "density": 40,
+          "koz": 0
+        }
+      },
+      {
+        "stepRefId": "die_bump",
+        "stepLabel": "Die bump formation",
+        "processStepTemplateId": "step_tpl_c4_bump_formation",
+        "parameterDefaults": {
+          "material": "SnAg",
+          "thk": 15,
+          "density": 80,
+          "koz": 0
+        }
+      },
+      {
+        "stepRefId": "die_flip",
+        "stepLabel": "Die bump facing down",
+        "processStepTemplateId": "step_tpl_flip",
+        "parameterDefaults": {}
+      },
+      {
+        "stepRefId": "pnp",
+        "stepLabel": "PnP contact",
+        "processStepTemplateId": "step_tpl_pnp",
+        "parameterDefaults": {}
+      },
+      {
+        "stepRefId": "joint",
+        "stepLabel": "Bump Joint",
+        "processStepTemplateId": "step_tpl_bump_joint",
+        "parameterDefaults": {
+          "bump_joined_height": 25
+        }
+      }
+    ],
+    "flowEdges": [
+      {
+        "edgeId": "edge_dual_main_bump",
+        "source": {
+          "kind": "flowInput",
+          "flowInputId": "incoming_main"
+        },
+        "target": {
+          "stepRefId": "main_bump",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_dual_die_bump",
+        "source": {
+          "kind": "flowInput",
+          "flowInputId": "incoming_die"
+        },
+        "target": {
+          "stepRefId": "die_bump",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_dual_die_flip",
+        "source": {
+          "kind": "stepOutput",
+          "stepRefId": "die_bump",
+          "outputPortId": "result_geometry"
+        },
+        "target": {
+          "stepRefId": "die_flip",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_dual_main_pnp",
+        "source": {
+          "kind": "stepOutput",
+          "stepRefId": "main_bump",
+          "outputPortId": "result_geometry"
+        },
+        "target": {
+          "stepRefId": "pnp",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_dual_die_pnp",
+        "source": {
+          "kind": "stepOutput",
+          "stepRefId": "die_flip",
+          "outputPortId": "result_geometry"
+        },
+        "target": {
+          "stepRefId": "pnp",
+          "inputPortId": "die_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_dual_pnp_joint",
+        "source": {
+          "kind": "stepOutput",
+          "stepRefId": "pnp",
+          "outputPortId": "result_geometry"
+        },
+        "target": {
+          "stepRefId": "joint",
+          "inputPortId": "main_geometry"
+        }
+      }
+    ]
   }
 ]

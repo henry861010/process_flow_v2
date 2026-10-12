@@ -134,6 +134,16 @@ class BumpStageTests(unittest.TestCase):
                 self.assertEqual(bump.direction(), "-z")
                 self.assertEqual(bump.thk(), 1)
 
+    def test_copy_with_stage_validates_and_does_not_mutate_source(self):
+        bump = Bump(BoxGeometry([0,0,0], [10,10,0], 2), 80, "SnAg", "-z", structure_id="bump:known", stage="reflowed")
+        original = bump.json()
+        copied = bump.copy_with_stage("joined")
+        self.assertEqual(copied.json(), {**original, "stage":"joined"})
+        self.assertEqual(bump.json(), original)
+        with self.assertRaisesRegex(ValueError, "bump.stage"):
+            bump.copy_with_stage("invalid")
+        self.assertEqual(bump.json(), original)
+
     def test_all_formation_steps_emit_reflowed_without_a_stage_parameter(self):
         for execute in (execute_micro, execute_c4, execute_bga):
             with self.subTest(module=execute.__module__):

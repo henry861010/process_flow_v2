@@ -59,7 +59,7 @@ export function buildEstimatedFeatureSection(
   const regions = features
     .filter((feature) => isVisible(feature, visibility))
     .map((feature) => {
-      const contours = intersectFeatureEnvelope(feature.geometry, axis, position);
+      const contours = maskedFeatureContours(feature, axis, position);
       if (contours.length === 0) return null;
       return {
         featureId: feature.id,
@@ -88,6 +88,48 @@ export function buildEstimatedFeatureSection(
     position,
     regions,
   };
+}
+
+function maskedFeatureContours(feature: PreviewFeature, axis: FeatureSectionAxis, position: number) {
+  const contours = intersectFeatureEnvelope(feature.geometry, axis, position);
+  if (feature.occlusionMasks.length === 0 || contours.length === 0) return contours;
+  // A joined envelope consumes the lower bump's XY columns. Project masks
+  // through its whole original height, including joints shorter than that bump.
+  const cuts = feature.occlusionMasks.flatMap((mask) => {
+    const projection: PreviewGeometry = mask.type === "cone"
+      ? { type: "cylinder", center: mask.center, radius: Math.max(mask.bottomRadius, mask.topRadius), height: mask.height }
+      : mask;
+    return intersectFeatureEnvelope(projection, axis, position).map((contour) => {
+      const u = contour.outer.map(([value]) => value);
+      return [Math.min(...u), Math.max(...u)] as [number, number];
+    });
+  });
+  return contours.flatMap((contour) => {
+    const u = contour.outer.map(([value]) => value);
+    const intervals = subtractIntervals([[Math.min(...u), Math.max(...u)]], cuts, 1e-5);
+    return intervals.flatMap(([min, max]) => {
+      let loop = clipVertical(contour.outer, min, true);
+      loop = clipVertical(loop, max, false);
+      return loop.length >= 4 ? [{ outer: loop, holes: [] }] : [];
+    });
+  });
+}
+
+function clipVertical(loop: FeatureSectionPoint[], boundary: number, keepGreater: boolean) {
+  const result: FeatureSectionPoint[] = [];
+  for (let index = 0; index < loop.length - 1; index += 1) {
+    const a = loop[index];
+    const b = loop[index + 1];
+    const insideA = keepGreater ? a[0] >= boundary : a[0] <= boundary;
+    const insideB = keepGreater ? b[0] >= boundary : b[0] <= boundary;
+    if (insideA) result.push(a);
+    if (insideA !== insideB) {
+      const t = (boundary - a[0]) / (b[0] - a[0]);
+      result.push([boundary, a[1] + t * (b[1] - a[1])]);
+    }
+  }
+  if (result.length >= 3) result.push(result[0]);
+  return result;
 }
 
 export function intersectFeatureEnvelope(

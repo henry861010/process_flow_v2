@@ -151,5 +151,100 @@
         }
       }
     }
+  },
+  {
+    "schemaVersion": 2,
+    "id": "flow_inst_dual_bump_demo",
+    "name": "Wafer Dual-side Bump Study",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "20 um wafer bumps + 15 um die bumps contact at PnP; joint leaves a 25 um total gap.",
+    "processFlowTemplateId": "flow_tpl_dual_bump_demo",
+    "inputBindings": {
+      "incoming_main": {
+        "kind": "catalog",
+        "geometryId": "wafer_150mm_silicon"
+      },
+      "incoming_die": {
+        "kind": "catalog",
+        "geometryId": "hbm2_4hi"
+      }
+    },
+    "stepConfigurations": {
+      "main_bump": {
+        "parameterValues": {
+          "material": "SnAg",
+          "thk": 20,
+          "density": 40,
+          "koz": 0
+        }
+      },
+      "die_bump": {
+        "parameterValues": {
+          "material": "SnAg",
+          "thk": 15,
+          "density": 80,
+          "koz": 0
+        }
+      },
+      "die_flip": {
+        "parameterValues": {}
+      },
+      "pnp": {
+        "parameterValues": {
+          "placements": [
+            {
+              "targetRegion": {
+                "type": "rectangle",
+                "bottomLeftX": -18000,
+                "bottomLeftY": -8000,
+                "topRightX": -8000,
+                "topRightY": 8000
+              },
+              "pose": {
+                "x": 0,
+                "y": 0,
+                "rotationZ": 0
+              },
+              "anchor": "center"
+            },
+            {
+              "targetRegion": {
+                "type": "polygon",
+                "points": [
+                  [
+                    8000,
+                    -8000
+                  ],
+                  [
+                    20000,
+                    -8000
+                  ],
+                  [
+                    18000,
+                    8000
+                  ],
+                  [
+                    8000,
+                    8000
+                  ]
+                ]
+              },
+              "pose": {
+                "x": 0,
+                "y": 0,
+                "rotationZ": 0
+              },
+              "anchor": "center"
+            }
+          ]
+        }
+      },
+      "joint": {
+        "parameterValues": {
+          "bump_joined_height": 25
+        }
+      }
+    }
   }
 ]

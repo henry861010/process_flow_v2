@@ -62,7 +62,7 @@
     "name": "PnP",
     "category": "PnP",
     "program": "pnp/pnp",
-    "description": "Materializes a target-specific geometry variant through the source adaptation contract, then performs rigid placement.",
+    "description": "Materializes a target-specific geometry variant, then places bottom deposited/reflowed bumps in contact with covering main bumps without joining them.",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -623,7 +623,7 @@
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Die geometry state consumed by micro bump formation. The state must already carry a process footprint.",
+        "description": "Die, wafer, or panel geometry state consumed by micro bump formation. The state must already carry a process footprint.",
         "dataType": "geometry",
         "role": "primary",
         "required": true
@@ -705,7 +705,7 @@
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Die geometry state consumed by BGA bump formation. The state must already carry a process footprint.",
+        "description": "Die, wafer, or panel geometry state consumed by BGA bump formation. The state must already carry a process footprint.",
         "dataType": "geometry",
         "role": "primary",
         "required": true
@@ -787,7 +787,7 @@
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Die geometry state consumed by C4 bump formation. The state must already carry a process footprint.",
+        "description": "Die, wafer, or panel geometry state consumed by C4 bump formation. The state must already carry a process footprint.",
         "dataType": "geometry",
         "role": "primary",
         "required": true
@@ -988,5 +988,49 @@
       }
     ],
     "parameterDefinitions": []
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_bump_joint",
+    "version": "V0.0.0",
+    "name": "Bump Joint",
+    "category": "bump",
+    "program": "bump/bump_joint",
+    "owner": "integration.platform",
+    "description": "Joins paired reflowed bumps on root direct children into child-owned envelopes at the requested total joined height; preserves lower bump data.",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Assembly after PnP, with contacting reflowed bumps on both sides.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Assembly with joined child bumps and adjusted child heights.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "bump_joined_height",
+        "name": "Bump joined height",
+        "description": "Total main-surface-to-die-body gap after joint, not an added upper-bump thickness.",
+        "valueType": "float",
+        "controlType": "number",
+        "required": true,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
   }
 ]

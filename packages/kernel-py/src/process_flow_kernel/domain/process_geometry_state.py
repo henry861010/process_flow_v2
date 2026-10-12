@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .bump_stage import BumpStage
+from .bump_operations import placement_bottom_z, plan_bump_joint
 from .container import Container
 from .features import Body, Bump, Circuit, Via
 from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
@@ -861,6 +862,32 @@ class ProcessGeometryState:
             "bottomZ": bottom_z,
             "topZ": top_z,
         }
+
+    def bump_placement_bottom_z(self, source, *, x, y, anchor="origin", main_z=None):
+        """Return a placement's envelope bottom without modifying either state."""
+        if not isinstance(source, ProcessGeometryState):
+            raise ValueError("bump_placement_bottom_z requires a ProcessGeometryState source")
+        bounds = source.bounds()
+        point = _anchor_point(bounds, anchor)
+        return placement_bottom_z(
+            self._root, source._root,
+            main_z=self._cursor_z if main_z is None else _finite_number(main_z, "mainZ"),
+            offset_x=_finite_number(x, "x") - point["x"],
+            offset_y=_finite_number(y, "y") - point["y"],
+        )
+
+    def join_bumps(self, *, joined_height):
+        height = _positive_number(joined_height, "joined_height")
+        plans = plan_bump_joint(self._root, height)
+        snapshot = self.to_geometry_structure()["root"]
+        children = self._root.children()
+        for child, offset, replacements in plans:
+            payload = snapshot["children"][children.index(child)]
+            for original, replacement in replacements:
+                replacement._structure_id = payload["bumps"][child.bumps().index(original)]["id"]
+            child.move(z=offset)
+            child.replace_bumps(dict(replacements))
+        return self
 
     def place_geometry_state(
         self,

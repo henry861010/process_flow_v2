@@ -14,10 +14,15 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
     if not placements:
         return state
     source = context.require_geometry_artifact("die_geometry")
-    bottom_z = state.cursor_z()
+    main_artifact = context.get_geometry_artifact("main_geometry")
+    main_z = (
+        state.root_body_z_max()
+        if main_artifact is not None and main_artifact.runtime_state is None
+        else state.cursor_z()
+    )
 
     # Materialize and validate the complete batch before mutating the destination.
-    prepared: list[tuple[ProcessGeometryState, float, float]] = []
+    prepared: list[tuple[ProcessGeometryState, float, float, float]] = []
     for placement in placements:
         local_target, center_x, center_y = _local_target_region(
             placement["targetRegion"]
@@ -32,15 +37,15 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
             "center",
             anchor_bounds,
         )
-        prepared.append(
-            (
-                ProcessGeometryState.from_structure(transformed_structure),
-                center_x,
-                center_y,
-            )
+        adapted = ProcessGeometryState.from_structure(transformed_structure)
+        bottom_z = state.bump_placement_bottom_z(
+            adapted, x=center_x, y=center_y, anchor="origin", main_z=main_z,
         )
+        prepared.append((adapted, center_x, center_y, bottom_z))
 
-    for adapted, center_x, center_y in prepared:
+    if main_artifact is not None and main_artifact.runtime_state is None:
+        state.set_cursor_z(main_z)
+    for adapted, center_x, center_y, bottom_z in prepared:
         state.place_geometry_state(
             adapted,
             x=center_x,

@@ -2,6 +2,7 @@ import type { BoundsTuple } from "@/components/viewer/model-loader";
 
 export type FeatureKind = "via" | "circuit" | "bump";
 export type FeatureDirection = "+z" | "-z" | null;
+export type BumpStage = "deposited" | "reflowed" | "joined";
 
 export type PreviewGeometry =
   | {
@@ -42,6 +43,9 @@ export type PreviewFeature = {
   containerId: string;
   containerKey: string | null;
   containerPath: string;
+  bumpStage: BumpStage | null;
+  containerAncestors: string[];
+  occlusionMasks: PreviewGeometry[];
 };
 
 export type FeatureSummary = {
@@ -57,6 +61,7 @@ type FeatureContainerContext = {
   id: string;
   key: string | null;
   path: string;
+  ancestors: string[];
 };
 
 const FEATURE_LABELS: Record<FeatureKind, string> = {
@@ -76,6 +81,18 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
     id: rootId,
     key: rootKey,
     path: rootKey ?? rootId,
+    ancestors: [],
+  });
+  const joined = features.filter((feature) => feature.bumpStage === "joined");
+  features.forEach((feature) => {
+    if (feature.bumpStage !== "reflowed") return;
+    feature.occlusionMasks = joined
+      .filter((upper) =>
+        upper.containerAncestors.includes(feature.containerId) &&
+        upper.bounds.min[2] < feature.bounds.max[2] - 1e-5 &&
+        upper.bounds.max[2] > feature.bounds.min[2] + 1e-5,
+      )
+      .map((upper) => upper.geometry);
   });
   return features;
 
@@ -96,6 +113,7 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
         id: childId,
         key: childKey,
         path: `${context.path}/${childKey ?? childId}`,
+        ancestors: [...context.ancestors, context.id],
       });
     });
   }
@@ -129,6 +147,9 @@ export function extractPreviewFeatures(structure: unknown): PreviewFeature[] {
         containerId: context.id,
         containerKey: context.key,
         containerPath: context.path,
+        bumpStage: type === "bump" && (item.stage === "deposited" || item.stage === "reflowed" || item.stage === "joined") ? item.stage : null,
+        containerAncestors: context.ancestors,
+        occlusionMasks: [],
       });
     });
   }
@@ -327,7 +348,11 @@ export function pointInsideFeatureFootprint(
   x: number,
   y: number,
 ) {
-  const geometry = feature.geometry;
+  return pointInsideGeometryFootprint(feature.geometry, x, y) &&
+    !feature.occlusionMasks.some((mask) => pointInsideGeometryFootprint(mask, x, y));
+}
+
+export function pointInsideGeometryFootprint(geometry: PreviewGeometry, x: number, y: number) {
   if (geometry.type === "cylinder") {
     return pointInsideCircle(x, y, geometry.center[0], geometry.center[1], geometry.radius);
   }

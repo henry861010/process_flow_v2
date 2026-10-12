@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - process-step authors
   - kernel consumers
-last_verified: 2026-07-11
-last_verified_commit: b01b1e70
+last_verified: 2026-10-12
+last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/__init__.py
   - packages/kernel-py/src/process_flow_kernel/domain/process_geometry_state.py
@@ -101,6 +101,7 @@ Via/bump require direction；feature methods保存 0–100 density 與 non-negat
 placement 保留此欄位，不推進製程階段。JSON 缺少或含非法值時 normalization／hydration
 會以 `ValueError` 指出 `structure.root...bumps[index].stage`。
 階段語意見 [Bump stage](../geometry-structure.md#62-bump-stage)。
+`Bump.copy_with_stage(stage)` 回傳 stage 經驗證的新 bump，保留 geometry 與其他 metadata。
 
 ### Process operation
 
@@ -113,6 +114,20 @@ placement 保留此欄位，不推進製程階段。JSON 缺少或含非法值�
 - `remove_bonded_carrier_stack(carrier_key="carrier", daf_key="daf", ...)`
 - `bond_carrier_geometry(source, ...)`
 - `place_geometry_state(source, ...)` / `place_geometry_states(source, placements)`
+- `bump_placement_bottom_z(source, *, x, y, anchor="origin", main_z=None)`
+- `join_bumps(*, joined_height)`
+
+`bump_placement_bottom_z` 是不修改 source/main 的高度查詢。Source 最底部 direct bump
+為 deposited/reflowed 時，尋找 main root 中底面位於 main_z、實際 footprint 涵蓋該 bump
+的 deposited/reflowed envelope；回傳 main_z 加下側厚度，無配對則回傳 main_z。
+main_z 預設 current cursor；同一 source 有多個下側配對或不同支撐高度時報錯。
+供 adaptive PnP 整批 materialize 後驗證使用，不改變底層一般 placement 的契約。
+
+`join_bumps` 要求正的 joined_height，僅接合 root 直屬 child 最底部 direct reflowed bumps
+與 root reflowed bumps。完整 batch 先驗證唯一配對、footprint 涵蓋、Z 接觸，以及共同下側
+底面／接觸面（1e-5 um tolerance），再更新上側 bump stage、厚度、底面並平移整個 child。
+Joined height 是完整間距，上側 metadata／identity 保留，下側 bump、cursor、footprint
+不變。未配對 child 略過；零配對、部分配對 child、歧義或跨層皆原子性失敗。
 
 `remove_bonded_carrier_stack` 遞迴要求唯一 key=`carrier` body 位於 full geometry top，並移除該
 carrier 與零或一個緊貼其底面、primitive type 和 XY footprint 相同的 key=`daf` body。非相連

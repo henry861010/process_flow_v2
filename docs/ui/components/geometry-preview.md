@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-12
-last_verified_commit: bdf2338e402dbd6e88a5dc494c874969d3be19b0
+last_verified: 2026-10-12
+last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - docs/architecture/decisions/0005-estimated-feature-visualization.md
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
@@ -180,7 +180,7 @@ marks。Cross-section pattern不使用此budget。
 這組值取代舊文件的 `1.00x / 1.00x / 42% / 2,000`。
 
 Expanded body另顯示Total/Bumps/Vias/Circuits/Density，以及selected feature的Material、Density、
-Direction、Container、Bounds；沒有selection顯示 `Select a feature envelope`，無features顯示
+Direction、KOZ、Container、Bounds；bump 另顯示 Stage（deposited/reflowed/joined）。沒有selection顯示 `Select a feature envelope`，無features顯示
 `No density features`。`Clear`清selection。
 
 Card header、legend與selected details MUST顯示`Estimated density`，並與
@@ -190,8 +190,14 @@ Card header、legend與selected details MUST顯示`Estimated density`，並與
 ## Feature 擷取與 rendering
 
 從`structure.root` recursive走children，依序讀`vias/circuits/bumps`；保留feature ID、material、
-density、direction、container identity/path。支援box、cylinder、cone、polygon geometry；invalid
+density、direction、bump stage、container identity/path。支援box、cylinder、cone、polygon geometry；invalid
 geometry跳過。
+
+雙側 Bump Joint 保留下側 root reflowed envelope 的原始資料；其接合區由 descendant
+joined bump 取得顯示 ownership。以實際 joined footprint（含 polygon holes）遮蔽相交
+ancestor reflowed bump 的整個 XY column；3D envelope、選取、detail glyph 與 2D section
+使用同一遮蔽範圍。非接合區、非 ancestor 與非相交 Z layer 保持原表示。這是顯示遮蔽，
+不修改 GeometryStructure。完整語意見 [Geometry semantics](../../concepts/geometry-semantics.md)。
 
 | Layer | Authority |
 | --- | --- |
@@ -271,3 +277,5 @@ Fixture target：AAA ready step output，包含至少一種bump/via/circuit與no
 | `UI-PREVIEW-017` | section plane inside enabled feature envelope | 3D cap與2D使用相同feature region/pattern，即使沒有glyph center仍顯示。 |
 | `UI-PREVIEW-018` | exact body empty/loading且feature non-empty | Estimated feature section立即顯示，Exact狀態獨立。 |
 | `UI-PREVIEW-019` | full view embedded/partially exposed feature | embedded由body depth隱藏；partial exposure與die gap feature可見。 |
+| `UI-PREVIEW-020` | 雙側 formation → PnP → Joint 後選取 child bump | Stage 顯示 joined；density、direction、material 沿用 die 側。 |
+| `UI-PREVIEW-021` | 下側 reflowed envelope 與 descendant joined envelope 相交 | 3D envelope、glyph、選取與 2D section 遮掉下側接合區；區外及 polygon holes 保留，原始資料不變。 |

@@ -8,6 +8,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { BoundsTuple } from "@/components/viewer/model-loader";
 import { materialPreviewColor } from "@/components/viewer/material-palette";
 import { buildFeatureInstanceLayout } from "@/lib/geometry-preview/features/feature-layout";
+import { installFeatureMasks } from "@/lib/geometry-preview/features/feature-masking";
 import {
   FEATURE_KIND_COLORS,
 } from "@/lib/geometry-preview/features/feature-pattern";
@@ -16,6 +17,7 @@ import {
   extractPreviewGeometryBounds,
   formatDensityPercent,
   formatFeatureKind,
+  pointInsideFeatureFootprint,
   summarizeFeatures,
   type FeatureKind,
   type FeatureSummary,
@@ -157,19 +159,19 @@ function BatchedFeatureEnvelopes({
   );
   const material = React.useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      wireframe: true,
-      transparent: false,
-      depthTest: true,
-      depthWrite: false,
-      side: THREE.FrontSide,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
-      toneMapped: false,
-      }),
-    [],
+      installFeatureMasks(new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        wireframe: true,
+        transparent: false,
+        depthTest: true,
+        depthWrite: false,
+        side: THREE.FrontSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+        toneMapped: false,
+      }), features, true),
+    [features],
   );
 
   React.useEffect(
@@ -238,7 +240,7 @@ function FeatureEnvelopeHighlight({
   );
   const material = React.useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
+      installFeatureMasks(new THREE.MeshBasicMaterial({
         color: FEATURE_KIND_COLORS[feature.type],
         transparent: true,
         opacity: clamp(opacity * 0.35, 0.1, 0.35),
@@ -249,8 +251,8 @@ function FeatureEnvelopeHighlight({
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -1,
         toneMapped: false,
-      }),
-    [feature.type, opacity],
+      }), [feature], false),
+    [feature, opacity],
   );
   React.useEffect(
     () => () => {
@@ -431,7 +433,9 @@ function featureIdFromEvent(
     ? geometry.index.getX(event.faceIndex * 3)
     : event.faceIndex * 3;
   const featureIndex = Math.round(attribute.getX(vertexIndex));
-  return features[featureIndex]?.id ?? null;
+  const feature = features[featureIndex];
+  if (!feature || !pointInsideFeatureFootprint(feature, event.point.x, event.point.y)) return null;
+  return feature.id;
 }
 
 function polygonShapes(loops: [number, number, number][][]) {

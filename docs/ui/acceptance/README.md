@@ -6,8 +6,8 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-07-13
-last_verified_commit: 7a94eded086c7a18bd082cf315e413cf97fc698c
+last_verified: 2026-10-12
+last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - docs/ui/screens
   - docs/ui/components
@@ -103,6 +103,8 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PREVIEW-017` | feature view on + section plane inside feature envelope | drag/settle | 3D cross-section與2D顯示同一Estimated pattern，不依glyph row。 |
 | `UI-PREVIEW-018` | exact body empty/loading + feature non-empty | open/drag section | Estimated layer仍立即顯示，Exact狀態獨立。 |
 | `UI-PREVIEW-019` | embedded/partial/gap feature fixture | orbit full view | embedded不可見，partial與die-gap feature可見。 |
+| `UI-PREVIEW-020` | 雙側 bump seed flow 完成 Joint | select child bump | Stage 顯示 joined，die 側 material/density/direction 保留。 |
+| `UI-PREVIEW-021` | lower reflowed + descendant joined bump | inspect envelope/detail/section | 遮蔽 lower 的接合 XY columns；非接合區與 holes 保留，GeometryStructure 不變。 |
 | `UI-EXPORT-001` | ready preview | submit valid JSON path | job加入 drawer，狀態從 queued/running到 terminal。 |
 | `UI-EXPORT-002` | running job | cancel | 先顯示 canceling，再顯示 canceled或 server terminal result。 |
 | `UI-EXPORT-008` | ready preview，Export form open | press Escape while idle | 只關閉 Export form，Geometry Preview 保持開啟；submitting 時 Escape 不關閉。 |

@@ -57,6 +57,9 @@ class Container:
         self._bumps.append(bump)
         return bump
 
+    def replace_bumps(self, replacements):
+        self._bumps = [replacements.get(bump, bump) for bump in self._bumps]
+
     def add_body_box(self, material, node1, node2, thk, key=None):
         return self.add_body(Body(BoxGeometry(node1, node2, thk), material, key))
 

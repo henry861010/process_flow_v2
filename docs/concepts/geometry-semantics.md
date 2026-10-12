@@ -6,8 +6,8 @@ audience:
   - process-step authors
   - CAD and mesher developers
   - viewer developers
-last_verified: 2026-08-29
-last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
+last_verified: 2026-10-12
+last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/conformance.md
@@ -52,6 +52,17 @@ Via 與 bump 必須有 global-Z `direction`（`+z` 或 `-z`）；circuit 沒有 
 Bump 必須有 `stage`，描述整個 feature 的處理階段：`deposited`、`reflowed` 或 `joined`。
 Kernel 以共用驗證拒絕缺少或非法值，不從 geometry、material 或放置關係推論階段。所有
 copy、move、flip、clip 與 PnP 保留 `stage`；現有 bump formation 輸出 `reflowed`。
+
+雙側 formation → PnP → Bump Joint 使用 envelope footprint 配對，不要求已知單顆 bump
+位置。Joint 將 root 直屬 child 的上側 bump 改成 `joined`，涵蓋完整接合高度，並調整
+child subtree 的 Z；main 下側 bump 原始 envelope 保留。Joined feature 在其 footprint
+接管相交 ancestor reflowed bump 的 XY columns，預覽的 3D envelope、detail glyph 與
+2D estimated section 都遮掉被接管的下側表示，保留接合區外的 wafer bump。Stage 也顯示
+於 feature 選取資訊。原始 GeometryStructure 不因顯示遮蔽而修改。
+
+STEP 將 child solids 從 ancestor solids 扣除；CDB 延用較深 container 的 assignment
+priority。兩者以 child joined envelope 表達接合區，避免將保留的下側資料重複實體化。
+預覽仍是 estimated density，不代表個別 solder 的實際位置或形狀。
 欄位不改變 CAD／mesh 的 materialization 行為。完整 contract 見
 [Bump stage](../reference/geometry-structure.md#62-bump-stage)。
 

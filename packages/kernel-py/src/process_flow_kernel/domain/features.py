@@ -255,6 +255,11 @@ class Bump:
     def stage(self) -> BumpStage:
         return self._stage
 
+    def copy_with_stage(self, stage: BumpStage):
+        copied = self.copy()
+        copied._stage = validate_bump_stage(stage)
+        return copied
+
     def copy(self):
         return Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id, stage=self._stage)
 

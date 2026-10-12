@@ -6,8 +6,8 @@ audience:
   - process developers
   - process-step authors
   - QA engineers
-last_verified: 2026-07-11
-last_verified_commit: b01b1e70
+last_verified: 2026-10-12
+last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - apps/api/src/process_flow_api/fixtures/process-step-templates.json
   - packages/process-step-py/src/process_flow_steps
@@ -38,6 +38,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Micro Bump | `bump/uBump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
+| Bump Joint | `bump/bump_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps，調整完整間距 |
 | tmv | `tmv/tmv` | `main_geometry` | `thk`, `material`, `density` | 在 cursor 上方建立 `+z` via feature |
 | PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `placements` | 依 explicit或primitive-default adapter materialize absolute rectangle/polygon target |
 
@@ -65,14 +66,15 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 `stage="reflowed"` bump envelope。 |
+| Bump Joint | 不變 | 不變 | 上側 bump 改成 joined 並涵蓋完整接合間距；平移 child subtree，下側 bump 原始資料保留。 |
 | tmv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
 | PnP | 不變 | 不變 | 依placements order將absolute target轉為adapter-local frame整批adapt；全部成功後attach到target center。 |
 
 ## 重要 operation 說明
 
 - Micro／BGA／C4 formation 視為完成單側回焊成形，明確建立 `stage="reflowed"` 的 bump，
-  不提供 stage parameter。PnP 保留來源 bump stage。目前尚未實作獨立 joint step；未來
-  雙邊 formation → PnP → joint 流程中，joint 完成後才標記 `joined`。
+  不提供 stage parameter，適用 die、wafer 與 panel。PnP 保留來源 bump stage；獨立
+  `bump/bump_joint` 完成後才將上側 bump 標記 `joined`。
 - `molding` 需要既有 process footprint 與正的 thickness。
 - ECL `koz` 在此 operation 直接用作 body footprint inset；這與 feature payload 中保存、交由 consumer 解讀的 `koz` 不同。
 - RDL `layers` 是 repeatable group；每 item 必須含 stable `itemId`，runtime normalized item 另含 `_itemId`/`_index`。
@@ -95,7 +97,11 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - PnP placement將absolute `targetRegion`（rectangle或simple polygon）、required
   `pose.x/y/rotationZ`與required `anchor`保存在同一item。Rectangle使用`bottomLeftX/Y`與
   `topRightX/Y`；polygon points也是global XY。Hidden transform固定為zero pose與center anchor，
-  bottom Z對齊current cursor。
+  無底部 deposited/reflowed bump 時，bottom Z 對齊 current cursor 並忽略 main bump。
+  有底部 deposited/reflowed bump 時，依實際 XY footprint 尋找涵蓋它、底面位於 cursor 的
+  main deposited/reflowed bump；整體 envelope bottom 對齊 cursor 加 main bump 厚度，
+  因此 die 本體底面為 cursor 加兩側 bump 厚度。Catalog main 沒有 runtime cursor 時，
+  僅在 PnP 還原到 root direct-body top，不以 bump 或 children 的最高點定位。
 - Missing contract的Box-only subtree使用`box-rescale@1`；exactly one single-loop
   PolygonGeometry使用`polygon-rescale@1`。Mixed、empty、multiple-loop、Cylinder/Cone source
   要求explicit contract。
@@ -111,5 +117,32 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - TMV 需要既有 process footprint、正的 `thk`、非空 `material` 與 `0` 到 `100`（含端點）的 `density`；輸出的 via direction 固定為 `+z`、`koz` 為 `0`，且不推進 cursor。
 
 ## 開發與驗證
+
+### 雙側 bump study 範例
+
+Seed 的 `flow_tpl_dual_bump_demo` 與 `flow_inst_dual_bump_demo` 展示完整雙分支：
+
+```mermaid
+flowchart LR
+  wafer[Wafer / Panel] --> mainBump[Bump formation: 20 um]
+  die[Die] --> dieBump[Bump formation: 15 um] --> flip[Flip]
+  mainBump --> pnp[PnP]
+  flip --> pnp
+  pnp --> joint[Bump Joint: 25 um]
+```
+
+Formation 使用各自 state footprint，不需要單顆 bump 座標。PnP 後 die 本體與 main
+接合表面間距為 35 um；Joint 後為 25 um。下側 envelope 涵蓋上側 footprint 且 Z 面接觸
+即可配對，不要求 material 或 density 相同；joined metadata 沿用 die 側。
+
+Joint 只處理 root 直屬 children 的最底部 reflowed bumps，略過未配對 children；完全沒有
+配對時失敗。每個上側 envelope 必須有唯一配對，同一 child 的底部 bumps 必須全部配對
+且頂面一致。所有配對的下側底面與上下接觸面須同高（1e-5 um tolerance），不同 child
+的上側厚度可以不同。全部驗證成功後，將上側 bump 底面移到下側底面、厚度設定成
+正值 `bump_joined_height`，並整體平移 child，使本體底面到達下側底面加 joined height。
+下側資料保留；失敗時 geometry、cursor、footprint 均不變。不限制體積守恆或高度縮減比例。
+
+新 template 與範例只加入 seed；已有本機資料庫須自行建立或匯入 template，不自動修改
+既有資料或插入 Joint。consumer ownership 與顯示規則見 [geometry semantics](../../concepts/geometry-semantics.md)。
 
 新增 operation 前先讀 [Process Step Authoring Guide](../kernel/process-step-authoring.md)。最低驗收為 template graph validation、module resolution、valid execution、invalid input、serialization round trip，以及會受影響的 CAD/CDB consumer test。
