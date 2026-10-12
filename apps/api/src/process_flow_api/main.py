@@ -560,7 +560,7 @@ def default_db_path() -> Path:
     env_path = os.environ.get("PROCESS_FLOW_API_DB_PATH")
     if env_path:
         return Path(env_path)
-    return Path(__file__).resolve().parents[2] / ".data" / "process-flow.sqlite3"
+    return Path(__file__).resolve().parents[5] / ".data" / "process-flow.sqlite3"
 
 
 def cors_origins() -> list[str]:
