@@ -291,6 +291,7 @@ function parseLayout(buffer: ArrayBuffer) {
   let currentElement: GdsElement | null = null;
 
   for (const record of parseGDS(new Uint8Array(buffer))) {
+    if(record.tag === RecordType.ENDLIB) break;
     switch (record.tag) {
       case RecordType.UNITS:
         metersPerDbUnit = record.data.metersPerUnit;
