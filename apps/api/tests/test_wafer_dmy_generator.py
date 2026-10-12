@@ -23,7 +23,7 @@ class WaferDmyGeneratorTests(unittest.TestCase):
         response = self.client.get("/api/geometry-generators/wafer-dmy/versions/1")
         self.assertEqual(response.status_code, 200, response.text)
         definition = response.json()
-        self.assertEqual(definition["label"], "wafer dmy generator")
+        self.assertEqual(definition["label"], "DMY die generator")
         self.assertEqual(definition["entityType"], "die")
         self.assertEqual(definition["category"], "die.wafer-dmy")
         self.assertEqual(definition["icon"], "die.piece")
@@ -129,7 +129,7 @@ class WaferDmyGeneratorTests(unittest.TestCase):
         template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
         template["name"] = "Wafer dummy die placement"
         template["flowInputs"][1].update({
-            "flowInputId": "incoming_wafer_dmy", "name": "wafer dmy",
+            "flowInputId": "incoming_wafer_dmy", "name": "DMY die",
             "geometryConstraints": {"categories": ["die.wafer-dmy"]},
         })
         template["stepRefs"] = template["stepRefs"][:1]

@@ -23,7 +23,7 @@ source_of_truth:
 input選擇器。Flow editor不得以generator id寫條件分支；新增generator只需在後端註冊
 definition、validation、geometry builder與preview evaluator，並明確宣告入口。
 
-HBM與DRAM只在Home提供catalog建立入口；flow input從Geometry DB選擇公版。SoC、VRM與wafer dmy出現在
+HBM與DRAM只在Home提供catalog建立入口；flow input從Geometry DB選擇公版。SoC、VRM與DMY die出現在
 Template Geometry library及兩種flow input選擇器。LSI另在Management提供catalog建立入口。
 Management和Home的catalog入口共用`/geometry-generator?generatorId=<id>`靜態頁。
 
@@ -32,13 +32,13 @@ SoC generator v1由下而上提供Pass2、usg、elk與si四層的厚度及材料
 並以`box-rescale@1`在PnP時配合target region調整XY。兩者僅從flow editor的generator selector
 使用；fixture catalog不提供SoC或VRM geometry。VRM生成的root container key為`vrm`。
 
-wafer dmy generator v1的id為`wafer-dmy`，category為`die.wafer-dmy`，只有一層Si。
+DMY die generator v1的id為`wafer-dmy`，category為`die.wafer-dmy`，只有一層Si。
 `si`分組提供`siThickness`與`siMaterial`，預設200 um與`si`，皆可編輯；厚度須為有限且非負
 數值，材料須為非空字串並trim。厚度0仍保留唯一body。預覽基準footprint為8000 × 10000 um，
 XYZ置中，root container key為`wafer-dmy`，唯一body key為`wafer-dmy.si`。透過`box-rescale@1`
 配合PnP的矩形或多邊形target調整XY，保留厚度與材料。它僅出現在Template Geometry library
 及Flow Template／Instance的geometry input選擇器，Home與Management不提供入口，fixture catalog
-不提供wafer dmy geometry。wafer邊緣的放置位置、數量與形狀由既有flow／PnP設定；generator
+不提供DMY die geometry。wafer邊緣的放置位置、數量與形狀由既有flow／PnP設定；generator
 不自動排列die，也不計算warpage。
 
 LSI generator v1以`generation`參數選擇`gen1`或`gen2`，使用固定8000 × 10000 um

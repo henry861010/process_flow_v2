@@ -34,7 +34,7 @@ the four-layer defaults. Explicit new layer parameters take precedence, and save
 recipes retain zero thickness values. Existing static catalog geometry is updated
 only when regenerated. VRM remains a separate single-box generator.
 
-Wafer dmy (`wafer-dmy` v1, category `die.wafer-dmy`) builds one Si dummy die
+DMY die (`wafer-dmy` v1, category `die.wafer-dmy`) builds one Si dummy die
 for wafer-edge placement to control warpage. Its editable `siThickness` and
 `siMaterial` default to 200 um and `si`, grouped under `si`. It uses an
 8000 x 10000 um preview footprint centered on XYZ and `box-rescale@1` for PnP

@@ -16,7 +16,7 @@ class WaferDmyGenerator:
             "schemaVersion": 2,
             "id": "wafer-dmy",
             "version": 1,
-            "label": "wafer dmy generator",
+            "label": "DMY die generator",
             "description": "Build a single Si dummy die for placement at the wafer edge to control warpage.",
             "uiPlacements": ["templateGeometryLibrary", "flowInputPicker"],
             "entityType": "die",
@@ -76,7 +76,7 @@ class WaferDmyGenerator:
 
     def evaluate(self, parameters: JsonObject) -> GeneratorEvaluation:
         if self.validate(parameters):
-            raise ValueError("Cannot build wafer dmy geometry from invalid parameters")
+            raise ValueError("Cannot build DMY die geometry from invalid parameters")
         thickness = float(parameters["siThickness"])
         normalized = {
             "siThickness": thickness,

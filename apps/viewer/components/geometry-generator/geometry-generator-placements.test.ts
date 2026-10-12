@@ -43,7 +43,7 @@ const definitions = [
   definition("lsi", "die.lsi", ["management", "templateGeometryLibrary", "flowInputPicker"]),
   {
     ...definition("wafer-dmy", "die.wafer-dmy", ["templateGeometryLibrary", "flowInputPicker"]),
-    label: "wafer dmy generator",
+    label: "DMY die generator",
   },
 ];
 
@@ -88,6 +88,6 @@ describe("generator UI placements", () => {
       kind: "generator", generatorId: "wafer-dmy", generatorVersion: 1,
       parameters: { siThickness: 200, siMaterial: "si" },
     })).toBe(true);
-    expect(generatorDisplayName(definitions[5])).toBe("wafer dmy");
+    expect(generatorDisplayName(definitions[5])).toBe("DMY die");
   });
 });
