@@ -1375,6 +1375,39 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(direct.status_code, 200, direct.text)
         self.assertEqual([snapshot["stepRefId"] for snapshot in direct.json()["snapshots"]], ["hbm_prepare1", "hbm_prepare2"])
 
+    def test_zero_placement_bump_joint_saves_executes_and_previews_without_die_configuration(self):
+        bootstrap = self.reset_poc_data()
+        template = next(item for item in bootstrap["processFlowTemplates"]
+                        if item["id"] == "flow_tpl_dual_bump_demo")
+        instance = copy.deepcopy(next(item for item in bootstrap["processFlowInstances"]
+                                      if item["id"] == "flow_inst_dual_bump_demo"))
+        instance["name"] = "Zero placement bump joint"
+        instance["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = []
+        instance["inputBindings"].pop("incoming_die")
+        for step in ("die_bump", "die_flip"):
+            instance["stepConfigurations"].pop(step)
+        created = self.client.post("/api/process-flow-instances", json=instance_create_payload(instance))
+        self.assertEqual(created.status_code, 201, created.text)
+        instance = created.json()
+        saved = self.client.get(f"/api/process-flow-instances/{instance['id']}")
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertNotIn("incoming_die", saved.json()["inputBindings"])
+        self.assertEqual(set(saved.json()["stepConfigurations"]), {"main_bump", "pnp", "joint"})
+        executed = self.client.post(f"/api/process-flow-instances/{instance['id']}/execute")
+        self.assertEqual(executed.status_code, 200, executed.text)
+        outputs = executed.json()["stepOutputs"]
+        self.assertEqual(set(outputs), {"main_bump", "pnp", "joint"})
+        self.assertEqual(outputs["joint"], outputs["pnp"])
+        self.assertEqual(executed.json()["geometryStructure"], outputs["pnp"])
+        self.assertEqual(outputs["joint"]["root"]["children"], [])
+        self.assertEqual(outputs["joint"]["root"]["bumps"][0]["stage"], "reflowed")
+        request = preview_session_request(template, instance, target={
+            "type": "stepOutput", "stepRefId": "joint", "outputPortId": "result_geometry"})
+        session = self.client.post("/api/preview-sessions", json=request)
+        self.assertEqual(session.status_code, 200, session.text)
+        self.assertEqual([snapshot["stepRefId"] for snapshot in session.json()["snapshots"]],
+                         ["main_bump", "pnp", "joint"])
+
     def test_zero_placement_preserves_unused_generator_recipe_and_reactivation_validates_it(self):
         _, instance = self.zero_placement_branch()
         binding = {"kind": "generator", "generatorId": "unknown-inactive", "generatorVersion": 1, "parameters": {"draft": "retained"}}

@@ -233,7 +233,10 @@ Copy、厚度調整、move、resize、flip、clip 與 PnP MUST 保留 `stage`。
 獨立 `bump/bump_joint` 將配對 child 的上側 bump 更新為 `joined`，其底面為下側 bump
 底面、厚度為完整接合高度。Child 本體及 descendants 隨接合高度平移。下側 envelope
 原始資料保留，不代表接合區仍有第二份 solder；該區域由 child joined feature 取得
-ownership。未接合區保留下側 envelope。這是 envelope study 語意，不推論單顆 bump
+ownership。未接合區保留下側 envelope。整批無可配對的 reflowed bumps 時，Joint
+正常完成且不修改 state（包含 geometry、ID、cursor 與 process footprint）；
+`bump_joined_height` 仍須為正有限數值，已有配對的幾何一致性驗證仍適用。
+這是 envelope study 語意，不推論單顆 bump
 座標或體積守恆。完整行為見 [Process Step catalog](process-steps/README.md)。
 
 ## 7. Geometry primitive union

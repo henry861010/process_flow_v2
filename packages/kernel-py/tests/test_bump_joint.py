@@ -4,6 +4,7 @@ import copy
 import json
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from process_flow_kernel import (
     FlowCompiler, GeometryArtifact, GeometryKernel, InMemoryGeometryCatalog,
@@ -130,19 +131,38 @@ class BumpJointTests(unittest.TestCase):
         self.assertEqual(state.cursor_z(), cursor)
         self.assertEqual(state.process_footprint(), footprint)
 
-    def test_invalid_heights_and_no_pairs_are_atomic(self):
-        for height in (0, -1, float("nan"), float("inf")):
-            state = main_state()
-            place(state, die_state())
-            self.assert_atomic_failure(state, "positive|finite", height)
-        for lower, upper in ((None, "reflowed"), ("deposited", "reflowed"), ("reflowed", "deposited"), ("reflowed", "joined")):
-            state = main_state(lower)
-            place(state, die_state(upper))
-            self.assert_atomic_failure(state, "no paired")
+    def assert_joint_noop(self, state):
+        before, cursor, footprint = state.to_geometry_structure(), state.cursor_z(), state.process_footprint()
+        with mock.patch.object(state, "to_geometry_structure", side_effect=AssertionError("Unexpected serialization")):
+            self.assertIs(state.join_bumps(joined_height=25), state)
+        self.assertEqual(state.to_geometry_structure(), before)
+        self.assertEqual(state.cursor_z(), cursor)
+        self.assertEqual(state.process_footprint(), footprint)
+
+    def test_invalid_heights_are_atomic_with_or_without_pairs(self):
+        for paired in (False, True):
+            for height in (0, -1, float("nan"), float("inf")):
+                with self.subTest(paired=paired, height=height):
+                    state = main_state()
+                    if paired:
+                        place(state, die_state())
+                    self.assert_atomic_failure(state, "positive|finite", height)
+
+    def test_no_pairs_and_repeated_joint_preserve_state(self):
+        self.assert_joint_noop(ProcessGeometryState.create())
+        self.assert_joint_noop(main_state())
+        for lower in (None, "deposited", "reflowed", "joined"):
+            for upper in (None, "deposited", "reflowed", "joined"):
+                if lower == upper == "reflowed":
+                    continue
+                with self.subTest(lower=lower, upper=upper):
+                    state = main_state(lower)
+                    place(state, die_state(upper))
+                    self.assert_joint_noop(state)
         state = main_state()
         place(state, die_state())
         state.join_bumps(joined_height=25)
-        self.assert_atomic_failure(state, "no paired")
+        self.assert_joint_noop(state)
 
     def test_cross_layer_and_ambiguous_pairs_are_atomic(self):
         state = main_state()
@@ -158,10 +178,10 @@ class BumpJointTests(unittest.TestCase):
     def test_noncontacting_pair_and_xy_disjoint_are_skipped(self):
         state = main_state()
         state.place_geometry_state(die_state(), x=0, y=0, bottom_z=121)
-        self.assert_atomic_failure(state, "no paired")
+        self.assert_joint_noop(state)
         state = main_state()
         place(state, die_state(), x=200)
-        self.assert_atomic_failure(state, "no paired")
+        self.assert_joint_noop(state)
 
     def test_partial_and_inconsistent_child_bumps_fail_without_moving_valid_children(self):
         state = main_state()
@@ -222,9 +242,20 @@ class BumpJointTests(unittest.TestCase):
             execute_pnp(context(state, {"placements":[placement(),placement(20)]}, source=source))
         self.assertEqual(state.to_geometry_structure(), before)
 
-    def test_joint_module_requires_height(self):
-        with self.assertRaisesRegex(ValueError, "bump_joined_height"):
-            execute_joint(context(main_state(), {}))
+    def test_joint_module_requires_positive_finite_height_without_pairs(self):
+        for values in ({}, {"bump_joined_height": None}, {"bump_joined_height": 0},
+                       {"bump_joined_height": -1}, {"bump_joined_height": float("nan")},
+                       {"bump_joined_height": float("inf")}):
+            with self.subTest(values=values):
+                state = main_state()
+                before = state.to_geometry_structure()
+                with self.assertRaisesRegex(ValueError, "bump_joined_height"):
+                    execute_joint(context(state, values))
+                self.assertEqual(state.to_geometry_structure(), before)
+        state = main_state()
+        before = state.to_geometry_structure()
+        self.assertIs(execute_joint(context(state, {"bump_joined_height": 25})), state)
+        self.assertEqual(state.to_geometry_structure(), before)
 
     def test_polygon_adaptation_pairs_and_joins_without_mutating_source(self):
         state = main_state()
@@ -239,6 +270,28 @@ class BumpJointTests(unittest.TestCase):
         self.assertEqual(bump["geometry"]["polys"][0][0][2], 100)
         self.assertEqual(bump["stage"], "joined")
         self.assertEqual(die.to_geometry_structure(), before)
+
+    def test_zero_placement_flow_runs_joint_without_die_binding_or_configuration(self):
+        fixtures = Path(__file__).resolve().parents[3] / "apps/api/src/process_flow_api/fixtures"
+        read = lambda name: json.loads((fixtures / name).read_text())
+        steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
+        flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
+        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
+        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = []
+        configuration["inputBindings"].pop("incoming_die")
+        for step in ("die_bump", "die_flip"):
+            configuration["stepConfigurations"].pop(step)
+        compiler = FlowCompiler(InMemoryGeometryCatalog(geometries))
+        plan = compiler.compile(flow, configuration, steps)
+        self.assertEqual([step.step_ref_id for step in plan.steps], ["main_bump", "pnp", "joint"])
+        self.assertEqual(set(plan.external_geometries), {"incoming_main"})
+        self.assertEqual(set(plan.step("pnp").geometry_inputs), {"main_geometry"})
+        result = GeometryKernel().execute(plan)
+        self.assertEqual(set(result.step_outputs()), {"main_bump", "pnp", "joint"})
+        self.assertEqual(result.step_output("joint"), result.step_output("pnp"))
+        self.assertEqual(result.geometry(), result.step_output("pnp"))
+        self.assertEqual(result.geometry()["root"]["children"], [])
+        self.assertEqual(result.geometry()["root"]["bumps"][0]["stage"], "reflowed")
 
     def test_seed_dual_branch_flow_executes_with_rectangle_and_polygon_children(self):
         fixtures = Path(__file__).resolve().parents[3] / "apps/api/src/process_flow_api/fixtures"

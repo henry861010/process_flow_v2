@@ -77,6 +77,10 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - Micro／BGA／C4 formation 視為完成單側回焊成形，明確建立 `stage="reflowed"` 的 bump，
   不提供 stage parameter，適用 die、wafer 與 panel。PnP 保留來源 bump stage；獨立
   `bump/bump_joint` 完成後才將上側 bump 標記 `joined`。
+  若整批沒有可配對的 reflowed bumps（包含 PnP 為 `placements: []`），Joint 正常完成並
+  回傳未修改的 state；geometry、ID、cursor 與 process footprint 均不變。
+  `bump_joined_height` 仍須為正有限數值；部分配對、多重匹配、跨層及高度不一致仍報錯，
+  且整批驗證失敗時不修改 state。
 - `molding` 需要既有 process footprint 與正的 thickness。
 - ECL `koz` 在此 operation 直接用作 body footprint inset；這與 feature payload 中保存、交由 consumer 解讀的 `koz` 不同。
 - RDL `layers` 是 repeatable group；每 item 必須含 stable `itemId`，runtime normalized item 另含 `_itemId`/`_index`。

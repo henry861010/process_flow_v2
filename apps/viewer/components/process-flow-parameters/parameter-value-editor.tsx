@@ -230,6 +230,28 @@ function RepeaterControl({
     : (createDefaultParameterValue(definition) as RepeatableGroupValue);
   const minItems = repeat.minItems ?? 0;
   const maxItems = repeat.maxItems ?? Number.POSITIVE_INFINITY;
+  const itemHeadingRefs = React.useRef(new Map<string, HTMLHeadingElement>());
+  const pendingItemIdRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    const itemId = pendingItemIdRef.current;
+    if (!itemId) return;
+    const heading = itemHeadingRefs.current.get(itemId);
+    if (!heading) return;
+    pendingItemIdRef.current = null;
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView({ behavior: "instant", block: "start", inline: "nearest" });
+  }, [repeatValue.items]);
+
+  function addItem() {
+    const nextIndex =
+      repeatValue.items.length === 0
+        ? repeat.indexBase
+        : Math.max(...repeatValue.items.map((item) => item.index)) + 1;
+    const item = createRepeatItem(definition, nextIndex);
+    pendingItemIdRef.current = item.itemId;
+    onChange({ items: [...repeatValue.items, item] });
+  }
 
   function updateItemValues(itemIndex: number, values: Record<string, unknown>) {
     onChange({
@@ -241,48 +263,23 @@ function RepeaterControl({
 
   return (
     <div className="px-4 py-4">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-3">
         <ParameterLabel definition={definition} />
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled || repeatValue.items.length <= minItems}
-            onClick={() => onChange({ items: repeatValue.items.slice(0, -1) })}
-          >
-            <Trash2 />
-            Remove
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={disabled || repeatValue.items.length >= maxItems}
-            onClick={() => {
-              const nextIndex =
-                repeatValue.items.length === 0
-                  ? repeat.indexBase
-                  : Math.max(...repeatValue.items.map((item) => item.index)) + 1;
-              onChange({
-                items: [
-                  ...repeatValue.items,
-                  createRepeatItem(definition, nextIndex),
-                ],
-              });
-            }}
-          >
-            <Plus />
-            Add
-          </Button>
-        </div>
       </div>
 
       <div className="flex flex-col gap-3">
         {repeatValue.items.map((item, itemIndex) => (
           <section key={item.itemId} className="rounded-md border bg-muted/20 p-3">
-            <div className="mb-3 text-sm font-medium">
+            <h4
+              ref={(heading) => {
+                if (heading) itemHeadingRefs.current.set(item.itemId, heading);
+                else itemHeadingRefs.current.delete(item.itemId);
+              }}
+              tabIndex={-1}
+              className="mb-3 rounded-sm text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               {formatRepeatItemName(definition, item.index)}
-            </div>
+            </h4>
             <div className="grid gap-3 md:grid-cols-2">
               {repeat.itemParameterDefinitions.map((child) => (
                 <div
@@ -330,6 +327,27 @@ function RepeaterControl({
             No items
           </div>
         ) : null}
+      </div>
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || repeatValue.items.length <= minItems}
+          onClick={() => onChange({ items: repeatValue.items.slice(0, -1) })}
+        >
+          <Trash2 />
+          Remove
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={disabled || repeatValue.items.length >= maxItems}
+          onClick={addItem}
+        >
+          <Plus />
+          Add
+        </Button>
       </div>
     </div>
   );

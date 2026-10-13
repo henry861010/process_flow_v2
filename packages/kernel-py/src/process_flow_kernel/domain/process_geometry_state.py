@@ -879,6 +879,8 @@ class ProcessGeometryState:
     def join_bumps(self, *, joined_height):
         height = _positive_number(joined_height, "joined_height")
         plans = plan_bump_joint(self._root, height)
+        if not plans:
+            return self
         snapshot = self.to_geometry_structure()["root"]
         children = self._root.children()
         for child, offset, replacements in plans:

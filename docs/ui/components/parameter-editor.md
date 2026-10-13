@@ -62,12 +62,14 @@ Option checkbox card最小寬140px、padding12px/8px；multiple依
 
 `fieldGroupArray` + `repeatDefinition` render full-width repeater：
 
-- header左為Parameter label，右依序 `Remove`、`Add`；
+- header保留Parameter label與description；清單底部靠右依序排列 `Remove`、`Add`，與清單間距12px；
 - Remove只移除最後一個item，items等於`minItems`時disabled；
 - Add在`maxItems`時disabled；新index是空陣列用`indexBase`，否則current max + 1；
+- Add後以新item的`itemId`定位，DOM更新後即時捲到新item heading並聚焦heading，按Tab可進入新item欄位；
 - 每個item是 muted/20 card、padding12、gap12，heading由`itemNameTemplate`格式化；
 - child definitions在`md`兩欄；nested group跨兩欄並recursive render；
-- empty顯示 `No items` dashed block。
+- empty顯示 `No items` dashed block，Add/Remove仍在block下方；
+- nested repeater沿用相同版面與互動，新增只定位該repeater的新item；初次載入、edit與Remove不觸發自動捲動或focus。
 
 Value shape：
 
@@ -98,6 +100,7 @@ placements、repeat min/max、nested required等均使configuration incomplete/e
 - Required star是視覺提示；semantic required/`aria-required`是target gap，應補但不能改copy/layout。
 - Checkbox label包住control；select/input依DOM definition order。
 - Add/Remove在disabled時仍保留位置；不得造成layout jump。
+- Item heading使用`tabIndex=-1`供新增後程式聚焦，不加入一般Tab順序；鍵盤focus須有可見指示，捲動不得被dialog header/footer遮住。
 
 ## 測試 fixture
 
@@ -114,3 +117,6 @@ rectangle/polygon placements、one-level repeat、nested repeat、disabled state
 | `UI-PARAM-004` | repeat at min/max | Remove/Add各自在boundary disabled。 |
 | `UI-PARAM-005` | edit nested child | itemId/index穩定、sibling values不變。 |
 | `UI-PARAM-006` | committed/disabled | 值可讀但所有mutation commands不可用。 |
+| `UI-PARAM-007` | repeat有多個items或empty | Remove/Add位於最後item或`No items`下方，靠右排列。 |
+| `UI-PARAM-008` | 在可捲動dialog以mouse或keyboard連續Add | 每次尾端新增後即時捲到新item heading並聚焦；Tab進入該item欄位，小視窗下heading與focus仍可見。 |
+| `UI-PARAM-009` | nested repeat Add，或載入/edit/Remove | nested Add只定位該層新item；其餘操作不觸發自動捲動或focus，既有itemId/index與sibling values維持穩定。 |

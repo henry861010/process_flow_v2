@@ -79,8 +79,6 @@ def plan_bump_joint(root, joined_height):
             replacement.move(z=lower.z_min() - replacement.z_min())
             replacements.append((upper, replacement))
         plans.append((child, pairs[0][1].z_min() + joined_height - body_bottom, replacements))
-    if not plans:
-        raise ValueError("Bump Joint: no paired reflowed bumps")
     return plans
 
 
