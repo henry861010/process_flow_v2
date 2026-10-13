@@ -6,7 +6,7 @@ audience:
   - software engineers
   - maintainers
   - technical leads
-last_verified: 2026-08-29
+last_verified: 2026-10-13
 last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
 source_of_truth:
   - apps/api/src/process_flow_api
@@ -60,7 +60,7 @@ kernel在execution time動態import process-step modules；CAD與mesher process-
 FastAPI 的 strict Pydantic models 會拒絕 unknown fields。Service 驗證 domain constraints
 後，`SQLiteStore` 把 canonical camelCase JSON 存入 `payload` column，並另外保存 list/query
 metadata。現行 public API 對 process step 與 flow template 提供 restricted update；instance 與
-geometry 採 insert-only，workspace 則有獨立的 draft update lifecycle。
+geometry 採 insert-only，兩種 editor draft 則有獨立 snapshot 與 revision update lifecycle。
 
 ### Compile 與 execute
 
@@ -75,11 +75,9 @@ geometry 採 insert-only，workspace 則有獨立的 draft update lifecycle。
 5. Module `execute(context)` 回傳或修改 `ProcessGeometryState`。
 6. Kernel serialize selected output 與 step outputs，最後由 API 回傳 JSON。
 
-### Workspace commit
+### Editor draft commit
 
-Workspace create/update 使用 incomplete validation 與 optimistic `revision`。Commit 先執行
-complete compile，再於單一 SQLite write transaction 中 materialize embedded geometries、
-建立 immutable instance 並標記 workspace committed。
+兩種 draft 各自保存在獨立資料表。Create/update 只驗證 snapshot 格式並檢查 revision，允許未完成的 flow。Commit 使用目前 editor 的正式 create payload 進行完整驗證，同一 SQLite transaction 寫入必要 geometries、immutable template/instance 並刪除來源 draft；失敗全部 rollback。
 
 ### Preview 與 export
 
@@ -92,7 +90,7 @@ Preview 可以直接解析 flow input，或只執行 step output 的 upstream cl
 
 預設 storage 是 `apps/api/.data/process-flow.sqlite3`。啟動時 store 建立 tables、檢查
 `schema_metadata.databaseSchemaVersion`，且只在所有 resource tables 都是空的時候 seed
-fixtures。目前 marker 是 `"11"`；8–10 版會保留資料並依序 migration，其他較舊 marker
+fixtures。目前 marker 是 `"12"`；8–11 版會保留資料並依序 migration，其他較舊 marker
 或無 marker 資料會清空並重新 seed。11 版使用 SQLite unique indexes 確保 flow template
 與 instance 各自的 `(name, version)` 唯一。若 migration 發現既有重複，會列出名稱、版本
 與衝突 IDs 並停止；先處理重複資料再重新啟動，原資料與 schema marker 保留。

@@ -6,7 +6,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-12
+last_verified: 2026-10-13
 last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - docs/ui/README.md
@@ -95,7 +95,7 @@ Home AAA template card
 - complete configuration才可Save；required metadata不完整或save失敗留在dialog顯示error。
   Flow template／instance的ID由server在create時產生，save dialog不提供ID輸入。
 - Save使用direct create且不得修改source instance；成功後返回Home。
-- `workspaceId`顯示unsupported message；backend workspace API保留。
+- Save Draft / From Draft 使用各自種類的 snapshot API；instance draft 限固定 template，正式 Save 成功後刪除來源草稿。
 
 對應驗收：`UI-FIE-001` 至 `UI-FIE-007`。
 
@@ -146,7 +146,7 @@ demo
 
 - route、fixture、entry state 與 acceptance ID 可由文件直接找到。
 - visible copy、icon、button order、default、disabled reason 與規格一致。
-- loading、empty、error、success、disabled、locked/committed state 均有對應 semantic case。
+- loading、empty、error、success、disabled、locked state 均有對應 semantic case。
 - Desktop、compact、mobile 的 scroll owner 與 breakpoint 行為一致。
 - current gap 沒有被靜默改寫成 normative behavior。
 - reference screenshot 只在 target state 確認後寫入 `assets/reference/`。

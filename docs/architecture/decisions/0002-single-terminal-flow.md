@@ -53,7 +53,7 @@ Process Flow target contract 採 **single-terminal flow**：
 
 - Flow template create MUST reject zero/multiple terminal。
 - Atomic template+instance create MUST執行相同 graph validation。
-- Workspace create/update MAY assume referenced immutable template已 valid，但 preview/commit
+- Editor draft create/update MAY 保存未完成 topology，但 preview/commit
   MUST revalidate stored graph以防 corrupted/imported data。
 - Instance create、commit與 execute MUST reject invalid terminal count。
 - Viewer readiness與 compiler MUST共用或等價實作同一 terminal algorithm。

@@ -15,8 +15,7 @@ export type GeometryPreviewTarget =
 export type AnalyticsContext = {
   flowTemplateId?: string;
   flowInstanceId?: string;
-  workspaceId?: string;
-  sourceKind?: "template" | "instance" | "workspace" | "inline_draft" | "geometry";
+  sourceKind?: "template" | "instance" | "inline_draft" | "geometry";
 };
 
 export type GeometryPreviewRequest = {

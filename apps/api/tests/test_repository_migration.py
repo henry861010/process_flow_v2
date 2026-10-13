@@ -86,7 +86,7 @@ class RepositoryMigrationTests(unittest.TestCase):
                 ).fetchone()["value"]
                 self.assertEqual(version, DATABASE_SCHEMA_VERSION)
                 self.assertEqual(store.list_geometries(), [])
-                self.assertIsNone(store.get_process_flow_workspace("workspace-existing"))
+                self.assertIsNone(store.get_editor_draft("instance", "workspace-existing"))
             finally:
                 store.close()
 

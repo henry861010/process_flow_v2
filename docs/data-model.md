@@ -6,7 +6,7 @@ audience:
   - Process Flow 維護者
   - API、kernel 與 viewer 開發者
   - QA 與 coding agent
-last_verified: 2026-07-11
+last_verified: 2026-10-13
 last_verified_commit: b01b1e70
 source_of_truth:
   - docs/architecture/decisions/0002-single-terminal-flow.md
@@ -17,7 +17,7 @@ source_of_truth:
 verified_against:
   - apps/api/src/process_flow_api/models.py
   - apps/api/src/process_flow_api/repository.py
-  - apps/api/src/process_flow_api/workspace_service.py
+  - apps/api/src/process_flow_api/draft_service.py
   - packages/kernel-py/src/process_flow_kernel/application
 ---
 
@@ -47,7 +47,7 @@ kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語�
 | Step 能接收什麼、執行什麼？ | [`ProcessStepTemplate`](#5-processsteptemplate) |
 | Flow 如何連接多個 Step？ | [`ProcessFlowTemplate`](#6-processflowtemplate) |
 | Geometry 與 parameter values 存在哪裡？ | [`FlowConfiguration`](#7-共用-flowconfiguration) |
-| 草稿如何保存、更新及 commit？ | [`ProcessFlowWorkspace`](#8-processflowworkspace) 與 [commit transaction](#12-workspace-commit-transaction) |
+| 草稿如何保存、更新及 commit？ | [`InstanceEditorDraft`](#8-editor-drafts) 與 [commit transaction](#12-editor-draft-commit-transaction) |
 | 什麼操作會執行哪些驗證？ | [驗證時機](#11-驗證時機) |
 | 查 identifier、default、`null` 或版本標記 | [共用欄位與格式規則](#10-共用欄位與格式規則) |
 | 查看完整可執行 payload | [PnP golden example](#14-可完整執行的-pnp-golden-example) |
@@ -86,7 +86,7 @@ kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語�
 `ProcessFlowTemplate`；這份 flow template 代表一項封裝技術的完整製程拓撲，例如 AAA 的
 flow inputs、steps 與 geometry routing，也可保存建立新 instance 時使用的 scalar parameter
 defaults，但不包含特定產品的 geometry 或已完成製程設定。當同一項
-技術套用到 HBM4 Alpha、HBM4 Beta 等不同產品時，工程師會在 `ProcessFlowWorkspace` 中
+技術套用到 HBM4 Alpha、HBM4 Beta 等不同產品時，工程師會在 `InstanceEditorDraft` 中
 選擇 panel 種類或 HBM 種類，並分別設定 placements、molding thickness、RDL
 layers 等 step parameters。設定完整並 commit 後，系統建立 immutable
 `ProcessFlowInstance`，保存該產品可重現、可執行的完整製程設定。
@@ -95,16 +95,17 @@ layers 等 step parameters。設定完整並 commit 後，系統建立 immutable
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | 定義可重用的單一製程步驟，包括 geometry ports、parameter definitions 與執行程式。 | PnP step 宣告 panel primary input、HBM auxiliary input 與 `placements` parameter。 | Immutable snapshot |
 | `ProcessFlowTemplate` | 定義一項封裝技術的完整 topology，包括 flow inputs、step references 與 edges。 | AAA flow 將 PnP、molding、RDL 與 C4 依製程順序連接。 | Topology/identity/version locked；metadata/step labels/defaults 可受限更新 |
-| `ProcessFlowWorkspace` | 保存特定產品仍在調整中的 `FlowConfiguration`。 | HBM4 Alpha 開發過程中調整 geometry bindings、placements、材料與厚度。 | 只有 `draft` 可修改 |
+| `TemplateEditorDraft` | 保存未完成的拓樸與完整 editor working state。 | 編輯製程接線、step labels、試用參數與畫布位置。 | 可 revision-checked 更新 |
+| `InstanceEditorDraft` | 保存特定產品仍在調整中的 `FlowConfiguration`。 | HBM4 Alpha 開發過程中調整 geometry bindings、placements、材料與厚度。 | 可修改直到正式儲存成功後刪除 |
 | `ProcessFlowInstance` | 保存已完成並通過完整驗證的產品製程設定。 | HBM4 Alpha Build 的完整 geometry bindings 與各 step parameter values。 | Immutable snapshot |
 | `GeometryEntity` | 保存可被 flow input 引用的 catalog geometry snapshot。 | `panel_plp_310x310mm_glass` panel 與 `hbm3_8hi` HBM die。 | Immutable snapshot |
 
 ```mermaid
 flowchart LR
   StepTemplate["ProcessStepTemplate<br/>定義單一步驟"] --> FlowTemplate["ProcessFlowTemplate<br/>組成可重用流程"]
-  FlowTemplate --> Workspace["ProcessFlowWorkspace<br/>可修改的研究草稿"]
-  Catalog["Geometry catalog"] --> Workspace
-  Workspace -->|"atomic commit"| Instance["ProcessFlowInstance<br/>不可修改的完整設定"]
+  FlowTemplate --> InstanceDraft["InstanceEditorDraft<br/>可修改的研究草稿"]
+  Catalog["Geometry catalog"] --> InstanceDraft
+  InstanceDraft -->|"atomic commit"| Instance["ProcessFlowInstance<br/>不可修改的完整設定"]
   FlowTemplate --> Instance
   Catalog --> Instance
 ```
@@ -137,7 +138,7 @@ flowchart LR
 ## 3. 核心設計原則
 
 1. Geometry dataflow 與 process parameter values MUST 分開保存與傳遞。
-2. `ProcessFlowTemplate` 定義 topology；`ProcessFlowWorkspace` 保存可修改的研究設定；
+2. `ProcessFlowTemplate` 定義 topology；`InstanceEditorDraft` 保存可修改的研究設定；
    `ProcessFlowInstance` 保存完整且不可修改的產品設定。
 3. Geometry 只經由 typed ports 與 `inputBindings` 傳遞，不屬於 parameter value union。
 4. Flow template 的 identity/version/topology locked，但 status、metadata、step labels 與 flow-specific scalar
@@ -157,18 +158,19 @@ flowchart LR
 flowchart TB
   StepTemplate["ProcessStepTemplate"] -->|"StepRef 引用"| FlowTemplate["ProcessFlowTemplate"]
   FlowTemplate -->|"定義 flowInputId 與 stepRefId"| Configuration["FlowConfiguration"]
-  Configuration --> Workspace["ProcessFlowWorkspace"]
+  Configuration --> InstanceDraft["InstanceEditorDraft"]
   Configuration --> Instance["ProcessFlowInstance"]
-  Workspace -->|"擁有 draft-local data"| Embedded["EmbeddedGeometry"]
+  InstanceDraft -->|"擁有 draft-local data"| Embedded["EmbeddedGeometry"]
   Catalog["GeometryEntity catalog"] -->|"catalog binding"| Configuration
-  Workspace -->|"commit 並 materialize embedded geometry"| Instance
+  InstanceDraft -->|"commit 並 materialize embedded geometry"| Instance
 ```
 
 | Model | 擁有 | 不擁有 | 可變性 |
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Contract locked；status/metadata/program/defaults 可更新 |
 | `ProcessFlowTemplate` | Flow inputs、step refs、edges、flow-specific scalar defaults | 產品 geometry bindings | Identity/version/topology locked；status/name/owner/description/step labels/defaults 可受限更新 |
-| `ProcessFlowWorkspace` | Bindings、parameter values、embedded geometries、commit state | Topology | 只有 `draft` 可修改 |
+| `TemplateEditorDraft` | Metadata、拓樸、完整 configuration、畫布位置 | 正式 resource identity | 可 revision-checked 更新 |
+| `InstanceEditorDraft` | Metadata 與完整 configuration snapshot | Topology | 可修改直到正式儲存成功後刪除 |
 | `ProcessFlowInstance` | 完整產品設定 | Embedded geometries、topology、instance lineage | Immutable snapshot |
 | `GeometryEntity` | Catalog metadata 與完整 `GeometryStructure` | Flow-specific role | Immutable snapshot |
 | `ExecutionPlan` | 已解析 structures、排序後 steps、明確 input routing | Repository handle 或尚待解析的 repository id | 僅存在於 runtime；nested mappings MUST 視為 read-only |
@@ -177,7 +179,7 @@ flowchart TB
 `(name, version)` 唯一；以儲存的字串精確比對，大小寫不同視為不同值。Instance 的唯一範圍
 跨所有 flow templates，與 owner、status 或 template id 無關。同名不同版本可存在；更新原
 template 不變更此組合時可正常儲存。重複新增或改名 MUST 回傳 HTTP 409，transaction
-不得留下部分 template、instance、geometry 或 workspace commit。
+不得留下部分 template、instance、geometry 或 instance draft commit。
 
 每個 flow template id 代表一份 topology snapshot；受限 update 只可修改
 `status`、`name`、`owner`、`description` 與既有 step refs 的 `stepLabel`、`parameterDefaults`。
@@ -263,9 +265,9 @@ values。在 PnP 範例中，它以兩條 edges 將 `incoming_panel` 與 `incomi
 
 兩種 template 的 `status` 都可受限更新；`null` 與其他值 MUST reject。舊資料缺少欄位時
 MUST 視為 `enabled`，read responses MUST 包含明確狀態。Step `disabled` 禁止建立新的
-flow template 引用它，但已儲存且啟用的 flow 仍可建立 workspace／instance。Flow `disabled`
-禁止建立新 workspace／instance（包含 copy 後另存），既有 draft workspace 仍可修改及預覽，
-但不能 commit。已 commit workspace 的重複 commit 保持冪等。既有 instance 的讀取、預覽、
+flow template 引用它，但已儲存且啟用的 flow 仍可建立 instance draft／instance。Flow `disabled`
+禁止建立新 instance draft／instance（包含 copy 後另存），既有 draft instance draft 仍可修改及預覽，
+但不能 commit。已 commit instance draft 的重複 commit 保持冪等。既有 instance 的讀取、預覽、
 執行與匯出 MUST 不受兩種 template 停用影響。停用不刪除資料、不改寫引用，也不封存 program
 實作版本；重新啟用恢復新增能力。
 
@@ -280,7 +282,7 @@ input 沒有 incoming edge、不執行 process program，也沒有 step paramete
 實際 geometry 由 `FlowConfiguration.inputBindings[flowInputId]` 綁定 catalog、embedded
 geometry，或指定 generator 的版本與參數。
 
-因此，Template 負責定義 flow input 的名稱、型別、constraints 與 routing；Workspace 或
+因此，Template 負責定義 flow input 的名稱、型別、constraints 與 routing；Instance draft 或
 Instance 的 Configuration 則負責選擇這次實際使用的 geometry。
 
 | Model | 所屬位置 | 責任 | PnP 範例 |
@@ -452,7 +454,7 @@ flow input、step、port 與 edge ids 仍 MUST 合法。Persisted create MUST �
 geometries。它不定義 steps、ports 或 topology；這些結構仍由 `ProcessFlowTemplate` 與其引用
 的 `ProcessStepTemplate` 定義。
 
-Workspace 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的設定；preview request 使用
+Instance draft 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的設定；preview request 使用
 同一個結構傳入臨時設定；compiler 則讀取它並產生 `ExecutionPlan`。Instance 保存 commit 後的
 完整設定，但只允許 catalog 或 generator bindings，MUST NOT 保存 `embeddedGeometries`。
 
@@ -538,48 +540,27 @@ reject；value shape 由對應 `ParameterDefinition` 決定。
 }
 ```
 
-## 8. ProcessFlowWorkspace
+## 8. Editor Drafts
 
-每個 Workspace 只引用一個 immutable Flow Template，並保存可以尚未完整的研究設定。
-它適合反覆 Save Draft；只有 commit 時才要求整份 configuration 完整。
+`TemplateEditorDraft` 與 `InstanceEditorDraft` 是獨立的可修改 editor snapshots，使用同一 SQLite DB 的兩張獨立資料表。草稿可保存未接完的拓樸、不完整或尚未通過語意驗證的參數；正式儲存才執行完整 domain validation。
 
-| 欄位 | 型別 | 必填條件 | 契約 |
-| --- | --- | --- | --- |
-| `schemaVersion` | integer literal `2` | persisted yes | Process resource schema。 |
-| `id` | identifier | yes | Server-generated immutable id。 |
-| `name` | non-empty string | yes | Mutable while draft。 |
-| `processFlowTemplateId` | identifier | yes | Immutable reference。 |
-| `revision` | integer `>= 1` | yes | Optimistic concurrency token。 |
-| `status` | `draft \| committed` | yes | Lifecycle state。 |
-| `committedInstanceId` | identifier | committed only | First successful commit result。 |
-| `createdAt` | RFC 3339 UTC string | yes | Immutable timestamp。 |
-| `updatedAt` | RFC 3339 UTC string | yes | Update/commit timestamp。 |
-| FlowConfiguration fields | objects | yes | Mutable only while draft。 |
+| 欄位 | 型別 | 契約 |
+| --- | --- | --- |
+| `schemaVersion` | integer literal `1` | Editor snapshot 版本，與正式 Process resource 的 `2` 分開。 |
+| `id` | string | Server-generated UUID4 hex；legacy migration 保留原 ID。 |
+| `user`, `name` | trimmed nonblank strings | 草稿作者及名稱；與正式 metadata 分開。名稱允許重複。 |
+| `revision` | integer >= 1 | 建立為 1；每次成功更新加一。 |
+| `createdAt`, `updatedAt` | UTC RFC 3339 strings | 建立／最後更新時間。 |
+| `state.metadata` | object | `name`, `version`, `owner`, `description` 的目前編輯值，允許空白。 |
+| `state.configuration` | FlowConfiguration | 完整 bindings、parameter values、embedded geometries，包括 arrays、placements、generator recipes。 |
+| `processFlowTemplateId` | string | Instance draft 必填且不可更換；template draft 不使用此欄位。 |
+| `state.nodes`, `state.edges`, `state.viewport` | arrays / object | Template draft 必填；保存 graph node IDs、domain definitions/references、positions、handle connections 與 x/y/zoom。Instance draft 不接受這些欄位。 |
 
-Draft MAY 缺少 required binding/parameter，或保存 incomplete repeat item；但已提供的
-key、union shape、non-empty parameter type、max/range constraints 與 local references MUST
-合法。Catalog existence、geometry constraints 與 full completeness MAY 延後至 preview 或
-commit，詳見 validation matrix。
+Snapshot MUST 是有限數字的有效 JSON，不包含 React callbacks、預覽結果或 UI 對話框狀態。草稿保存只驗證格式，不執行 graph/compiler validation；載入不得重新套用 defaults 或默默移除 missing dependencies。
 
-Workspace update 使用 full-replacement `PUT` semantics：request MUST 帶目前
-`revision` 與完整 desired `inputBindings`、`stepConfigurations`、
-`embeddedGeometries`；省略 map 等同清空。成功後 revision 加一；stale update MUST 回
-`409 Conflict`。Committed workspace read-only。
+`PUT` 使用 full replacement 並要求目前 revision。Update、DELETE、commit 都 MUST 檢查 revision；stale request 回 `409`。Instance list/detail/delete 帶固定 template ID，跨 template request 回 `404`。
 
-### 8.1 生命週期
-
-```mermaid
-flowchart LR
-  Start([Start]) -->|create| DraftR1[Draft revision 1]
-  DraftR1 -->|PUT current revision| DraftRN[Draft revision N]
-  DraftRN -->|failed validation or rollback| DraftRN
-  DraftRN -->|commit / revision + 1| Committed[Committed]
-  Committed -->|retry returns first instance| Committed
-```
-
-Commit retry 以 workspace 的 committed state 為準。一旦 commit 成功，後續 retry MUST
-回傳第一次建立的 workspace/instance，即使 retry request 提供不同 revision、instance id
-或 name；不得建立第二份 instance。
+正式 commit 接收 editor 當下的正式 create payload，而不是強制使用上次儲存的 snapshot。成功建立正式 resource 並刪除來源草稿；失敗保留草稿。成功後再呼叫同一草稿 ID 回 `404`，不保留 committed draft lifecycle。
 
 ## 9. ProcessFlowInstance
 
@@ -601,9 +582,8 @@ PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完�
 | `stepConfigurations` | map | yes | 有效 steps 的 required values MUST complete；未使用的 steps 保留已提供 values，亦 MAY be absent。 |
 
 API MUST NOT provide in-place instance update。新產品、study result 或 recipe change MUST
-建立新的 instance id。目前模型保存通用identity metadata，但不保存 instance lineage、source
-workspace、created timestamp 或revision；`committedInstanceId` 是 workspace retry pointer，
-不是 lineage relation。
+建立新的 instance id。目前模型保存通用 identity metadata，但不保存 instance lineage、來源 editor draft ID、created timestamp 或 revision。正式 instance 不帶草稿 lifecycle。
+
 
 ## 10. 共用欄位與格式規則
 
@@ -638,11 +618,12 @@ negotiation 或依版號切換行為。
 
 | 用途 | 欄位 | 型別 | 目前值 | 意義 |
 | --- | --- | --- | --- | --- |
+| Editor snapshot wire marker | `schemaVersion` | integer | `1` | Template／instance editor draft 的獨立 snapshot 格式。 |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"11"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"12"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Process resource metadata label | `version` | string | Default `"V0.0.0"` | Template、step與instance的opaque display/source label；不得解析、排序或推導行為差異。 |
-| Workspace concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
+| Editor draft concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 
 `GeometryEntity` 外層不是 Process resource schema，因此不包含 numeric
 `schemaVersion: 2`；其 nested `structure` MUST 包含 geometry format marker。正式發行策略
@@ -715,11 +696,11 @@ resource id。
 | --- | --- | --- | --- |
 | Step template create | complete | port invariants | definition schema + option enum definition |
 | Flow template create | complete | complete，含 exactly one terminal | definitions resolved |
-| Workspace create / update | complete | referenced template already valid | active steps provided values validate；missing/empty required allowed |
+| Editor draft create / update | snapshot shape | topology MAY incomplete | parameter semantics/completeness deferred |
 | Flow-input preview | complete | full template valid | unrelated steps MAY be incomplete |
 | Step-output preview | complete | full template valid | target active upstream closure MUST complete |
 | Instance create | complete | referenced template valid | active flow MUST complete |
-| Workspace commit | complete | referenced template valid | active flow MUST complete |
+| Instance draft commit | complete | referenced template valid | active flow MUST complete |
 | Execute | stored resource is revalidated | complete | active flow complete |
 | Seed/import | MUST pass same validators as create | required | required by resource type |
 
@@ -727,37 +708,22 @@ resource id。
 | --- | --- | --- | --- |
 | Step template create | n/a | n/a | SHOULD validate program locator |
 | Flow template create | step templates MUST exist | n/a | not executed |
-| Workspace create / update | Catalog與generator version existence MAY defer；embedded local ref MUST exist | MAY defer | not executed |
+| Editor draft create / update | Catalog、generator 與 embedded references MAY defer | MAY defer | not executed |
 | Flow-input preview | target binding MUST resolve/match | target geometry MUST hydrate | not executed |
 | Step-output preview | closure bindings MUST resolve/match | closure geometries MUST hydrate | closure modules MUST load/execute |
 | Instance create | all used bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable；execution errors remain possible only for domain behavior |
-| Workspace commit | all used bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable before persistence |
+| Instance draft commit | all used bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable before persistence |
 | Execute | resolve again | required | required and executed |
 | Seed/import | required where applicable | required | SHOULD verify program locator |
 
 「Complete」只表示本表中對應 boundary 的所有 required checks 已通過，不應以單一模糊
 boolean 取代 validation stage 或 error details。
 
-## 12. Workspace commit transaction
+## 12. Editor draft commit transaction
 
-Commit 可以先讀取 workspace snapshot 並在 transaction 外做 complete compile，避免把
-昂貴的 resource resolution 與 geometry hydration 放進長 transaction；所有 persistence
-writes 則 MUST 位於同一個 SQLite transaction。Write transaction 必須：
+API 共用正式 template／instance create 的驗證與 preparation。Template 要求有效 topology、metadata、scalar defaults 與可用 steps；instance 要求完整 compile、可用 flow template 與 used geometry resolution。
 
-1. Re-read workspace；若已 committed，直接回傳第一次建立的 result。
-2. 重新驗證 request revision、`status: draft`，並確認被 compile 的 snapshot 仍是同一
-   revision。
-3. 只 materialize 被 binding reference 的 embedded geometries；同一 `localId` 被多次
-   reference 時只建立一個 catalog entity。
-4. 將 embedded bindings 改寫成 catalog bindings；使用中的 generator bindings 保留已驗證並
-   正規化的版本與參數，未使用的 recipes 原樣保留，不建立 catalog entity。
-5. Insert new immutable `ProcessFlowInstance`。
-6. 將 workspace 標記 `committed`、revision 加一、保存 `committedInstanceId`，改寫
-   bindings 並清空 `embeddedGeometries`。
-
-任何 transaction 內的 duplicate id 或 persistence failure MUST rollback geometry、instance
-與 workspace update。Transaction 外的 validation、resolution 或 compile failure MUST 在
-任何 write 前結束。Retry after failure MAY 使用同一 request 再試。
+Write transaction MUST 重新讀取對應種類的 draft，檢查 revision 與 instance 的 template ID，寫入必要的 materialized geometries、正式 resource，最後刪除來源草稿。Duplicate identity、revision conflict 或任一步寫入失敗 MUST rollback 全部 writes。Validation failure 不得先刪除草稿。
 
 ## 13. Compile 與 execute 邊界
 

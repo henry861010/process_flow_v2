@@ -77,32 +77,6 @@ def test_combined_create_rolls_back_duplicate_identity(service, collision):
     assert client.get("/api/bootstrap").json() == before
 
 
-def test_workspace_duplicate_commit_keeps_draft_and_can_retry(service):
-    app, client, before, template, instance = service
-    bindings = copy.deepcopy(instance["inputBindings"])
-    binding_id = next(iter(bindings))
-    geometry = next(item for item in before["geometries"] if item["id"] == bindings[binding_id]["geometryId"])
-    bindings[binding_id] = {"kind": "embedded", "localId": "local"}
-    response = client.post("/api/process-flow-workspaces", json={
-        "name": "Draft", "processFlowTemplateId": template["id"],
-        "inputBindings": bindings, "stepConfigurations": instance["stepConfigurations"],
-        "embeddedGeometries": {"local": {k: v for k, v in geometry.items() if k != "id"}},
-    })
-    assert response.status_code == 201, response.text
-    workspace = response.json()
-    route = f"/api/process-flow-workspaces/{workspace['id']}"
-    request = {"revision": workspace["revision"], "instanceName": instance["name"],
-               "instanceVersion": instance["version"], "instanceOwner": "another-owner"}
-    response = client.post(f"{route}/commit", json=request)
-    assert response.status_code == 409, response.text
-    assert client.get(route).json() == workspace
-    assert client.get("/api/bootstrap").json() == before
-    request["instanceVersion"] = "V-next"
-    committed = client.post(f"{route}/commit", json=request)
-    assert committed.status_code == 200, committed.text
-    assert client.post(f"{route}/commit", json=request).json() == committed.json()
-
-
 @pytest.mark.parametrize("collection", ["processFlowTemplates", "processFlowInstances"])
 def test_fixture_import_rejects_duplicate_identity_without_reset(service, collection):
     app, client, before, template, instance = service

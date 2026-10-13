@@ -1,7 +1,7 @@
 # Process Flow
 
 Process Flow 是 local-first 的半導體製程建模 PoC。它把可重用的 process step、flow
-topology、研究中的 workspace、immutable product instance 與 geometry catalog 分開管理，
+topology、未完成的 editor drafts、immutable product instance 與 geometry catalog 分開管理，
 再由 compiler 產生可執行 plan，交給 kernel、CAD 與 mesher 處理。
 
 ## Repository 結構
@@ -9,7 +9,7 @@ topology、研究中的 workspace、immutable product instance 與 geometry cata
 | 位置 | 職責 |
 | --- | --- |
 | `apps/viewer` | Next.js static UI、editor working state、HTTP client 與 3D 顯示。 |
-| `apps/api` | FastAPI、Pydantic boundary、SQLite repository、workspace transaction、preview/export orchestration。 |
+| `apps/api` | FastAPI、Pydantic boundary、SQLite repository、draft transaction、preview/export orchestration。 |
 | `packages/kernel-py` | Geometry domain、graph/configuration validation、compile 與 process-step execution；不存取 HTTP 或 SQLite。 |
 | `packages/process-step-py` | `process_flow_steps.<program>` 的實際 process operations。 |
 | `packages/geometry_generators` | 可獨立安裝的 versioned geometry generators、manifest、registry 與工程預覽。 |

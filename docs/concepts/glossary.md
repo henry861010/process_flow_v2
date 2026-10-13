@@ -5,7 +5,7 @@ owner: integration.platform
 audience:
   - 所有專案成員
   - 自動化 agent
-last_verified: 2026-07-11
+last_verified: 2026-10-13
 last_verified_commit: b01b1e70
 source_of_truth:
   - docs/data-model.md
@@ -25,13 +25,14 @@ source_of_truth:
 | `StepRef` | Flow 內一次 process-step template 的使用；同一 template 可以被多次引用。 |
 | `FlowEdge` | Geometry dataflow connection，source 是 flow input 或 step output，target 是 step input port。 |
 | `FlowConfiguration` | `inputBindings`、`stepConfigurations` 與 `embeddedGeometries` 的共用 configuration shape。 |
-| `ProcessFlowWorkspace` | Mutable、可不完整、具 optimistic revision 的研究中 configuration。 |
+| `TemplateEditorDraft` | 可不完整的 template editor snapshot，包含拓樸、配置與畫布位置。 |
+| `InstanceEditorDraft` | 指定 template 下可不完整的 configuration 與 metadata snapshot。 |
 | `ProcessFlowInstance` | Complete、immutable、只使用 catalog bindings 的產品 configuration snapshot。 |
 | `GeometryEntity` | Geometry catalog record；metadata 與完整 `GeometryStructure` 的封裝。 |
-| `EmbeddedGeometry` | Workspace 內尚未 materialize 到 catalog 的 geometry record。 |
+| `EmbeddedGeometry` | Editor draft 內尚未 materialize 到 catalog 的 geometry record。 |
 | `GeometryStructure` | Kernel、CAD、mesher 與 viewer 交換的 geometry tree document。 |
 | Catalog binding | `{ "kind": "catalog", "geometryId": "..." }`；指向已保存的 `GeometryEntity`。 |
-| Embedded binding | `{ "kind": "embedded", "localId": "..." }`；只在 workspace/draft configuration 中使用。 |
+| Embedded binding | `{ "kind": "embedded", "localId": "..." }`；只在 editor draft configuration 中使用。 |
 | Primary input | 每個 process step 唯一且 required 的 `main_geometry`。 |
 | Auxiliary input | 除 `main_geometry` 外的 typed geometry input，例如 PnP 的 `die_geometry`。 |
 | Terminal step | 沒有 outgoing step-output edge 的 step。本 contract 必須恰好有一個 terminal。 |
@@ -40,7 +41,7 @@ source_of_truth:
 | `program` | `process_flow_steps` package 下不含副檔名的 Python module path。 |
 | Resource `version` | Process template、step或instance的opaque metadata label；正式發行前內建default使用`V0.0.0`，不代表release，也不驅動行為差異；GeometryEntity沒有此欄位。 |
 | `schemaVersion` | Payload 或 geometry document 的固定格式標記；不同 domain 不可混用，也不是產品版本。 |
-| Workspace `revision` | Optimistic concurrency counter；不是 template business version。 |
+| Editor draft `revision` | Optimistic concurrency counter；不是 template business version。 |
 | Density | Feature coverage 百分比，target contract 為 `0..100`，含兩端點。 |
 | Unit | 所有 geometry coordinates、thickness 與空間參數固定使用 `um`。 |
 | `materialRef` | 現行名稱；runtime 實際以 string material key/name 處理，並非 database foreign key。 |

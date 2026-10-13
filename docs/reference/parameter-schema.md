@@ -6,7 +6,7 @@ audience:
   - process-step 作者
   - API、compiler 與 viewer 開發者
   - QA 與 coding agent
-last_verified: 2026-07-11
+last_verified: 2026-10-13
 last_verified_commit: b01b1e70
 source_of_truth:
   - docs/data-model.md
@@ -35,7 +35,7 @@ flowchart LR
 | Layer | Owner | Shape |
 | --- | --- | --- |
 | Definition | `ProcessStepTemplate` | Type、UI control、enum options、validation、unit、repeat schema。 |
-| Persisted value | Workspace / Instance | User-entered JSON，保留 repeat `itemId`、`index`、`values` wrapper。 |
+| Persisted value | Editor draft / Instance | User-entered JSON，保留 repeat `itemId`、`index`、`values` wrapper。 |
 | Compiler-normalized value | `ExecutionPlan.PlannedStep.parameter_values` | Numeric canonicalization、repeat flattening、missing optional value normalization。 |
 | Kernel value | `ProcessStepContext.values` | Compiler values，再套用 `materialRef` instance naming。 |
 

@@ -8,6 +8,7 @@ import {
   Braces,
   Database,
   Download,
+  FilePenLine,
   GitBranch,
   Layers3,
   RotateCcw,
@@ -20,49 +21,59 @@ import { ProcessStepEditDialog } from "@/components/process-step-edit/process-st
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flow/types";
-import type { BootstrapPayload } from "@/lib/process-flow-api";
+import type { EditorDraftSummary, ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flow/types";
+import {
+  deleteManagementResource,
+  loadManagementData,
+  managementDataFromBootstrap,
+  removeManagementResource,
+  type ManagementData,
+  type ManagementDeletion,
+} from "@/lib/process-flow/management-data";
 import {
   ApiRequestError,
-  deleteGeometry,
-  deleteProcessFlowInstance,
-  deleteProcessFlowTemplate,
   exportFixtureArchive,
-  loadBootstrap,
   resetPocData,
   resetPocDataFromZip,
 } from "@/lib/process-flow-api";
 
-type DeletableCollection = "processFlowTemplates" | "processFlowInstances" | "geometries";
+type DeletableCollection = ManagementDeletion["collection"];
 
 const deletionActions = {
   geometries: {
     label: "geometry",
-    remove: deleteGeometry,
-    consequence: "This geometry will be permanently deleted. Geometries referenced by an instance or workspace cannot be deleted.",
+    consequence: "This geometry will be permanently deleted. Geometries referenced by an instance or editor draft cannot be deleted.",
   },
   processFlowTemplates: {
     label: "flow template",
-    remove: deleteProcessFlowTemplate,
-    consequence: "All workspace drafts referencing this template will also be permanently deleted.",
+    consequence: "All instance drafts referencing this template will also be permanently deleted.",
   },
   processFlowInstances: {
     label: "instance",
-    remove: deleteProcessFlowInstance,
-    consequence: "Any committed workspace that produced this instance will also be permanently deleted.",
+    consequence: "The saved instance will be permanently deleted.",
+  },
+  processFlowTemplateDrafts: {
+    label: "template draft",
+    consequence: "This unfinished template draft will be permanently deleted. Saved templates, instances and geometries will be preserved.",
+  },
+  processFlowInstanceDrafts: {
+    label: "instance draft",
+    consequence: "This unfinished instance draft will be permanently deleted. Its template, saved instances and geometries will be preserved.",
   },
 };
 
-const emptyData: BootstrapPayload = {
+const emptyData: ManagementData = {
   processFlowTemplates: [],
   processFlowInstances: [],
   processStepTemplates: [],
   geometries: [],
   geometryGenerators: [],
+  processFlowTemplateDrafts: [],
+  processFlowInstanceDrafts: [],
 };
 
 export default function ManagementPage() {
-  const [data, setData] = React.useState<BootstrapPayload>(emptyData);
+  const [data, setData] = React.useState<ManagementData>(emptyData);
   const [loading, setLoading] = React.useState(true);
   const [exporting, setExporting] = React.useState(false);
   const [resetting, setResetting] = React.useState(false);
@@ -95,7 +106,7 @@ export default function ManagementPage() {
 
   React.useEffect(() => {
     let active = true;
-    loadBootstrap()
+    loadManagementData()
       .then((payload) => {
         if (!active) return;
         setData(payload);
@@ -127,8 +138,9 @@ export default function ManagementPage() {
   const fixtureBusy = exporting || resetting || importing;
   const resourceBusy = loading || fixtureBusy || deleting !== null;
 
-  async function handleDelete(collection: DeletableCollection, resource: { id: string; name: string }) {
+  async function handleDelete(target: ManagementDeletion) {
     if (deletionInProgressRef.current || resourceBusy || editingTemplate || editingStep) return;
+    const { collection, resource } = target;
     const action = deletionActions[collection];
     if (!window.confirm(`Permanently delete ${action.label} "${resource.name}" (${resource.id})?\n\n${action.consequence}`)) return;
     deletionInProgressRef.current = true;
@@ -137,17 +149,15 @@ export default function ManagementPage() {
     setError(null);
     setSuccess(null);
     try {
-      await action.remove(resource.id);
-      setData((current) => ({
-        ...current,
-        [collection]: current[collection].filter((item) => item.id !== resource.id),
-      }));
+      await deleteManagementResource(target);
+      setData((current) => removeManagementResource(current, target));
       setSuccess(`Deleted ${action.label} "${resource.name}" (${resource.id}).`);
     } catch (reason) {
       let message = reason instanceof Error ? reason.message : `Unable to delete ${action.label}.`;
       if (reason instanceof ApiRequestError && (reason.status === 409 || reason.status === 404)) {
         try {
-          setData(await loadBootstrap());
+          setData(await loadManagementData());
+          message += " Resources refreshed. Review the current data before trying Delete again.";
         } catch {
           message += " Unable to refresh resources. Reload the page to see current references.";
         }
@@ -164,6 +174,8 @@ export default function ManagementPage() {
     { label: "Instances", count: data.processFlowInstances.length, icon: GitBranch },
     { label: "Geometries", count: data.geometries.length, icon: Box },
     { label: "Process steps", count: data.processStepTemplates.length, icon: Braces },
+    { label: "Template drafts", count: data.processFlowTemplateDrafts.length, icon: FilePenLine },
+    { label: "Instance drafts", count: data.processFlowInstanceDrafts.length, icon: FilePenLine },
   ];
 
   async function handleDatabaseReset() {
@@ -173,7 +185,7 @@ export default function ManagementPage() {
     setResetting(true);
     setSuccess(null);
     try {
-      setData(await resetPocData());
+      setData(managementDataFromBootstrap(await resetPocData()));
       setEditingTemplate(null);
       setEditingStep(null);
       setError(null);
@@ -206,7 +218,7 @@ export default function ManagementPage() {
     setImporting(true);
     setSuccess(null);
     try {
-      setData(await resetPocDataFromZip(file));
+      setData(managementDataFromBootstrap(await resetPocDataFromZip(file)));
       setEditingTemplate(null);
       setEditingStep(null);
       setError(null);
@@ -228,7 +240,7 @@ export default function ManagementPage() {
               <h1 className="text-xl font-semibold">Management</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Review process resources and manage template defaults and process step settings.
+              Review process resources, delete editor drafts, and manage template defaults and process step settings.
             </p>
           </div>
           <Button asChild size="sm" variant="outline">
@@ -247,7 +259,7 @@ export default function ManagementPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-3 py-5 sm:grid-cols-2 lg:grid-cols-4" aria-label="Resource counts">
+        <section className="grid gap-3 py-5 sm:grid-cols-2 lg:grid-cols-3" aria-label="Resource counts">
           {resources.map(({ label, count, icon: Icon }) => (
             <div key={label} className="rounded-md border bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
@@ -266,6 +278,8 @@ export default function ManagementPage() {
               <TabsTrigger value="instances">Instances</TabsTrigger>
               <TabsTrigger value="geometries">Geometries</TabsTrigger>
               <TabsTrigger value="steps">Process steps</TabsTrigger>
+              <TabsTrigger value="template-drafts">Template drafts</TabsTrigger>
+              <TabsTrigger value="instance-drafts">Instance drafts</TabsTrigger>
             </TabsList>
           </div>
 
@@ -293,7 +307,7 @@ export default function ManagementPage() {
                         name={template.name}
                         disabled={resourceBusy || (instanceCountByTemplate.get(template.id) ?? 0) > 0}
                         deleting={deleting?.collection === "processFlowTemplates" && deleting.id === template.id}
-                        onClick={() => void handleDelete("processFlowTemplates", template)}
+                        onClick={() => void handleDelete({ collection: "processFlowTemplates", resource: template })}
                       />
                     </div>
                   </td>
@@ -316,7 +330,7 @@ export default function ManagementPage() {
                         name={instance.name}
                         disabled={resourceBusy}
                         deleting={deleting?.collection === "processFlowInstances" && deleting.id === instance.id}
-                        onClick={() => void handleDelete("processFlowInstances", instance)}
+                        onClick={() => void handleDelete({ collection: "processFlowInstances", resource: instance })}
                       />
                     </div>
                   </td>
@@ -355,7 +369,7 @@ export default function ManagementPage() {
                         name={geometry.name}
                         disabled={resourceBusy}
                         deleting={deleting?.collection === "geometries" && deleting.id === geometry.id}
-                        onClick={() => void handleDelete("geometries", geometry)}
+                        onClick={() => void handleDelete({ collection: "geometries", resource: geometry })}
                       />
                     </div>
                   </td>
@@ -388,6 +402,26 @@ export default function ManagementPage() {
                 </tr>
               ))}
             </ResourceTable>
+          </TabsContent>
+          <TabsContent value="template-drafts">
+            <DraftTable
+              drafts={data.processFlowTemplateDrafts}
+              loading={loading}
+              disabled={resourceBusy}
+              deletingId={deleting?.collection === "processFlowTemplateDrafts" ? deleting.id : undefined}
+              onDelete={(draft) => void handleDelete({ collection: "processFlowTemplateDrafts", resource: draft })}
+            />
+          </TabsContent>
+
+          <TabsContent value="instance-drafts">
+            <DraftTable
+              drafts={data.processFlowInstanceDrafts}
+              templateById={templateById}
+              loading={loading}
+              disabled={resourceBusy}
+              deletingId={deleting?.collection === "processFlowInstanceDrafts" ? deleting.id : undefined}
+              onDelete={(draft) => void handleDelete({ collection: "processFlowInstanceDrafts", resource: draft })}
+            />
           </TabsContent>
         </Tabs>
       </div>
@@ -518,6 +552,41 @@ function DeleteButton({ name, disabled, deleting, onClick }: {
         {deleting ? "Deleting…" : "Delete"}
       </Button>
     </div>
+  );
+}
+
+function DraftTable({ drafts, templateById, loading, disabled, deletingId, onDelete }: {
+  drafts: EditorDraftSummary[];
+  templateById?: Map<string, ProcessFlowTemplate>;
+  loading: boolean;
+  disabled: boolean;
+  deletingId?: string;
+  onDelete: (draft: EditorDraftSummary) => void;
+}) {
+  const headings = ["Draft", ...(templateById ? ["Template"] : []), "User", "Revision", "Updated", "Actions"];
+  return (
+    <ResourceTable headings={headings}>
+      {loading || drafts.length === 0 ? (
+        <tr>
+          <td colSpan={headings.length} className="px-4 py-6 text-left text-muted-foreground sm:text-center">
+            {loading ? "Loading drafts…" : "No drafts saved."}
+          </td>
+        </tr>
+      ) : drafts.map((draft) => (
+        <tr key={draft.id} className="border-b last:border-b-0">
+          <IdentityCell name={draft.name} id={draft.id} />
+          {templateById ? <Cell>{templateById.get(draft.processFlowTemplateId ?? "")?.name ?? draft.processFlowTemplateId}</Cell> : null}
+          <Cell>{draft.user}</Cell>
+          <Cell>{draft.revision}</Cell>
+          <Cell><time dateTime={draft.updatedAt} title={draft.updatedAt}>{new Date(draft.updatedAt).toLocaleString()}</time></Cell>
+          <td className="px-4 py-3 align-top">
+            <div className="flex justify-end">
+              <DeleteButton name={draft.name} disabled={disabled} deleting={deletingId === draft.id} onClick={() => onDelete(draft)} />
+            </div>
+          </td>
+        </tr>
+      ))}
+    </ResourceTable>
   );
 }
 

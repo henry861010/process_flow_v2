@@ -39,14 +39,6 @@ class TemplateAvailabilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
-    def create_workspace(self):
-        response = self.client.post("/api/process-flow-workspaces", json={
-            "name": "Availability workspace", "processFlowTemplateId": self.flow["id"],
-            "inputBindings": self.instance["inputBindings"],
-            "stepConfigurations": self.instance["stepConfigurations"],
-        })
-        self.assertEqual(response.status_code, 201, response.text)
-        return response.json()
 
     def commit_body(self, revision):
         return {"revision": revision,
@@ -84,57 +76,6 @@ class TemplateAvailabilityTests(unittest.TestCase):
                                       if item["id"] == template["id"])["status"], "disabled")
                 self.set_status(kind, updated.json(), "enabled")
 
-    def test_disabled_flow_blocks_new_use_but_workspace_edit_and_reenable_work(self):
-        workspace = self.create_workspace()
-        disabled = self.set_status("flow", self.flow, "disabled")
-        source = {**self.instance, "id": "new-availability-instance"}
-        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(source))
-        self.assertEqual(response.status_code, 409, response.text)
-        self.assertIn(self.flow["id"], response.text)
-        response = self.client.post("/api/process-flow-workspaces", json={
-            "name": "Blocked", "processFlowTemplateId": self.flow["id"],
-        })
-        self.assertEqual(response.status_code, 409, response.text)
-        update = self.client.put(f"/api/process-flow-workspaces/{workspace['id']}", json={
-            "revision": workspace["revision"], "name": "Still editable",
-            "inputBindings": workspace["inputBindings"],
-            "stepConfigurations": workspace["stepConfigurations"],
-        })
-        self.assertEqual(update.status_code, 200, update.text)
-        revision = update.json()["revision"]
-        commit_path = f"/api/process-flow-workspaces/{workspace['id']}/commit"
-        blocked = self.client.post(commit_path, json=self.commit_body(revision))
-        self.assertEqual(blocked.status_code, 409, blocked.text)
-        self.assertEqual(self.client.get(f"/api/process-flow-workspaces/{workspace['id']}").json()["revision"], revision)
-        self.assertEqual(self.client.get("/api/process-flow-instances/committed-availability").status_code, 404)
-        self.set_status("flow", disabled, "enabled")
-        committed = self.client.post(commit_path, json=self.commit_body(revision))
-        self.assertEqual(committed.status_code, 200, committed.text)
-        self.set_status("flow", self.flow, "disabled")
-        retried = self.client.post(commit_path, json=self.commit_body(revision))
-        self.assertEqual(retried.status_code, 200, retried.text)
-        self.assertEqual(retried.json(), committed.json())
-
-    def test_disabled_step_blocks_new_flows_but_existing_flows_remain_usable(self):
-        self.set_status("step", self.step, "disabled")
-        new_flow = {**self.flow, "id": "new-availability-flow", "name": "New availability flow"}
-        for status in ("enabled", "disabled"):
-            response = self.client.post("/api/process-flow-templates", json=template_create_payload({**new_flow, "status": status}))
-            self.assertEqual(response.status_code, 409, response.text)
-            self.assertIn(self.step["id"], response.text)
-        updated = self.client.put(f"/api/process-flow-templates/{self.flow['id']}",
-                                  json={**self.flow, "description": "Still editable"})
-        self.assertEqual(updated.status_code, 200, updated.text)
-        instance = self.client.post("/api/process-flow-instances", json=instance_create_payload({**self.instance, "id": "new-existing-flow", "name": "New existing flow"}))
-        self.assertEqual(instance.status_code, 201, instance.text)
-        workspace = self.create_workspace()
-        committed = self.client.post(f"/api/process-flow-workspaces/{workspace['id']}/commit",
-                                     json=self.commit_body(workspace["revision"]))
-        self.assertEqual(committed.status_code, 200, committed.text)
-        self.set_status("step", self.step, "enabled")
-        response = self.client.post("/api/process-flow-templates", json=template_create_payload(new_flow))
-        self.assertEqual(response.status_code, 201, response.text)
-        new_flow["id"] = response.json()["id"]
 
     def test_combined_create_enforces_both_rules_without_partial_writes(self):
         flow = {**self.flow, "id": "combined-availability", "name": "Combined availability flow"}

@@ -180,13 +180,17 @@ def _apply_parameter_defaults(target_definitions: Any, source_definitions: Any) 
 
 
 def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplateCreate) -> JsonObject:
+    return store.insert_process_flow_template(prepare_flow_template(store, body))
+
+
+def prepare_flow_template(store: SQLiteStore, body: ProcessFlowTemplateCreate) -> JsonObject:
     payload = {**body.payload(), "id": generated_flow_template_id()}
     step_templates = load_step_templates_for_template(store, payload)
     require_enabled_steps_for_new_flow(step_templates)
     materialize_flow_parameter_defaults(payload, step_templates)
     validate_flow_graph(payload, step_templates)
     validate_flow_parameter_defaults(payload, step_templates)
-    return store.insert_process_flow_template(payload)
+    return payload
 
 
 def update_process_flow_template(
@@ -327,6 +331,15 @@ def create_flow_instance(
     body: ProcessFlowInstanceCreate,
     generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
+    instance, geometries = prepare_flow_instance(store, body, generators)
+    return store.insert_instance_with_geometries(instance, geometries=geometries)
+
+
+def prepare_flow_instance(
+    store: SQLiteStore,
+    body: ProcessFlowInstanceCreate,
+    generators: GeometryGeneratorRegistry,
+) -> tuple[JsonObject, list[JsonObject]]:
     payload = {**body.payload(), "id": generated_flow_instance_id()}
     template = require_item(
         store.get_process_flow_template(payload["processFlowTemplateId"]),
@@ -338,7 +351,7 @@ def create_flow_instance(
     payload = canonicalize_generator_bindings(payload, plan)
     geometries, persisted_bindings = materialize_embedded_bindings(payload)
     instance = _persisted_instance(payload, persisted_bindings)
-    return store.insert_instance_with_geometries(instance, geometries=geometries)
+    return instance, geometries
 
 
 def _persisted_instance(

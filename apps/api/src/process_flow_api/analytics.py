@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 request_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "analytics_request", default=None
 )
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 COMMON_COLUMNS = "request_owner,occurred_at,environment,app_version,server_instance_id,dataset_id,record_version"
 REQUEST_COLUMNS = COMMON_COLUMNS + ",request_id,started_at,method,route,status_code,duration_ms,request_bytes,response_bytes,traffic_kind,completion_state,error_code"
-EVENT_COLUMNS = COMMON_COLUMNS + ",event_id,request_id,operation_id,event_name,phase,outcome,flow_template_id,flow_instance_id,workspace_id,source_kind,duration_ms,error_code,properties_json"
+EVENT_COLUMNS = COMMON_COLUMNS + ",event_id,request_id,operation_id,event_name,phase,outcome,flow_template_id,flow_instance_id,source_kind,duration_ms,error_code,properties_json"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS analytics_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS usage_events (
  dataset_id TEXT NOT NULL, record_version INTEGER NOT NULL,
  event_id TEXT PRIMARY KEY, request_id TEXT, operation_id TEXT NOT NULL,
  event_name TEXT NOT NULL, phase TEXT NOT NULL, outcome TEXT,
- flow_template_id TEXT, flow_instance_id TEXT, workspace_id TEXT, source_kind TEXT NOT NULL,
+ flow_template_id TEXT, flow_instance_id TEXT, source_kind TEXT NOT NULL,
  duration_ms INTEGER, error_code TEXT,
  properties_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(properties_json) AND json_type(properties_json) = 'object'),
  UNIQUE(operation_id, event_name, phase)
@@ -142,7 +142,7 @@ class AnalyticsRecorder:
                           event_name=event_name, phase=phase, outcome=outcome,
                           source_kind=origin.get("source_kind", "system"),
                           duration_ms=duration_ms, error_code=error_code)
-            for key in ("flow_template_id", "flow_instance_id", "workspace_id"):
+            for key in ("flow_template_id", "flow_instance_id"):
                 record[key] = origin.get(key)
             record["properties_json"] = json.dumps(
                 properties if properties is not None else origin.get("properties", {}),
@@ -181,7 +181,9 @@ class AnalyticsRecorder:
             connection.execute("PRAGMA synchronous=FULL")
             connection.execute("CREATE TABLE IF NOT EXISTS analytics_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             row = connection.execute("SELECT value FROM analytics_metadata WHERE key='schema_version'").fetchone()
-            if row is not None and row[0] != str(SCHEMA_VERSION):
+            if row is not None and row[0] == "1":
+                self._migrate_v1_to_v2(connection)
+            elif row is not None and row[0] != str(SCHEMA_VERSION):
                 raise RuntimeError("Unsupported analytics schema version; history preserved")
             connection.executescript(SCHEMA)
             connection.execute("INSERT OR IGNORE INTO analytics_metadata VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
@@ -191,6 +193,27 @@ class AnalyticsRecorder:
         except BaseException:
             connection.close()
             raise
+
+    @staticmethod
+    def _migrate_v1_to_v2(connection: sqlite3.Connection) -> None:
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            sql = SCHEMA[SCHEMA.index("CREATE TABLE IF NOT EXISTS usage_events"):SCHEMA.index("CREATE INDEX")]
+            connection.execute(sql.replace("IF NOT EXISTS usage_events", "usage_events_v2"))
+            cursor = connection.execute("SELECT * FROM usage_events")
+            names = [column[0] for column in cursor.description]
+            columns = EVENT_COLUMNS.split(",")
+            for row in cursor.fetchall():
+                record = dict(zip(names, row))
+                properties = json.loads(record["properties_json"])
+                if record.get("workspace_id") is not None:
+                    properties["legacy_workspace_id"] = record["workspace_id"]
+                record["properties_json"] = json.dumps(properties, ensure_ascii=False, allow_nan=False)
+                connection.execute(f"INSERT INTO usage_events_v2 ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})",
+                                   [record.get(column) for column in columns])
+            connection.execute("DROP TABLE usage_events")
+            connection.execute("ALTER TABLE usage_events_v2 RENAME TO usage_events")
+            connection.execute("UPDATE analytics_metadata SET value='2' WHERE key='schema_version'")
 
     def _recover_exports(self, connection: sqlite3.Connection) -> None:
         columns = EVENT_COLUMNS.split(",")

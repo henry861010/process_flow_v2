@@ -133,37 +133,3 @@ def test_id_collision_rolls_back_all_records(service, kind):
         response = client.post(route, json=request)
     assert response.status_code == 409, response.text
     assert client.get("/api/bootstrap").json() == before
-
-
-def test_workspace_commit_rejects_client_id_and_retry_reuses_generated_id(service):
-    app, client, before, template, instance = service
-    bindings = copy.deepcopy(instance["inputBindings"])
-    bindings["incoming_hbm"] = {"kind": "embedded", "localId": "workspace-geometry"}
-    geometry = next(item for item in before["geometries"] if item["id"] == "hbm3_8hi")
-    embedded = {key: value for key, value in geometry.items() if key != "id"}
-    response = client.post("/api/process-flow-workspaces", json={
-        "name": "Generated ID workspace", "processFlowTemplateId": template["id"],
-        "inputBindings": bindings, "stepConfigurations": instance["stepConfigurations"],
-        "embeddedGeometries": {"workspace-geometry": embedded},
-    })
-    assert response.status_code == 201, response.text
-    workspace = response.json()
-    route = f"/api/process-flow-workspaces/{workspace['id']}/commit"
-    request = {"revision": workspace["revision"], "instanceName": "Generated instance",
-               "instanceVersion": "V0", "instanceOwner": "test"}
-    assert client.post(route, json={**request, "instanceId": "client-id"}).status_code == 422
-    with mock.patch("process_flow_api.workspace_service.generated_flow_instance_id", return_value=instance["id"]):
-        collision = client.post(route, json=request)
-    assert collision.status_code == 409, collision.text
-    assert client.get("/api/bootstrap").json() == before
-    assert client.get(f"/api/process-flow-workspaces/{workspace['id']}").json() == workspace
-    committed = client.post(route, json=request)
-    assert committed.status_code == 200, committed.text
-    result = committed.json()
-    assert re.fullmatch(r"[0-9a-f]{32}", result["processFlowInstance"]["id"])
-    assert result["workspace"]["committedInstanceId"] == result["processFlowInstance"]["id"]
-    with mock.patch("process_flow_api.workspace_service.generated_flow_instance_id") as generate:
-        retried = client.post(route, json={**request, "instanceName": "Ignored retry"})
-        assert retried.json() == result
-        generate.assert_not_called()
-    assert client.post(route, json={**request, "instanceId": "retry-id"}).status_code == 422

@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "11"
+DATABASE_SCHEMA_VERSION = "12"
 
 
 class DuplicateItemError(ValueError):
@@ -24,7 +24,7 @@ class ResourceConflictError(ValueError):
     pass
 
 
-class WorkspaceConflictError(ResourceConflictError):
+class DraftConflictError(ResourceConflictError):
     pass
 
 
@@ -81,22 +81,6 @@ class SQLiteStore:
             CREATE INDEX IF NOT EXISTS idx_process_flow_instances_template
               ON process_flow_instances(process_flow_template_id);
 
-            CREATE TABLE IF NOT EXISTS process_flow_workspaces (
-              id TEXT PRIMARY KEY,
-              name TEXT NOT NULL,
-              process_flow_template_id TEXT NOT NULL,
-              revision INTEGER NOT NULL,
-              status TEXT NOT NULL,
-              committed_instance_id TEXT,
-              created_at TEXT NOT NULL,
-              updated_at TEXT NOT NULL,
-              payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_process_flow_workspaces_template
-              ON process_flow_workspaces(process_flow_template_id);
-            CREATE INDEX IF NOT EXISTS idx_process_flow_workspaces_status
-              ON process_flow_workspaces(status);
-
             CREATE TABLE IF NOT EXISTS geometries (
               id TEXT PRIMARY KEY,
               name TEXT NOT NULL,
@@ -150,12 +134,16 @@ class SQLiteStore:
                 current_version = 10
             if current_version == 10:
                 self._migrate_v10_to_v11()
+                current_version = 11
+            if current_version == 11:
+                self._migrate_v11_to_v12()
                 self._set_schema_version()
                 return
             # Older local data is rebuilt from fixtures so no stale references to
             # retired identifiers remain. Rebuild the geometry table before seeding.
-            for table in TABLES:
-                self._connection.execute(f"DELETE FROM {table}")
+            for table in (*RESOURCE_TABLES, "process_flow_workspaces"):
+                if self._table_exists(table):
+                    self._connection.execute(f"DELETE FROM {table}")
             self._connection.execute(
                 "INSERT INTO schema_metadata(key,value) VALUES ('analyticsDatasetId', ?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(uuid.uuid4()),),
@@ -163,7 +151,48 @@ class SQLiteStore:
             if current_version is not None:
                 self._migrate_v9_to_v10()
             self._migrate_v10_to_v11()
+            self._migrate_v11_to_v12()
             self._set_schema_version()
+
+    def _table_exists(self, table: str) -> bool:
+        return self._connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,),
+        ).fetchone() is not None
+
+    def _migrate_v11_to_v12(self) -> None:
+        for kind in ("template", "instance"):
+            table = _draft_table(kind)
+            parent = "process_flow_template_id TEXT NOT NULL," if kind == "instance" else ""
+            self._connection.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table} (
+                    id TEXT PRIMARY KEY, user TEXT NOT NULL, name TEXT NOT NULL,
+                    {parent} revision INTEGER NOT NULL,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, payload TEXT NOT NULL
+                )
+            """)
+            self._connection.execute(f"CREATE INDEX IF NOT EXISTS idx_{table}_updated ON {table}(updated_at DESC)")
+            self._connection.execute(f"CREATE INDEX IF NOT EXISTS idx_{table}_user ON {table}(user)")
+            if kind == "instance":
+                self._connection.execute(f"CREATE INDEX IF NOT EXISTS idx_{table}_template ON {table}(process_flow_template_id)")
+        if self._table_exists("process_flow_workspaces"):
+            for row in self._connection.execute("SELECT payload FROM process_flow_workspaces").fetchall():
+                old = json.loads(row["payload"])
+                if old["status"] != "draft":
+                    continue
+                payload = {
+                    "schemaVersion": 1, "id": old["id"], "user": "legacy.import",
+                    "name": old["name"], "processFlowTemplateId": old["processFlowTemplateId"],
+                    "revision": old["revision"], "createdAt": old["createdAt"], "updatedAt": old["updatedAt"],
+                    "state": {
+                        "metadata": {"name": "", "version": "V0.0.0", "owner": "", "description": ""},
+                        "configuration": {key: old.get(key, {}) for key in
+                            ("inputBindings", "stepConfigurations", "embeddedGeometries")},
+                    },
+                }
+                from .models import InstanceEditorDraft
+                InstanceEditorDraft.model_validate(payload)
+                self._insert_values(_draft_table("instance"), _draft_values("instance", payload))
+            self._connection.execute("DROP TABLE process_flow_workspaces")
 
     def _set_schema_version(self) -> None:
         self._connection.execute(
@@ -366,10 +395,13 @@ class SQLiteStore:
                 raise NotFoundError(id_)
             for table, label in (
                 ("process_flow_instances", "instance"),
-                ("process_flow_workspaces", "workspace"),
+                ("process_flow_template_drafts", "template draft"),
+                ("process_flow_instance_drafts", "instance draft"),
             ):
                 for row in self._connection.execute(f"SELECT id, payload FROM {table}"):
-                    bindings = json.loads(row["payload"]).get("inputBindings", {})
+                    payload = json.loads(row["payload"])
+                    configuration = payload.get("state", {}).get("configuration", payload)
+                    bindings = configuration.get("inputBindings", {})
                     if any(binding.get("kind") == "catalog" and binding.get("geometryId") == id_
                            for binding in bindings.values()):
                         raise ResourceConflictError(
@@ -409,7 +441,7 @@ class SQLiteStore:
                     f"Process flow template {id_} is referenced by instance {instance['id']}"
                 )
             self._connection.execute(
-                "DELETE FROM process_flow_workspaces WHERE process_flow_template_id = ? AND status = 'draft'",
+                "DELETE FROM process_flow_instance_drafts WHERE process_flow_template_id = ?",
                 (id_,),
             )
             self._delete_in_transaction("process_flow_templates", id_)
@@ -459,117 +491,83 @@ class SQLiteStore:
             self._connection.execute("BEGIN IMMEDIATE")
             if self.get_process_flow_instance(id_) is None:
                 raise NotFoundError(id_)
-            self._connection.execute(
-                "DELETE FROM process_flow_workspaces WHERE committed_instance_id = ? AND status = 'committed'",
-                (id_,),
-            )
             self._delete_in_transaction("process_flow_instances", id_)
 
-    def insert_process_flow_workspace(self, payload: JsonObject) -> JsonObject:
-        return self._insert(
-            "process_flow_workspaces",
-            _workspace_values(payload),
-        )
-
-    def list_process_flow_workspaces(self) -> list[JsonObject]:
-        return self._list(
-            "process_flow_workspaces",
-            [],
-            [],
-            "updated_at DESC, id ASC",
-        )
-
-    def get_process_flow_workspace(self, id_: str) -> JsonObject | None:
-        return self._get("process_flow_workspaces", id_)
-
-    def update_process_flow_workspace(
-        self,
-        payload: JsonObject,
-        *,
-        expected_revision: int,
-    ) -> JsonObject:
-        values = _workspace_values(payload)
-        with self._connection:
-            cursor = self._connection.execute(
-                """
-                UPDATE process_flow_workspaces
-                SET name = ?, process_flow_template_id = ?, revision = ?, status = ?,
-                    committed_instance_id = ?, updated_at = ?, payload = ?
-                WHERE id = ? AND revision = ? AND status = 'draft'
-                """,
-                (
-                    values["name"],
-                    values["process_flow_template_id"],
-                    values["revision"],
-                    values["status"],
-                    values["committed_instance_id"],
-                    values["updated_at"],
-                    values["payload"],
-                    values["id"],
-                    expected_revision,
-                ),
-            )
-        if cursor.rowcount == 0:
-            if self.get_process_flow_workspace(payload["id"]) is None:
-                raise NotFoundError(payload["id"])
-            raise WorkspaceConflictError("Workspace revision is stale or workspace is not editable")
-        return payload
-
-    def commit_process_flow_workspace(
-        self,
-        *,
-        workspace: JsonObject,
-        expected_revision: int,
-        geometries: Iterable[JsonObject],
-        instance: JsonObject,
-        on_created: Callable[[], None] | None = None,
-    ) -> tuple[JsonObject, JsonObject]:
+    def insert_editor_draft(self, kind: str, payload: JsonObject) -> JsonObject:
         try:
             with self._connection:
-                current_row = self._connection.execute(
-                    "SELECT payload FROM process_flow_workspaces WHERE id = ?",
-                    (workspace["id"],),
-                ).fetchone()
-                if current_row is None:
-                    raise NotFoundError(workspace["id"])
-                current = json.loads(current_row["payload"])
-                if current.get("status") == "committed":
-                    committed_instance_id = current.get("committedInstanceId")
-                    committed_instance = self.get_process_flow_instance(committed_instance_id)
-                    if committed_instance is None:
-                        raise WorkspaceConflictError("Committed workspace instance is missing")
-                    return current, committed_instance
-                if current.get("revision") != expected_revision:
-                    raise WorkspaceConflictError("Workspace revision is stale")
-
-                for geometry in geometries:
-                    self._insert_geometry_in_transaction(geometry)
-                self._insert_process_flow_instance_in_transaction(instance)
-                values = _workspace_values(workspace)
-                cursor = self._connection.execute(
-                    """
-                    UPDATE process_flow_workspaces
-                    SET revision = ?, status = ?, committed_instance_id = ?,
-                        updated_at = ?, payload = ?
-                    WHERE id = ? AND revision = ? AND status = 'draft'
-                    """,
-                    (
-                        values["revision"],
-                        values["status"],
-                        values["committed_instance_id"],
-                        values["updated_at"],
-                        values["payload"],
-                        values["id"],
-                        expected_revision,
-                    ),
-                )
-                if cursor.rowcount == 0:
-                    raise WorkspaceConflictError("Workspace revision changed during commit")
+                self._connection.execute("BEGIN IMMEDIATE")
+                if kind == "instance" and self.get_process_flow_template(payload["processFlowTemplateId"]) is None:
+                    raise NotFoundError(payload["processFlowTemplateId"])
+                self._insert_values(_draft_table(kind), _draft_values(kind, payload))
         except sqlite3.IntegrityError as error:
             raise _duplicate_item_error(error) from error
-        if on_created is not None:
-            on_created()
-        return workspace, instance
+        return payload
+
+    def list_editor_drafts(self, kind: str, *, template_id: str | None = None,
+                          user: str | None = None, search: str | None = None) -> list[JsonObject]:
+        clauses, params = [], []
+        if template_id is not None:
+            clauses.append("process_flow_template_id = ?")
+            params.append(template_id)
+        if user:
+            clauses.append("user = ?")
+            params.append(user)
+        if search:
+            clauses.append("(LOWER(name) LIKE ? OR LOWER(user) LIKE ?)")
+            params.extend([f"%{search.lower()}%"] * 2)
+        return [{key: value for key, value in item.items() if key != "state"}
+                for item in self._list(_draft_table(kind), clauses, params, "updated_at DESC, id ASC")]
+
+    def get_editor_draft(self, kind: str, id_: str, *, template_id: str | None = None) -> JsonObject | None:
+        item = self._get(_draft_table(kind), id_)
+        if item and template_id is not None and item.get("processFlowTemplateId") != template_id:
+            return None
+        return item
+
+    def _required_draft(self, kind: str, id_: str, revision: int,
+                        template_id: str | None = None) -> JsonObject:
+        current = self.get_editor_draft(kind, id_, template_id=template_id)
+        if current is None:
+            raise NotFoundError(id_)
+        if current["revision"] != revision:
+            raise DraftConflictError("Draft changed in another session. Reload it or save as a new draft.")
+        return current
+
+    def update_editor_draft(self, kind: str, id_: str, body: JsonObject) -> JsonObject:
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            current = self._required_draft(kind, id_, body["revision"], body.get("processFlowTemplateId"))
+            payload = {**current, **body, "revision": body["revision"] + 1, "updatedAt": utc_now()}
+            values = _draft_values(kind, payload)
+            assignments = ", ".join(f"{key}=?" for key in values if key != "id")
+            self._connection.execute(f"UPDATE {_draft_table(kind)} SET {assignments} WHERE id=? AND revision=?",
+                [value for key, value in values.items() if key != "id"] + [id_, body["revision"]])
+        return payload
+
+    def delete_editor_draft(self, kind: str, id_: str, revision: int,
+                            *, template_id: str | None = None) -> None:
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            self._required_draft(kind, id_, revision, template_id)
+            self._delete_in_transaction(_draft_table(kind), id_)
+
+    def commit_editor_draft(self, kind: str, id_: str, revision: int, resource: JsonObject,
+                            *, geometries: Iterable[JsonObject] = ()) -> JsonObject:
+        try:
+            with self._connection:
+                self._connection.execute("BEGIN IMMEDIATE")
+                self._required_draft(kind, id_, revision, resource.get("processFlowTemplateId"))
+                for geometry in geometries:
+                    self._insert_geometry_in_transaction(geometry)
+                if kind == "template":
+                    self._insert_process_flow_template_in_transaction(resource)
+                else:
+                    self._insert_process_flow_instance_in_transaction(resource)
+                self._delete_in_transaction(_draft_table(kind), id_)
+        except sqlite3.IntegrityError as error:
+            raise _duplicate_item_error(error) from error
+        return resource
 
     def insert_template_and_instance(
         self,
@@ -702,13 +700,14 @@ class SQLiteStore:
             raise NotFoundError(id_)
 
 
-TABLES = (
-    "process_flow_workspaces",
+RESOURCE_TABLES = (
     "process_step_templates",
     "process_flow_templates",
     "process_flow_instances",
     "geometries",
 )
+
+TABLES = ("process_flow_template_drafts", "process_flow_instance_drafts", *RESOURCE_TABLES)
 
 
 def _duplicate_item_error(error: sqlite3.IntegrityError) -> DuplicateItemError:
@@ -735,18 +734,21 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _workspace_values(payload: JsonObject) -> dict[str, Any]:
-    return {
-        "id": payload["id"],
-        "name": payload.get("name", ""),
-        "process_flow_template_id": payload.get("processFlowTemplateId", ""),
-        "revision": payload.get("revision", 1),
-        "status": payload.get("status", "draft"),
-        "committed_instance_id": payload.get("committedInstanceId"),
-        "created_at": payload.get("createdAt", utc_now()),
-        "updated_at": payload.get("updatedAt", utc_now()),
-        "payload": _json(payload),
+def _draft_table(kind: str) -> str:
+    if kind not in ("template", "instance"):
+        raise ValueError("Unknown draft kind")
+    return f"process_flow_{kind}_drafts"
+
+
+def _draft_values(kind: str, payload: JsonObject) -> dict[str, Any]:
+    values = {
+        "id": payload["id"], "user": payload["user"], "name": payload["name"],
+        "revision": payload["revision"], "created_at": payload["createdAt"],
+        "updated_at": payload["updatedAt"], "payload": _json(payload),
     }
+    if kind == "instance":
+        values["process_flow_template_id"] = payload["processFlowTemplateId"]
+    return values
 
 
 def _geometry_values(payload: JsonObject) -> dict[str, Any]:

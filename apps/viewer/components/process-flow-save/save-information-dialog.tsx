@@ -37,20 +37,17 @@ export type EmbeddedGeometrySaveInformation = {
 export type SaveInformationMode =
   | "template"
   | "template-and-instance"
-  | "instance"
-  | "workspace";
+  | "instance";
 
 export function SaveInformationDialog({
   mode,
   template,
   instance,
-  workspaceName,
   embeddedGeometries = [],
   error,
   submitting,
   onTemplateChange,
   onInstanceChange,
-  onWorkspaceNameChange,
   onEmbeddedGeometryChange,
   onClose,
   onSubmit,
@@ -58,13 +55,11 @@ export function SaveInformationDialog({
   mode: SaveInformationMode;
   template?: TemplateSaveInformation;
   instance?: InstanceSaveInformation;
-  workspaceName?: string;
   embeddedGeometries?: EmbeddedGeometrySaveInformation[];
   error?: string | null;
   submitting: boolean;
   onTemplateChange?: (patch: Partial<TemplateSaveInformation>) => void;
   onInstanceChange?: (patch: Partial<InstanceSaveInformation>) => void;
-  onWorkspaceNameChange?: (name: string) => void;
   onEmbeddedGeometryChange?: (
     localId: string,
     patch: Partial<Omit<EmbeddedGeometrySaveInformation, "localId">>,
@@ -141,18 +136,6 @@ export function SaveInformationDialog({
         </header>
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
-          {mode === "workspace" && onWorkspaceNameChange ? (
-            <FormField label="Workspace name" required>
-              <input
-                autoFocus
-                className={inputClass}
-                value={workspaceName ?? ""}
-                disabled={submitting}
-                onChange={(event) => onWorkspaceNameChange(event.target.value)}
-              />
-            </FormField>
-          ) : null}
-
           {(mode === "template" || mode === "template-and-instance") &&
           template &&
           onTemplateChange ? (
@@ -429,12 +412,6 @@ function dialogConfig(mode: SaveInformationMode) {
         submitLabel: "Save Instance",
         Icon: GitBranch,
       };
-    case "workspace":
-      return {
-        title: "Save draft",
-        description: "Name this workspace before saving its first revision.",
-        submitLabel: "Save Draft",
-        Icon: Save,
-      };
+
   }
 }

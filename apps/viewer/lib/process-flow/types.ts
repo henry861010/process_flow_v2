@@ -225,18 +225,6 @@ export type FlowConfiguration = {
   embeddedGeometries: Record<string, EmbeddedGeometry>;
 };
 
-export type ProcessFlowWorkspace = FlowConfiguration & {
-  schemaVersion: 2;
-  id: string;
-  name: string;
-  processFlowTemplateId: string;
-  revision: number;
-  status: "draft" | "committed";
-  committedInstanceId?: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type ProcessFlowInstance = {
   schemaVersion: 2;
   id: string;
@@ -306,3 +294,25 @@ export type TemplateLayout = {
   stepPositions: Map<string, LayoutPosition>;
   flowInputPositions: Map<string, LayoutPosition>;
 };
+
+export type EditorMetadata = { name: string; version: string; owner: string; description: string };
+export type InstanceEditorDraftState = { metadata: EditorMetadata; configuration: FlowConfiguration };
+export type TemplateDraftNode =
+  | { id: string; kind: "flowInput"; position: { x: number; y: number }; definition: FlowInputDefinition }
+  | { id: string; kind: "processStep"; position: { x: number; y: number }; stepRef: StepRef };
+export type TemplateEditorDraftState = InstanceEditorDraftState & {
+  nodes: TemplateDraftNode[];
+  edges: Array<{ id: string; source: string; target: string; sourceHandle: string | null; targetHandle: string | null }>;
+  viewport: { x: number; y: number; zoom: number };
+};
+type EditorDraftRecord<State> = {
+  schemaVersion: 1; id: string; user: string; name: string; revision: number;
+  createdAt: string; updatedAt: string; state: State;
+};
+export type TemplateEditorDraft = EditorDraftRecord<TemplateEditorDraftState>;
+export type InstanceEditorDraft = EditorDraftRecord<InstanceEditorDraftState> & { processFlowTemplateId: string };
+export type EditorDraft = TemplateEditorDraft | InstanceEditorDraft;
+export type EditorDraftSummary = Omit<EditorDraft, "state"> & { processFlowTemplateId?: string };
+export type EditorDraftCreate =
+  | Pick<TemplateEditorDraft, "schemaVersion" | "user" | "name" | "state">
+  | Pick<InstanceEditorDraft, "schemaVersion" | "user" | "name" | "state" | "processFlowTemplateId">;

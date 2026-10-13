@@ -133,42 +133,6 @@ def test_operation_400_and_500(service):
     assert "secret-body" not in json.dumps(events)
 
 
-def test_workspace_commit_retry_and_reset_history(service):
-    app, client = service
-    template, source = instance_source(client)
-    first_dataset = app.state.store.dataset_id
-    response = client.post("/api/process-flow-workspaces", json={
-        "name": "Analytics workspace", "processFlowTemplateId": template["id"],
-        "inputBindings": source["inputBindings"], "stepConfigurations": source["stepConfigurations"],
-    })
-    assert response.status_code == 201, response.text
-    workspace = response.json()
-    commit = {"instanceName": "Analytics build",
-              "instanceVersion": "V1", "instanceOwner": "not-request-owner", "revision": 1}
-    route = f"/api/process-flow-workspaces/{workspace['id']}/commit"
-    assert client.post(route, json=commit).status_code == 200
-    assert client.post(route, json=commit).status_code == 200
-    creates = rows(app, "usage_events", "event_name='flow_instance.create' AND outcome='success'")
-    assert len(creates) == 1
-    commits = rows(app, "usage_events", "event_name='workspace.commit'")
-    assert [json.loads(row["properties_json"])["created_instance"] for row in commits] == [True, False]
-    assert all(row["workspace_id"] == workspace["id"] for row in commits)
-    before = len(rows(app, "usage_events"))
-    assert client.post("/api/reset").status_code == 200
-    new_dataset = app.state.store.dataset_id
-    assert new_dataset != first_dataset
-    assert len(rows(app, "usage_events")) == before + 1
-    reset = rows(app, "usage_events", "event_name='data.reset'")[0]
-    assert reset["dataset_id"] == first_dataset
-    assert json.loads(reset["properties_json"])["new_dataset_id"] == new_dataset
-    assert client.post("/api/reset-from-zip", content=b"broken", headers={"Content-Type": "application/zip"}).status_code == 400
-    assert app.state.store.dataset_id == new_dataset
-    snapshot = client.get("/api/fixture-export").content
-    assert client.post("/api/reset-from-zip", content=snapshot, headers={"Content-Type": "application/zip"}).status_code == 200
-    assert app.state.store.dataset_id != new_dataset
-    assert len(rows(app, "usage_events", "event_name='flow_instance.create' AND outcome='success'")) == 1
-
-
 def test_dataset_rotation_is_transactional_and_survives_reopen(tmp_path):
     path = tmp_path / "business.sqlite3"
     store = SQLiteStore(path)

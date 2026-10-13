@@ -47,6 +47,8 @@ import {
   type ProcessFlowGraphEdgeData,
   type ProcessFlowGraphNodeData,
 } from "@/components/process-flow-graph/process-flow-graph";
+import { useEditorDrafts } from "@/components/process-flow-save/editor-draft-controls";
+import { commitInstanceEditorDraft } from "@/lib/process-flow-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
@@ -141,7 +143,6 @@ function ProcessFlowInstanceEditorInner() {
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
   const [pickerFlowInputId, setPickerFlowInputId] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
-  const [dirty, setDirty] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = React.useState(false);
   const [saveDialogError, setSaveDialogError] = React.useState<string | null>(null);
@@ -153,7 +154,7 @@ function ProcessFlowInstanceEditorInner() {
 
   React.useEffect(() => {
     let active = true;
-    const { templateId, workspaceUnsupported } = instanceEditorEntry(window.location.search);
+    const { templateId } = instanceEditorEntry(window.location.search);
 
     loadBootstrap()
       .then((bootstrap) => {
@@ -163,13 +164,6 @@ function ProcessFlowInstanceEditorInner() {
         setGeneratorDefinitions(bootstrap.geometryGenerators);
         setInstances(bootstrap.processFlowInstances);
 
-        if (workspaceUnsupported) {
-          setMessage({
-            kind: "error",
-            text: "Workspace links are no longer supported. Choose a template from Home.",
-          });
-          return;
-        }
         if (!templateId) {
           setMessage({
             kind: "error",
@@ -203,15 +197,22 @@ function ProcessFlowInstanceEditorInner() {
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!dirty) return;
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", beforeUnload);
-    return () => window.removeEventListener("beforeunload", beforeUnload);
-  }, [dirty]);
+  const editorDraftState = React.useMemo(() => ({ metadata: instanceIdentity, configuration }), [instanceIdentity, configuration]);
+  const drafts = useEditorDrafts({
+    kind: "instance", templateId: selectedTemplate?.id, state: editorDraftState,
+    enabled: hydrated && selectedTemplate !== null, busy: saving,
+    onLoad(draft) {
+      if (!("processFlowTemplateId" in draft) || draft.processFlowTemplateId !== selectedTemplate?.id) {
+        throw new Error("This draft belongs to a different template.");
+      }
+      const state = structuredClone(draft.state);
+      setInstanceIdentity(state.metadata); setConfiguration(state.configuration);
+      setSelectedSourceId(""); setSelectedNodeId(null); setEditingNodeId(null);
+      setPickerFlowInputId(null); setGeneratorEditor(null); setPreview(null); setMessage(null);
+      return state;
+    },
+  });
+  const dirty = drafts.dirty;
 
   const sourceInstances = React.useMemo(
     () =>
@@ -246,16 +247,18 @@ function ProcessFlowInstanceEditorInner() {
     selectedTemplate &&
       isConfigurationComplete(selectedTemplate, stepTemplates, configuration, resolvedGeometries),
   );
-  const canSave = hydrated && isTemplateEnabled(selectedTemplate) && configurationComplete && !saving;
+  const canSave = hydrated && isTemplateEnabled(selectedTemplate) && configurationComplete && !saving && !drafts.busy;
 
   function navigateHome() {
-    if (dirty && !window.confirm("Discard this unsaved instance?")) return;
+    if (!drafts.confirmReplace()) return;
+    drafts.markClean();
     router.push("/");
   }
 
   function selectSource(instanceId: string) {
-    if (instanceId === selectedSourceId) return;
-    if (dirty && !window.confirm("Discard the current unsaved instance values?")) return;
+    if (instanceId === selectedSourceId && !drafts.active) return;
+    if (!drafts.confirmReplace()) return;
+    drafts.detach();
     const source = sourceInstances.find((instance) => instance.id === instanceId);
     if (!selectedTemplate) return;
     setConfiguration(configurationFromInstance(selectedTemplate, stepTemplates, source));
@@ -264,7 +267,6 @@ function ProcessFlowInstanceEditorInner() {
     setSelectedNodeId(null);
     setEditingNodeId(null);
     setPickerFlowInputId(null);
-    setDirty(Boolean(source));
     setSaveDialogError(null);
     setMessage(null);
   }
@@ -278,7 +280,6 @@ function ProcessFlowInstanceEditorInner() {
       },
     }));
     setPickerFlowInputId(null);
-    setDirty(true);
     setMessage(null);
   }
 
@@ -288,7 +289,6 @@ function ProcessFlowInstanceEditorInner() {
       inputBindings: { ...current.inputBindings, [flowInputId]: binding },
     }));
     setGeneratorEditor(null);
-    setDirty(true);
     setMessage(null);
   }
 
@@ -314,7 +314,6 @@ function ProcessFlowInstanceEditorInner() {
         [stepRefId]: { parameterValues },
       },
     }));
-    setDirty(true);
     setMessage(null);
   }
 
@@ -330,13 +329,15 @@ function ProcessFlowInstanceEditorInner() {
       setSaveDialogError(validationError);
       return;
     }
+    const captured = structuredClone(editorDraftState);
     setSaving(true);
     setSaveDialogError(null);
     try {
-      await createProcessFlowInstance(
-        buildProcessFlowInstanceCreate(selectedTemplate.id, instanceIdentity, configuration),
-      );
-      setDirty(false);
+      const payload = buildProcessFlowInstanceCreate(selectedTemplate.id, instanceIdentity, configuration);
+      if (drafts.active) await commitInstanceEditorDraft(drafts.active, payload);
+      else await createProcessFlowInstance(payload);
+      drafts.detach();
+      drafts.markClean(captured);
       setSaveDialogOpen(false);
       router.push("/");
     } catch (error) {
@@ -428,6 +429,7 @@ function ProcessFlowInstanceEditorInner() {
             <Button type="button" variant="outline" size="sm" onClick={navigateHome}>
               <ArrowLeft />Home
             </Button>
+            {drafts.controls}
             <Button
               type="button"
               disabled={!canSave}
@@ -458,10 +460,11 @@ function ProcessFlowInstanceEditorInner() {
           <FormField label="From instance">
             <select
               className={selectClass}
-              value={selectedSourceId}
-              disabled={!selectedTemplate || saving}
+              value={drafts.active ? "__draft__" : selectedSourceId}
+              disabled={!selectedTemplate || drafts.busy}
               onChange={(event) => selectSource(event.target.value)}
             >
+              {drafts.active ? <option value="__draft__" disabled>Draft: {drafts.active.name}</option> : null}
               <option value="">Start from blank</option>
               {sourceInstances.map((instance) => (
                 <option key={instance.id} value={instance.id}>
@@ -482,7 +485,7 @@ function ProcessFlowInstanceEditorInner() {
         )}
       >
         <CircleDot className="h-4 w-4 shrink-0" />
-        <span className="truncate">{message?.text ?? statusText}</span>
+        <span className="truncate">{message?.text ?? drafts.notice ?? statusText}</span>
       </div>
 
       <ProcessFlowGraph

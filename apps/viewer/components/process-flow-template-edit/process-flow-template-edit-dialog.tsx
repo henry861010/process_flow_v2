@@ -194,7 +194,7 @@ export function ProcessFlowTemplateEditDialog({
               <TemplateStatusField
                 value={draft.status}
                 disabled={saving}
-                description="Disabled flows cannot create workspaces or instances. Existing instances remain usable."
+                description="Disabled flows cannot create instances. Drafts remain editable. Existing instances remain usable."
                 onChange={(status) => patchMetadata({ status })}
               />
               <MetadataInput

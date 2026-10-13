@@ -74,12 +74,9 @@ function instance(id: string, templateId = template.id): ProcessFlowInstance {
 }
 
 describe("instance editor helpers", () => {
-  it("reads templateId and rejects legacy workspace entry", () => {
-    expect(instanceEditorEntry("?templateId=flow-template")).toEqual({
-      templateId: "flow-template",
-      workspaceUnsupported: false,
-    });
-    expect(instanceEditorEntry("?workspaceId=workspace-1").workspaceUnsupported).toBe(true);
+  it("reads the fixed template entry", () => {
+    expect(instanceEditorEntry("?templateId=flow-template")).toEqual({ templateId: "flow-template" });
+    expect(instanceEditorEntry("")).toEqual({ templateId: null });
   });
 
   it("only returns instances for the selected template", () => {

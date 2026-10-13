@@ -117,6 +117,7 @@ type ProcessFlowGraphProps<
   onDragOver?: React.DragEventHandler<HTMLDivElement>;
   onNodeClick?: (event: React.MouseEvent, node: TNode) => void;
   onPaneClick?: ReactFlowBaseProps["onPaneClick"];
+  onMoveEnd?: ReactFlowBaseProps["onMoveEnd"];
   miniMapNodeColor?: (node: TNode) => string;
 };
 
@@ -164,6 +165,7 @@ export function ProcessFlowGraph<
   onDragOver,
   onNodeClick,
   onPaneClick,
+  onMoveEnd,
   miniMapNodeColor,
 }: ProcessFlowGraphProps<TNode, TEdge>) {
   const canEditTopology = mode === "edit";
@@ -176,6 +178,7 @@ export function ProcessFlowGraph<
       )}
     >
       <ReactFlow<TNode, TEdge>
+        onMoveEnd={onMoveEnd}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

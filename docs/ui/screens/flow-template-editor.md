@@ -7,7 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-11
+last_verified: 2026-10-13
 last_verified_commit: 990aaf71
 source_of_truth:
   - apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx
@@ -20,8 +20,7 @@ Route: `/flow-template-editor`
 ## Purpose
 
 This editor authors immutable process-flow topology: metadata, flow inputs, step references, and
-edges. The header contains Home, `Start from template...`, and the single primary command
-`Save Template`.
+edges. The header contains Home, `Start from template...`, `Save Draft`, `From Draft`, and the primary command `Save Template`.
 
 ## Working configuration
 
@@ -56,7 +55,7 @@ collection test values remain usable.
 
 ## Acceptance
 
-- `UI-FTE-001`: fresh editor provides catalog geometry, process steps, graph, and one save command.
+- `UI-FTE-001`: fresh editor provides catalog geometry, process steps, graph, draft commands, and the formal save command.
 - `UI-FTE-002`: HBM/DRAM generator commands are available for working previews and new flow inputs;
   template save does not persist their bindings.
 - `UI-FTE-003`: valid topology can save while preview-only configuration is incomplete.
@@ -70,3 +69,11 @@ a new flow is disabled. Starting from a saved template preserves its disabled st
 inspection and preview. Because this creates a new flow, Save Template is blocked until those steps
 are removed, replaced, or re-enabled, and the editor names the blocking steps. The backend enforces
 the same rule for changes occurring after page load. Already-saved flows keep their references.
+
+## Editor drafts
+
+Save Draft requires separate user/name and accepts incomplete topology or values. It snapshots metadata, complete configuration (including collections and recipes), node IDs/positions, edges/handles and viewport. From Draft opens the searchable shared picker showing name, user and updated time; it offers user filtering and revision-checked deletion.
+
+Loading restores exact working values without defaults, validates dependencies before replacing the graph, and resets transient dialogs/preview. Updating a loaded draft retains its identity; Save as New Draft creates another record. Dirty state tracks the last loaded/successfully saved snapshot and protects source replacement, Home and unload. Async saving does not erase newer changes. Formal Save Template uses the current editor payload and atomically consumes its draft; failures preserve it.
+
+Acceptance `UI-FTE-DRAFT-001`: save an unfinished graph, reload the page, load via From Draft and verify positions/viewport, connections, metadata and full values. `UI-FTE-DRAFT-002`: verify update/new-copy, filtering, delete, missing dependencies, failed requests, stale revision and dirty confirmation. `UI-FTE-DRAFT-003`: verify formal save consumes only the active draft and locks topology.

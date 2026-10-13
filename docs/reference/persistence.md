@@ -6,13 +6,13 @@ audience:
   - API 與 data engineers
   - 維護者與 operator
   - QA 與 coding agent
-last_verified: 2026-07-11
+last_verified: 2026-10-13
 last_verified_commit: b01b1e70
 source_of_truth:
   - docs/data-model.md
 verified_against:
   - apps/api/src/process_flow_api/repository.py
-  - apps/api/src/process_flow_api/workspace_service.py
+  - apps/api/src/process_flow_api/draft_service.py
   - apps/api/src/process_flow_api/main.py
 ---
 
@@ -65,19 +65,20 @@ transaction 保持一致。Direct database edits 不屬於 supported API。
 | `process_flow_template_id` | `TEXT` | not null, indexed | `processFlowTemplateId` |
 | `payload` | `TEXT` | not null | complete JSON |
 
-### 2.4 `process_flow_workspaces`
+### 2.4 Editor draft tables
 
-| Column | SQLite type | Constraint | Payload path |
-| --- | --- | --- | --- |
-| `id` | `TEXT` | primary key | `id` |
-| `name` | `TEXT` | not null | `name` |
-| `process_flow_template_id` | `TEXT` | not null, indexed | `processFlowTemplateId` |
-| `revision` | `INTEGER` | not null | `revision` |
-| `status` | `TEXT` | not null, indexed | `status` |
-| `committed_instance_id` | `TEXT` | nullable | `committedInstanceId` |
-| `created_at` | `TEXT` | not null | `createdAt` |
-| `updated_at` | `TEXT` | not null | `updatedAt` |
-| `payload` | `TEXT` | not null | complete JSON |
+`process_flow_template_drafts` 與 `process_flow_instance_drafts` 分開保存各自型別的 snapshot；不共用 payload model。
+
+| Column | SQLite type | Payload path |
+| --- | --- | --- |
+| `id` | TEXT primary key | `id` |
+| `user`, `name` | TEXT not null | `user`, `name` |
+| `revision` | INTEGER not null | `revision` |
+| `created_at`, `updated_at` | TEXT not null | `createdAt`, `updatedAt` |
+| `payload` | TEXT not null | complete draft JSON |
+| `process_flow_template_id` | TEXT not null; instance table only | `processFlowTemplateId` |
+
+Both tables index user and updated time; instance drafts also index template ID. List endpoints return summaries without state. JSON contains a separate `state.metadata` and `state.configuration`; template state additionally contains nodes, edges and viewport.
 
 ### 2.5 `geometries`
 
@@ -106,7 +107,7 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "10"
+  "value": "12"
 }
 ```
 
@@ -114,7 +115,7 @@ Current required row：
 匯入時在同一 transaction 更新。它不是 payload schema version，不包含在 fixture 匯出中。
 獨立分析資料庫與使用紀錄規則見 [Service 使用紀錄](analytics.md)。
 
-Database internal marker string `"10"`、Process payload wire marker integer `2` 與
+Database internal marker string `"12"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 
 Version 9原地補齊v8 instance JSON payload metadata：`version="V0.0.0"`、
@@ -137,9 +138,8 @@ foreign keys：
 flowchart LR
   ST["process_step_templates.id"] -.-> SR["flow template stepRefs[].processStepTemplateId"]
   FT["process_flow_templates.id"] -.-> FI["instances.processFlowTemplateId"]
-  FT -.-> FW["workspaces.processFlowTemplateId"]
+  FT -.-> ID["instance drafts.processFlowTemplateId"]
   GE["geometries.id"] -.-> IB["inputBindings.*.geometryId"]
-  FI -.-> CI["workspaces.committedInstanceId"]
 ```
 
 Normative service rules：
@@ -169,27 +169,25 @@ status to `enabled`. Existing `PUT /api/process-step-templates/{id}` and
 `PUT /api/process-flow-templates/{id}` accept status changes; omission preserves current status.
 Null or unsupported values return 422. List, detail, and bootstrap include disabled templates.
 
-Disabled flow templates reject new workspace creation, new instance creation (including copies),
-and draft workspace commit with 409 identifying the template and reason. Draft workspace updates
-and previews remain available; committed-workspace commit retries remain idempotent.
+Disabled flow templates reject new instance creation (including copies) and instance draft commit with 409. Editor draft create/update/reload remain available.
 Disabled step templates reject new flow-template references with 409, including combined
 `POST /api/process-flow-template-instances`. Existing enabled flows referencing them remain usable
-for new workspaces and instances. Combined creation checks both restrictions before any writes.
+for new instance drafts and instances. Combined creation checks both restrictions before any writes.
 Availability checks belong at service entrypoints, not shared reference loading or kernel validation:
 historical instance read, preview, execution, and export remain available. Re-enabling restores new
 usage. Process-step template deletion is not supported. Flow-template deletion is permitted only
-when no instance references it, and also removes its draft workspaces in the same transaction.
+when no instance references it, and also removes its instance drafts in the same transaction.
 
 ## 4. Mutability policy
 
 | Resource | Create | Update | Delete |
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | yes | restricted full replace | Not supported; DELETE returns 405。 |
-| `ProcessFlowTemplate` | yes | restricted full replace | Only without referencing instances; also deletes its draft workspaces。 |
-| `ProcessFlowInstance` | yes | no | Deletes the instance and committed workspaces that produced it。 |
+| `ProcessFlowTemplate` | yes | restricted full replace | Only without referencing instances; also deletes its instance drafts。 |
+| `ProcessFlowInstance` | yes | no | Deletes the instance。 |
 | `GeometryEntity` | yes | no | Not part of current public lifecycle。 |
-| Draft `ProcessFlowWorkspace` | yes | revision-checked full replace | Removed with its flow template; no standalone delete API。 |
-| Committed workspace | no new identity | no | Removed with its committed instance; no standalone delete API。 |
+| `TemplateEditorDraft` | yes | revision-checked full replace | Revision-checked delete, or consumed by commit。 |
+| `InstanceEditorDraft` | yes | revision-checked full replace | Revision-checked delete, consumed by commit, or removed with its flow template。 |
 
 `ProcessStepTemplate` update只允許`status`、`owner`、`category`、`program`與recursive parameter
 `defaultValue`改變；id、version、name、description、ports與parameter definition contract MUST
@@ -207,17 +205,15 @@ overwrite/upsert。
 | --- | --- |
 | Step template | Client/authoring tool，MUST choose unused id。 |
 | Flow template | Server-generated 32 字元小寫 UUID4 hex（不帶前綴）。 |
-| Instance | Server-generated 32 字元小寫 UUID4 hex（不帶前綴），包括 direct create、combined create 與 workspace commit。 |
-| Workspace | Server-generated `workspace_<uuid>`。 |
+| Instance | Server-generated 32 字元小寫 UUID4 hex（不帶前綴），包括 direct create、combined create 與 editor draft commit。 |
+| Editor draft | Server-generated UUID4 hex; migrated drafts retain legacy IDs。 |
 | GeometryEntity | Client MAY provide；null/omitted create request由 server 生成 `geom_<slug>_<random>`。 |
 | Materialized embedded geometry | Server-generated once per referenced local id inside commit transaction。 |
 
-Flow template／instance create requests MUST omit `id`；workspace commit MUST omit
-`instanceId`。傳入這些欄位（包含空字串或 null）回傳 422。Combined create 的
+Flow template／instance create requests MUST omit `id`；editor draft commit 的正式 create payload MUST omit `id`。傳入這些欄位（包含空字串或 null）回傳 422。Combined create 的
 `processFlowInstance` MUST 同時省略 `processFlowTemplateId`，由 server 指向此次建立的
 flow template。Create responses 保留完整 persisted records 與 generated ids；呼叫端 MUST
-使用 response ids 進行後續查詢與引用。每次成功 POST 建立獨立 records；已 committed
-workspace 的 commit retries 回傳原 instance。既有 records、fixture import 與 template
+使用 response ids 進行後續查詢與引用。每次成功 POST 建立獨立 records；草稿正式儲存成功後刪除，重試相同草稿 ID 回 404。既有 records、fixture import 與 template
 updates 保留原 id，不需 database migration。SQLite primary keys 保證 uniqueness；
 generated id collision 回傳 409 並 rollback 整筆 transaction。
 
@@ -226,7 +222,7 @@ Flow template／instance 的 generated ids 為 opaque UUID4 hex，允許數字�
 content-addressed；identical payloads MAY produce different ids and are independent immutable
 snapshots。
 
-Workspace commit、direct ProcessFlowInstance create與combined template-instance create MUST共用
+Editor draft commit、direct ProcessFlowInstance create與combined template-instance create MUST共用
 同一embedded materialization service。Direct create的request MAY包含embedded bindings與
 embeddedGeometries，但response與stored instance只保留catalog或generator bindings。Generator
 binding在validation/compile後保存完整正規化參數，不建立geometry catalog row。Direct create transaction
@@ -246,7 +242,7 @@ insert template、geometries與instance。任一duplicate或write failure MUST r
 
 ## 7. Timestamp 規則
 
-Workspace `createdAt` / `updatedAt` MUST 是 RFC 3339 UTC timestamps。Canonical new output
+Editor draft `createdAt` / `updatedAt` MUST 是 RFC 3339 UTC timestamps。Canonical new output
 SHOULD 使用 `Z` suffix，例如：
 
 ```json
@@ -259,61 +255,13 @@ SHOULD 使用 `Z` suffix，例如：
 Parser MAY 接受等價 `+00:00`。`createdAt` MUST NOT change；successful update/commit MUST
 replace `updatedAt`。
 
-## 8. Workspace optimistic update
+## 8. Editor draft optimistic update
 
-Update 是 full-replacement `PUT`：
+Create assigns revision 1. PUT, DELETE and commit require the current revision. A write transaction re-reads the draft while holding `BEGIN IMMEDIATE`, verifies revision and fixed instance template ID, and only then changes rows. Stale revision returns 409; an absent or mismatched template-scoped draft returns 404. Updates increment revision and preserve createdAt.
 
-1. Client reads workspace revision `N`。
-2. Request includes revision `N`、name 與完整 `FlowConfiguration` maps。
-3. Repository executes conditional update equivalent to：
+## 9. Atomic editor draft commit
 
-```sql
-UPDATE process_flow_workspaces
-SET revision = N + 1, ...
-WHERE id = ? AND revision = N AND status = 'draft';
-```
-
-4. Exactly one updated row表示成功；zero rows MUST resolve to `404` 或 `409`。
-5. Request omission of a configuration map means desired empty map，not partial update。
-
-Application pre-check MAY 提供較早 error，但 SQL condition 是 concurrency authority。
-
-## 9. Atomic workspace commit
-
-```mermaid
-sequenceDiagram
-  participant API
-  participant Store as Repository read
-  participant Compiler
-  participant DB as SQLite transaction
-  API->>Store: read workspace snapshot
-  alt already committed
-    Store-->>API: first workspace + instance
-  else draft and revision matches
-    API->>Compiler: complete validate/resolve/hydrate
-    Compiler-->>API: valid execution plan
-    API->>DB: begin; re-read revision/status
-    API->>DB: insert referenced embedded geometries
-    API->>DB: insert immutable instance
-    API->>DB: update workspace to committed
-    alt any failure
-      DB-->>API: rollback all writes
-    else success
-      DB-->>API: commit workspace + instance
-    end
-  end
-```
-
-Compile MAY 在 transaction 前執行；所有 writes MUST 在同一 transaction，且 transaction
-內必須 re-read/recheck，避免 validation 後 workspace 已被其他 writer 改變。必要不變條件：
-
-- Duplicate geometry/instance id MUST rollback entire commit。
-- Workspace row update MUST recheck revision/status inside transaction。
-- Concurrent second commit MUST return first committed instance，不得 materialize duplicates。
-- Unreferenced embedded geometries MUST NOT insert。
-- Same `localId` fan-out MUST insert one geometry and reuse its catalog id。
-- Committed workspace MUST contain catalog bindings、empty embedded map、revision `N+1` 與
-  `committedInstanceId`。
+The commit request includes the editor's current formal create payload. Shared preparation validates the resource and resolves used geometries before writing. One transaction checks draft revision, inserts referenced materialized geometries and the immutable template/instance, then deletes the draft. Every failure rolls back all writes. Success consumes the draft; subsequent calls to its ID return 404.
 
 ## 10. Error mapping
 
@@ -323,7 +271,7 @@ Compile MAY 在 transaction 前執行；所有 writes MUST 在同一 transaction
 | Domain validation / compile error | `400 Bad Request` |
 | Missing resource | `404 Not Found` |
 | Duplicate immutable id | `409 Conflict` |
-| Stale workspace revision / committed update | `409 Conflict` |
+| Stale editor draft revision | `409 Conflict` |
 
 Transaction failure MUST NOT return partial resource payload。
 
@@ -352,7 +300,7 @@ Manual POC reset MAY：
 - retain/reassert database marker `"9"`；
 - validate and insert canonical fixtures in dependency order：step templates、flow templates、instances、
   geometries；
-- leave no stale workspaces or user-created immutable resources。
+- leave no stale editor drafts or user-created immutable resources。
 
 Fixtures are test data，不是獨立 schema authority。Fixture 與 normative contract衝突時，
 fixture MUST 修正。
@@ -371,3 +319,9 @@ Persistence implementation gaps 的唯一追蹤來源是
 [Target contract 實作對照](../conformance.md)：`DM-013` 至 `DM-018`。SQLite 沒有 foreign
 keys/check constraints；目前 referential integrity 與 immutable semantics 主要由 public API、
 service 與 compiler 保證，direct database mutation 不屬於 supported interface。
+
+## 12. Schema 11 → 12 migration
+
+Migration creates both draft tables, converts each legacy draft workspace into an instance draft, retaining ID, name, revision, timestamps and complete configuration. User is `legacy.import`; formal metadata starts blank with version `V0.0.0`. Committed workspace rows are removed while saved instances and geometries remain. The old table and indexes are dropped only inside the successful transaction. Failed conversion rolls back the table changes and marker. Supported older schema migrations continue into version 12.
+
+Geometry deletion protects exact catalog references in instances and both draft state configurations. Template deletion atomically removes its instance drafts; copied template drafts are independent. Reset/import clears both draft tables. Fixture ZIP remains the four formal-resource JSON files; database backup includes drafts.

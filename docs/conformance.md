@@ -6,7 +6,7 @@ audience:
   - 產品與架構負責人
   - 開發者
   - QA
-last_verified: 2026-09-14
+last_verified: 2026-10-13
 last_verified_commit: 790c6c9847a1cee550ba0cb7440462213d2003a2
 source_of_truth:
   - docs/data-model.md
@@ -38,7 +38,7 @@ UI normative reference 為準。本頁的 `Open` 不會降低 target contract �
 | DM-008 | Optional input readiness 只依 preview target 的 upstream closure | Compiler 依 closure；frontend helper 依整張 graph 判定。`packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py`、`apps/viewer/lib/process-flow/configuration.ts` | integration.platform | Open |
 | DM-009 | `controlType` 必填且必須是 `valueType` 的合法組合 | Pydantic 允許省略，backend/compiler 不驗組合規則。`apps/api/src/process_flow_api/models.py` | integration.platform | Open |
 | DM-010 | Step-template create 驗證 `program` locator grammar 與 module loadability | Invalid path/module 可保存，直到 execute 才由 resolver 失敗。`apps/api/src/process_flow_api/services.py`、`packages/kernel-py/src/process_flow_kernel/infrastructure/module_resolver.py` | integration.platform | Open |
-| DM-011 | Used geometry 在 create/commit 前 deep validate、canonicalize，並拒絕 unknown fields | API envelope 只把 `structure` 當 object；deep hydration 延後；embedded commit 直接 materialize raw payload，不使用 normalized plan。`apps/api/src/process_flow_api/models.py`、`apps/api/src/process_flow_api/workspace_service.py` | integration.platform | Open |
+| DM-011 | Used geometry 在 create/commit 前 deep validate、canonicalize，並拒絕 unknown fields | API envelope 只把 `structure` 當 object；deep hydration 延後；embedded commit 直接 materialize raw payload，不使用 normalized plan。`apps/api/src/process_flow_api/models.py`、`apps/api/src/process_flow_api/draft_service.py` | integration.platform | Open |
 | DM-012 | Repeat wrapper/item strict、`itemId` 合法唯一、`index` 為 integer；`items[]` order 是 execution order且不得依 `index` reorder | Compiler 忽略 wrapper/item extras，只驗 itemId non-empty/unique，未驗 regex/index type。`packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py` | integration.platform | Open |
 | DM-013 | Canonical persisted JSON 省略 optional `null` | API model dump 省略 null，但 raw fixtures 保留部分 null。`apps/api/src/process_flow_api/fixtures` | integration.platform | Open |
 | DM-014 | 新 canonical timestamp 使用 RFC 3339 UTC `Z` | Server 以 `datetime.isoformat()` 輸出 `+00:00`。`apps/api/src/process_flow_api/repository.py` | integration.platform | Open |

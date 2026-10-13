@@ -1,5 +1,5 @@
 ---
-title: Home / Process Flow Workspace
+title: Home / Process Flow
 status: normative
 owner: Process Flow UI
 audience:
@@ -7,13 +7,13 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-11
+last_verified: 2026-10-13
 last_verified_commit: 990aaf71
 source_of_truth:
   - apps/viewer/app/page.tsx
 ---
 
-# Home / Process Flow Workspace
+# Home / Process Flow
 
 Route: `/`
 
@@ -24,7 +24,7 @@ Home is the primary entry point for creating immutable `ProcessFlowInstance` rec
 
 ## Layout and behavior
 
-- Header: `Process Flow Workspace`, short task description, and a small `Management` link.
+- Header: `Process Flow`, short task description, and a small `Management` link.
 - Template area: responsive one/two/three-column card grid. Each compact card shows only template
   name, version, owner, and Enabled status. The name owns the 70% primary column.
 - A card links to `/flow-instance-editor?templateId=<encoded id>`.

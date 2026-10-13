@@ -23,9 +23,6 @@ OPERATIONS = {
     ("POST", "/api/process-flow-instances"): "flow_instance.create",
     ("DELETE", "/api/process-flow-instances/{instance_id}"): "flow_instance.delete",
     ("POST", "/api/process-flow-instances/{instance_id}/execute"): "flow_instance.execute",
-    ("POST", "/api/process-flow-workspaces"): "workspace.create",
-    ("PUT", "/api/process-flow-workspaces/{workspace_id}"): "workspace.update",
-    ("POST", "/api/process-flow-workspaces/{workspace_id}/commit"): "workspace.commit",
     ("POST", "/api/geometry-preview"): "flow.preview",
     ("POST", "/api/preview-sessions"): "flow.preview",
     ("POST", "/api/geometry-preview/step"): "geometry.preview",
@@ -43,6 +40,12 @@ OPERATIONS = {
     ("POST", "/api/process-step-templates"): "step_template.create",
     ("PUT", "/api/process-step-templates/{template_id}"): "step_template.update",
 }
+for _kind in ("template", "instance"):
+    _base = f"/api/process-flow-{_kind}-drafts"
+    for _method, _suffix, _action in (("POST", "", "create"), ("PUT", "/{draft_id}", "update"),
+                                      ("DELETE", "/{draft_id}", "delete"), ("POST", "/{draft_id}/commit", "commit")):
+        OPERATIONS[(_method, _base + _suffix)] = f"{_kind}_draft.{_action}"
+
 
 
 def value(obj: Any, key: str, default: Any = None) -> Any:
@@ -111,7 +114,24 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
     body = arguments.get("body")
     properties: dict[str, Any] = {}
     result: dict[str, Any] = {"source_kind": "system", "properties": properties}
-    template = instance = workspace = None
+    template = instance = None
+    if "-drafts" in route:
+        kind = "template" if "template-drafts" in route else "instance"
+        identifier = arguments.get("draft_id")
+        draft = store.get_editor_draft(kind, identifier) if identifier else body
+        result["source_kind"] = f"{kind}_draft"
+        result["flow_template_id"] = text_value(value(draft, "processFlowTemplateId"))
+        properties.update(draft_id=identifier, draft_kind=kind, revision=value(draft, "revision"),
+                          draft_name=(value(draft, "name", "") or "")[:256])
+        if route.endswith("/commit"):
+            payload = value(body, "processFlowTemplate" if kind == "template" else "processFlowInstance")
+            template = payload if kind == "template" else store.get_process_flow_template(value(payload, "processFlowTemplateId"))
+            properties.update(flow_summary(template))
+            if kind == "instance":
+                properties.update(configuration_summary(payload))
+                properties.update(instance_name=(value(payload, "name", "") or "")[:256],
+                                  instance_version=text_value(value(payload, "version")))
+        return result
     if "/process-flow-template" in route:
         template = value(body, "processFlowTemplate", body)
         result["source_kind"] = "template"
@@ -123,26 +143,18 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
     elif "/process-flow-instances" in route:
         instance = store.get_process_flow_instance(arguments.get("instance_id")) if arguments.get("instance_id") else body
         result["source_kind"] = "instance"
-    elif "/process-flow-workspaces" in route:
-        workspace = store.get_process_flow_workspace(arguments.get("workspace_id")) if arguments.get("workspace_id") else body
-        result["source_kind"] = "workspace"
-        result["workspace_id"] = text_value(value(workspace, "id"))
-        properties["previous_status"] = value(workspace, "status")
-        if route.endswith("/commit"):
-            instance = {"name": value(body, "instanceName"), "version": value(body, "instanceVersion"),
-                        "processFlowTemplateId": value(workspace, "processFlowTemplateId")}
     if instance is not None:
         result["flow_instance_id"] = text_value(value(instance, "id"))
         properties.update(instance_name=(value(instance, "name", "") or "")[:256],
                           instance_version=text_value(value(instance, "version")))
-    resource = workspace or instance
+    resource = instance
     if resource is not None:
         identifier = text_value(value(resource, "processFlowTemplateId"))
         if template is None and identifier:
             template = store.get_process_flow_template(identifier)
         if template is not None:
             result["flow_template_id"] = text_value(value(template, "id"))
-        properties.update(configuration_summary(body if workspace and not route.endswith("/commit") else resource))
+        properties.update(configuration_summary(resource))
     if route in ("/api/geometry-preview", "/api/preview-sessions"):
         inline = value(body, "flowTemplate")
         identifier = text_value(value(body, "processFlowTemplateId"))
@@ -157,9 +169,6 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
                           target_flow_input_id=text_value(value(target, "flowInputId")),
                           target_port_id=text_value(value(target, "outputPortId")))
     properties.update(flow_summary(template))
-    if workspace is not None:
-        properties.update(workspace_name=(value(workspace, "name", "") or "")[:256],
-                          revision=value(workspace, "revision"), status=value(workspace, "status", "draft"))
     if route.startswith("/api/geometry") or route.startswith("/api/mesh-control"):
         if result["source_kind"] == "system":
             result["source_kind"] = "geometry"
@@ -202,15 +211,11 @@ def apply_context(store: Any, context: Any, result: dict[str, Any], *, expected_
         if identifier:
             result["properties"]["base_flow_template_id"] = identifier
     instance_id = text_value(value(context, "flowInstanceId"))
-    workspace_id = text_value(value(context, "workspaceId"))
     template_id = text_value(value(context, "flowTemplateId"))
     instance = store.get_process_flow_instance(instance_id) if instance_id else None
-    workspace = store.get_process_flow_workspace(workspace_id) if workspace_id else None
     candidates = {identifier for identifier in (template_id,
-        value(instance, "processFlowTemplateId"), value(workspace, "processFlowTemplateId")) if identifier}
-    confirmed = (not instance_id or instance is not None) and (not workspace_id or workspace is not None) and len(candidates) == 1
-    if instance_id and workspace_id and value(workspace, "committedInstanceId") != instance_id:
-        confirmed = False
+        value(instance, "processFlowTemplateId")) if identifier}
+    confirmed = (not instance_id or instance is not None) and len(candidates) == 1
     template = store.get_process_flow_template(next(iter(candidates))) if confirmed else None
     if (template is None or (expected_template_id and expected_template_id != template["id"])
             or (result.get("flow_template_id") and result["flow_template_id"] != template["id"])):
@@ -221,8 +226,8 @@ def apply_context(store: Any, context: Any, result: dict[str, Any], *, expected_
         result["properties"]["base_flow_template_id"] = template["id"]
     else:
         result.update(flow_template_id=template["id"],
-                      flow_instance_id=instance_id, workspace_id=workspace_id)
-        result["source_kind"] = "instance" if instance else "workspace" if workspace else "template"
+                      flow_instance_id=instance_id)
+        result["source_kind"] = "instance" if instance else "template"
         result["properties"].update(flow_summary(template))
 
 
@@ -294,19 +299,13 @@ class AnalyticsRoute(APIRoute):
             properties["geometry_id"] = text_value(value(result, "id"))
         if event_name == "mesh_control.apply":
             properties["mesh_control_set_version"] = value(result, "setVersion")
-        if event_name.startswith("workspace."):
-            workspace = value(result, "workspace", result)
-            summary["workspace_id"] = text_value(value(workspace, "id"))
-            properties.update(workspace_name=(value(workspace, "name", "") or "")[:256],
-                              revision=value(workspace, "revision"), status=value(workspace, "status"))
-            if event_name == "workspace.commit":
-                instance = value(result, "processFlowInstance")
-                summary["flow_instance_id"] = text_value(value(instance, "id"))
-                properties.update(instance_name=(value(instance, "name", "") or "")[:256],
-                                  instance_version=text_value(value(instance, "version")))
-                properties["created_instance"] = context.get("instance_created", False)
-                if properties["created_instance"]:
-                    recorder.event(current_origin() or {}, event_name="flow_instance.create", outcome="success")
+        if "_draft." in event_name:
+            kind, action = event_name.split("_draft.")
+            if action in ("create", "update"):
+                properties.update(draft_id=value(result, "id"), revision=value(result, "revision"))
+            if action == "commit":
+                summary[f"flow_{kind}_id"] = text_value(value(result, "id"))
+                recorder.event(current_origin() or {}, event_name=f"flow_{kind}.create", outcome="success")
         if event_name in ("data.reset", "data.import"):
             properties["new_dataset_id"] = context["store"].dataset_id
         recorder.event(current_origin() or {}, event_name=event_name, outcome="success",

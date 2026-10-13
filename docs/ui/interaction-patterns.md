@@ -7,7 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-12
+last_verified: 2026-10-13
 last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx
@@ -127,12 +127,12 @@ Home template card -> templateId route -> blank defaults
                                                                 -> create immutable instance -> Home
 ```
 
-- Instance Editor不render template selector、workspace、draft、reload或commit controls。
+- Instance Editor 維持固定 template，不提供 template selector；header 提供 Save Draft 與 From Draft。
 - `From instance`只列同template records；copy configuration但重設所有new-instance metadata。
 - 切換source、返回Home或關閉dirty頁面前必須保護未儲存內容。
 - `Save`要求complete configuration；dialog submit另驗證id grammar/uniqueness以及name、version、owner。
 - Save使用direct immutable create；不提供in-place update。
-- `workspaceId` frontend entry顯示recoverable unsupported message；backend workspace APIs不因此刪除。
+- Draft list/load/delete 依 editor 種類與 instance template 範圍查詢；載入不重新套用 defaults。
 
 ## Modal 與 overlay 層級
 
@@ -182,7 +182,7 @@ cross-screen contract：
 
 1. Template topology：click-add Step → drag Geometry → connect → single-click editor → Save Template → Preview。
 2. Instance configuration：select AAA → bind geometry → edit parameters → Preview；另以known
-   clean workspace URL驗證Commit，並確認draft controls/status box不顯示。
+   使用固定 template URL 驗證草稿存取、恢復、revision conflict 與正式 Save 後草稿清除。
 3. Preview/export：open ready target → Loading/Ready → Export form → jobs drawer → terminal state。
 4. CAD workbench：demo/import → section/camera → error or imported state → Reset preserving camera view。
 

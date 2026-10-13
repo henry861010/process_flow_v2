@@ -6,7 +6,7 @@ audience:
   - API consumers
   - backend engineers
   - operators
-last_verified: 2026-10-11
+last_verified: 2026-10-13
 last_verified_commit: 990aaf71
 source_of_truth:
   - apps/api/src/process_flow_api/main.py
@@ -105,35 +105,41 @@ missing token必須重新preview，不可在前端自行重建geometry。
 | `GET`/`POST` | `/api/process-flow-templates` | List or validate/insert template |
 | `GET` | `/api/process-flow-templates/{id}` | Template detail |
 | `PUT` | `/api/process-flow-templates/{id}` | Restricted metadata and scalar flow-default update |
-| `DELETE` | `/api/process-flow-templates/{id}` | Delete unused template and its draft workspaces; `409` if any instance references it |
+| `DELETE` | `/api/process-flow-templates/{id}` | Delete unused template and its instance drafts; `409` if any instance references it |
 | `POST` | `/api/process-flow-template-instances` | Atomic template + first instance insert |
 | `GET`/`POST` | `/api/process-flow-instances` | List or compile/insert complete instance |
 | `GET` | `/api/process-flow-instances/{id}` | Instance detail |
-| `DELETE` | `/api/process-flow-instances/{id}` | Delete instance and committed workspaces that produced it |
+| `DELETE` | `/api/process-flow-instances/{id}` | Delete instance |
 | `POST` | `/api/process-flow-instances/{id}/execute` | Compile and execute saved instance |
 
 Flow template／instance create requests 不接受 `id`；server 在儲存時產生
 32 字元小寫 UUID4 hex（不帶前綴），response 回傳完整 record 與 ID。
 Combined create 的 instance 同時不傳 `processFlowTemplateId`，由 server 建立引用。
-Workspace commit 不接受 `instanceId`；重試已 committed workspace 回傳原 instance。
+Draft commit 的正式 create payload 同樣不接受 `id`；成功後草稿刪除。
 呼叫端傳入上述 server-owned fields 回傳 `422`；既有 record、update 與 fixture import
 保留原 ID。
 
 Deletion returns `204` with no body, or `404` for an absent resource. Reference checks and related
-workspace deletion run in one transaction; failures roll back all deletions. Process-step templates
+instance draft deletion run in one transaction; failures roll back all deletions. Process-step templates
 are retained when their flow templates are deleted.
 Geometry catalog entries are retained. Deletion uses the existing trusted-local API access model;
 there is no new login or role enforcement. Flow and instance deletion record `flow_template.delete`
 and `flow_instance.delete` analytics events with their resource context before deletion.
 
-### Workspace
+### Editor drafts
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET`/`POST` | `/api/process-flow-workspaces` | List or create incomplete draft |
-| `GET` | `/api/process-flow-workspaces/{id}` | Reload draft/committed workspace |
-| `PUT` | `/api/process-flow-workspaces/{id}` | Revision-checked draft update |
-| `POST` | `/api/process-flow-workspaces/{id}/commit` | Complete compile + atomic materialization/instance commit |
+Two independent snapshot types use separate tables in the business SQLite DB:
+
+| Path prefix | Kind |
+| --- | --- |
+| `/api/process-flow-template-drafts` | Template metadata, graph, viewport and complete working configuration |
+| `/api/process-flow-instance-drafts` | Instance metadata and complete configuration for one fixed template |
+
+Both support GET list, POST create, GET/PUT/DELETE `/{id}`, and POST `/{id}/commit`. Lists omit state and accept user/search; instance lists, detail and deletion require `processFlowTemplateId`. Update/delete/commit require revision. Create starts at 1, updates increment it, and conflicts return 409. Draft user/name are nonblank and separate from formal metadata. Drafts permit incomplete topology and parameter values; format validation still applies.
+
+Commit accepts `{revision, processFlowTemplate}` or `{revision, processFlowInstance}` using the editor's current formal create payload. Shared validation precedes atomic materialization/resource insert/draft deletion. Failures preserve the draft and roll back writes. A consumed draft returns 404. Disabled flows permit draft editing but reject new instances/instance commit.
+
+Business schema 12 converts legacy workspace drafts, then removes the old table; legacy workspace APIs are removed. Analytics schema 2 preserves historical workspace IDs inside properties JSON. Reset/import clears drafts; fixture ZIP continues exporting only the four formal resource files.
 
 ### Preview 與 export
 
@@ -171,12 +177,12 @@ restart 清空；這不是歷史、preview 或 analytics dashboard。
 
 ## 驗證與錯誤
 
-Request models使用 `extra="forbid"`。Graph/template/configuration validation 由 kernel執行。Draft workspace 可以 incomplete；instance create、execute、preview step output 與 commit要求 complete compile。
+Request models使用 `extra="forbid"`。Graph/template/configuration validation 由 kernel執行。Editor drafts 可以 incomplete；instance create、execute、preview step output 與 commit要求 complete compile。
 
 API maps repository errors to：
 
 - `404` missing resource；
-- `409` duplicate id、referential conflict 或 stale workspace revision；
+- `409` duplicate id、referential conflict 或 stale draft revision；
 - `400` domain/compiler `ValueError`；
 - `422` Pydantic request shape error，或mesher-owned `meshControl` contract validation error。
 
@@ -201,4 +207,4 @@ log 權限設定失敗則拒絕建立工作並清除該 log。此設定只套用
 venv/bin/python -m unittest discover apps/api/tests
 ```
 
-Tests涵蓋 startup/seed、CRUD/conflicts、compile/execute、workspace transaction、preview/CAD 與 export jobs。
+Tests涵蓋 startup/seed、CRUD/conflicts、compile/execute、draft transaction、preview/CAD 與 export jobs。

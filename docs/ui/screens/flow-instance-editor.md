@@ -7,7 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-09-15
+last_verified: 2026-10-13
 last_verified_commit: 04a77e132dd0777e3ddc029dd77f56a0c25b0692
 source_of_truth:
   - apps/viewer/components/process-flow-instance-editor/process-flow-instance-editor.tsx
@@ -21,17 +21,16 @@ Route: `/flow-instance-editor?templateId=<id>`
 ## Purpose and entry
 
 The editor creates a new immutable instance from a template selected on Home. It never edits or
-overwrites an existing instance and does not expose the workspace lifecycle.
+overwrites an existing instance and supports separately persisted editor drafts.
 
 - A valid `templateId` resolves against bootstrap and initializes the template's default
   configuration.
 - Missing or unknown `templateId` preserves the app shell, reports the error, and directs the user
   to Home; no template selector is rendered.
-- `workspaceId` is no longer a supported frontend entry. Backend workspace APIs remain available.
 
 ## Header and source instance
 
-The header shows immutable template identity, a `From instance` select, Home, and primary `Save`.
+The header shows immutable template identity, a `From instance` select, Home, `Save Draft`, `From Draft`, and primary `Save`.
 `From instance` contains `Start from blank` followed only by instances whose
 `processFlowTemplateId` equals the route template. Selecting one deep-copies `inputBindings` and
 `stepConfigurations` exactly, discards embedded geometries, and resets all new-instance identity
@@ -83,7 +82,7 @@ instance is saved; unused generator-preview errors do not block the main flow.
 - `UI-FIE-001`: Home template card opens the matching fixed template and default configuration.
 - `UI-FIE-002`: source list contains only instances of that template.
 - `UI-FIE-003`: loading a source copies values without carrying id/name/version/owner/description.
-- `UI-FIE-004`: missing template and legacy workspace URLs render a recoverable error without a selector.
+- `UI-FIE-004`: missing or unknown template URLs render a recoverable error without a selector.
 - `UI-FIE-005`: complete values plus valid required metadata create a new immutable instance and return Home.
 - `UI-FIE-006`: empty required metadata or a failed save preserves the dialog and configuration.
 - `UI-FIE-007`: input and step preview/export journeys remain available.
@@ -103,3 +102,11 @@ A direct URL referencing a disabled flow still loads its graph and source instan
 previewing. A visible notice explains that Save is disabled, including after copying an instance.
 Referenced disabled steps do not block new instances when the saved flow itself remains enabled.
 The backend also checks status when saving, covering templates disabled after page load.
+
+## Editor drafts
+
+Instance drafts belong to the fixed route template. From Draft lists only that template's drafts; list/detail/delete are also scoped on the backend. Loading restores exact metadata and complete configuration without defaults or source instance metadata resets. User/name remain separate from final owner/name.
+
+Save Draft accepts incomplete values, starts at revision 1 and updates the loaded draft with revision checking; Save as New Draft creates another identity. Disabled templates still permit draft editing. Formal Save submits current editor values and atomically inserts the immutable instance and consumes the active draft; failures preserve both editor and draft. Dirty state compares with the last loaded/successfully saved snapshot and keeps changes made during a request.
+
+Acceptance `UI-FIE-DRAFT-001`: save incomplete values, reload and resume from the same template. `UI-FIE-DRAFT-002`: verify source replacement detaches the draft, template isolation, user/search filtering, copy/delete and revision conflicts. `UI-FIE-DRAFT-003`: restore arrays/placements/recipes and final metadata, finish Save and verify only the active draft disappears.

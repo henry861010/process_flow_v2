@@ -3,7 +3,7 @@ import "@xyflow/react/dist/style.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Process Flow Workspace",
+  title: "Process Flow",
   description: "Entrypoint for process flow tools.",
 };
 

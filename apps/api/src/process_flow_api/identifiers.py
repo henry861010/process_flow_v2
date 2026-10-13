@@ -19,8 +19,8 @@ def generated_flow_instance_id() -> str:
     return uuid.uuid4().hex
 
 
-def generated_workspace_id() -> str:
-    return f"workspace_{uuid.uuid4().hex}"
+def generated_draft_id() -> str:
+    return uuid.uuid4().hex
 
 
 def slug(value: object) -> str:

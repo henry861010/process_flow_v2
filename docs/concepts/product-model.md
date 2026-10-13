@@ -6,11 +6,11 @@ audience:
   - product engineers
   - process developers
   - software engineers
-last_verified: 2026-07-11
+last_verified: 2026-10-13
 last_verified_commit: b01b1e70
 source_of_truth:
   - apps/api/src/process_flow_api/models.py
-  - apps/api/src/process_flow_api/workspace_service.py
+  - apps/api/src/process_flow_api/draft_service.py
   - packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py
 ---
 
@@ -25,23 +25,25 @@ Process Flow 把「可重用的製程定義」、「研究中的配置」與「�
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | 定義一個 process operation 的 geometry ports、parameters 與 `program` | identity/contract locked；owner/category/program/defaults 可更新 | Process developer |
 | `ProcessFlowTemplate` | 定義 flow inputs、step references、directed topology 與 flow-specific scalar defaults | identity/version/topology locked；metadata/defaults 可受限更新 | Process developer |
-| `ProcessFlowWorkspace` | 保存未完成的 geometry bindings 與 parameter values | Draft 可修改；以 `revision` optimistic concurrency 控制 | Product / RD engineer |
+| `TemplateEditorDraft` | 保存未完成的 topology、working configuration 與畫布位置 | revision-checked 可修改，正式儲存後刪除 | Process developer |
+| `InstanceEditorDraft` | 保存未完成的 geometry bindings 與 parameter values | 可修改直到正式儲存後刪除；以 `revision` optimistic concurrency 控制 | Product / RD engineer |
 | `ProcessFlowInstance` | 保存完整且可執行的產品配置 | Immutable | Product / RD engineer |
 | `GeometryEntity` | Catalog 中可被 flow input 引用的 geometry document | 建立後 immutable | Geometry producer |
 
 `ProcessFlowTemplate` 定義 topology 與建立空白 instance 時使用的 flow-specific scalar
 defaults，不保存產品 geometry selection 或已完成 recipe configuration。`ProcessFlowInstance`
-與 `ProcessFlowWorkspace` reference template，並以 `inputBindings` 與 `stepConfigurations`
-提供 configuration。
+與 `InstanceEditorDraft` 都 reference template；configuration 分別放於正式 record 與草稿的 `state.configuration`。
 
 ## 生命週期
 
 ```mermaid
 flowchart LR
   StepTemplate["ProcessStepTemplate"] --> FlowTemplate["ProcessFlowTemplate"]
-  FlowTemplate --> Workspace["ProcessFlowWorkspace (draft)"]
-  Geometry["Geometry catalog"] --> Workspace
-  Workspace -->|"atomic commit"| Instance["ProcessFlowInstance"]
+  StepTemplate --> TemplateDraft["TemplateEditorDraft"]
+  TemplateDraft -->|"atomic commit"| FlowTemplate
+  FlowTemplate --> InstanceDraft["InstanceEditorDraft (draft)"]
+  Geometry["Geometry catalog"] --> InstanceDraft
+  InstanceDraft -->|"atomic commit"| Instance["ProcessFlowInstance"]
   FlowTemplate --> Instance
   Geometry --> Instance
 ```
@@ -54,22 +56,11 @@ Process step update 保留相同 identity、ports 與 parameter definition contr
 program path 與 parameter defaults。Flow template 在建立時保存自己的 scalar defaults，因此 step
 default update 只影響之後建立的 flow；program update 則會由相同 step id 的後續執行直接解析。
 
-### Workspace 研究流程
+### Editor draft 流程
 
-Workspace 可以 incomplete；Save Draft 只要求已提供的值與 reference 形狀正確。更新必須帶目前 `revision`，stale revision 會得到 conflict。Committed workspace 是 read-only。
+Template draft 保存拓樸、metadata、完整 working configuration 與畫布位置；instance draft 保存指定 template 下的 metadata 與完整 configuration。兩種 snapshot 分別存於獨立資料表。User/name 是草稿資訊，不改寫正式 owner/name。
 
-Workspace 可使用 catalog binding 或 embedded binding。Embedded geometry 是 draft-local resource，尚不是 catalog entity。
-
-### Commit 流程
-
-Commit 會先以 complete mode compile workspace，再在同一個 SQLite transaction 中：
-
-1. 把被引用的 embedded geometries materialize 成 immutable catalog geometries。
-2. 把 embedded bindings 改寫成 catalog bindings。
-3. 建立新的 immutable `ProcessFlowInstance`。
-4. 將 workspace 標記為 `committed` 並記錄 `committedInstanceId`。
-
-重試已完成的 commit 會回傳同一個 instance；`committedInstanceId` 是 retry safety，不代表 instance lineage。
+Save Draft 允許未完成或有語意驗證錯誤的編輯狀態；更新檢查 revision。From Draft 恢復 snapshot，不重新套用 defaults。正式儲存用目前 editor payload 通過原本的完整驗證後，同一 transaction 建立正式 resource、materialize 必要 geometry 並刪除草稿。失敗 rollback 且保留草稿。
 
 ## Compile 與 execute 邊界
 
@@ -79,6 +70,4 @@ Commit 會先以 complete mode compile workspace，再在同一個 SQLite transa
 
 ## 範圍
 
-目前已有 workspace create/load/update/commit、template/instance create、execute、preview 與 export。Instance overwrite、instance lineage、workspace topology editing 與 draft list UI 不是目前產品契約。
-
-欄位、invariants 與 JSON examples 的唯一 canonical prose specification 是 [data-model.md](../data-model.md)。本頁只定義產品心智模型與 ownership。
+目前支援兩種 editor draft 的 create/list/load/update/delete/commit、正式 template/instance create、execute、preview 與 export。Instance 不提供 overwrite 或 lineage。舊 workspace 僅存在 migration 與歷史說明，不提供 runtime API。

@@ -6,7 +6,7 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-10-12
+last_verified: 2026-10-13
 last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - docs/ui/screens
@@ -92,11 +92,12 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-FIE-001` | Home ready | click AAA template | fixed AAA topology與default configuration出現，沒有template selector。 |
 | `UI-FIE-002` | AAA route | inspect From instance | 只列AAA instances；選擇後copy values但identity保持new draft。 |
 | `UI-FIE-003` | complete configuration | Save → enter full metadata | 建立新的immutable instance並返回Home，source保持不變。 |
-| `UI-MGMT-001` | bootstrap ready | open Management tabs | 四類resource count與唯讀rows符合bootstrap。 |
+| `UI-MGMT-001` | bootstrap 與 draft summaries ready | open Management tabs | 六類 resource count 與 rows 符合 bootstrap 及兩種草稿摘要。 |
 | `UI-MGMT-002` | Process steps tab | click row Edit、change allowed fields/default、Save | 頁內modal只暴露允許欄位；成功後row即時更新且不導頁。 |
 | `UI-MGMT-005` | Templates tab，含重複 step template 引用及既有 instances | Edit → change metadata/per-step labels/scalar defaults → Save；清空 label；Cancel；模擬儲存失敗；重新開啟 editor | id/version/step identity/order/topology保持鎖定；label/default依stepRefId獨立更新且允許重複label；label即時更新標題，空白回到process-step名稱；Save後重開保留label，共用template的instances重新載入顯示新label且配置不變；defaults只影響未來blank instances；Cancel不寫入；saving停用輸入及重送；失敗保留草稿並顯示錯誤。 |
-| `UI-MGMT-006` | Management 的 flow template、instance、相關 workspace 與引用資料 | cancel/confirm Delete；依 instance → flow template 刪除；模擬錯誤與新增引用；查看 Process steps | 引用中的 flow template 停用 Delete，引用數量只顯示於 Instances 欄位；Process steps 只有 Edit，沒有 Delete；取消無請求；busy 防重送並停用其他異動；成功更新 rows/counts、解除引用並顯示訊息；flow 刪除清理草稿、instance 刪除清理已提交 workspace，geometry 與 step templates 保留；409/404 顯示錯誤並刷新 bootstrap，其他錯誤保留資料。 |
-| `UI-MGMT-007` | Geometries 含未引用與被 instance、draft／committed workspace 引用的 geometry | cancel/confirm Delete；解除引用後再刪除；模擬 404／409／500 與刷新失敗 | 每列有 Delete；確認顯示名稱、ID 與永久刪除說明；取消無請求；busy 顯示 Deleting…、防重送並停用其他異動；未引用項目成功移除 row、更新 count 並顯示成功訊息；catalog 精確引用回傳 409 並指出資源類型與 ID，embedded／generator 不誤擋；404／409 刷新 bootstrap，一般錯誤保留資料，刷新失敗提示重新載入；不連帶刪除其他資源。 |
+| `UI-MGMT-006` | Management 的 flow template、instance、相關 instance drafts 與引用資料 | cancel/confirm Delete；依 instance → flow template 刪除；模擬錯誤與新增引用；查看 Process steps | 引用中的 flow template 停用 Delete，引用數量只顯示於 Instances 欄位；Process steps 只有 Edit，沒有 Delete；取消無請求；busy 防重送並停用其他異動；成功更新 rows/counts、解除引用並顯示訊息；flow 刪除清理草稿、instance 刪除其正式 record，geometry 與 step templates 保留；409/404 顯示錯誤並刷新 bootstrap，其他錯誤保留資料。 |
+| `UI-MGMT-007` | Geometries 含未引用與被 instance、兩種 editor draft 引用的 geometry | cancel/confirm Delete；解除引用後再刪除；模擬 404／409／500 與刷新失敗 | 每列有 Delete；確認顯示名稱、ID 與永久刪除說明；取消無請求；busy 顯示 Deleting…、防重送並停用其他異動；未引用項目成功移除 row、更新 count 並顯示成功訊息；catalog 精確引用回傳 409 並指出資源類型與 ID，embedded／generator 不誤擋；404／409 刷新 bootstrap，一般錯誤保留資料，刷新失敗提示重新載入；不連帶刪除其他資源。 |
+| `UI-MGMT-008` | 兩種草稿，跨多個 templates／users，另含沒有正式 template 的情境 | 查看兩種草稿分頁；cancel/confirm Delete；模擬 revision 更新、404／409／500、刷新失敗；刪除正式 template；Reset／ZIP reset | 獨立分頁及 counts 正確，欄位完整、更新時間由新到舊，instance template 名稱可 fallback ID；沒有正式 template 仍顯示 template drafts；載入中與空列表有提示；取消不送請求、busy 防重送；DELETE 包含 revision 與必要 template scope；成功更新 row/count 並保留其他資源；404／409 刷新全部列表後要求重新確認、不自動重試，其他錯誤及刷新失敗保留資料；正式 template 清理相關 instance drafts，兩種 reset 清空草稿；窄螢幕無整頁水平溢出、鍵盤可切換分頁並刪除。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
 | `UI-PREVIEW-002` | ready target in Instance Editor | click Preview | 行為與 Template Editor相同。 |
@@ -159,3 +160,7 @@ Journey 中的 current gap 必須保留原操作路徑並標記 gap ID；不可�
 - [ ] Nested modal 的最上層 close path 已驗證，Export form Escape 不會穿透到 Preview。
 - [ ] Desktop、compact、mobile 的 scroll owner一致。
 - [ ] 新增或變更的 acceptance ID 已回連對應規格。
+
+## Editor draft acceptance
+
+Both editors verify Save Draft, From Draft, required user/name, author/search filters, updated-time ordering, revision-checked update/delete, Save as New Draft, failed requests, dirty source/Home/unload confirmation and current-payload formal commit. Template recovery includes topology, positions and viewport; instance recovery is fixed-template scoped. Collections, placements, recipes and final metadata must survive reload without defaults. Keyboard focus remains in draft dialogs and returns to the trigger after close.

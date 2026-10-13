@@ -6,7 +6,7 @@ audience:
   - geometry-kernel 與 API 開發者
   - process-step、CAD、mesher 與 viewer 開發者
   - QA 與 coding agent
-last_verified: 2026-10-12
+last_verified: 2026-10-13
 last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - docs/data-model.md
@@ -101,7 +101,7 @@ Commit MUST：
 1. materialize only referenced local ids；
 2. 每個 referenced local id 建立 exactly one immutable `GeometryEntity`；
 3. 將所有該 local id bindings 改寫成同一 catalog id；
-4. 清空 committed workspace 的 embedded map。
+4. 正式儲存成功後，在同一 transaction 刪除來源 editor draft。
 
 ## 4. GeometryStructure
 

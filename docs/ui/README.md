@@ -8,7 +8,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-11
+last_verified: 2026-10-13
 last_verified_commit: 990aaf71
 source_of_truth:
   - apps/viewer/app
@@ -109,7 +109,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 - 實作 loading、empty、error、success、disabled 與 locked/committed 等文件列出的狀態。
 - 讓 mouse、keyboard 與 focus 行為符合
   [Interaction Patterns](interaction-patterns.md)。
-- 不把 Geometry、Process Step、Template 或 Workspace 的可見 identity 只存在 client state。
+- 不把 Geometry、Process Step、Template 或 Editor draft 的可見 identity 只存在 client state。
 - 不自行增加 landing hero、onboarding carousel、decorative illustration 或未列出的 command。
 - 以 API fixtures 產生畫面；不得在 UI 複製一份 catalog hard-code。
 
@@ -123,7 +123,7 @@ Visual regression 的預設資料狀態稱為 `ui-golden`：
 | Immutable instance | `flow_inst_aaa_demo_hbm4_alpha` / `HBM4 Alpha Build` |
 | Geometry | `panel_plp_310x310mm_glass`、`hbm3_8hi` |
 | Process step | `step_tpl_molding`，以及 fixture 中其餘 `V0.0.0` templates |
-| Workspace | Draft UI case不建立workspace；commit case由test setup透過保留的API建立，並以known `workspaceId` URL載入；不得依賴上一個test留下的draft |
+| Editor drafts | 每個 case 建立自己的 template/instance snapshot，驗證 revision、恢復與正式儲存後刪除，不依賴其他測試留下的資料 |
 
 表中的 fixture id 是既有資料的 opaque identity；數字尾碼不表示產品版本，也不能用來
 切換行為。

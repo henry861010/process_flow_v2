@@ -18,7 +18,7 @@ def materialize_embedded_bindings(
     """Convert embedded bindings to immutable catalog records and bindings.
 
     This function is intentionally independent of a particular editor or
-    generator.  Workspace commit and direct instance creation share it so the
+    generator.  Draft commit and direct instance creation share it so the
     persistence contract remains identical at both entry points.
     """
 

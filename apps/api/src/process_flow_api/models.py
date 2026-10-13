@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -296,34 +297,103 @@ class ProcessFlowInstanceCreate(ProcessFlowInstanceForNewTemplateCreate):
     processFlowTemplateId: str = Field(min_length=1)
 
 
-class ProcessFlowWorkspace(FlowConfiguration):
-    schemaVersion: Literal[2] = 2
-    id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    processFlowTemplateId: str = Field(min_length=1)
+class EditorMetadata(StrictModel):
+    name: str
+    version: str
+    owner: str
+    description: str
+
+
+class DraftPosition(StrictModel):
+    x: FiniteFloat
+    y: FiniteFloat
+
+
+class DraftViewport(DraftPosition):
+    zoom: PositiveFiniteFloat
+
+
+class DraftInputNode(StrictModel):
+    id: NonBlankString
+    kind: Literal["flowInput"]
+    position: DraftPosition
+    definition: FlowInputDefinition
+
+
+class DraftStepNode(StrictModel):
+    id: NonBlankString
+    kind: Literal["processStep"]
+    position: DraftPosition
+    stepRef: StepRef
+
+
+class DraftEdge(StrictModel):
+    id: NonBlankString
+    source: NonBlankString
+    target: NonBlankString
+    sourceHandle: str | None = None
+    targetHandle: str | None = None
+
+
+class InstanceEditorDraftState(StrictModel):
+    metadata: EditorMetadata
+    configuration: FlowConfiguration
+
+    @model_validator(mode="after")
+    def finite_json(self):
+        json.dumps(self.model_dump(mode="json"), allow_nan=False)
+        return self
+
+
+class TemplateEditorDraftState(InstanceEditorDraftState):
+    nodes: list[Annotated[DraftInputNode | DraftStepNode, Field(discriminator="kind")]]
+    edges: list[DraftEdge]
+    viewport: DraftViewport
+
+
+class TemplateEditorDraftCreate(StrictModel):
+    schemaVersion: Literal[1] = 1
+    user: NonBlankString
+    name: NonBlankString
+    state: TemplateEditorDraftState
+
+
+class InstanceEditorDraftCreate(StrictModel):
+    schemaVersion: Literal[1] = 1
+    user: NonBlankString
+    name: NonBlankString
+    processFlowTemplateId: NonBlankString
+    state: InstanceEditorDraftState
+
+
+class TemplateEditorDraftUpdate(TemplateEditorDraftCreate):
     revision: int = Field(ge=1)
-    status: Literal["draft", "committed"] = "draft"
-    committedInstanceId: str | None = None
+
+
+class InstanceEditorDraftUpdate(InstanceEditorDraftCreate):
+    revision: int = Field(ge=1)
+
+
+class TemplateEditorDraft(TemplateEditorDraftUpdate):
+    id: str
     createdAt: str
     updatedAt: str
 
 
-class ProcessFlowWorkspaceCreate(FlowConfiguration):
-    name: str = Field(min_length=1)
-    processFlowTemplateId: str = Field(min_length=1)
+class InstanceEditorDraft(InstanceEditorDraftUpdate):
+    id: str
+    createdAt: str
+    updatedAt: str
 
 
-class ProcessFlowWorkspaceUpdate(FlowConfiguration):
-    name: str = Field(min_length=1)
+class TemplateEditorDraftCommit(StrictModel):
     revision: int = Field(ge=1)
+    processFlowTemplate: ProcessFlowTemplateCreate
 
 
-class WorkspaceCommitRequest(StrictModel):
-    instanceName: str = Field(min_length=1)
-    instanceVersion: NonBlankString
-    instanceOwner: NonBlankString
-    instanceDescription: str = ""
+class InstanceEditorDraftCommit(StrictModel):
     revision: int = Field(ge=1)
+    processFlowInstance: ProcessFlowInstanceCreate
 
 
 class GeometryEntity(StrictModel):
@@ -465,10 +535,9 @@ GeometryPreviewTarget = Annotated[
 
 
 class AnalyticsContext(StrictModel):
-    sourceKind: Literal["template", "instance", "workspace", "inline_draft", "geometry"] | None = None
+    sourceKind: Literal["template", "instance", "inline_draft", "geometry"] | None = None
     flowTemplateId: str | None = Field(default=None, min_length=1, max_length=256)
     flowInstanceId: str | None = Field(default=None, min_length=1, max_length=256)
-    workspaceId: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class GeometryPreviewRequest(StrictModel):

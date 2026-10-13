@@ -8,7 +8,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-12
+last_verified: 2026-10-13
 last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
   - docs/ui/reconstruction-guide.md
@@ -53,12 +53,12 @@ source_of_truth:
 ### Flow Instance Editor
 
 - [ ] 選擇 AAA 後default configuration與dirty status正確。
-- [ ] Header不render `Save Draft`、`Reload`、draft/committed badge或workspace ID/status box。
+- [ ] Header 提供 Save Draft / From Draft；草稿 user/name 與正式 metadata 分开。
 - [ ] graph 是 view-only；single-click node 開啟 inspector。
 - [ ] ready target 可 Preview；unrelated incomplete branch 不阻擋。
-- [ ] 以known clean complete `workspaceId`載入時，Commit dialog與commit後status/copy正確。
-- [ ] Workspace API與`workspaceId`載入仍可用；UI隱藏沒有刪除或改寫API契約。
-- [ ] committed 後 configuration read-only，但 ready Preview 仍可用。
+- [ ] From Draft 恢復完整值，不套用 defaults；正式 Save 成功後原子刪除來源草稿。
+- [ ] revision 衝突與失敗保留內容；另存新草稿、搜尋、作者篩選與刪除可用。
+- [ ] 正式 template 儲存後鎖 topology；正式 instance 儲存成功返回 Home。
 
 ### Management process-step editing
 

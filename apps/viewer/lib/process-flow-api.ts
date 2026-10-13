@@ -1,10 +1,12 @@
 import type {
   GeometryEntity,
+  EditorDraft,
+  EditorDraftSummary,
+  EditorDraftCreate,
   ProcessFlowInstance,
   ProcessFlowInstanceCreate,
   ProcessFlowTemplate,
   ProcessFlowTemplateCreate,
-  ProcessFlowWorkspace,
   ProcessStepTemplate,
   TemplateInstanceCreateRequest,
 } from "@/lib/process-flow/types";
@@ -260,63 +262,39 @@ export async function createProcessFlowInstance(
   });
 }
 
-export type ProcessFlowWorkspaceCreate = Pick<
-  ProcessFlowWorkspace,
-  | "name"
-  | "processFlowTemplateId"
-  | "inputBindings"
-  | "stepConfigurations"
-  | "embeddedGeometries"
->;
-
-export type ProcessFlowWorkspaceUpdate = Pick<
-  ProcessFlowWorkspace,
-  "name" | "revision" | "inputBindings" | "stepConfigurations" | "embeddedGeometries"
->;
-
-export async function createProcessFlowWorkspace(
-  workspace: ProcessFlowWorkspaceCreate,
-) {
-  return apiFetch<ProcessFlowWorkspace>("/api/process-flow-workspaces", {
-    method: "POST",
-    body: JSON.stringify(workspace),
+export type EditorDraftKind = "template" | "instance";
+function editorDraftPath(kind: EditorDraftKind, id?: string) {
+  return `/api/process-flow-${kind}-drafts${id ? `/${encodeURIComponent(id)}` : ""}`;
+}
+function draftQuery(options: { templateId?: string; user?: string; search?: string; revision?: number }) {
+  const query = new URLSearchParams();
+  if (options.templateId) query.set("processFlowTemplateId", options.templateId);
+  if (options.user) query.set("user", options.user);
+  if (options.search) query.set("search", options.search);
+  if (options.revision !== undefined) query.set("revision", String(options.revision));
+  return query.size ? `?${query}` : "";
+}
+export async function listEditorDrafts(kind: EditorDraftKind, options: { templateId?: string; user?: string; search?: string }) {
+  return apiFetch<EditorDraftSummary[]>(editorDraftPath(kind) + draftQuery(options));
+}
+export async function getEditorDraft(kind: EditorDraftKind, id: string, templateId?: string) {
+  return apiFetch<EditorDraft>(editorDraftPath(kind, id) + draftQuery({ templateId }));
+}
+export async function saveEditorDraft(kind: EditorDraftKind, body: EditorDraftCreate, current?: Pick<EditorDraft, "id" | "revision">) {
+  return apiFetch<EditorDraft>(editorDraftPath(kind, current?.id), {
+    method: current ? "PUT" : "POST", body: JSON.stringify({ ...body, ...(current ? { revision: current.revision } : {}) }),
   });
 }
-
-export async function getProcessFlowWorkspace(workspaceId: string) {
-  return apiFetch<ProcessFlowWorkspace>(
-    `/api/process-flow-workspaces/${encodeURIComponent(workspaceId)}`,
-  );
+export async function deleteEditorDraft(kind: EditorDraftKind, draft: EditorDraftSummary, templateId?: string) {
+  await apiFetch<unknown>(editorDraftPath(kind, draft.id) + draftQuery({ templateId, revision: draft.revision }), { method: "DELETE" });
 }
-
-export async function updateProcessFlowWorkspace(
-  workspaceId: string,
-  workspace: ProcessFlowWorkspaceUpdate,
-) {
-  return apiFetch<ProcessFlowWorkspace>(
-    `/api/process-flow-workspaces/${encodeURIComponent(workspaceId)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(workspace),
-    },
-  );
+export async function commitTemplateEditorDraft(draft: Pick<EditorDraft, "id" | "revision">, body: ProcessFlowTemplateCreate) {
+  return apiFetch<ProcessFlowTemplate>(editorDraftPath("template", draft.id) + "/commit", {
+    method: "POST", body: JSON.stringify({ revision: draft.revision, processFlowTemplate: body }),
+  });
 }
-
-export async function commitProcessFlowWorkspace(
-  workspaceId: string,
-  request: {
-    instanceName: string;
-    instanceVersion: string;
-    instanceOwner: string;
-    instanceDescription: string;
-    revision: number;
-  },
-) {
-  return apiFetch<{
-    workspace: ProcessFlowWorkspace;
-    processFlowInstance: ProcessFlowInstance;
-  }>(`/api/process-flow-workspaces/${encodeURIComponent(workspaceId)}/commit`, {
-    method: "POST",
-    body: JSON.stringify(request),
+export async function commitInstanceEditorDraft(draft: Pick<EditorDraft, "id" | "revision">, body: ProcessFlowInstanceCreate) {
+  return apiFetch<ProcessFlowInstance>(editorDraftPath("instance", draft.id) + "/commit", {
+    method: "POST", body: JSON.stringify({ revision: draft.revision, processFlowInstance: body }),
   });
 }

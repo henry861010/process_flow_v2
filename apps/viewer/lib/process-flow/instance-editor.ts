@@ -16,7 +16,6 @@ export function instanceEditorEntry(search: string) {
   const params = new URLSearchParams(search);
   return {
     templateId: params.get("templateId"),
-    workspaceUnsupported: params.has("workspaceId"),
   };
 }
 
@@ -78,6 +77,6 @@ export function buildProcessFlowInstanceCreate(
     processFlowTemplateId: templateId,
     inputBindings: structuredClone(configuration.inputBindings),
     stepConfigurations: structuredClone(configuration.stepConfigurations),
-    embeddedGeometries: {},
+    embeddedGeometries: structuredClone(configuration.embeddedGeometries),
   };
 }

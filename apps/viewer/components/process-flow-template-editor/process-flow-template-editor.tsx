@@ -64,6 +64,9 @@ import {
   type ProcessFlowGraphEdgeData,
   type ProcessFlowGraphNodeData,
 } from "@/components/process-flow-graph/process-flow-graph";
+import { useEditorDrafts } from "@/components/process-flow-save/editor-draft-controls";
+import { validateTemplateDraftState } from "@/lib/process-flow/editor-drafts";
+import { commitTemplateEditorDraft } from "@/lib/process-flow-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
@@ -89,6 +92,7 @@ import { createDefaultParameterValues } from "@/lib/process-flow/parameter-value
 import { buildTemplatePayload } from "@/lib/process-flow/template-builder";
 import type {
   FlowConfiguration,
+  TemplateEditorDraftState,
   FlowInputDefinition,
   GeometryEntity,
   GeometryBinding,
@@ -217,6 +221,43 @@ function ProcessFlowTemplateEditorInner() {
     };
   }, []);
 
+  const [draftViewport, setDraftViewport] = React.useState({ x: 0, y: 0, zoom: 1 });
+  const editorDraftState = React.useMemo<TemplateEditorDraftState>(() => ({
+    metadata, configuration,
+    nodes: nodes.map((node) => isFlowInputNode(node)
+      ? { id: node.id, kind: "flowInput", position: node.position, definition: node.data.definition }
+      : { id: node.id, kind: "processStep", position: node.position, stepRef: node.data.stepRef }),
+    edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target,
+      sourceHandle: edge.sourceHandle ?? null, targetHandle: edge.targetHandle ?? null })),
+    viewport: draftViewport,
+  }), [metadata, configuration, nodes, edges, draftViewport]);
+  const drafts = useEditorDrafts({
+    kind: "template", state: editorDraftState, enabled: hydrated,
+    saveDisabled: savedTemplate !== null, busy: busyAction !== null,
+    onLoad(draft) {
+      if (!("nodes" in draft.state)) throw new Error("This is not a template draft.");
+      const state = structuredClone(draft.state);
+      validateTemplateDraftState(state, stepTemplates);
+      state.edges = state.edges.map((edge) => ({ ...edge, sourceHandle: edge.sourceHandle ?? null, targetHandle: edge.targetHandle ?? null }));
+      const restoredNodes = state.nodes.map<FlowNode>((node) => node.kind === "flowInput"
+        ? { id: node.id, type: "flowInput", position: node.position, data: { nodeKind: "flowInput", definition: node.definition } }
+        : { id: node.id, type: "processStep", position: node.position,
+            data: { nodeKind: "processStep", stepRef: node.stepRef,
+              stepTemplate: stepTemplates.find((step) => step.id === node.stepRef.processStepTemplateId)! } });
+      const restoredEdges = state.edges.map<FlowEdge>((edge) => ({ ...edge, type: "dataFlow",
+        markerEnd: { type: MarkerType.ArrowClosed }, data: emptyEdgeData() }));
+      setMetadata(state.metadata);
+      setConfiguration(state.configuration);
+      setNodes(restoredNodes);
+      setEdges(restoredEdges);
+      setDraftViewport(state.viewport);
+      setSavedTemplate(null);
+      setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null);
+      setGeneratorEditor(null); setPreview(null); setMessage(null);
+      requestAnimationFrame(() => { void reactFlow.setViewport(state.viewport); });
+      return state;
+    },
+  });
   const topologyLocked = savedTemplate !== null;
   const generated = useGeneratorBindingGeometries(configuration);
   const resolvedGeometries = [...geometries, ...generated.geometries];
@@ -233,7 +274,7 @@ function ProcessFlowTemplateEditorInner() {
     ? `Cannot save a new flow with disabled steps: ${disabledSteps.map((step) => step.name).join(", ")}. Remove or replace them.`
     : null;
   const canSaveTemplate =
-    hydrated && !topologyLocked && !busyAction && !analysis.error && !availabilityError;
+    hydrated && !topologyLocked && !busyAction && !drafts.busy && !analysis.error && !availabilityError;
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
   const editingStepPreviewAvailability =
     editingNode && isStepNode(editingNode)
@@ -421,7 +462,8 @@ function ProcessFlowTemplateEditorInner() {
 
   function loadTemplateAsCopy(templateId: string) {
     const template = flowTemplates.find((item) => item.id === templateId);
-    if (!template) return;
+    if (!template || !drafts.confirmReplace()) return;
+    drafts.detach();
     const graph = graphFromTemplate(template, stepTemplates);
     setMetadata({
       name: template.name,
@@ -809,12 +851,17 @@ function ProcessFlowTemplateEditorInner() {
       setSaveDialogError(validationError);
       return;
     }
+    const captured = structuredClone(editorDraftState);
     setBusyAction("template");
     setSaveDialogError(null);
     setMessage(null);
     try {
       const { id: _draftId, ...createPayload } = draftTemplate;
-      const saved = await createProcessFlowTemplate(createPayload);
+      const saved = drafts.active
+        ? await commitTemplateEditorDraft(drafts.active, createPayload)
+        : await createProcessFlowTemplate(createPayload);
+      drafts.detach();
+      drafts.markClean(captured);
       setSavedTemplate(saved);
       setFlowTemplates((current) => [...current, saved]);
       setSaveDialogMode(null);
@@ -857,7 +904,7 @@ function ProcessFlowTemplateEditorInner() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link href="/">
+              <Link href="/" onClick={(event) => { if (!drafts.confirmReplace()) event.preventDefault(); }}>
                 <ArrowLeft />
                 Home
               </Link>
@@ -865,7 +912,7 @@ function ProcessFlowTemplateEditorInner() {
             <select
               className={cn(selectClass, "w-[220px]")}
               value=""
-              disabled={topologyLocked || busyAction !== null}
+              disabled={topologyLocked || drafts.busy}
               aria-label="Start from template"
               onChange={(event) => loadTemplateAsCopy(event.target.value)}
             >
@@ -876,6 +923,7 @@ function ProcessFlowTemplateEditorInner() {
                 </option>
               ))}
             </select>
+            {drafts.controls}
             <Button
               disabled={!canSaveTemplate}
               onClick={() => openSaveDialog("template")}
@@ -898,7 +946,7 @@ function ProcessFlowTemplateEditorInner() {
         )}
       >
         {message?.kind === "success" ? <Check className="h-4 w-4" /> : <CircleDot className="h-4 w-4" />}
-        <span className="truncate">{availabilityError ?? message?.text ?? statusText}</span>
+        <span className="truncate">{message?.text ?? drafts.notice ?? availabilityError ?? statusText}</span>
       </div>
 
       <section className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(540px,1fr)_320px] lg:overflow-hidden">
@@ -977,6 +1025,7 @@ function ProcessFlowTemplateEditorInner() {
             setSelectedNodeId(node.id);
             setEditingNodeId(node.id);
           }}
+          onMoveEnd={(_, viewport) => setDraftViewport(viewport)}
           onPaneClick={() => setSelectedNodeId(null)}
           emptyState={
             nodes.length === 0 ? (
