@@ -15,6 +15,13 @@ type LayoutCell = {
   lane: number;
 };
 
+type LayoutBlock = {
+  steps: Map<string, LayoutCell>;
+  inputs: Map<string, LayoutCell>;
+  minLane: number;
+  maxLane: number;
+};
+
 type IncomingEdge = {
   edge: SavedFlowEdge;
   portIndex: number;
@@ -48,31 +55,32 @@ export function computeTemplateLayout(
     }
   });
 
+  // Mark nodes before recursing so invalid cycles and shared sources stay finite.
+  const visitedSteps = new Set<string>();
+  const visitedInputs = new Set<string>();
   const stepCells = new Map<string, LayoutCell>();
   const flowInputCells = new Map<string, LayoutCell>();
-  let nextLane = 1;
+  let nextLane = 0;
 
-  const allocateLane = () => {
-    const lane = nextLane;
-    nextLane += 1;
-    return lane;
-  };
-
-  const placeSource = (
-    edge: SavedFlowEdge,
-    lane: number,
-    column: number,
-  ) => {
+  const placeSource = (edge: SavedFlowEdge, column: number): LayoutBlock | null => {
     if (edge.source.kind === "flowInput") {
-      if (!flowInputCells.has(edge.source.flowInputId)) {
-        flowInputCells.set(edge.source.flowInputId, { column, lane });
-      }
-      return;
+      const id = edge.source.flowInputId;
+      if (visitedInputs.has(id)) return null;
+      visitedInputs.add(id);
+      return {
+        steps: new Map(),
+        inputs: new Map([[id, { column, lane: 0 }]]),
+        minLane: 0,
+        maxLane: 0,
+      };
     }
-    visitStep(edge.source.stepRefId, lane, column);
+    return visitStep(edge.source.stepRefId, column);
   };
 
-  const orderedIncomingEdges = (stepRefId: string): IncomingEdge[] => {
+  const orderedIncomingEdges = (stepRefId: string): {
+    incoming: IncomingEdge[];
+    primaryPortIndex: number;
+  } => {
     const stepRef = stepRefById.get(stepRefId);
     const stepTemplate = stepRef
       ? stepTemplateById.get(stepRef.processStepTemplateId)
@@ -84,7 +92,7 @@ export function computeTemplateLayout(
       ]),
     );
 
-    return (incomingByStep.get(stepRefId) ?? [])
+    const incoming = (incomingByStep.get(stepRefId) ?? [])
       .map((edge) => {
         const port = portById.get(edge.target.inputPortId);
         return {
@@ -98,31 +106,55 @@ export function computeTemplateLayout(
           left.portIndex - right.portIndex ||
           left.edge.edgeId.localeCompare(right.edge.edgeId),
       );
+    return {
+      incoming,
+      // Use the declaration, even when the primary port has no incoming edge yet.
+      primaryPortIndex: stepTemplate?.inputPorts.findIndex((port) => port.role === "primary") ?? -1,
+    };
   };
 
-  function visitStep(stepRefId: string, lane: number, column: number) {
-    if (!stepSet.has(stepRefId) || stepCells.has(stepRefId)) {
-      return;
+  function visitStep(stepRefId: string, column: number): LayoutBlock | null {
+    if (!stepSet.has(stepRefId) || visitedSteps.has(stepRefId)) return null;
+    visitedSteps.add(stepRefId);
+    const block: LayoutBlock = {
+      steps: new Map([[stepRefId, { column, lane: 0 }]]),
+      inputs: new Map(),
+      minLane: 0,
+      maxLane: 0,
+    };
+
+    const { incoming, primaryPortIndex } = orderedIncomingEdges(stepRefId);
+    const primary = incoming.find((item) => item.role === "primary");
+    if (primary) {
+      const upstream = placeSource(primary.edge, column - 1);
+      if (upstream) mergeBlock(block, upstream, 0);
     }
-    stepCells.set(stepRefId, { column, lane });
 
-    const incoming = orderedIncomingEdges(stepRefId);
-    const primaryIndex = incoming.findIndex((item) => item.role === "primary");
-
-    if (primaryIndex >= 0) {
-      placeSource(incoming[primaryIndex].edge, lane, column - 1);
-    }
-
-    // Allocate auxiliary lanes while unwinding the primary traversal. Branches
-    // farther from the terminal therefore stay closer to the main geometry row,
-    // and later branches cannot cross through their upstream flow lines.
-    incoming.forEach((item, index) => {
-      if (index === primaryIndex) {
-        return;
-      }
-      placeSource(item.edge, allocateLane(), column - 1);
+    // Finish the primary chain first: earlier merges stay closer to its row.
+    // Reserve each entire subtree, including branches on either side of its root.
+    const auxiliary = incoming.filter((item) => item !== primary);
+    const above = auxiliary.filter((item) => item.portIndex < primaryPortIndex);
+    const below = auxiliary.filter((item) => item.portIndex >= primaryPortIndex);
+    // Insert the nearest upper port first, so top-to-bottom order matches inputPorts.
+    above.reverse().forEach((item) => {
+      const upstream = placeSource(item.edge, column - 1);
+      if (upstream) mergeBlock(block, upstream, block.minLane - 1 - upstream.maxLane);
     });
+    below.forEach((item) => {
+      const upstream = placeSource(item.edge, column - 1);
+      if (upstream) mergeBlock(block, upstream, block.maxLane + 1 - upstream.minLane);
+    });
+    return block;
   }
+
+  const placeComponent = (stepRefId: string) => {
+    const block = visitStep(stepRefId, 0);
+    if (!block) return;
+    const offset = nextLane - block.minLane;
+    block.steps.forEach((cell, id) => stepCells.set(id, { ...cell, lane: cell.lane + offset }));
+    block.inputs.forEach((cell, id) => flowInputCells.set(id, { ...cell, lane: cell.lane + offset }));
+    nextLane += block.maxLane - block.minLane + 1;
+  };
 
   const terminalStepIds = stepIds.filter(
     (stepRefId) => !stepsWithOutgoingEdges.has(stepRefId),
@@ -137,25 +169,10 @@ export function computeTemplateLayout(
       (stepOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
         (stepOrder.get(right) ?? Number.MAX_SAFE_INTEGER),
   );
-  let placedRoot = false;
+  terminalStepIds.forEach(placeComponent);
 
-  terminalStepIds.forEach((stepRefId) => {
-    if (stepCells.has(stepRefId)) {
-      return;
-    }
-    visitStep(stepRefId, placedRoot ? allocateLane() : 0, 0);
-    placedRoot = true;
-  });
-
-  // Invalid drafts can contain only cycles or disconnected components. Keep the
-  // layout total and deterministic without attempting to infer missing port roles.
-  stepIds.forEach((stepRefId) => {
-    if (stepCells.has(stepRefId)) {
-      return;
-    }
-    visitStep(stepRefId, placedRoot ? allocateLane() : 0, 0);
-    placedRoot = true;
-  });
+  // Invalid drafts may have cycles or unresolved templates; place every remaining node.
+  stepIds.forEach(placeComponent);
 
   const leftmostColumn = Math.min(
     0,
@@ -169,15 +186,21 @@ export function computeTemplateLayout(
     }
     flowInputCells.set(flowInput.flowInputId, {
       column: leftmostColumn,
-      lane: placedRoot ? allocateLane() : 0,
+      lane: nextLane++,
     });
-    placedRoot = true;
   });
 
   const stepPositions = positionsFromCells(stepCells);
   const flowInputPositions = positionsFromCells(flowInputCells);
   normalizePositions(stepPositions, flowInputPositions);
   return { stepPositions, flowInputPositions };
+}
+
+function mergeBlock(target: LayoutBlock, source: LayoutBlock, offset: number) {
+  source.steps.forEach((cell, id) => target.steps.set(id, { ...cell, lane: cell.lane + offset }));
+  source.inputs.forEach((cell, id) => target.inputs.set(id, { ...cell, lane: cell.lane + offset }));
+  target.minLane = Math.min(target.minLane, source.minLane + offset);
+  target.maxLane = Math.max(target.maxLane, source.maxLane + offset);
 }
 
 function longestUpstreamSpan(

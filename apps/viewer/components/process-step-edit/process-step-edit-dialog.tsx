@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Pencil, Save, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, Pencil, Save, X } from "lucide-react";
 
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import { TemplateStatusField } from "@/components/process-flow-fields/template-status-field";
@@ -11,6 +11,7 @@ import { createDefaultParameterValue } from "@/lib/process-flow/parameter-values
 import {
   clearProcessStepParameterDefault,
   hasParameterDefault,
+  moveProcessStepInputPort,
   setProcessStepParameterDefault,
 } from "@/lib/process-flow/process-step-update";
 import type { ParameterDefinition, ProcessStepTemplate } from "@/lib/process-flow/types";
@@ -83,6 +84,11 @@ export function ProcessStepEditDialog({
     setDraft((current) =>
       setProcessStepParameterDefault(current, parameterId, values[parameterId]),
     );
+    setError(null);
+  }
+
+  function moveInputPort(portId: string, direction: -1 | 1) {
+    setDraft((current) => moveProcessStepInputPort(current, portId, direction));
     setError(null);
   }
 
@@ -210,11 +216,18 @@ export function ProcessStepEditDialog({
             <div>
               <h3 className="text-sm font-semibold">Ports</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Input and output port definitions are locked.
+                Input order controls ports and upstream branch placement in every flow using this
+                process step, including existing flows when reloaded. Port definitions are locked.
               </p>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
-              <PortList title="Input ports" ports={draft.inputPorts} kind="input" />
+              <PortList
+                title="Input ports"
+                ports={draft.inputPorts}
+                kind="input"
+                disabled={saving}
+                onMove={moveInputPort}
+              />
               <PortList title="Output ports" ports={draft.outputPorts} kind="output" />
             </div>
           </section>
@@ -344,10 +357,14 @@ function PortList({
   title,
   ports,
   kind,
+  disabled = false,
+  onMove,
 }: {
   title: string;
   ports: PortDefinition[];
   kind: "input" | "output";
+  disabled?: boolean;
+  onMove?: (portId: string, direction: -1 | 1) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -357,8 +374,37 @@ function PortList({
       </div>
       {ports.length > 0 ? (
         <div className="space-y-3">
-          {ports.map((port) => (
+          {ports.map((port, index) => (
             <div key={port.portId} className="space-y-3 rounded-md border bg-white p-4">
+              {kind === "input" && onMove ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Input {index + 1}</span>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Move ${port.name} (${port.portId}) up`}
+                      title="Move up"
+                      disabled={disabled || index === 0}
+                      onClick={() => onMove(port.portId, -1)}
+                    >
+                      <ArrowUp aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Move ${port.name} (${port.portId}) down`}
+                      title="Move down"
+                      disabled={disabled || index === ports.length - 1}
+                      onClick={() => onMove(port.portId, 1)}
+                    >
+                      <ArrowDown aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <ReadOnlyField label="Port ID" value={port.portId} mono />
                 <ReadOnlyField label="Name" value={port.name} />

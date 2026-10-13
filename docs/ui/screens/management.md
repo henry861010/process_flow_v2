@@ -42,8 +42,11 @@ constraints、step identity fields and
 topology edges remain visible in disabled controls for reference.
 
 Every process-step row has an `Edit` action. It opens an in-page modal without navigation. The modal
-keeps id、version、name、description、ports與parameter definitions locked；only status、owner、category、
-program and each parameter's optional default value are editable. Save updates the row in local
+keeps id、version、name、description、port definitions與parameter definitions locked；status、owner、category、
+program、input port order and each parameter's optional default value are editable. Each input port
+has keyboard-accessible Move up / Move down buttons; boundary buttons and all move buttons while
+saving are disabled. Input order controls top-to-bottom handles and upstream branch placement in
+all referencing flows, including existing flows when reloaded; output ports remain read-only. Save updates the row in local
 bootstrap state；Cancel、X、backdrop與Escape discard the modal draft。The standalone process-step
 editor route and its New、Clone、Delete UI do not exist。Locked metadata、input/output port fields
 and complete parameter-definition details remain visible in disabled controls for reference.
@@ -55,7 +58,7 @@ before restoring the canonical repo fixtures. Both reset actions refresh visible
 and expose a busy state; errors are shown on the page.
 
 Acceptance: `UI-MGMT-001` validates counts and rows; `UI-MGMT-002` validates the
-process-step edit modal; `UI-MGMT-003` validates missing references remain visible using their raw ids.
+process-step edit modal; `UI-MGMT-009` validates input port reordering, boundary/saving controls, keyboard access, save/reopen and cancellation; `UI-MGMT-003` validates missing references remain visible using their raw ids.
 `UI-MGMT-004` validates the fixture menu, ZIP selection and validation, confirmation, busy state,
 reset success refresh, and reset error feedback.
 `UI-MGMT-008` validates both draft tabs, cross-template listing, summary metadata, deletion and synchronized cleanup.

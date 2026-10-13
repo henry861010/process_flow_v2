@@ -66,19 +66,19 @@
     "owner": "integration.platform",
     "inputPorts": [
       {
-        "portId": "main_geometry",
-        "name": "main_geometry",
-        "description": "Main package geometry state that receives placed component child scopes.",
-        "dataType": "geometry",
-        "role": "primary",
-        "required": true
-      },
-      {
         "portId": "die_geometry",
         "name": "die_geometry",
         "description": "Component geometry whose adaptation contract determines target-region materialization.",
         "dataType": "geometry",
         "role": "auxiliary",
+        "required": true
+      },
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main package geometry state that receives placed component child scopes.",
+        "dataType": "geometry",
+        "role": "primary",
         "required": true
       }
     ],

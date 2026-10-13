@@ -630,6 +630,75 @@ class ProcessFlowApiTests(unittest.TestCase):
             {"material": "EMC-UPDATED", "thickness": 210},
         )
 
+    def test_step_template_input_order_round_trips_without_changing_flows_or_execution(self):
+        bootstrap = self.reset_poc_data()
+        original = next(item for item in bootstrap["processStepTemplates"] if item["id"] == "step_tpl_pnp")
+        self.assertEqual([port["portId"] for port in original["inputPorts"]], ["die_geometry", "main_geometry"])
+        instance_id = "flow_inst_aaa_demo_hbm4_alpha"
+        before = self.client.post(f"/api/process-flow-instances/{instance_id}/execute")
+        self.assertEqual(before.status_code, 200, before.text)
+
+        reordered = copy.deepcopy(original)
+        reordered["inputPorts"].reverse()
+        response = self.client.put(f"/api/process-step-templates/{original['id']}", json=reordered)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), reordered)
+        self.assertEqual(self.client.get(f"/api/process-step-templates/{original['id']}").json(), reordered)
+        refreshed = self.client.get("/api/bootstrap").json()
+        self.assertEqual(refreshed["processFlowTemplates"], bootstrap["processFlowTemplates"])
+        self.assertEqual(refreshed["processFlowInstances"], bootstrap["processFlowInstances"])
+
+        after = self.client.post(f"/api/process-flow-instances/{instance_id}/execute")
+        self.assertEqual(after.status_code, 200, after.text)
+        self.assertEqual(after.json(), before.json())
+        archive = self.client.get("/api/fixture-export")
+        with zipfile.ZipFile(BytesIO(archive.content)) as fixtures:
+            saved = json.loads(fixtures.read("process-step-templates.json"))
+        self.assertEqual(next(item for item in saved if item["id"] == original["id"]), reordered)
+
+        # Existing databases keep their saved declaration order when fixtures are seeded again.
+        self.app.state.store.seed(load_seed_fixtures(), reset=False)
+        self.assertEqual(self.app.state.store.get_process_step_template(original["id"]), reordered)
+
+    def test_step_template_input_order_update_preserves_legacy_port_fields(self):
+        original = self.app.state.store.get_process_step_template("step_tpl_pnp")
+        for port in original["inputPorts"]:
+            port.pop("required", None)
+        self.app.state.store.update_process_step_template(original)
+        request = copy.deepcopy(original)
+        request["inputPorts"].reverse()
+        response = self.client.put("/api/process-step-templates/step_tpl_pnp", json=request)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), request)
+
+    def test_step_template_input_order_update_rejects_definition_changes(self):
+        original = self.app.state.store.get_process_step_template("step_tpl_pnp")
+        invalid = []
+        for field, value in (("name", "Changed"), ("role", "primary"), ("required", False),
+                             ("portId", "changed"), ("description", "Changed")):
+            candidate = copy.deepcopy(original)
+            candidate["inputPorts"].reverse()
+            die = next(port for port in candidate["inputPorts"] if port["portId"] == "die_geometry")
+            die[field] = value
+            invalid.append((field, candidate))
+        removed = copy.deepcopy(original)
+        removed["inputPorts"].pop()
+        invalid.append(("removed", removed))
+        added = copy.deepcopy(original)
+        added["inputPorts"].append({**added["inputPorts"][0], "portId": "extra_geometry"})
+        invalid.append(("added", added))
+        duplicate = copy.deepcopy(original)
+        duplicate["inputPorts"][1] = copy.deepcopy(duplicate["inputPorts"][0])
+        invalid.append(("duplicate", duplicate))
+        output_changed = copy.deepcopy(original)
+        output_changed["outputPorts"][0]["name"] = "Changed"
+        invalid.append(("output", output_changed))
+        for label, candidate in invalid:
+            with self.subTest(change=label):
+                response = self.client.put("/api/process-step-templates/step_tpl_pnp", json=candidate)
+                self.assertEqual(response.status_code, 409, response.text)
+                self.assertEqual(self.app.state.store.get_process_step_template(original["id"]), original)
+
     def test_step_template_update_rejects_identity_contract_and_invalid_defaults(self):
         bootstrap = self.reset_poc_data()
         original = next(

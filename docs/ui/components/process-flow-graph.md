@@ -79,7 +79,7 @@ Status：ready emerald、incomplete amber、error destructive、neutral muted。
 | Footer | padding `12px 8px`、version + status badge | 同左 |
 | Hover actions | Edit 28px、Delete 28px | none |
 
-每個 input port在左上 `12px` 起垂直排列、gap `8px`；target handle 16px、cyan-600、white
+每個 input port依 `ProcessStepTemplate.inputPorts` 宣告順序在左上 `12px` 起由上到下排列、gap `8px`；target handle 16px、cyan-600、white
 border。Hover/focus/active connection時顯示 max-width `150px` port tooltip，z `20`。右側source
 handle ID是 `result_geometry`。
 
@@ -145,16 +145,17 @@ API/compiler仍是authoritative。Persist時不得保存 React Flow internal nod
 ## 自動版面配置
 
 Immutable template重新開啟時用 `computeTemplateLayout(template, stepTemplates)`：從唯一terminal
-反向沿geometry input edges展開。`ProcessStepTemplate.inputPorts[].role`是唯一的lane判斷依據；
-primary上游維持同一排；primary chain先完整回溯，再於回程時配置auxiliary lanes，因此離
-terminal越遠的branch越靠近main geometry，較晚匯入的branch依序往下。同一step的auxiliary
-上游依port宣告順序配置。每個upstream source放在target左側一個column，所有flow inputs使用
+反向沿geometry input edges展開。`ProcessStepTemplate.inputPorts[].role`識別primary，primary上游維持同一排；
+宣告在primary之前的auxiliary上游放上方，之後的放下方，即使primary尚未接線也以其宣告位置判斷。
+同一step的分支由上到下依inputPorts順序配置。Primary chain先完整回溯，再於回程時配置auxiliary
+區塊，因此離terminal越遠的branch越靠近main geometry，較晚匯入的branch向該側外圍配置。
+每個區塊包含完整上游與巢狀分支，配置時預留其完整高度，避免上下分支重疊。每個upstream source放在target左側一個column，所有flow inputs使用
 不同排，最後normalize正座標。Layout不得依step id、name、category、program或其他step種類
 資訊特判。新增/拖動期間使用local position；不把position存進domain model。
 
 Template editor graph右上角的`Arrange` action MUST 對目前尚未儲存的nodes與edges重新執行相同
 layout，並在完成後fit view。若畫布包含多個互不相連的flow components，依最長upstream path
-由長到短排列；最長component使用第一排，其餘components在前一個component所占lanes之後依序
+由長到短排列；最長component的完整區塊從第一排開始，其餘components在前一個component所占lanes之後依序
 往下排列。
 
 ## 狀態矩陣
@@ -201,3 +202,4 @@ neutral node/edge的isolated component fixture。這是既有 fixture 的 opaque
 | `UI-GRAPH-009` | drag既有edge target箭頭到另一input | 同一edge保留source/ID並改接target；occupied target edge自動移除。 |
 | `UI-GRAPH-010` | drag既有edge source endpoint | 無reconnect handle；source不可由edge endpoint改接。 |
 | `UI-GRAPH-011` | target reconnect到invalid/cycle或取消 | 原edge與graph state不變。 |
+| `UI-GRAPH-012` | inputPorts重排並reload／Arrange | 接口與上游分支依宣告順序；primary同排、前置auxiliary在上、後置在下；完整區塊不重疊，既有portId接線保持原語意。 |

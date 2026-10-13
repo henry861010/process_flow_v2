@@ -23,7 +23,7 @@ Process Flow 把「可重用的製程定義」、「研究中的配置」與「�
 
 | 資源 | 用途 | 可變性 | 主要 owner |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | 定義一個 process operation 的 geometry ports、parameters 與 `program` | identity/contract locked；owner/category/program/defaults 可更新 | Process developer |
+| `ProcessStepTemplate` | 定義一個 process operation 的 geometry ports、parameters 與 `program` | identity/port definitions/parameter contract locked；owner/category/program/input order/defaults 可更新 | Process developer |
 | `ProcessFlowTemplate` | 定義 flow inputs、step references、directed topology 與 flow-specific scalar defaults | identity/version/topology locked；metadata/defaults 可受限更新 | Process developer |
 | `TemplateEditorDraft` | 保存未完成的 topology、working configuration 與畫布位置 | revision-checked 可修改，正式儲存後刪除 | Process developer |
 | `InstanceEditorDraft` | 保存未完成的 geometry bindings 與 parameter values | 可修改直到正式儲存後刪除；以 `revision` optimistic concurrency 控制 | Product / RD engineer |
@@ -52,8 +52,9 @@ flowchart LR
 
 Flow template 的 step reference 綁定既有 step template。Topology 的執行順序由 `flowEdges` 推導，而不是由 `stepRefs` array order 決定。建立 template 前，API 會解析所有 referenced step templates 並驗證 graph。
 
-Process step update 保留相同 identity、ports 與 parameter definition contract，只允許管理 metadata、
-program path 與 parameter defaults。Flow template 在建立時保存自己的 scalar defaults，因此 step
+Process step update 保留相同 identity、port definitions 與 parameter definition contract，只允許管理 metadata、
+program path、input port order 與 parameter defaults。Input order決定接口與上游分支由上到下的排列，
+既有引用在重新載入時採用新順序；接線與geometry執行仍以portId和role解析。Flow template 在建立時保存自己的 scalar defaults，因此 step
 default update 只影響之後建立的 flow；program update 則會由相同 step id 的後續執行直接解析。
 
 ### Editor draft 流程

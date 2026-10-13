@@ -143,7 +143,7 @@ flowchart LR
 3. Geometry 只經由 typed ports 與 `inputBindings` 傳遞，不屬於 parameter value union。
 4. Flow template 的 identity/version/topology locked，但 status、metadata、step labels 與 flow-specific scalar
    defaults 可受限更新；instance 與 catalog geometry 是 immutable snapshots。Process step 的
-   identity、ports 與 parameter definition contract locked，但 status、owner、category、program 與
+   identity、port definitions 與 parameter definition contract locked，但 status、owner、category、program、input port order 與
    parameter defaults 可受限地 in-place update；delete policy 另見 persistence specification。
 5. Compiler 負責解析跨 resource references、驗證 graph 與 configuration，並建立
    `ExecutionPlan`；kernel 不查 repository。
@@ -167,7 +167,7 @@ flowchart TB
 
 | Model | 擁有 | 不擁有 | 可變性 |
 | --- | --- | --- | --- |
-| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Contract locked；status/metadata/program/defaults 可更新 |
+| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Port definitions/parameter contract locked；status/metadata/program/input order/defaults 可更新 |
 | `ProcessFlowTemplate` | Flow inputs、step refs、edges、flow-specific scalar defaults | 產品 geometry bindings | Identity/version/topology locked；status/name/owner/description/step labels/defaults 可受限更新 |
 | `TemplateEditorDraft` | Metadata、拓樸、完整 configuration、畫布位置 | 正式 resource identity | 可 revision-checked 更新 |
 | `InstanceEditorDraft` | Metadata 與完整 configuration snapshot | Topology | 可修改直到正式儲存成功後刪除 |
@@ -185,7 +185,7 @@ template 不變更此組合時可正常儲存。重複新增或改名 MUST 回�
 `status`、`name`、`owner`、`description` 與既有 step refs 的 `stepLabel`、`parameterDefaults`。
 需要變更 version、flow inputs、step identities、引用、順序或 edges 時 MUST 使用新的 `id`。
 Process step id 是 stable reference，
-受限 update 不得改變 identity、ports 或 parameter definition contract。`version` label、
+受限 update 不得改變 identity、port definitions 或 parameter definition contract；`inputPorts`可只重排順序。`version` label、
 identifier 與未採用欄位的完整規則見
 [共用欄位與格式規則](#10-共用欄位與格式規則)。
 
@@ -206,7 +206,7 @@ identifier 與未採用欄位的完整規則見
 | `program` | string | yes | none | Extensionless relative module path under `process_flow_steps`；每個 segment MUST match `[A-Za-z0-9_-]+`。 |
 | `description` | string | no | `""` | Human-facing description。 |
 | `owner` | non-empty string | yes | none | Owning team or domain。 |
-| `inputPorts` | `GeometryInputPort[]` | yes | none | MUST 包含 exactly one primary port。 |
+| `inputPorts` | `GeometryInputPort[]` | yes | none | MUST 包含 exactly one primary port；陣列順序決定接口與上游分支由上到下的排列。 |
 | `outputPorts` | `GeometryOutputPort[]` | yes | none | MUST 是 exactly one `result_geometry`。 |
 | `parameterDefinitions` | `ParameterDefinition[]` | yes | none | 詳見 Parameter Schema。 |
 
@@ -225,6 +225,9 @@ Port invariants：
 - MUST 有且只能有一個 `role: "primary"` 的 input，且其 id MUST 是
   `main_geometry`、`required` MUST 是 `true`。
 - 其他 input ports MUST 使用 `role: "auxiliary"`。
+- `inputPorts`順序是display/layout metadata，可透過受限PUT重排；完整port definitions仍保持鎖定。
+  Primary上游與step同排；宣告在primary之前的auxiliary分支在上方，之後的在下方。
+  連線與execution仍依`portId`及`role`解析，不得依陣列位置推斷primary。
 - MUST 有且只能有一個 output，id MUST 是 `result_geometry`。
 - 本版所有 ports 的 `dataType` MUST 是 `geometry`。
 - Process module 以 `ProcessStepContext.state` 操作 primary geometry，並以

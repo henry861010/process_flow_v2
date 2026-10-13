@@ -116,7 +116,7 @@ def update_process_step_template(
     normalized_current = ProcessStepTemplate.model_validate(current).payload()
     if _locked_process_step_template(normalized_current) != _locked_process_step_template(payload):
         raise ResourceConflictError(
-            "Only status, owner, category, program, and parameter defaultValue fields can be updated"
+            "Only status, owner, category, program, inputPorts order, and parameter defaultValue fields can be updated"
         )
 
     validate_process_step_template(payload)
@@ -125,6 +125,8 @@ def update_process_step_template(
         updated["status"] = payload["status"]
     for field in ("owner", "category", "program"):
         updated[field] = payload[field]
+    input_ports_by_id = {port["portId"]: port for port in updated["inputPorts"]}
+    updated["inputPorts"] = [input_ports_by_id[port["portId"]] for port in payload["inputPorts"]]
     _apply_parameter_defaults(
         updated.get("parameterDefinitions", []),
         payload.get("parameterDefinitions", []),
@@ -136,6 +138,8 @@ def _locked_process_step_template(template: JsonObject) -> JsonObject:
     locked = copy.deepcopy(template)
     for field in ("status", "owner", "category", "program"):
         locked.pop(field, None)
+    # Declaration order is presentation metadata; complete port definitions remain locked.
+    locked["inputPorts"] = sorted(locked["inputPorts"], key=lambda port: port["portId"])
     _remove_parameter_defaults(locked.get("parameterDefinitions", []))
     return locked
 

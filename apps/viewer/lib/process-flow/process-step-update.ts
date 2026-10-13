@@ -30,3 +30,16 @@ export function clearProcessStepParameterDefault(
     }),
   };
 }
+
+export function moveProcessStepInputPort(
+  template: ProcessStepTemplate,
+  portId: string,
+  direction: -1 | 1,
+): ProcessStepTemplate {
+  const index = template.inputPorts.findIndex((port) => port.portId === portId);
+  const targetIndex = index + direction;
+  if (index < 0 || targetIndex < 0 || targetIndex >= template.inputPorts.length) return template;
+  const inputPorts = [...template.inputPorts];
+  [inputPorts[index], inputPorts[targetIndex]] = [inputPorts[targetIndex], inputPorts[index]];
+  return { ...template, inputPorts };
+}

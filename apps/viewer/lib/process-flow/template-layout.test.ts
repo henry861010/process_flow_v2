@@ -184,6 +184,128 @@ describe("computeTemplateLayout", () => {
     expect(layout.flowInputPositions.get("a-part")?.y).toBe(450);
   });
 
+  it("places inputs on both sides of primary in declaration order", () => {
+    const mixed = stepTemplate("mixed", [
+      geometryPort("upper_first", "auxiliary"),
+      geometryPort("upper_second", "auxiliary"),
+      primaryPort,
+      geometryPort("lower_first", "auxiliary"),
+      geometryPort("lower_second", "auxiliary"),
+    ]);
+    const inputs = ["upper_first", "upper_second", "main_geometry", "lower_first", "lower_second"];
+    const flow = flowTemplate(inputs, [["merge", mixed.id]], inputs.map((port) =>
+      inputEdge(`edge-${port}`, port, "merge", port),
+    ).reverse());
+    const layout = computeTemplateLayout(flow, [mixed]);
+    expect(inputs.map((id) => layout.flowInputPositions.get(id)?.y)).toEqual([70, 260, 450, 640, 830]);
+    expect(layout.stepPositions.get("merge")?.y).toBe(450);
+    expect(serializedLayout(computeTemplateLayout(flow, [mixed]))).toEqual(serializedLayout(layout));
+  });
+
+  it("uses the primary declaration even when its input is not connected", () => {
+    const mixed = stepTemplate("incomplete", [
+      geometryPort("die_geometry", "auxiliary"),
+      primaryPort,
+      geometryPort("lower_geometry", "auxiliary"),
+    ]);
+    const layout = computeTemplateLayout(flowTemplate(["die", "lower"], [["merge", mixed.id]], [
+      inputEdge("lower", "lower", "merge", "lower_geometry"),
+      inputEdge("die", "die", "merge", "die_geometry"),
+    ]), [mixed]);
+    expect(layout.flowInputPositions.get("die")?.y).toBe(70);
+    expect(layout.stepPositions.get("merge")?.y).toBe(260);
+    expect(layout.flowInputPositions.get("lower")?.y).toBe(450);
+  });
+
+  it("keeps earlier upper branches closer to the main row in consecutive merges", () => {
+    const multi = stepTemplate("upper-merge", [geometryPort("die_geometry", "auxiliary"), primaryPort]);
+    const layout = computeTemplateLayout(flowTemplate(["base", "early-die", "late-die"], [
+      ["early", multi.id], ["late", multi.id],
+    ], [
+      inputEdge("base", "base", "early", "main_geometry"),
+      inputEdge("early-die", "early-die", "early", "die_geometry"),
+      stepEdge("main-chain", "early", "late", "main_geometry"),
+      inputEdge("late-die", "late-die", "late", "die_geometry"),
+    ]), [multi]);
+    expect(layout.flowInputPositions.get("late-die")?.y).toBe(70);
+    expect(layout.flowInputPositions.get("early-die")?.y).toBe(260);
+    expect(layout.flowInputPositions.get("base")?.y).toBe(450);
+    expect(layout.stepPositions.get("early")?.y).toBe(450);
+    expect(layout.stepPositions.get("late")?.y).toBe(450);
+  });
+
+  it.each(["above", "below"])("reserves complete nested blocks %s primary", (side) => {
+    const inner = stepTemplate("inner", [
+      geometryPort("top", "auxiliary"), primaryPort, geometryPort("bottom", "auxiliary"),
+    ]);
+    const auxiliaries = [geometryPort("first", "auxiliary"), geometryPort("second", "auxiliary")];
+    const outer = stepTemplate("outer", side === "above" ? [...auxiliaries, primaryPort] : [primaryPort, ...auxiliaries]);
+    const layout = computeTemplateLayout(flowTemplate(
+      ["base", "first-top", "first-main", "first-bottom", "second-top", "second-main", "second-bottom"],
+      [["first", inner.id], ["second", inner.id], ["outer", outer.id]],
+      [
+        inputEdge("base", "base", "outer", "main_geometry"),
+        stepEdge("first", "first", "outer", "first"),
+        stepEdge("second", "second", "outer", "second"),
+        ...["first", "second"].flatMap((id) => [
+          inputEdge(`${id}-top`, `${id}-top`, id, "top"),
+          inputEdge(`${id}-main`, `${id}-main`, id, "main_geometry"),
+          inputEdge(`${id}-bottom`, `${id}-bottom`, id, "bottom"),
+        ]),
+      ],
+    ), [outer, inner]);
+    const y = (id: string) => layout.flowInputPositions.get(id)!.y;
+    expect(y("first-top")).toBeLessThan(y("first-main"));
+    expect(y("first-main")).toBeLessThan(y("first-bottom"));
+    expect(y("first-bottom")).toBeLessThan(y("second-top"));
+    expect(y("second-top")).toBeLessThan(y("second-main"));
+    expect(y("second-main")).toBeLessThan(y("second-bottom"));
+    if (side === "above") expect(y("second-bottom")).toBeLessThan(y("base"));
+    else expect(y("base")).toBeLessThan(y("first-top"));
+    expect(layout.stepPositions.get("first")!.y).toBe(y("first-main"));
+    expect(layout.stepPositions.get("second")!.y).toBe(y("second-main"));
+    expect(layout.stepPositions.get("outer")!.y).toBe(y("base"));
+    expect(new Set([...layout.flowInputPositions.values()].map((p) => p.y)).size).toBe(7);
+  });
+
+  it("stacks disconnected components after their complete upper and lower extents", () => {
+    const mixed = stepTemplate("mixed-block", [
+      geometryPort("top", "auxiliary"), primaryPort, geometryPort("bottom", "auxiliary"),
+    ]);
+    const linear = stepTemplate("linear", [primaryPort]);
+    const layout = computeTemplateLayout(flowTemplate(["main", "top", "bottom", "short"], [
+      ["early", linear.id], ["long", mixed.id], ["short", mixed.id],
+    ], [
+      inputEdge("main", "main", "early", "main_geometry"),
+      stepEdge("early-long", "early", "long", "main_geometry"),
+      inputEdge("top", "top", "long", "top"),
+      inputEdge("bottom", "bottom", "long", "bottom"),
+      inputEdge("short", "short", "short", "top"),
+    ]), [mixed, linear]);
+    expect(layout.flowInputPositions.get("top")?.y).toBe(70);
+    expect(layout.flowInputPositions.get("main")?.y).toBe(260);
+    expect(layout.flowInputPositions.get("bottom")?.y).toBe(450);
+    expect(layout.flowInputPositions.get("short")?.y).toBe(640);
+    expect(layout.stepPositions.get("short")?.y).toBe(830);
+  });
+
+  it("moves only the declared branch when input port order changes", () => {
+    const first = stepTemplate("reordered", [primaryPort, geometryPort("die_geometry", "auxiliary")]);
+    const flow = flowTemplate(["main", "die"], [["merge", first.id]], [
+      inputEdge("main", "main", "merge", "main_geometry"),
+      inputEdge("die", "die", "merge", "die_geometry"),
+    ]);
+    const originalFlow = structuredClone(flow);
+    const originalTemplate = structuredClone(first);
+    const before = computeTemplateLayout(flow, [first]);
+    const after = computeTemplateLayout(flow, [{ ...first, inputPorts: [...first.inputPorts].reverse() }]);
+    expect(before.flowInputPositions.get("die")!.y).toBeGreaterThan(before.flowInputPositions.get("main")!.y);
+    expect(after.flowInputPositions.get("die")!.y).toBeLessThan(after.flowInputPositions.get("main")!.y);
+    expect(after.stepPositions.get("merge")!.y).toBe(after.flowInputPositions.get("main")!.y);
+    expect(flow).toEqual(originalFlow);
+    expect(first).toEqual(originalTemplate);
+  });
+
   it("places the longest disconnected flow on the first row", () => {
     const linear = stepTemplate("disconnected-linear", [primaryPort]);
     const layout = computeTemplateLayout(

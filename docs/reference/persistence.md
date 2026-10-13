@@ -189,9 +189,13 @@ when no instance references it, and also removes its instance drafts in the same
 | `TemplateEditorDraft` | yes | revision-checked full replace | Revision-checked delete, or consumed by commit。 |
 | `InstanceEditorDraft` | yes | revision-checked full replace | Revision-checked delete, consumed by commit, or removed with its flow template。 |
 
-`ProcessStepTemplate` update只允許`status`、`owner`、`category`、`program`與recursive parameter
-`defaultValue`改變；id、version、name、description、ports與parameter definition contract MUST
-保持相同。`ProcessFlowTemplate` update只允許`status`、`name`、`owner`、`description`與
+`ProcessStepTemplate` update只允許`status`、`owner`、`category`、`program`、`inputPorts`順序與recursive parameter
+`defaultValue`改變；id、version、name、description、完整port definitions與parameter definition contract MUST
+保持相同。Input order可原地重排，但不得增刪或重複ports，也不得改變其任何欄位；output ports保持相同。
+更新後讀取與fixture export/import MUST 保留input順序，不需要schema migration。內建PnP fixture宣告
+`die_geometry`在`main_geometry`之前；啟動既有資料庫不得自動覆寫其順序。
+
+`ProcessFlowTemplate` update只允許`status`、`name`、`owner`、`description`與
 既有step refs的`stepLabel`與`parameterDefaults`改變；identity、version與topology MUST保持相同。
 Label update 的清空、省略及共用顯示規則見
 [StepRef contract](../data-model.md#6-processflowtemplate) 與
