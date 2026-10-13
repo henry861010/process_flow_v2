@@ -6,7 +6,7 @@ audience:
   - geometry producers
   - process-step authors
   - kernel、CAD、viewer 與 API 開發者
-last_verified: 2026-10-08
+last_verified: 2026-10-13
 last_verified_commit: 754a4e03
 source_of_truth:
   - docs/reference/geometry-structure.md
@@ -55,6 +55,7 @@ MUST NOT 放入 key。
 - `envelope`：代表所屬 Container／Entity 整體外形或幾何近似的 Body。
 - `molding`：molding process 建立的實體。
 - `daf`：DAF process step 建立的 DAF 實體。
+- `fow`：FOW process step 建立的 FOW 實體；Debond 保留此 body。
 - `tim`：thermal interface material 實體。
 - `adh`：adhesive 實體。
 - `hbm.base_die`：HBM generator 建立的 base die。
@@ -86,7 +87,7 @@ MUST NOT 放入 key。
   `wafer-dmy.si`。
 - LSI generator標記root為`lsi`；Gen2的Si carrier body使用`carrier`，底部DAF body使用`daf`。
   其他LSI層不提供body key，via不提供key。
-- Molding 與 DAF 分別建立 `molding`、`daf` body roles；Carrier Bond 保留 source body keys。
+- Molding、DAF 與 FOW 分別建立 `molding`、`daf`、`fow` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
   `daf` role 視為可選的 bonded DAF。
 - Copy、PnP、move、flip、grind 與 saw MUST 保留既有 key，不得從 material、geometry、位置或

@@ -28,6 +28,7 @@ from process_flow_kernel import (
     validate_parameter_default_values,
 )
 from process_flow_steps.layer.daf import execute as execute_daf
+from process_flow_steps.layer.fow import execute as execute_fow
 from process_flow_steps.tmv.tmv import execute as execute_tmv
 
 
@@ -1742,6 +1743,124 @@ class KernelExecutionTests(unittest.TestCase):
             output,
         )
 
+    def test_real_fow_uses_current_footprint_at_overall_top_and_advances_cursor(self):
+        state = process_state_with_derived_footprint(main_geometry())
+        child = ProcessGeometryState.create()
+        child.initialize_box_layer(
+            material="Si",
+            bottom_left=[0, 0, 0],
+            top_right=[4, 6, 0],
+            thickness=20,
+        )
+        state.place_geometry_state(child, x=0, y=0, bottom_z=10)
+        state.set_box_footprint(bottom_left=[-10, -20], top_right=[10, 20])
+        footprint_before = state.process_footprint()
+        state.set_cursor_z(5)
+
+        result = execute_fow_with_values(state, {"material": "FOW-A", "thk": 3})
+
+        self.assertIs(result, state)
+        self.assertEqual(state.cursor_z(), 33)
+        self.assertEqual(state.process_footprint(), footprint_before)
+        output = state.to_geometry_structure()
+        body = output["root"]["bodies"][-1]
+        self.assertEqual(body["key"], "fow")
+        self.assertEqual(body["material"], "FOW-A")
+        self.assertEqual(body["geometry"], {
+            "type": "BoxGeometry",
+            "bottom_left": [-10, -20, 30],
+            "top_right": [10, 20, 30],
+            "thk": 3,
+        })
+        self.assertEqual(
+            ProcessGeometryState.from_structure(output).to_geometry_structure(),
+            output,
+        )
+
+    def test_real_fow_rejects_invalid_parameters_and_missing_footprint_atomically(self):
+        cases = [
+            ("non-empty string", {"material": "", "thk": 3}),
+            ("non-empty string", {"material": "  ", "thk": 3}),
+            ("non-empty string", {"thk": 3}),
+            ("positive number", {"material": "FOW-A", "thk": 0}),
+            ("positive number", {"material": "FOW-A", "thk": -1}),
+            ("finite number", {"material": "FOW-A", "thk": float("inf")}),
+            ("finite number", {"material": "FOW-A", "thk": float("nan")}),
+            ("finite number", {"material": "FOW-A"}),
+        ]
+        states = [
+            (process_state_with_derived_footprint(main_geometry()), cases),
+            (ProcessGeometryState.from_structure(main_geometry()), [
+                ("footprint", {"material": "FOW-A", "thk": 3}),
+            ]),
+        ]
+        for state, invalid_cases in states:
+            for expected_message, values in invalid_cases:
+                with self.subTest(values=values, error=expected_message):
+                    before = state.to_geometry_structure()
+                    cursor_before = state.cursor_z()
+                    footprint_before = state.process_footprint()
+                    with self.assertRaisesRegex(ValueError, expected_message):
+                        execute_fow_with_values(state, values)
+                    self.assertEqual(state.to_geometry_structure(), before)
+                    self.assertEqual(state.cursor_z(), cursor_before)
+                    self.assertEqual(state.process_footprint(), footprint_before)
+
+    def test_real_fow_reuses_material_instance_rules(self):
+        catalog = InMemoryGeometryCatalog([
+            geometry_entity("geom_main", main_geometry(material="FOW-A_dup7")),
+        ])
+        plan = FlowCompiler(catalog).compile(
+            fow_template(), fow_configuration(), {"step_fow": fow_step_template()},
+        )
+        output = GeometryKernel().execute(plan).geometry()
+        bodies = output["root"]["bodies"]
+        self.assertEqual([body["material"] for body in bodies], ["FOW-A", "FOW-A_dup2"])
+        self.assertEqual([body.get("key") for body in bodies], [None, "fow"])
+        self.assertEqual(bodies[-1]["geometry"]["bottom_left"][2], 10)
+        self.assertEqual(bodies[-1]["geometry"]["thk"], 3)
+        self.assertEqual(
+            ProcessGeometryState.from_structure(output).to_geometry_structure(), output,
+        )
+
+    def test_real_fow_then_carrier_bond_then_debond_preserves_fow(self):
+        catalog = InMemoryGeometryCatalog([
+            geometry_entity("geom_main", main_geometry(material="substrate")),
+            geometry_entity("geom_carrier", carrier_geometry(half_size=50)),
+        ])
+        template = fow_template()
+        template["flowInputs"].append(flow_input("incoming_carrier"))
+        template["stepRefs"].extend([
+            {"stepRefId": "carrier_bond", "processStepTemplateId": "step_carrier_bond"},
+            {"stepRefId": "debond", "processStepTemplateId": "step_debond"},
+        ])
+        template["flowEdges"].extend([
+            edge_from_step("fow", "carrier_bond", "edge_fow_carrier_bond"),
+            edge_from_input("incoming_carrier", "carrier_bond", "carrier_geometry"),
+            edge_from_step("carrier_bond", "debond", "edge_carrier_bond_debond"),
+        ])
+        configuration = fow_configuration()
+        configuration["inputBindings"]["incoming_carrier"] = {
+            "kind": "catalog", "geometryId": "geom_carrier",
+        }
+        configuration["stepConfigurations"].update({
+            "carrier_bond": {"parameterValues": {}},
+            "debond": {"parameterValues": {}},
+        })
+        plan = FlowCompiler(catalog).compile(template, configuration, {
+            "step_fow": fow_step_template(),
+            "step_carrier_bond": carrier_bond_step_template(),
+            "step_debond": debond_step_template(),
+        })
+
+        result = GeometryKernel().execute(plan)
+
+        self.assertEqual(
+            [body.get("key") for body in result.step_output("carrier_bond")["root"]["bodies"]],
+            [None, "fow", "carrier"],
+        )
+        self.assertEqual(result.geometry(), result.step_output("fow"))
+
     def test_real_daf_then_carrier_bond_reproduces_daf_carrier_stack(self):
         catalog = InMemoryGeometryCatalog(
             [
@@ -2051,6 +2170,19 @@ def daf_step_template():
     }
 
 
+def fow_step_template():
+    return {
+        "id": "step_fow",
+        "program": "layer/fow",
+        "inputPorts": [geometry_input()],
+        "outputPorts": [output_port()],
+        "parameterDefinitions": [
+            parameter("material", "materialRef"),
+            parameter("thk", "float"),
+        ],
+    }
+
+
 def pnp_step_template():
     return {
         "id": "step_pnp",
@@ -2291,6 +2423,45 @@ def execute_daf_with_values(state, values):
         ),
     )
     return execute_daf(context)
+
+
+def execute_fow_with_values(state, values):
+    structure = state.to_geometry_structure()
+    context = ProcessStepContext(
+        state=state,
+        values=values,
+        raw_parameter_values=values,
+        step_ref={"stepRefId": "fow", "processStepTemplateId": "step_fow"},
+        step_template=fow_step_template(),
+        step_configuration={"parameterValues": values},
+        geometry_inputs={"main_geometry": structure},
+        input_geometry=structure,
+        geometry_resolver=lambda port_id: (
+            state.clone() if port_id == "main_geometry" else None
+        ),
+    )
+    return execute_fow(context)
+
+
+def fow_template():
+    return {
+        "id": "flow_fow",
+        "flowInputs": [flow_input("incoming_main")],
+        "stepRefs": [{"stepRefId": "fow", "processStepTemplateId": "step_fow"}],
+        "flowEdges": [edge_from_input("incoming_main", "fow")],
+    }
+
+
+def fow_configuration():
+    return {
+        "inputBindings": {
+            "incoming_main": {"kind": "catalog", "geometryId": "geom_main"},
+        },
+        "stepConfigurations": {
+            "fow": {"parameterValues": {"material": "FOW-A", "thk": 3}},
+        },
+        "embeddedGeometries": {},
+    }
 
 
 def daf_template():

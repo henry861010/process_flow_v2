@@ -29,6 +29,7 @@ BODY_KEYS = frozenset(
         "envelope",
         "molding",
         "daf",
+        "fow",
         "tim",
         "adh",
         "hbm.base_die",

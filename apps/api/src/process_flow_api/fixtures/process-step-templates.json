@@ -223,6 +223,59 @@
   {
     "schemaVersion": 2,
     "status": "enabled",
+    "id": "step_tpl_fow",
+    "version": "V0.0.0",
+    "name": "FOW",
+    "category": "layer",
+    "program": "layer/fow",
+    "description": "Deposits a body keyed fow on the full geometry top using the current process footprint and sets cursorZ to the new layer top.",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state that receives the FOW layer. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "FOW material",
+        "description": "FOW material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "FOW thk",
+        "description": "Positive FOW thickness deposited on the full geometry top.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
     "id": "step_tpl_rdl",
     "version": "V0.0.0",
     "name": "RDL layer",

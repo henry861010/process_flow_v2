@@ -328,6 +328,89 @@ class ProcessFlowApiTests(unittest.TestCase):
         api_services.validate_process_step_template(daf)
         self.assertTrue(callable(ProcessStepModuleResolver().resolve(daf).execute))
 
+    def test_fow_fixture_exposes_standalone_contract(self):
+        payload = self.client.get("/api/bootstrap").json()
+        fow = next(
+            template for template in payload["processStepTemplates"]
+            if template["id"] == "step_tpl_fow"
+        )
+
+        self.assertEqual(fow["version"], "V0.0.0")
+        self.assertEqual(fow["name"], "FOW")
+        self.assertEqual(fow["category"], "layer")
+        self.assertEqual(fow["program"], "layer/fow")
+        self.assertEqual(
+            [(item["id"], item["name"], item["valueType"], item["controlType"])
+             for item in fow["parameterDefinitions"]],
+            [("material", "FOW material", "materialRef", "text"),
+             ("thk", "FOW thk", "float", "number")],
+        )
+        self.assertEqual(fow["parameterDefinitions"][1]["unit"], "um")
+        self.assertEqual(
+            fow["parameterDefinitions"][1]["validation"],
+            {"min": 0, "exclusiveMin": True},
+        )
+        self.assertTrue(all("defaultValue" not in item for item in fow["parameterDefinitions"]))
+        self.assertEqual([port["portId"] for port in fow["inputPorts"]], ["main_geometry"])
+        self.assertTrue(fow["inputPorts"][0]["required"])
+        self.assertEqual(fow["inputPorts"][0]["role"], "primary")
+        self.assertEqual([port["portId"] for port in fow["outputPorts"]], ["result_geometry"])
+        api_services.validate_process_step_template(fow)
+        self.assertTrue(callable(ProcessStepModuleResolver().resolve(fow).execute))
+        listed = self.client.get("/api/process-step-templates", params={"category": "layer", "search": "FOW"})
+        self.assertEqual([item["id"] for item in listed.json()], ["step_tpl_fow"])
+
+    def test_fow_can_be_manually_added_to_existing_database_without_reset(self):
+        fixtures = load_seed_fixtures()
+        fow = next(item for item in fixtures["processStepTemplates"] if item["id"] == "step_tpl_fow")
+        fixtures["processStepTemplates"] = [
+            item for item in fixtures["processStepTemplates"] if item["id"] != "step_tpl_fow"
+        ]
+        app = create_app(db_path=Path(self.tmp.name) / "existing.sqlite3")
+        try:
+            app.state.store.seed(fixtures)
+            with TestClient(app) as client:
+                before = client.get("/api/bootstrap").json()
+                self.assertEqual(client.get("/api/process-step-templates/step_tpl_fow").status_code, 404)
+                response = client.post("/api/process-step-templates", json=fow)
+                self.assertEqual(response.status_code, 201, response.text)
+                self.assertEqual(response.json()["id"], "step_tpl_fow")
+                after = client.get("/api/bootstrap").json()
+                self.assertEqual(len(after["processStepTemplates"]), len(before["processStepTemplates"]) + 1)
+                for key in ("processFlowTemplates", "processFlowInstances", "geometries"):
+                    self.assertEqual(after[key], before[key])
+        finally:
+            app.state.store.close()
+
+    def test_fow_step_preview_uses_template_parameters(self):
+        bootstrap = self.client.get("/api/bootstrap").json()
+        template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
+        template["flowInputs"] = [template["flowInputs"][0]]
+        template["stepRefs"] = [{"stepRefId": "fow", "processStepTemplateId": "step_tpl_fow"}]
+        template["flowEdges"] = [{
+            "edgeId": "edge_panel_to_fow",
+            "source": {"kind": "flowInput", "flowInputId": "incoming_panel"},
+            "target": {"stepRefId": "fow", "inputPortId": "main_geometry"},
+        }]
+        preview = self.client.post("/api/geometry-preview", json={
+            "target": {"type": "stepOutput", "stepRefId": "fow", "outputPortId": "result_geometry"},
+            "flowTemplate": template,
+            "configuration": {
+                "inputBindings": {"incoming_panel": {"kind": "catalog", "geometryId": "panel_plp_310x310mm_glass"}},
+                "stepConfigurations": {"fow": {"parameterValues": {"material": "FOW-A", "thk": 3}}},
+                "embeddedGeometries": {},
+            },
+        })
+
+        self.assertEqual(preview.status_code, 200, preview.text)
+        payload = preview.json()
+        self.assertTrue(payload["glbBase64"])
+        fow = payload["geometryEntityJson"]["structure"]["root"]["bodies"][-1]
+        self.assertEqual(fow["key"], "fow")
+        self.assertEqual(fow["material"], "FOW-A")
+        self.assertEqual(fow["geometry"]["thk"], 3)
+        self.assertEqual(fow["geometry"]["bottom_left"][2], 350)
+
     def test_tmv_fixture_exposes_via_contract(self):
         payload = self.client.get("/api/bootstrap").json()
         tmv = next(

@@ -6,7 +6,7 @@ audience:
   - process developers
   - process-step authors
   - QA engineers
-last_verified: 2026-10-12
+last_verified: 2026-10-13
 last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - apps/api/src/process_flow_api/fixtures/process-step-templates.json
@@ -31,6 +31,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Grinding | `grinding/grinding` | `main_geometry` | `thk` | 以整體 geometry top 減去厚度計算 target Z 並 grind |
 | saw | `saw/saw` | `main_geometry` | `bottomLeftX/Y`, `topRightX/Y` | XY clip 到指定 box |
 | DAF | `layer/daf` | `main_geometry` | `material`, `thk` | 在整體 geometry top 建立 keyed DAF body |
+| FOW | `layer/fow` | `main_geometry` | `material`, `thk` | 在整體 geometry top 建立 keyed FOW body；Debond 保留 FOW |
 | Carrier Bond | `carrier/bond` | `main_geometry`, `carrier_geometry` | — | 保留 source body keys，將 carrier root direct bodies 疊到整體 geometry top |
 | Debond | `carrier/debond` | `main_geometry` | — | 遞迴移除唯一頂層 carrier 與可選的相連同 footprint DAF |
 | Flip | `flip/flip` | `main_geometry` | — | 以 XY plane flip、normalize Z min，反轉 via/bump direction |
@@ -48,7 +49,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 
 Material instance suffix 由 kernel 配置，module 不自行產生。所有 step output serialize 為 standard geometry structure。
 只有需要 semantic interaction 的 body-producing steps 指定 registered key：molding=`molding`、
-DAF=`daf`；carrier catalog geometry 自行提供 `carrier`。Carrier Bond 不建立或改寫 body key。
+DAF=`daf`、FOW=`fow`；carrier catalog geometry 自行提供 `carrier`。Carrier Bond 不建立或改寫 body key。
 ECL、RDL dielectric 與 underfill 不指定
 body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transforms 保留來源 key。
 
@@ -61,6 +62,7 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Grinding | Clamp 到 grind target Z | 不變 | Grind target scope；可能移除或截短 primitives。 |
 | saw | 不變 | 改成指定 box | 對 target scope subtree 做 XY clip。 |
 | DAF | 前進新增 DAF 厚度 | 不變 | 在 overall geometry top 使用 current footprint 新增 keyed DAF body。 |
+| FOW | 設為 overall geometry top 加上 FOW 厚度 | 不變 | 使用 current footprint 新增 key=`fow` 的 body。 |
 | Carrier Bond | 設為 bonded direct bodies 的 top Z | 不變 | 在 overall geometry top copy source root direct bodies 並保留 keys；不複製 children/features。 |
 | Debond | 設為移除 carrier／DAF 後的 overall geometry top Z | 不變 | 驗證成功後原子性移除一個頂層 carrier 與零或一個相連 DAF；保留空 container。 |
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
@@ -86,6 +88,11 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - ECL 的 non-zero `koz` 會作為 XY inset；Polygon process footprint 目前不支援此 inset。
 - DAF 要求正的 `thk` 與非空 `material`，使用 current process footprint 在 target overall
   geometry maximum Z 建立 key=`daf` 的 body。
+- FOW 的成層行為與 DAF 相同，要求有限正值 `thk`（um）與非空 `material`，但使用
+  key=`fow`；Debond 不移除此層。材料 instance 名稱沿用 kernel 的配置規則。
+- FOW template 為 `step_tpl_fow`（`V0.0.0`），參數為 `material`（FOW material）與
+  `thk`（FOW thk），沒有預設值。新資料庫由 seed 載入；既有資料庫需透過
+  `POST /api/process-step-templates` 新增 fixture 中的同一份 template，不需重設資料庫。
 - Carrier Bond 要求 source root direct bodies 中至少一個使用 key=`carrier`，但允許 DAF 等其他
   registered body keys 並完整保留所有 source keys。它將 source direct-body minimum Z 對齊
   target overall geometry maximum Z；child containers、via/circuit/bump 都不複製。
