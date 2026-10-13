@@ -2,7 +2,7 @@
 title: Geometry Generator Framework
 status: normative
 owner: Process Flow UI
-last_verified: 2026-07-13
+last_verified: 2026-10-13
 last_verified_commit: b838db68cf0ec0ed
 audience:
   - frontend
@@ -42,14 +42,39 @@ XYZ置中，root container key為`wafer-dmy`，唯一body key為`wafer-dmy.si`�
 不自動排列die，也不計算warpage。
 
 LSI generator v1以`generation`參數選擇`gen1`或`gen2`，使用固定8000 × 10000 um
-footprint。gen1由下往上為`si`、`usg`、`LSI_top_molding`；gen2由下往上為
-`bsmc`、`si`、`usg`、`prePm0`，所有層使用完整footprint並相貼堆疊。`si`材料預設`Si`、
-厚度預設200 um，`usg`材料預設`usg`、厚度預設15.5 um，gen1的`LSI_top_molding`材料
-預設`lsi_top_molding`、厚度預設26 um，因此兩個世代首次開啟皆有有效預覽。gen2的`bsmc`材料預設
-`Mat_MCA7UUU0P1`、厚度15 um，`prePm0`材料預設`Mat_PIBL301UUU0P1`、厚度15 um，
-以上預設值皆可修改。LSI從flow editor的generator selector及Management的共用catalog頁面
-使用，生成的geometry使用`box-rescale@1`；fixture catalog不提供LSI geometry。LSI v1已直接
-改用具名參數，舊`layer1*`至`layer4*`recipe不提供遷移或相容處理。
+footprint。gen1由下往上為`Si`、`USG`、`FsPm0`；gen2由下往上為`DAF`、`BsPm0`、`Si`、
+`USG`、`PrePm0`、`FsPm0`、`Fow`、`Si carrier`。所有層使用完整footprint並相貼堆疊，
+XYZ置中，root key為`lsi`。Si carrier使用body key=`carrier`，DAF使用`daf`；其他層不提供body key。
+
+每層提供`<prefix>Material`與`<prefix>Thickness`，全部可編輯，預設如下：
+
+| Layer | Prefix | Material | Thickness (um) |
+| --- | --- | --- | --- |
+| Si | `si` | `Si` | 200 |
+| USG | `usg` | `usg` | 15.5 |
+| FsPm0 | `fsPm0` | `lsi_top_molding` | 26 |
+| DAF | `daf` | `DAF` | 10 |
+| BsPm0 | `bsPm0` | `Mat_MCA7UUU0P1` | 15 |
+| PrePm0 | `prePm0` | `Mat_PIBL301UUU0P1` | 15 |
+| Fow | `fow` | `Fow` | 10 |
+| Si carrier | `siCarrier` | `Si` | 200 |
+
+DAF、Fow與Si carrier預設為暫定值。gen1總厚度預設241.5 um，gen2預設491.5 um；
+`totalThickness`只加總材料層厚，不重複加入via高度。厚度0仍保留body，負值或非有限數值無效。
+
+兩個世代皆提供`fsVia0Material`、`fsVia0Thickness`、`fsVia0Density`；gen2另提供`bsVia0*`。
+Via使用完整footprint的Box density region，與bodies位於同一root scope，不建立個別via陣列。
+Height單位um，正面兩個世代共用預設26，背面預設15；材料皆預設`Cu`、密度皆預設50%。
+所有值可獨立編輯，材料須非空並trim，密度為inclusive 0–100%，`koz`固定0。
+FsVia0由USG上表面向`+z`延伸，gen1高度不得超過FsPm0厚度，gen2不得超過PrePm0＋FsPm0。
+BsVia0由Si下表面向`-z`延伸，高度不得超過BsPm0。高度須有限且非負，0仍保留via。
+修改層厚後重新驗證，超出上限在對應Height欄位顯示錯誤，不自動截短。
+
+Gen2專用欄位依`visibleWhen`隱藏，切換世代保留草稿，正規化配方只保存當前世代參數。
+LSI從flow editor的generator selector及Management的共用catalog頁面使用，生成geometry使用
+`box-rescale@1`，可將所有body與via共同調整為矩形或多邊形target footprint；fixture catalog
+不提供LSI geometry。本次直接修改v1，舊`layer1*`至`layer4*`、`lsiTopMolding*`與`bsmc*`
+參數不再接受，不提供遷移或相容處理。
 
 `GET /api/geometry-generators`提供id/version、`uiPlacements`、label/icon、default parameters、通用
 `ParameterDefinition[]`、optional ordered `parameterGroups`與adaptation contract。前端依definition

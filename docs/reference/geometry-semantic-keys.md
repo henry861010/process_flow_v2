@@ -84,6 +84,8 @@ MUST NOT 放入 key。
   標記為 `envelope`。
 - DMY die generator 標記 root container 為 `wafer-dmy`，唯一 Si Box body 使用
   `wafer-dmy.si`。
+- LSI generator標記root為`lsi`；Gen2的Si carrier body使用`carrier`，底部DAF body使用`daf`。
+  其他LSI層不提供body key，via不提供key。
 - Molding 與 DAF 分別建立 `molding`、`daf` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
   `daf` role 視為可選的 bonded DAF。

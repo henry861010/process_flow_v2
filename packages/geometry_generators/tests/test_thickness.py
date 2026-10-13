@@ -67,6 +67,12 @@ class ThicknessTests(unittest.TestCase):
                         for internal_path in _thickness_paths(parameters):
                             _set_value(parameters, internal_path, 0)
                     _set_value(parameters, path, 0)
+                    if definition["id"] == "lsi":
+                        # A zero host layer also requires its via to fit the new span.
+                        if path == ("bsPm0Thickness",):
+                            parameters["bsVia0Thickness"] = 0
+                        if path == ("fsPm0Thickness",):
+                            parameters["fsVia0Thickness"] = 0
                     preview = self.registry.preview(definition["id"], parameters)
                     self.assertTrue(preview["valid"], preview["errors"])
                     self.assertEqual(

@@ -687,7 +687,7 @@
         "validation": {
           "min": 0
         },
-        "defaultValue": 12
+        "defaultValue": 0
       }
     ]
   },
@@ -769,7 +769,7 @@
         "validation": {
           "min": 0
         },
-        "defaultValue": 35
+        "defaultValue": 0
       }
     ]
   },
@@ -851,7 +851,7 @@
         "validation": {
           "min": 0
         },
-        "defaultValue": 18
+        "defaultValue": 0
       }
     ]
   },

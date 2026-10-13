@@ -697,7 +697,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(defaults["rdl_build"], {})
         self.assertEqual(
             defaults["c4_bump"],
-            {"material": "SAC305", "thk": 65, "density": 58, "koz": 18},
+            {"material": "SAC305", "thk": 65, "density": 58, "koz": 0},
         )
 
     def test_flow_template_update_persists_metadata_labels_and_defaults_without_changing_instances(self):
@@ -1595,7 +1595,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(binding["generatorId"], "lsi")
         self.assertEqual(binding["generatorVersion"], 1)
         self.assertEqual(binding["parameters"]["siMaterial"], "Si")
-        self.assertEqual(len(binding["parameters"]), 9)
+        self.assertEqual(len(binding["parameters"]), 23)
         self.assertEqual(
             self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), saved
         )
@@ -1605,23 +1605,26 @@ class ProcessFlowApiTests(unittest.TestCase):
         child = executed.json()["geometryStructure"]["root"]["children"][0]
         self.assertEqual(child["key"], "lsi")
         bodies = child["bodies"]
-        self.assertEqual(len(bodies), 4)
+        self.assertEqual(len(bodies), 8)
         self.assertEqual(
             [body["material"] for body in bodies],
-            ["Mat_MCA7UUU0P1", "Si", "Oxide", "Mat_PIBL301UUU0P1"],
+            ["DAF", "Mat_MCA7UUU0P1", "Si", "Oxide", "Mat_PIBL301UUU0P1", "lsi_top_molding", "Fow", "Si"],
         )
         self.assertEqual(
             [body["geometry"]["thk"] for body in bodies],
-            [15, 10, 20, 15],
+            [10, 15, 10, 20, 15, 26, 10, 200],
         )
         self.assertTrue(
             all(
                 body["geometry"]["top_right"][0]
                 - body["geometry"]["bottom_left"][0]
                 == 2000
-                for body in bodies
+                for body in [*bodies, *child["vias"]]
             )
         )
+
+        self.assertEqual([via["direction"] for via in child["vias"]], ["+z", "-z"])
+        self.assertEqual([via["density"] for via in child["vias"]], [50, 50])
 
     def test_generator_binding_rejects_missing_version_unknown_version_and_category(self):
         bootstrap = self.reset_poc_data()

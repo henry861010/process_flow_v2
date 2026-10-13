@@ -292,76 +292,34 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         lsi = definitions[4]
         self.assertEqual(lsi["version"], 1)
         self.assertEqual(lsi["category"], "die.lsi")
-        self.assertEqual(
-            lsi["defaultParameters"],
-            {
-                "generation": "gen1",
-                "bsmcMaterial": "Mat_MCA7UUU0P1",
-                "bsmcThickness": 15,
-                "siMaterial": "Si",
-                "siThickness": 200,
-                "usgMaterial": "usg",
-                "usgThickness": 15.5,
-                "lsiTopMoldingMaterial": "lsi_top_molding",
-                "lsiTopMoldingThickness": 26,
-                "prePm0Material": "Mat_PIBL301UUU0P1",
-                "prePm0Thickness": 15,
-            },
-        )
         self.assertEqual(lsi["adaptationContract"]["adapterId"], "box-rescale")
-        self.assertEqual(
-            [item["id"] for item in lsi["parameterDefinitions"]],
-            [
-                "generation",
-                "bsmcMaterial",
-                "bsmcThickness",
-                "siMaterial",
-                "siThickness",
-                "usgMaterial",
-                "usgThickness",
-                "lsiTopMoldingMaterial",
-                "lsiTopMoldingThickness",
-                "prePm0Material",
-                "prePm0Thickness",
-            ],
-        )
-        self.assertEqual(
-            {
-                item["id"]: item.get("visibleWhen")
-                for item in lsi["parameterDefinitions"]
-            },
-            {
-                "generation": None,
-                "bsmcMaterial": {"parameterId": "generation", "equals": "gen2"},
-                "bsmcThickness": {"parameterId": "generation", "equals": "gen2"},
-                "siMaterial": None,
-                "siThickness": None,
-                "usgMaterial": None,
-                "usgThickness": None,
-                "lsiTopMoldingMaterial": {
-                    "parameterId": "generation",
-                    "equals": "gen1",
-                },
-                "lsiTopMoldingThickness": {
-                    "parameterId": "generation",
-                    "equals": "gen1",
-                },
-                "prePm0Material": {"parameterId": "generation", "equals": "gen2"},
-                "prePm0Thickness": {"parameterId": "generation", "equals": "gen2"},
-            },
-        )
+        self.assertEqual(lsi["previewViews"], ["top", "cross-section-x"])
         self.assertEqual(
             [(group["id"], group["label"]) for group in lsi["parameterGroups"]],
             [
-                ("generation", "Generation"),
-                ("layer-bsmc", "bsmc"),
-                ("layer-si", "si"),
-                ("layer-usg", "usg"),
-                ("layer-lsiTopMolding", "LSI_top_molding"),
-                ("layer-prePm0", "prePm0"),
+                ("generation", "Generation"), ("layer-daf", "DAF"),
+                ("layer-bsPm0", "BsPm0"), ("via-bsVia0", "BsVia0"),
+                ("layer-si", "Si"), ("layer-usg", "USG"),
+                ("layer-prePm0", "PrePm0"), ("layer-fsPm0", "FsPm0"),
+                ("via-fsVia0", "FsVia0"), ("layer-fow", "Fow"),
+                ("layer-siCarrier", "Si carrier"),
             ],
         )
-        self.assertEqual(lsi["previewViews"], ["top", "cross-section-x"])
+        fields = {item["id"]: item for item in lsi["parameterDefinitions"]}
+        self.assertEqual(set(fields), set(lsi["defaultParameters"]))
+        self.assertNotIn("bsmcMaterial", fields)
+        self.assertNotIn("lsiTopMoldingMaterial", fields)
+        gen2_prefixes = ("daf", "bsPm0", "bsVia0", "prePm0", "fow", "siCarrier")
+        for field_id, field in fields.items():
+            expected_condition = (
+                {"parameterId": "generation", "equals": "gen2"}
+                if field_id.startswith(gen2_prefixes) else None
+            )
+            self.assertEqual(field.get("visibleWhen"), expected_condition)
+        for via in ("fsVia0", "bsVia0"):
+            self.assertEqual(fields[f"{via}Thickness"]["name"], "Height")
+            self.assertEqual(fields[f"{via}Density"]["unit"], "%")
+            self.assertEqual(fields[f"{via}Density"]["validation"]["max"], 100)
 
     def test_lsi_defaults_preview_both_generations(self):
         initial = self.app.state.geometry_generators.preview("lsi", {}, generator_version=1)
@@ -371,7 +329,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             "lsi", {"generation": "gen2"}, generator_version=1
         )
         self.assertTrue(gen2_default["valid"])
-        self.assertEqual(gen2_default["computedParameters"]["totalThickness"], 245.5)
+        self.assertEqual(gen2_default["computedParameters"]["totalThickness"], 491.5)
 
     def test_lsi_gen1_stacks_named_layers_and_ignores_gen2_values(self):
         response = self.client.post(
@@ -383,9 +341,9 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                     "siMaterial": "  Si  ",
                     "siThickness": 100,
                     "usgMaterial": "  USG  ",
-                    "lsiTopMoldingMaterial": "  Mold  ",
-                    "bsmcMaterial": "",
-                    "bsmcThickness": -10,
+                    "fsPm0Material": "  Mold  ",
+                    "bsPm0Material": "",
+                    "bsPm0Thickness": -10,
                     "prePm0Material": "",
                     "prePm0Thickness": -10,
                 },
@@ -402,8 +360,11 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 "siThickness": 100,
                 "usgMaterial": "USG",
                 "usgThickness": 15.5,
-                "lsiTopMoldingMaterial": "Mold",
-                "lsiTopMoldingThickness": 26,
+                "fsPm0Material": "Mold",
+                "fsPm0Thickness": 26,
+                "fsVia0Material": "Cu",
+                "fsVia0Thickness": 26,
+                "fsVia0Density": 50,
             },
         )
         self.assertEqual(
@@ -417,7 +378,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         bodies = entity["structure"]["root"]["bodies"]
         self.assertEqual(
             [body["id"] for body in bodies],
-            ["body:lsi-si", "body:lsi-usg", "body:lsi-top-molding"],
+            ["body:lsi-si", "body:lsi-usg", "body:lsi-fs-pm0"],
         )
         self.assertEqual([body["material"] for body in bodies], ["Si", "USG", "Mold"])
         self.assertEqual([body["geometry"]["thk"] for body in bodies], [100, 15.5, 26])
@@ -441,38 +402,42 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         preview = response.json()
         self.assertTrue(preview["valid"])
         self.assertEqual(preview["normalizedParameters"]["siMaterial"], "Si")
-        self.assertEqual(preview["computedParameters"]["totalThickness"], 55.5)
-        self.assertEqual(preview["geometryEntityJson"]["dim"], "8000 x 10000 x 55.5 um")
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 301.5)
+        self.assertEqual(preview["geometryEntityJson"]["dim"], "8000 x 10000 x 301.5 um")
         self.assertEqual(
             _dimension_values(preview["engineeringPreview"]["views"][1]),
-            {"Total thickness": 55.5},
+            {"Total thickness": 301.5},
         )
         bodies = preview["geometryEntityJson"]["structure"]["root"]["bodies"]
-        self.assertEqual(len(bodies), 4)
+        self.assertEqual(len(bodies), 8)
         self.assertEqual(
             [body["id"] for body in bodies],
             [
-                "body:lsi-bsmc",
+                "body:lsi-daf",
+                "body:lsi-bs-pm0",
                 "body:lsi-si",
                 "body:lsi-usg",
                 "body:lsi-pre-pm0",
+                "body:lsi-fs-pm0",
+                "body:lsi-fow",
+                "body:lsi-si-carrier",
             ],
         )
         self.assertEqual(
             [body["material"] for body in bodies],
-            ["Mat_MCA7UUU0P1", "Si", "USG", "Mat_PIBL301UUU0P1"],
+            ["DAF", "Mat_MCA7UUU0P1", "Si", "USG", "Mat_PIBL301UUU0P1", "lsi_top_molding", "Fow", "Si"],
         )
         self.assertEqual(
             [body["geometry"]["bottom_left"][2] for body in bodies],
-            [-27.75, -12.75, -2.75, 12.75],
+            [-150.75, -140.75, -125.75, -115.75, -100.25, -85.25, -59.25, -49.25],
         )
         self.assertEqual(
             [body["geometry"]["thk"] for body in bodies],
-            [15, 10, 15.5, 15],
+            [10, 15, 10, 15.5, 15, 26, 10, 200],
         )
         self.assertEqual(
             [body["geometry"]["bottom_left"][:2] for body in bodies],
-            [[-4000, -5000]] * 4,
+            [[-4000, -5000]] * 8,
         )
 
         materialized = self.client.post(
@@ -492,8 +457,9 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             "lsi",
             {
                 **parameters,
-                "bsmcMaterial": "Custom-BSMC",
-                "bsmcThickness": 12,
+                "bsPm0Material": "Custom-BSMC",
+                "bsPm0Thickness": 12,
+                "bsVia0Thickness": 12,
                 "prePm0Material": "Custom-PrePm0",
                 "prePm0Thickness": 17,
             },
@@ -502,11 +468,11 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertTrue(customized["valid"])
         customized_bodies = customized["geometryEntityJson"]["structure"]["root"]["bodies"]
         self.assertEqual(
-            [customized_bodies[index]["material"] for index in (0, 3)],
+            [customized_bodies[index]["material"] for index in (1, 4)],
             ["Custom-BSMC", "Custom-PrePm0"],
         )
         self.assertEqual(
-            [customized_bodies[index]["geometry"]["thk"] for index in (0, 3)],
+            [customized_bodies[index]["geometry"]["thk"] for index in (1, 4)],
             [12, 17],
         )
 
@@ -537,17 +503,56 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 "siThickness": 10,
                 "usgMaterial": " ",
                 "usgThickness": 0,
-                "bsmcThickness": True,
-                "lsiTopMoldingMaterial": "",
-                "lsiTopMoldingThickness": -1,
+                "bsPm0Thickness": True,
+                "bsVia0Density": 101,
             },
             generator_version=1,
         )
         self.assertEqual(
             set(invalid_gen2["errors"]),
-            {"bsmcThickness", "usgMaterial"},
+            {"bsPm0Thickness", "usgMaterial", "bsVia0Density"},
         )
         self.assertFalse(invalid_gen2["valid"])
+
+    def test_lsi_vias_follow_bodies_when_adapted_to_rectangle_and_polygon(self):
+        regions = (
+            {"type": "rectangle", "width": 2000, "height": 1600},
+            {"type": "polygon", "points": [[0, 0], [2000, 0], [1500, 1600], [0, 1600]]},
+        )
+        for generation in ("gen1", "gen2"):
+            preview = self.app.state.geometry_generators.preview("lsi", {"generation": generation})
+            entity = preview["geometryEntityJson"]
+            original = entity["structure"]["root"]
+            for region in regions:
+                with self.subTest(generation=generation, region=region["type"]):
+                    adapted = adapt_geometry(GeometryArtifact.from_entity(entity), region)
+                    root = adapted["root"]
+                    features = [*root["bodies"], *root["vias"]]
+                    reference = root["bodies"][0]["geometry"]
+                    for before, after in zip([*original["bodies"], *original["vias"]], features):
+                        geometry = after["geometry"]
+                        self.assertEqual(geometry["thk"], before["geometry"]["thk"])
+                        if region["type"] == "rectangle":
+                            self.assertEqual(geometry["bottom_left"], [*reference["bottom_left"][:2], before["geometry"]["bottom_left"][2]])
+                            self.assertEqual(geometry["top_right"][:2], reference["top_right"][:2])
+                            self.assertEqual(geometry["top_right"][0] - geometry["bottom_left"][0], 2000)
+                            self.assertEqual(geometry["top_right"][1] - geometry["bottom_left"][1], 1600)
+                        else:
+                            self.assertEqual(geometry["type"], "PolygonGeometry")
+                            self.assertEqual([[point[:2] for point in loop] for loop in geometry["polys"]], [region["points"]])
+                            self.assertEqual(geometry["polys"][0][0][2], before["geometry"]["bottom_left"][2])
+                        for field in ("material", "key", "density", "direction", "koz"):
+                            self.assertEqual(after.get(field), before.get(field))
+
+    def test_lsi_height_error_over_http_does_not_materialize(self):
+        for generation, field, height in (("gen1", "fsVia0Thickness", 27), ("gen2", "fsVia0Thickness", 42), ("gen2", "bsVia0Thickness", 16)):
+            response = self.client.post("/api/geometry-generators/lsi/preview", json={"parameters": {"generation": generation, field: height}})
+            self.assertEqual(response.status_code, 200, response.text)
+            preview = response.json()
+            self.assertFalse(preview["valid"])
+            self.assertEqual(set(preview["errors"]), {field})
+            self.assertIsNone(preview["previewToken"])
+            self.assertIsNone(preview["geometryEntityJson"])
 
     def test_soc_preview_has_four_contiguous_layers(self):
         default = self.app.state.geometry_generators.preview(
@@ -1266,8 +1271,8 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             ("soc", 1, {f"{layer}Thickness": 0 for layer in ("pass2", "usg", "elk", "si")}),
             ("vrm", 1, {"thickness": 0}),
             ("wafer-dmy", 1, {"siThickness": 0}),
-            ("lsi", 1, {"generation": "gen1", "siThickness": 0, "usgThickness": 0, "lsiTopMoldingThickness": 0}),
-            ("lsi", 1, {"generation": "gen2", "bsmcThickness": 0, "siThickness": 0, "usgThickness": 0, "prePm0Thickness": 0}),
+            ("lsi", 1, {"generation": "gen1", **{f"{layer}Thickness": 0 for layer in ("si", "usg", "fsPm0", "fsVia0")}}),
+            ("lsi", 1, {"generation": "gen2", **{f"{layer}Thickness": 0 for layer in ("daf", "bsPm0", "si", "usg", "prePm0", "fsPm0", "fow", "siCarrier", "fsVia0", "bsVia0")}}),
         )
         for generator_id, version, parameters in cases:
             with self.subTest(generator=generator_id, parameters=parameters):
