@@ -1444,13 +1444,13 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(direct.status_code, 200, direct.text)
         self.assertEqual([snapshot["stepRefId"] for snapshot in direct.json()["snapshots"]], ["hbm_prepare1", "hbm_prepare2"])
 
-    def test_zero_placement_bump_joint_saves_executes_and_previews_without_die_configuration(self):
+    def test_zero_placement_mr_joint_saves_executes_and_previews_without_die_configuration(self):
         bootstrap = self.reset_poc_data()
         template = next(item for item in bootstrap["processFlowTemplates"]
                         if item["id"] == "flow_tpl_dual_bump_demo")
         instance = copy.deepcopy(next(item for item in bootstrap["processFlowInstances"]
                                       if item["id"] == "flow_inst_dual_bump_demo"))
-        instance["name"] = "Zero placement bump joint"
+        instance["name"] = "Zero placement MR joint"
         instance["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = []
         instance["inputBindings"].pop("incoming_die")
         for step in ("die_bump", "die_flip"):

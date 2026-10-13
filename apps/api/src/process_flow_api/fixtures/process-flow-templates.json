@@ -147,7 +147,7 @@
     "name": "Dual-side Bump Study",
     "version": "V0.0.0",
     "owner": "demo.example",
-    "description": "Independent wafer and die bump formation, die flip, PnP contact, and explicit bump joint using envelope footprints.",
+    "description": "Independent wafer and die bump formation, die flip, PnP contact, and explicit MR joint using envelope footprints.",
     "flowInputs": [
       {
         "flowInputId": "incoming_main",
@@ -209,8 +209,8 @@
       },
       {
         "stepRefId": "joint",
-        "stepLabel": "Bump Joint",
-        "processStepTemplateId": "step_tpl_bump_joint",
+        "stepLabel": "MR joint",
+        "processStepTemplateId": "step_tpl_mr_joint",
         "parameterDefaults": {
           "bump_joined_height": 25
         }

@@ -10,7 +10,8 @@ from process_flow_kernel import (
     FlowCompiler, GeometryArtifact, GeometryKernel, InMemoryGeometryCatalog,
     ProcessGeometryState, ProcessStepContext, normalize_geometry_structure,
 )
-from process_flow_steps.bump.bump_joint import execute as execute_joint
+from process_flow_steps.joint.mr_joint import execute as execute_joint
+from process_flow_steps.joint.tcb_joint import execute as execute_tcb_joint
 from process_flow_steps.pnp.pnp import execute as execute_pnp
 
 
@@ -52,7 +53,7 @@ def context(state, values, main_artifact=None, source=None):
         geometry_artifact_resolver=artifacts.get)
 
 
-class BumpJointTests(unittest.TestCase):
+class JointTests(unittest.TestCase):
     def test_numeric_case_preserves_lower_metadata_identity_and_source(self):
         main, die = main_state(), die_state()
         source = die.to_geometry_structure()
@@ -310,6 +311,65 @@ class BumpJointTests(unittest.TestCase):
         self.assertEqual(result.step_output("pnp")["root"]["children"][0]["bodies"][0]["geometry"]["bottom_left"][2], base+35)
         self.assertEqual(normalize_geometry_structure(result.geometry()), result.geometry())
         self.assertEqual(geometries, before)
+
+
+class JointEntryPointTests(unittest.TestCase):
+    def test_both_entry_points_have_identical_join_noop_and_repeat_results(self):
+        for height in (5, 25, 60):
+            for paired in (False, True):
+                main = main_state()
+                if paired:
+                    place(main, die_state())
+                results = []
+                for execute in (execute_joint, execute_tcb_joint):
+                    with self.subTest(height=height, paired=paired, execute=execute.__module__):
+                        state = main.clone()
+                        self.assertIs(execute(context(state, {"bump_joined_height": height})), state)
+                        first = state.to_geometry_structure()
+                        self.assertIs(execute(context(state, {"bump_joined_height": height})), state)
+                        self.assertEqual(state.to_geometry_structure(), first)
+                        results.append(first)
+                self.assertEqual(results[0], results[1])
+
+    def test_both_entry_points_reject_invalid_height_without_mutation(self):
+        for execute in (execute_joint, execute_tcb_joint):
+            for paired in (False, True):
+                for height in (None, 0, -1, float("nan"), float("inf")):
+                    with self.subTest(execute=execute.__module__, paired=paired, height=height):
+                        state = main_state()
+                        if paired:
+                            place(state, die_state())
+                        before = state.to_geometry_structure()
+                        with self.assertRaisesRegex(ValueError, "bump_joined_height"):
+                            execute(context(state, {"bump_joined_height": height}))
+                        self.assertEqual(state.to_geometry_structure(), before)
+
+    def test_both_entry_points_reject_ambiguous_pair_without_mutation(self):
+        for execute in (execute_joint, execute_tcb_joint):
+            state = main_state()
+            place(state, die_state())
+            state.add_bump_above_cursor(material="Sn", density=10, thickness=20, stage="reflowed")
+            before = state.to_geometry_structure()
+            with self.assertRaisesRegex(ValueError, "multiple lower"):
+                execute(context(state, {"bump_joined_height": 25}))
+            self.assertEqual(state.to_geometry_structure(), before)
+
+    def test_tcb_template_runs_same_dual_branch_flow(self):
+        fixtures = Path(__file__).resolve().parents[3] / "apps/api/src/process_flow_api/fixtures"
+        read = lambda name: json.loads((fixtures / name).read_text())
+        steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
+        flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
+        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
+        compiler = FlowCompiler(InMemoryGeometryCatalog(geometries))
+        expected = GeometryKernel().execute(compiler.compile(flow, configuration, steps)).geometry()
+        next(ref for ref in flow["stepRefs"] if ref["stepRefId"] == "joint")["processStepTemplateId"] = "step_tpl_tcb_joint"
+        actual = GeometryKernel().execute(compiler.compile(flow, configuration, steps)).geometry()
+        self.assertEqual(actual, expected)
+
+    def test_retired_program_cannot_be_resolved(self):
+        from process_flow_kernel import ProcessStepModuleResolver
+        with self.assertRaisesRegex(ValueError, "Unable to load"):
+            ProcessStepModuleResolver().resolve({"id": "step_tpl_bump_joint", "program": "bump/bump_joint"})
 
 
 if __name__ == "__main__":

@@ -624,7 +624,7 @@ negotiation 或依版號切換行為。
 | Editor snapshot wire marker | `schemaVersion` | integer | `1` | Template／instance editor draft 的獨立 snapshot 格式。 |
 | Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
 | Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"12"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
+| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"13"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
 | Process resource metadata label | `version` | string | Default `"V0.0.0"` | Template、step與instance的opaque display/source label；不得解析、排序或推導行為差異。 |
 | Editor draft concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
 

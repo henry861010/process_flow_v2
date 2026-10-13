@@ -1045,11 +1045,55 @@
   {
     "schemaVersion": 2,
     "status": "enabled",
-    "id": "step_tpl_bump_joint",
+    "id": "step_tpl_mr_joint",
     "version": "V0.0.0",
-    "name": "Bump Joint",
-    "category": "bump",
-    "program": "bump/bump_joint",
+    "name": "MR joint",
+    "category": "joint",
+    "program": "joint/mr_joint",
+    "owner": "integration.platform",
+    "description": "Joins paired reflowed bumps on root direct children into child-owned envelopes at the requested total joined height; preserves lower bump data.",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Assembly after PnP, with contacting reflowed bumps on both sides.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Assembly with joined child bumps and adjusted child heights.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "bump_joined_height",
+        "name": "Bump joined height",
+        "description": "Total main-surface-to-die-body gap after joint, not an added upper-bump thickness.",
+        "valueType": "float",
+        "controlType": "number",
+        "required": true,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_tcb_joint",
+    "version": "V0.0.0",
+    "name": "TCB joint",
+    "category": "joint",
+    "program": "joint/tcb_joint",
     "owner": "integration.platform",
     "description": "Joins paired reflowed bumps on root direct children into child-owned envelopes at the requested total joined height; preserves lower bump data.",
     "inputPorts": [

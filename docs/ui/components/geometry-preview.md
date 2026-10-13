@@ -193,7 +193,7 @@ Card header、legend與selected details MUST顯示`Estimated density`，並與
 density、direction、bump stage、container identity/path。支援box、cylinder、cone、polygon geometry；invalid
 geometry跳過。
 
-雙側 Bump Joint 保留下側 root reflowed envelope 的原始資料；其接合區由 descendant
+雙側 MR joint / TCB joint 保留下側 root reflowed envelope 的原始資料；其接合區由 descendant
 joined bump 取得顯示 ownership。以實際 joined footprint（含 polygon holes）遮蔽相交
 ancestor reflowed bump 的整個 XY column；3D envelope、選取、detail glyph 與 2D section
 使用同一遮蔽範圍。非接合區、非 ancestor 與非相交 Z layer 保持原表示。這是顯示遮蔽，

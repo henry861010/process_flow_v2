@@ -107,7 +107,7 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "12"
+  "value": "13"
 }
 ```
 
@@ -115,7 +115,7 @@ Current required row：
 匯入時在同一 transaction 更新。它不是 payload schema version，不包含在 fixture 匯出中。
 獨立分析資料庫與使用紀錄規則見 [Service 使用紀錄](analytics.md)。
 
-Database internal marker string `"12"`、Process payload wire marker integer `2` 與
+Database internal marker string `"13"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 
 Version 9原地補齊v8 instance JSON payload metadata：`version="V0.0.0"`、
@@ -326,6 +326,21 @@ service 與 compiler 保證，direct database mutation 不屬於 supported inter
 
 ## 12. Schema 11 → 12 migration
 
-Migration creates both draft tables, converts each legacy draft workspace into an instance draft, retaining ID, name, revision, timestamps and complete configuration. User is `legacy.import`; formal metadata starts blank with version `V0.0.0`. Committed workspace rows are removed while saved instances and geometries remain. The old table and indexes are dropped only inside the successful transaction. Failed conversion rolls back the table changes and marker. Supported older schema migrations continue into version 12.
+Migration creates both draft tables, converts each legacy draft workspace into an instance draft, retaining ID, name, revision, timestamps and complete configuration. User is `legacy.import`; formal metadata starts blank with version `V0.0.0`. Committed workspace rows are removed while saved instances and geometries remain. The old table and indexes are dropped only inside the successful transaction. Failed conversion rolls back the table changes and marker. Supported older schema migrations continue into version 13.
 
 Geometry deletion protects exact catalog references in instances and both draft state configurations. Template deletion atomically removes its instance drafts; copied template drafts are independent. Reset/import clears both draft tables. Fixture ZIP remains the four formal-resource JSON files; database backup includes drafts.
+
+## 15. Schema 12 → 13 migration
+
+Migration replaces `step_tpl_bump_joint` with `step_tpl_mr_joint` and adds
+`step_tpl_tcb_joint`, both in category `joint`. MR joint retains the legacy template's
+owner, status and parameter defaults; TCB joint uses the packaged template. Flow
+step references and template-draft node references change to MR joint, preserving
+step IDs, connections and configuration. Only the exact `Bump Joint` label changes;
+custom labels, draft revisions and timestamps, instances and geometries remain intact.
+
+Template insertion, reference conversion, legacy-template deletion and the schema
+marker update run in one transaction. An occupied replacement ID with a different
+payload fails without overwriting data. Empty databases remain empty for complete
+startup seeding. Legacy fixture ZIP imports use the same conversion before reset;
+current ZIP snapshots are preserved as exported.

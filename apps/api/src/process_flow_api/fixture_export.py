@@ -17,6 +17,7 @@ from .models import (
     ProcessStepTemplate,
 )
 from .seed import FIXTURE_FILES
+from .joint_migration import LEGACY_JOINT_ID, migrate_joint_flow, migrate_joint_templates
 
 MAX_ARCHIVE_BYTES = 25 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
@@ -91,4 +92,14 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
                 result[key] = items
     except (zipfile.BadZipFile, EOFError, RuntimeError, zlib.error) as error:
         raise ValueError("Invalid fixture ZIP") from error
+    if (
+        any(step["id"] == LEGACY_JOINT_ID for step in result["processStepTemplates"])
+        or any(
+            ref["processStepTemplateId"] == LEGACY_JOINT_ID
+            for flow in result["processFlowTemplates"] for ref in flow["stepRefs"]
+        )
+    ):
+        result["processStepTemplates"] = migrate_joint_templates(result["processStepTemplates"])
+        for flow in result["processFlowTemplates"]:
+            migrate_joint_flow(flow)
     return result

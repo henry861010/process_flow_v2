@@ -27,7 +27,7 @@ def joined_structure(height, density=100):
     return main.to_geometry_structure()
 
 
-class BumpJointConsumerTests(unittest.TestCase):
+class JointConsumerTests(unittest.TestCase):
     def test_step_ownership_preserves_lower_data_without_duplicate_solid_volume(self):
         for height in (5, 25, 60):
             with self.subTest(height=height):
@@ -75,9 +75,20 @@ class BumpJointConsumerTests(unittest.TestCase):
             try:
                 with TestClient(app) as client:
                     bootstrap = client.get("/api/bootstrap").json()
-                    joint = next(step for step in bootstrap["processStepTemplates"] if step["id"] == "step_tpl_bump_joint")
-                    self.assertEqual([parameter["id"] for parameter in joint["parameterDefinitions"]], ["bump_joined_height"])
-                    self.assertNotIn("defaultValue", joint["parameterDefinitions"][0])
+                    joints = client.get("/api/process-step-templates?category=joint").json()
+                    self.assertEqual({step["id"] for step in joints}, {"step_tpl_mr_joint", "step_tpl_tcb_joint"})
+                    self.assertEqual({step["name"] for step in joints}, {"MR joint", "TCB joint"})
+                    for field in ("inputPorts", "outputPorts", "parameterDefinitions"):
+                        self.assertEqual(joints[0][field], joints[1][field])
+                    for joint in joints:
+                        self.assertEqual(joint["category"], "joint")
+                        self.assertEqual([parameter["id"] for parameter in joint["parameterDefinitions"]], ["bump_joined_height"])
+                        self.assertNotIn("defaultValue", joint["parameterDefinitions"][0])
+                    self.assertNotIn("step_tpl_bump_joint", {step["id"] for step in bootstrap["processStepTemplates"]})
+                    bumps = client.get("/api/process-step-templates?category=bump").json()
+                    self.assertTrue(bumps)
+                    self.assertTrue(all("joint" not in step["program"] for step in bumps))
+                    self.assertEqual(client.get("/api/process-step-templates/step_tpl_bump_joint").status_code, 404)
                     response = client.post("/api/process-flow-instances/flow_inst_dual_bump_demo/execute")
                     self.assertEqual(response.status_code, 200, response.text)
                     root = response.json()["geometryStructure"]["root"]
@@ -92,13 +103,13 @@ class BumpJointConsumerTests(unittest.TestCase):
             first = create_app(db_path=path)
             with TestClient(first):
                 with first.state.store._connection:
-                    first.state.store._connection.execute("DELETE FROM process_step_templates WHERE id=?", ("step_tpl_bump_joint",))
+                    first.state.store._connection.execute("DELETE FROM process_step_templates WHERE id=?", ("step_tpl_mr_joint",))
             first.state.store.close()
             second = create_app(db_path=path)
             try:
                 with TestClient(second) as client:
                     ids = [step["id"] for step in client.get("/api/bootstrap").json()["processStepTemplates"]]
-                    self.assertNotIn("step_tpl_bump_joint", ids)
+                    self.assertNotIn("step_tpl_mr_joint", ids)
             finally:
                 second.state.store.close()
 

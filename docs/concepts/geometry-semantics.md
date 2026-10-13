@@ -53,7 +53,7 @@ Bump 必須有 `stage`，描述整個 feature 的處理階段：`deposited`、`r
 Kernel 以共用驗證拒絕缺少或非法值，不從 geometry、material 或放置關係推論階段。所有
 copy、move、flip、clip 與 PnP 保留 `stage`；現有 bump formation 輸出 `reflowed`。
 
-雙側 formation → PnP → Bump Joint 使用 envelope footprint 配對，不要求已知單顆 bump
+雙側 formation → PnP → MR joint / TCB joint 使用 envelope footprint 配對，不要求已知單顆 bump
 位置。Joint 將 root 直屬 child 的上側 bump 改成 `joined`，涵蓋完整接合高度，並調整
 child subtree 的 Z；main 下側 bump 原始 envelope 保留。Joined feature 在其 footprint
 接管相交 ancestor reflowed bump 的 XY columns，預覽的 3D envelope、detail glyph 與

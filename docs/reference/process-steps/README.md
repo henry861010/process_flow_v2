@@ -39,7 +39,8 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Micro Bump | `bump/uBump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
-| Bump Joint | `bump/bump_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps，調整完整間距 |
+| MR joint | `joint/mr_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps，調整完整間距 |
+| TCB joint | `joint/tcb_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps，調整完整間距 |
 | tmv | `tmv/tmv` | `main_geometry` | `thk`, `material`, `density` | 在 cursor 上方建立 `+z` via feature |
 | PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `placements` | 依 explicit或primitive-default adapter materialize absolute rectangle/polygon target |
 
@@ -68,15 +69,16 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 `stage="reflowed"` bump envelope。 |
-| Bump Joint | 不變 | 不變 | 上側 bump 改成 joined 並涵蓋完整接合間距；平移 child subtree，下側 bump 原始資料保留。 |
+| MR joint / TCB joint | 不變 | 不變 | 上側 bump 改成 joined 並涵蓋完整接合間距；平移 child subtree，下側 bump 原始資料保留。 |
 | tmv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
 | PnP | 不變 | 不變 | 依placements order將absolute target轉為adapter-local frame整批adapt；全部成功後attach到target center。 |
 
 ## 重要 operation 說明
 
+- MR joint 與 TCB joint 分類皆為 `joint`，共用相同接合實作與參數；目前不區分專屬物理行為。
 - Micro／BGA／C4 formation 視為完成單側回焊成形，明確建立 `stage="reflowed"` 的 bump，
   不提供 stage parameter，適用 die、wafer 與 panel。PnP 保留來源 bump stage；獨立
-  `bump/bump_joint` 完成後才將上側 bump 標記 `joined`。
+  `joint/mr_joint` 或 `joint/tcb_joint` 完成後才將上側 bump 標記 `joined`。
   若整批沒有可配對的 reflowed bumps（包含 PnP 為 `placements: []`），Joint 正常完成並
   回傳未修改的 state；geometry、ID、cursor 與 process footprint 均不變。
   `bump_joined_height` 仍須為正有限數值；部分配對、多重匹配、跨層及高度不一致仍報錯，
@@ -139,7 +141,7 @@ flowchart LR
   die[Die] --> dieBump[Bump formation: 15 um] --> flip[Flip]
   mainBump --> pnp[PnP]
   flip --> pnp
-  pnp --> joint[Bump Joint: 25 um]
+  pnp --> joint[MR joint: 25 um]
 ```
 
 Formation 使用各自 state footprint，不需要單顆 bump 座標。PnP 後 die 本體與 main

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "12"
+DATABASE_SCHEMA_VERSION = "13"
 
 
 class DuplicateItemError(ValueError):
@@ -137,6 +137,9 @@ class SQLiteStore:
                 current_version = 11
             if current_version == 11:
                 self._migrate_v11_to_v12()
+                current_version = 12
+            if current_version == 12:
+                self._migrate_v12_to_v13()
                 self._set_schema_version()
                 return
             # Older local data is rebuilt from fixtures so no stale references to
@@ -152,12 +155,38 @@ class SQLiteStore:
                 self._migrate_v9_to_v10()
             self._migrate_v10_to_v11()
             self._migrate_v11_to_v12()
+            self._migrate_v12_to_v13()
             self._set_schema_version()
 
     def _table_exists(self, table: str) -> bool:
         return self._connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,),
         ).fetchone() is not None
+
+    def _migrate_v12_to_v13(self) -> None:
+        from .joint_migration import (
+            LEGACY_JOINT_ID, migrate_joint_draft, migrate_joint_flow, migrate_joint_templates,
+        )
+
+        # Keep a fresh/empty database empty so startup can seed all resources.
+        if self.is_empty():
+            return
+        templates = self.list_process_step_templates()
+        existing_ids = {template["id"] for template in templates}
+        for template in migrate_joint_templates(templates):
+            if template["id"] not in existing_ids:
+                self._insert_process_step_template_in_transaction(template)
+        for table, migrate in (
+            ("process_flow_templates", migrate_joint_flow),
+            ("process_flow_template_drafts", migrate_joint_draft),
+        ):
+            for row in self._connection.execute(f"SELECT id, payload FROM {table}").fetchall():
+                payload = json.loads(row["payload"])
+                if migrate(payload):
+                    self._connection.execute(
+                        f"UPDATE {table} SET payload=? WHERE id=?", (_json(payload), row["id"]),
+                    )
+        self._connection.execute("DELETE FROM process_step_templates WHERE id=?", (LEGACY_JOINT_ID,))
 
     def _migrate_v11_to_v12(self) -> None:
         for kind in ("template", "instance"):
