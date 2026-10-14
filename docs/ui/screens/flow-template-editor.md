@@ -104,6 +104,13 @@ and active draft. Required metadata validation applies to both records for combi
 
 ## Graph interaction
 
+The step settings dialog shows the editable `Step label`, followed by a shared card containing
+the process-step template name and full description, then a divider and `Parameters`. The card
+omits the template ID. Descriptions preserve line breaks and wrap long tokens without horizontal
+overflow; blank descriptions omit the description paragraph. The dialog does not list Input Ports.
+Graph ports, connections, topology validation, Preview, and parameter controls keep their existing
+behavior. Step labels remain disabled when topology is locked.
+
 Single-click a step block to select it and start a pointer-following connection preview from its
 output. Click the exact target input handle to commit; clicking a target block does not choose a
 port. Validity and conflict replacement use the same rules as handle dragging. Invalid targets
@@ -133,6 +140,28 @@ In topology-locked view mode, step single-click only selects; double-click and p
   successful draft commit consumes only its source draft.
 
 ## Template availability
+
+### Step library previews
+
+Hovering a process-step card for 300ms opens a read-only preview, and keyboard focus opens it
+immediately. The preview shows only the full step name and description. Blank descriptions are
+omitted. Parameter information, controls, and addition/availability hints are not included.
+
+The preview is portaled outside the scrolling library, prefers the card's left side, and falls
+back to the right while keeping 12px viewport margins. It is at most 360px wide and 420px high,
+shrinking to fit the viewport, with wrapping text and vertical scrolling. Its layer stays below
+editor dialogs. Moving into the preview retains it for reading and scrolling; leaving both the
+card and preview closes it after 150ms unless focus remains inside. Escape, adding, dragging,
+library/page scrolling, and resizing dismiss it, including pending hover timers. Only one preview
+is open at a time. Keyboard focus brings an offscreen card into view before positioning its
+preview; the resulting automatic scroll does not dismiss it. Dismissing a focused preview returns
+focus to its card. Disabled/locked cards retain a focusable preview wrapper while their native
+add button stays disabled and cannot be dragged. Native title tooltips are not used.
+
+Acceptance `UI-FTE-STEP-PREVIEW-001`: verify hover/focus, switching cards, moving into and scrolling
+the preview, Escape, leave delay, library scroll and resize dismissal, and existing click/drag
+addition. `UI-FTE-STEP-PREVIEW-002`: verify previews show only name and description, disabled/locked
+previews cannot add steps, blank descriptions, long text, and viewport-edge placement.
 
 Disabled steps remain in the library with a Disabled text badge; clicking and dragging them into
 a new flow is disabled. Starting from a saved template preserves its disabled step references for

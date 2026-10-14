@@ -70,6 +70,13 @@ selects, while double-click or the always-visible top-right pencil opens the exi
 Step buttons support Tab and Enter/Space. No gesture can change topology in this editor.
 Dirty state protects reload/close and Home/source replacement. Source metadata is never copied.
 
+The step settings dialog shows a read-only `Step label`, followed by the same name-and-description
+card used by the Template Editor, then a divider and `Parameters`. The card omits the template ID
+and displays the full process-step template description with preserved line breaks and wrapped
+long tokens. Blank descriptions omit the description paragraph. Input Ports are not listed.
+Parameter controls retain their existing editability; committed-instance parameters remain
+read-only.
+
 Completeness follows dependencies backwards from the original terminal steps. A `pnp/pnp` step
 with exactly `placements: []` requires its main geometry but does not use its die geometry. Its
 output preserves the main state. Steps and inputs reachable only through that unused die input

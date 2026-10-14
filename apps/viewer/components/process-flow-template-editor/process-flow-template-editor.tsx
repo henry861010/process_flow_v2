@@ -50,6 +50,8 @@ import {
   geometrySearchText,
 } from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
+import { StepTemplateDetails } from "@/components/process-flow-fields/step-template-details";
+import { StepTemplateHoverPreview, StepTemplatePreviewProvider } from "@/components/process-flow-fields/step-template-hover-preview";
 import {
   SaveInformationDialog,
   type SaveInformationMode,
@@ -1080,29 +1082,31 @@ function ProcessFlowTemplateEditorInner() {
             title="Process step templates"
           />
           <div className="h-[280px] overflow-y-auto p-3 lg:h-[calc(100%-49px)]">
-            <CategoryLibraryBrowser
-              items={stepTemplates}
-              path={stepCategoryPath}
-              search={stepSearch}
-              searchPlaceholder="Search step templates"
-              emptyLabel="No process step templates from API."
-              noSearchResultsLabel="No process step templates matched the search."
-              noCategoryItemsLabel="No process step templates in this category."
-              getSearchText={(template) =>
-                [template.name, template.id, template.category, template.program].join(" ")
-              }
-              itemKey={(template) => template.id}
-              renderItem={(template, { showCategoryPath }) => (
-                <StepTemplatePaletteItem
-                  template={template}
-                  showCategoryPath={showCategoryPath}
-                  disabled={editingLocked || !isTemplateEnabled(template)}
-                  onAdd={() => addStepTemplate(template)}
-                />
-              )}
-              onPathChange={setStepCategoryPath}
-              onSearchChange={setStepSearch}
-            />
+            <StepTemplatePreviewProvider>
+              <CategoryLibraryBrowser
+                items={stepTemplates}
+                path={stepCategoryPath}
+                search={stepSearch}
+                searchPlaceholder="Search step templates"
+                emptyLabel="No process step templates from API."
+                noSearchResultsLabel="No process step templates matched the search."
+                noCategoryItemsLabel="No process step templates in this category."
+                getSearchText={(template) =>
+                  [template.name, template.id, template.category, template.program].join(" ")
+                }
+                itemKey={(template) => template.id}
+                renderItem={(template, { showCategoryPath }) => (
+                  <StepTemplatePaletteItem
+                    template={template}
+                    showCategoryPath={showCategoryPath}
+                    disabled={editingLocked || !isTemplateEnabled(template)}
+                    onAdd={() => addStepTemplate(template)}
+                  />
+                )}
+                onPathChange={setStepCategoryPath}
+                onSearchChange={setStepSearch}
+              />
+            </StepTemplatePreviewProvider>
           </div>
         </aside>
       </section>
@@ -1280,32 +1284,41 @@ function StepTemplatePaletteItem({
   onAdd: () => void;
 }) {
   return (
-    <button
-      type="button"
-      draggable={!disabled}
-      disabled={disabled}
-      onDragStart={(event) => {
-        event.dataTransfer.setData(STEP_TEMPLATE_DRAG_TYPE, template.id);
-        event.dataTransfer.effectAllowed = "copy";
-      }}
-      onClick={onAdd}
-      className="w-full rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary/60 hover:bg-muted/20 disabled:cursor-not-allowed disabled:opacity-50"
-      title={!isTemplateEnabled(template) ? "Disabled step: cannot add to a new flow" : disabled ? "Topology is locked" : "Click to add, or drag to the whiteboard"}
-    >
-      <div className="font-medium leading-snug">{template.name}</div>
-      {showCategoryPath ? (
-        <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-          {formatCategoryPath(template.category)}
-        </div>
-      ) : null}
-      <div className="mt-1 text-xs text-muted-foreground">
-        {template.version} / {template.parameterDefinitions.length} parameters
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1">
-        <Badge variant="outline">{template.inputPorts.length} geometry inputs</Badge>
-        {!isTemplateEnabled(template) ? <Badge variant="outline">Disabled</Badge> : null}
-      </div>
-    </button>
+    <StepTemplateHoverPreview template={template} disabled={disabled}>
+      {({ triggerProps, closePreview }) => (
+        <button
+          type="button"
+          {...triggerProps}
+          draggable={!disabled}
+          disabled={disabled}
+          onDragStart={(event) => {
+            closePreview();
+            if (disabled) return;
+            event.dataTransfer.setData(STEP_TEMPLATE_DRAG_TYPE, template.id);
+            event.dataTransfer.effectAllowed = "copy";
+          }}
+          onClick={() => {
+            closePreview();
+            if (!disabled) onAdd();
+          }}
+          className="w-full rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary/60 hover:bg-muted/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <div className="font-medium leading-snug">{template.name}</div>
+          {showCategoryPath ? (
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              {formatCategoryPath(template.category)}
+            </div>
+          ) : null}
+          <div className="mt-1 text-xs text-muted-foreground">
+            {template.version} / {template.parameterDefinitions.length} parameters
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <Badge variant="outline">{template.inputPorts.length} geometry inputs</Badge>
+            {!isTemplateEnabled(template) ? <Badge variant="outline">Disabled</Badge> : null}
+          </div>
+        </button>
+      )}
+    </StepTemplateHoverPreview>
   );
 }
 
@@ -1396,7 +1409,6 @@ function NodeEditorDialog({
               node={node}
               topologyLocked={topologyLocked}
               configuration={configuration}
-              edges={edges}
               onLabelChange={onStepLabelChange}
               onValuesChange={onStepValuesChange}
               previewAvailability={
@@ -1542,7 +1554,6 @@ function StepInspector({
   node,
   topologyLocked,
   configuration,
-  edges,
   onLabelChange,
   onValuesChange,
   previewAvailability,
@@ -1552,7 +1563,6 @@ function StepInspector({
   node: StepNode;
   topologyLocked: boolean;
   configuration: FlowConfiguration;
-  edges: FlowEdge[];
   onLabelChange: (label: string) => void;
   onValuesChange: (values: Record<string, unknown>) => void;
   previewAvailability: PreviewAvailability;
@@ -1605,32 +1615,7 @@ function StepInspector({
             onChange={(event) => onLabelChange(event.target.value)}
           />
         </FormField>
-        <div className="rounded-md border bg-muted/20 p-3">
-          <div className="text-sm font-medium">{node.data.stepTemplate.name}</div>
-          <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-            {node.data.stepTemplate.id}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-5 border-t pt-4">
-        <div className="mb-3 text-sm font-semibold">Input Ports</div>
-        <div className="divide-y rounded-md border">
-          {node.data.stepTemplate.inputPorts.map((port) => {
-            const edge = edges.find(
-              (candidate) =>
-                candidate.target === node.id && candidate.targetHandle === port.portId,
-            );
-            return (
-              <div key={port.portId} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                <span className="truncate">{port.name}</span>
-                <Badge variant={edge ? "signal" : "outline"}>
-                  {edge ? "Mapped" : port.required ? "Required" : "Optional"}
-                </Badge>
-              </div>
-            );
-          })}
-        </div>
+        <StepTemplateDetails template={node.data.stepTemplate} />
       </div>
 
       <div className="mt-5 border-t pt-4">

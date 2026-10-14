@@ -33,6 +33,7 @@ import {
   geometrySearchText,
 } from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
+import { StepTemplateDetails } from "@/components/process-flow-fields/step-template-details";
 import {
   SaveInformationDialog,
   type InstanceSaveInformation,
@@ -883,20 +884,24 @@ function StepInspector({
     configuration.stepConfigurations[node.data.stepRef.stepRefId]?.parameterValues ?? {};
   return (
     <section className="p-4">
-      <div className="mb-4">
-        <div className="text-sm font-semibold">
-          {stepLabel(node.data.stepRef, node.data.stepTemplate)}
+      <div className="grid gap-3">
+        <div>
+          <div className="text-xs font-medium text-muted-foreground">Step label</div>
+          <div className="mt-1 text-sm font-semibold [overflow-wrap:anywhere]">
+            {stepLabel(node.data.stepRef, node.data.stepTemplate)}
+          </div>
         </div>
-        <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-          {node.data.stepRef.stepRefId} / {node.data.stepTemplate.id}
-        </div>
+        <StepTemplateDetails template={node.data.stepTemplate} />
       </div>
-      <ParameterValueEditor
-        definitions={node.data.stepTemplate.parameterDefinitions}
-        values={values}
-        disabled={disabled}
-        onChange={onChange}
-      />
+      <div className="mt-5 border-t pt-4">
+        <div className="mb-3 text-sm font-semibold">Parameters</div>
+        <ParameterValueEditor
+          definitions={node.data.stepTemplate.parameterDefinitions}
+          values={values}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      </div>
     </section>
   );
 }
