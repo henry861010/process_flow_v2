@@ -26,7 +26,7 @@ type ProcessFlowGraphStatus = "neutral" | "ready" | "incomplete" | "error";
 ```
 
 - `edit`：node draggable/connectable，edge target endpoint可reconnect，edge/node delete controls可用。
-- `view`：topology read-only，但 screen-level單擊 node仍開啟 binding/parameter dialog。
+- `view`：topology read-only；step 單擊只選取，雙擊或鉛筆按鈕開 parameter dialog；geometry input 單擊開 binding dialog。
 
 Template Editor在保存前用 edit、保存後用 view；Instance Editor永遠 view。
 
@@ -77,7 +77,7 @@ Status：ready emerald、incomplete amber、error destructive、neutral muted。
 | Border | 2px status color | 同左 + pointer/hover shadow |
 | Header | muted/40、padding `12px 8px` | 同左 |
 | Footer | padding `12px 8px`、version + status badge | 同左 |
-| Hover actions | Edit 28px、Delete 28px | none |
+| Header actions | 右上角常駐 Edit 28px；hover/focus 顯示 Delete 28px | 右上角常駐 Edit 28px |
 
 每個 input port依 `ProcessStepTemplate.inputPorts` 宣告順序在左上 `12px` 起由上到下排列、gap `8px`；target handle 16px、cyan-600、white
 border。Hover/focus/active connection時顯示 max-width `150px` port tooltip，z `20`。右側source
@@ -112,14 +112,19 @@ handle建立連線。
 
 ## 互動優先順序
 
-1. Screen傳入的 `onNodeClick` 是 primary：**單擊**選取並開 editor。
-2. View node 內部 `onDoubleClick` 仍呼叫 `onPick/onEdit`，只作 legacy fallback。
-3. 單擊pane清 selection。
-4. Node內 command先 `stopPropagation`，不得同時觸發screen node click。
+1. Step 單擊選取；edit mode 同時從 output 開始拉線，view mode 不拉線。
+2. Step 雙擊透過 `onNodeDoubleClick` 開 editor；右上角常駐鉛筆按鈕使用 `onEdit`，可用 Tab、Enter/Space 操作。
+3. Geometry input 本體維持 screen-level 單擊開 editor，view 的 `onPick` 雙擊維持既有行為。
+4. Node 內 command / handle MUST 阻止 click 與 double-click 冒泡，不能誤開 editor 或從 block 再啟動拉線。
+5. 單擊 pane 清 selection 並取消拉線。Step 雙擊、開編輯、Escape、來源刪除、流程替換、進入 view / saving 與開始 node / handle / edge reconnect 拖曳也取消暫存拉線。
 
-Shared component不得把 double-click變成唯一操作。Geometry/step card本體目前不是 native button；
-target rebuild SHOULD 讓view node keyboard focusable並以 Enter觸發同一 single-click action，且不得
-破壞React Flow drag semantics。
+Shared graph 用內部 context 保存 click connection 的來源、游標與 hovered target，不存入 nodes、edges 或 draft。
+`interactionKey` 改變時清除暫存狀態，供 screen 在流程替換或 draft saving 時重設。
+停用 React Flow 原生 `connectOnClick`，以統一 handle handler 完成單擊連線；既有 handle drag 與 target reconnect 維持。
+預覽線在 viewport 座標繪製並跟隨游標，縮放/平移時重算游標位置；hover target 顯示 port name，合法為 emerald、不合法為 destructive。
+有效 target 透過既有 validator / `onConnect` 提交；無效 target 保留預覽與既有 edges。
+點另一個 step block 或 source handle 切換來源，點相同來源取消；block 本體不能代替 target input handle。
+連線來源既有 outgoing edges 在預覽期間暫時 muted，取消後恢復原 status。雙擊縮放停用，避免與編輯衝突。
 
 ## 連線規則（edit）
 

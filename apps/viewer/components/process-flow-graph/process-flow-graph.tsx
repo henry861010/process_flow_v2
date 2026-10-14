@@ -128,7 +128,7 @@ type ProcessFlowGraphProps<
   onDragOver?: React.DragEventHandler<HTMLDivElement>;
   onNodeClick?: (event: React.MouseEvent, node: TNode) => void;
   onNodeDoubleClick?: (event: React.MouseEvent, node: TNode) => void;
-  interactionKey?: number;
+  interactionKey?: string | number;
   onPaneClick?: ReactFlowBaseProps["onPaneClick"];
   onMoveEnd?: ReactFlowBaseProps["onMoveEnd"];
   miniMapNodeColor?: (node: TNode) => string;
@@ -206,14 +206,15 @@ export function ProcessFlowGraph<
   React.useEffect(() => {
     if (clickConnection && !sourceExists) cancelClickConnection();
   }, [clickConnection, sourceExists, cancelClickConnection]);
+  const connectionActive = Boolean(activeConnection);
   React.useEffect(() => {
-    if (!activeConnection) return;
+    if (!connectionActive) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") cancelClickConnection();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeConnection, cancelClickConnection]);
+  }, [connectionActive, cancelClickConnection]);
 
   function validClickTarget(target: ClickHandle) {
     if (!activeConnection) return false;
@@ -246,105 +247,105 @@ export function ProcessFlowGraph<
 
   return (
     <ClickConnectionContext.Provider value={connectionContext}>
-    <section
-      onPointerDownCapture={() => { suppressHandleClick.current = false; }}
-      onPointerMove={(event) => {
-        if (!activeConnection) return;
-        const handle = (event.target as Element).closest<HTMLElement>(".react-flow__handle.target");
-        dispatchConnection({
-          type: "pointer",
-          pointer: { x: event.clientX, y: event.clientY },
-          target: handle?.dataset.nodeid && handle.dataset.handleid
-            ? { nodeId: handle.dataset.nodeid, handleId: handle.dataset.handleid }
-            : null,
-        });
-      }}
-      className={cn(
-        "relative min-h-0 flex-1 bg-[linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[length:32px_32px]",
-        className,
-      )}
-    >
-      <ReactFlow<TNode, TEdge>
-        onMoveEnd={onMoveEnd}
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        nodesDraggable={canEditTopology}
-        nodesConnectable={canEditTopology}
-        connectOnClick={false}
-        zoomOnDoubleClick={false}
-        edgesReconnectable={canEditTopology ? edgesReconnectable : false}
-        elementsSelectable={elementsSelectable}
-        panOnScroll={panOnScroll}
-        minZoom={minZoom}
-        maxZoom={maxZoom}
-        fitView={fitView}
-        reconnectRadius={reconnectRadius}
-        defaultEdgeOptions={defaultEdgeOptions}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onConnectStart={(...args) => {
-          suppressHandleClick.current = true;
-          cancelClickConnection();
-          onConnectStart?.(...args);
+      <section
+        onPointerDownCapture={() => { suppressHandleClick.current = false; }}
+        onPointerMove={(event) => {
+          if (!activeConnection) return;
+          const handle = (event.target as Element).closest<HTMLElement>(".react-flow__handle.target");
+          dispatchConnection({
+            type: "pointer",
+            pointer: { x: event.clientX, y: event.clientY },
+            target: handle?.dataset.nodeid && handle.dataset.handleid
+              ? { nodeId: handle.dataset.nodeid, handleId: handle.dataset.handleid }
+              : null,
+          });
         }}
-        onConnectEnd={onConnectEnd}
-        onReconnect={onReconnect}
-        onReconnectStart={(...args) => {
-          suppressHandleClick.current = true;
-          cancelClickConnection();
-          onReconnectStart?.(...args);
-        }}
-        onReconnectEnd={onReconnectEnd}
-        isValidConnection={isValidConnection}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        onNodeDragStart={cancelClickConnection}
-        onNodeClick={(event, node) => {
-          onNodeClick?.(event, node);
-          const data = getGraphNodeData(node);
-          if (data.nodeKind === "processStep" && canEditTopology && event.detail === 1) {
-            dispatchConnection({
-              type: "source",
-              handle: { nodeId: node.id, handleId: data.outputPortId ?? "result_geometry" },
-              pointer: { x: event.clientX, y: event.clientY },
-            });
-          } else if (data.nodeKind !== "processStep") {
-            cancelClickConnection();
-          }
-        }}
-        onNodeDoubleClick={(event, node) => {
-          if (getGraphNodeData(node).nodeKind !== "processStep") return;
-          cancelClickConnection();
-          onNodeDoubleClick?.(event, node);
-        }}
-        onPaneClick={(event) => {
-          cancelClickConnection();
-          onPaneClick?.(event);
-        }}
+        className={cn(
+          "relative min-h-0 flex-1 bg-[linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[length:32px_32px]",
+          className,
+        )}
       >
-        {activeConnection ? <ClickConnectionPreview state={activeConnection} valid={connectionContext.validTarget} /> : null}
-        <Background color="rgba(15, 118, 110, 0.18)" gap={32} />
-        <Controls position="bottom-left" />
-        {showMiniMap ? (
-          <MiniMap
-            position="bottom-right"
-            pannable
-            zoomable
-            nodeColor={(node) =>
-              miniMapNodeColor?.(node as TNode) ??
-              graphStatusColor(getGraphNodeData(node).status ?? "neutral")
+        <ReactFlow<TNode, TEdge>
+          onMoveEnd={onMoveEnd}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          nodesDraggable={canEditTopology}
+          nodesConnectable={canEditTopology}
+          connectOnClick={false}
+          zoomOnDoubleClick={false}
+          edgesReconnectable={canEditTopology ? edgesReconnectable : false}
+          elementsSelectable={elementsSelectable}
+          panOnScroll={panOnScroll}
+          minZoom={minZoom}
+          maxZoom={maxZoom}
+          fitView={fitView}
+          reconnectRadius={reconnectRadius}
+          defaultEdgeOptions={defaultEdgeOptions}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onConnectStart={(...args) => {
+            suppressHandleClick.current = true;
+            cancelClickConnection();
+            onConnectStart?.(...args);
+          }}
+          onConnectEnd={onConnectEnd}
+          onReconnect={onReconnect}
+          onReconnectStart={(...args) => {
+            suppressHandleClick.current = true;
+            cancelClickConnection();
+            onReconnectStart?.(...args);
+          }}
+          onReconnectEnd={onReconnectEnd}
+          isValidConnection={isValidConnection}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onNodeDragStart={cancelClickConnection}
+          onNodeClick={(event, node) => {
+            onNodeClick?.(event, node);
+            const data = getGraphNodeData(node);
+            if (data.nodeKind === "processStep" && canEditTopology && event.detail === 1) {
+              dispatchConnection({
+                type: "source",
+                handle: { nodeId: node.id, handleId: data.outputPortId ?? "result_geometry" },
+                pointer: { x: event.clientX, y: event.clientY },
+              });
+            } else if (data.nodeKind !== "processStep") {
+              cancelClickConnection();
             }
-          />
+          }}
+          onNodeDoubleClick={(event, node) => {
+            if (getGraphNodeData(node).nodeKind !== "processStep") return;
+            cancelClickConnection();
+            onNodeDoubleClick?.(event, node);
+          }}
+          onPaneClick={(event) => {
+            cancelClickConnection();
+            onPaneClick?.(event);
+          }}
+        >
+          {activeConnection ? <ClickConnectionPreview state={activeConnection} valid={connectionContext.validTarget} /> : null}
+          <Background color="rgba(15, 118, 110, 0.18)" gap={32} />
+          <Controls position="bottom-left" />
+          {showMiniMap ? (
+            <MiniMap
+              position="bottom-right"
+              pannable
+              zoomable
+              nodeColor={(node) =>
+                miniMapNodeColor?.(node as TNode) ??
+                graphStatusColor(getGraphNodeData(node).status ?? "neutral")
+              }
+            />
+          ) : null}
+        </ReactFlow>
+        {topRightOverlay ? (
+          <div className="absolute right-3 top-3 z-10">{topRightOverlay}</div>
         ) : null}
-      </ReactFlow>
-      {topRightOverlay ? (
-        <div className="absolute right-3 top-3 z-10">{topRightOverlay}</div>
-      ) : null}
-      {emptyState}
-    </section>
+        {emptyState}
+      </section>
     </ClickConnectionContext.Provider>
   );
 }

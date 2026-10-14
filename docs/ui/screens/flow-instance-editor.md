@@ -65,7 +65,9 @@ offer an `Edit current recipe` action.
 ## Graph and state
 
 Topology is always view mode and is rebuilt from the selected template. Geometry bindings and step
-parameters remain editable through single-click node dialogs.
+parameters remain editable: geometry input single-click opens its dialog; step single-click only
+selects, while double-click or the always-visible top-right pencil opens the existing step dialog.
+Step buttons support Tab and Enter/Space. No gesture can change topology in this editor.
 Dirty state protects reload/close and Home/source replacement. Source metadata is never copied.
 
 Completeness follows dependencies backwards from the original terminal steps. A `pnp/pnp` step

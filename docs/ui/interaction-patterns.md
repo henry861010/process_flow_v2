@@ -22,16 +22,21 @@ source_of_truth:
 
 | Context | Primary gesture | Result |
 | --- | --- | --- |
-| Flow graph node | 單擊 | 選取 node 並開啟對應 Node Editor dialog。 |
-| View-mode shared node legacy handler | 雙擊 | 呼叫 `onPick` 或 `onEdit`；不得成為唯一可達路徑。 |
+| Process step，edit mode | 單擊 | 選取並從 output 開始預覽拉線；點 target input handle 完成。 |
+| Process step，view mode | 單擊 | 只選取，不開 editor、不改 topology。 |
+| Process step，兩種 mode | 雙擊或右上角鉛筆按鈕 | 取消暫存拉線並開啟既有 Node Editor dialog。 |
+| Geometry input | 單擊 | 選取並開啟既有 Node Editor dialog；source handle 可單擊或拖曳拉線。 |
 | Graph pane | 單擊空白 | 清除 selection，不關閉已開啟的 modal。 |
 | Step palette item | 單擊或拖放 | 加入 Template graph。 |
 | Geometry palette item | 拖放 | 建立 Geometry Input 並建立 working catalog binding。 |
 | Edge/terminal Eye button | 單擊 | upstream closure ready 時開 Preview。 |
 | Feature envelope | 單擊 | 選取 feature；glyph 不是 selection authority。 |
 
-Template/Instance screen MUST 綁 `onNodeClick` 作 primary behavior。Shared graph 內現有
-`onDoubleClick` 是 legacy fallback；重建不得要求使用者雙擊才看見 editor。
+Template/Instance screen MUST 綁 `onNodeClick` 作選取行為，step 編輯使用 `onNodeDoubleClick`
+與常駐鉛筆按鈕。鉛筆按鈕 MUST 可用 Tab 到達並以 Enter/Space 啟動。Geometry input 維持
+既有單擊行為。拉線中點另一個 step 切換來源，點同一來源、pane 空白或按 Escape 取消；
+點無效 target 保留拉線狀態且不更動 edge。開啟編輯、開始拖曳、切換來源流程、刪除來源或
+進入 topology locked / saving 狀態 MUST 清除暫存拉線。
 
 ## 拖放
 

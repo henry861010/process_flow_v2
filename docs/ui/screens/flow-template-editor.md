@@ -102,6 +102,19 @@ Both save commands submit a fixed snapshot, prevent concurrent editor mutations 
 submission, and return Home on success. Failed saves retain the dialog, metadata, configuration,
 and active draft. Required metadata validation applies to both records for combined save.
 
+## Graph interaction
+
+Single-click a step block to select it and start a pointer-following connection preview from its
+output. Click the exact target input handle to commit; clicking a target block does not choose a
+port. Validity and conflict replacement use the same rules as handle dragging. Invalid targets
+preserve the preview and existing edges. Another step click switches the source; the same source,
+blank pane, or Escape cancels. Double-click or the always-visible top-right pencil cancels the
+preview and opens the existing step dialog. The pencil supports Tab and Enter/Space.
+Geometry input single-click keeps its existing dialog behavior, and source handles support click
+connections and dragging. Node dragging and target reconnect remain available. Replacing the
+flow/draft, deleting the source, or entering saving/locked state clears the pending connection.
+In topology-locked view mode, step single-click only selects; double-click and pencil still edit values.
+
 ## Acceptance
 
 - `UI-FTE-001`: fresh editor provides catalog geometry, process steps, graph, draft commands, and the formal save command.

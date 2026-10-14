@@ -1023,7 +1023,7 @@ function ProcessFlowTemplateEditorInner() {
 
         <ProcessFlowGraph
           mode={editingLocked ? "view" : "edit"}
-          interactionKey={graphInteractionKey}
+          interactionKey={`${graphInteractionKey}:${drafts.saving}`}
           nodes={displayNodes}
           edges={displayEdges}
           className="min-h-[560px] lg:min-h-0"
