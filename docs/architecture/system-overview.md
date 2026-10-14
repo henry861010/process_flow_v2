@@ -99,7 +99,7 @@ fixtures。目前 marker 是 `"13"`；8–12 版會保留資料並依序 migrati
 或無 marker 資料會清空並重新 seed。11 版使用 SQLite unique indexes 確保 flow template
 與 instance 各自的 `(name, version)` 唯一。若 migration 發現既有重複，會列出名稱、版本
 與衝突 IDs 並停止；先處理重複資料再重新啟動，原資料與 schema marker 保留。
-13 版新增 `joint` 類別的 MR joint 與 TCB joint，將舊 Bump Joint 的 flow 與模板草稿引用轉成 MR joint，再移除舊模板。遷移保留參數、設定與自訂標籤；新模板 ID 衝突會回滾。
+Canonical fixtures 提供 `joint` 類別的 MR joint 與 TCB joint；啟動與 fixture ZIP 匯入不再轉換舊 Joint 引用。Schema marker 保留 `"13"`，12 → 13 僅更新 marker。
 非數字或未來版本marker明確失敗且不得刪除資料。
 
 Export job 是 process-local memory state，不是 SQLite resource。API shutdown 會取消 queued／

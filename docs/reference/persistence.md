@@ -330,17 +330,9 @@ Migration creates both draft tables, converts each legacy draft workspace into a
 
 Geometry deletion protects exact catalog references in instances and both draft state configurations. Template deletion atomically removes its instance drafts; copied template drafts are independent. Reset/import clears both draft tables. Fixture ZIP remains the four formal-resource JSON files; database backup includes drafts.
 
-## 15. Schema 12 → 13 migration
+## 15. Joint catalog
 
-Migration replaces `step_tpl_bump_joint` with `step_tpl_mr_joint` and adds
-`step_tpl_tcb_joint`, both in category `joint`. MR joint retains the legacy template's
-owner, status and parameter defaults; TCB joint uses the packaged template. Flow
-step references and template-draft node references change to MR joint, preserving
-step IDs, connections and configuration. Only the exact `Bump Joint` label changes;
-custom labels, draft revisions and timestamps, instances and geometries remain intact.
-
-Template insertion, reference conversion, legacy-template deletion and the schema
-marker update run in one transaction. An occupied replacement ID with a different
-payload fails without overwriting data. Empty databases remain empty for complete
-startup seeding. Legacy fixture ZIP imports use the same conversion before reset;
-current ZIP snapshots are preserved as exported.
+Canonical fixtures provide `step_tpl_mr_joint` and `step_tpl_tcb_joint` in category
+`joint`. Startup and fixture ZIP imports do not convert legacy Joint templates or
+references. The internal schema marker remains `"13"`; the 12 → 13 transition only
+updates this marker. Empty databases are populated from the canonical fixtures.

@@ -139,9 +139,9 @@ Both support GET list, POST create, GET/PUT/DELETE `/{id}`, and POST `/{id}/comm
 
 Commit accepts `{revision, processFlowTemplate}` or `{revision, processFlowInstance}` using the editor's current formal create payload. Shared validation precedes atomic materialization/resource insert/draft deletion. Failures preserve the draft and roll back writes. A consumed draft returns 404. Disabled flows permit draft editing but reject new instances/instance commit.
 
-Business schema 13 replaces Bump Joint with MR joint / TCB joint in the `joint` category,
-converting legacy flow and template-draft references to MR joint while preserving configuration.
-Legacy fixture ZIP imports use the same conversion. Schema 12 converts legacy workspace drafts,
+Business schema marker remains 13. Canonical fixtures provide MR joint / TCB joint in the
+`joint` category; startup and fixture ZIP imports do not convert legacy Joint references.
+Schema 12 converts legacy workspace drafts,
 then removes the old table; legacy workspace APIs are removed. Analytics schema 2 preserves historical workspace IDs inside properties JSON. Reset/import clears drafts; fixture ZIP continues exporting only the four formal resource files.
 
 ### Preview 與 export
