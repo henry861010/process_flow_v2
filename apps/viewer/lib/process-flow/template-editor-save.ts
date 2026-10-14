@@ -30,7 +30,7 @@ export function buildTemplateInstanceCreate(
   };
 }
 
-export function templateInstanceConfigurationIssues(
+export function flowConfigurationIssues(
   template: ProcessFlowTemplate,
   stepTemplates: ProcessStepTemplate[],
   configuration: FlowConfiguration,
@@ -60,3 +60,6 @@ export function templateInstanceConfigurationIssues(
   }
   return issues;
 }
+
+// Retain the established export for callers outside the editors.
+export const templateInstanceConfigurationIssues = flowConfigurationIssues;

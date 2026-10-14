@@ -4,6 +4,10 @@ import * as React from "react";
 import { GitBranch, Loader2, Save, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useEditorDialogFocus } from "./editor-dialog";
+import { cn } from "@/lib/utils";
+
+const SaveValidationContext = React.createContext(false);
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
@@ -51,6 +55,9 @@ export function SaveInformationDialog({
   onEmbeddedGeometryChange,
   onClose,
   onSubmit,
+  onModeChange,
+  blockingIssues = [],
+  configurationIssues = [],
 }: {
   mode: SaveInformationMode;
   template?: TemplateSaveInformation;
@@ -66,39 +73,31 @@ export function SaveInformationDialog({
   ) => void;
   onClose: () => void;
   onSubmit: () => void | Promise<void>;
+  onModeChange?: (mode: "template" | "template-and-instance") => void;
+  blockingIssues?: string[];
+  configurationIssues?: string[];
 }) {
   const titleId = React.useId();
   const descriptionId = React.useId();
-  const previousFocus = React.useRef<HTMLElement | null>(null);
+  const panel = React.useRef<HTMLFormElement>(null);
+  const [attempted, setAttempted] = React.useState(false);
+  useEditorDialogFocus(panel, onClose, submitting);
   const errorRef = React.useRef<HTMLParagraphElement | null>(null);
-  const onCloseRef = React.useRef(onClose);
-  const submittingRef = React.useRef(submitting);
+  const issues = [...blockingIssues, ...((mode === "template-and-instance" || mode === "instance") ? configurationIssues : [])];
   const config = dialogConfig(mode);
 
   React.useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
 
-  React.useEffect(() => {
-    onCloseRef.current = onClose;
-    submittingRef.current = submitting;
-  }, [onClose, submitting]);
-
-  React.useEffect(() => {
-    previousFocus.current = document.activeElement as HTMLElement | null;
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !submittingRef.current) onCloseRef.current();
-    };
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("keydown", close);
-      previousFocus.current?.focus();
-    };
-  }, []);
-
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!submitting) void onSubmit();
+    if (submitting || issues.length > 0) return;
+    setAttempted(true);
+    const missing = Array.from(event.currentTarget.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[required]"))
+      .find((field) => !field.value.trim());
+    if (missing) { missing.focus(); return; }
+    void onSubmit();
   }
 
   return (
@@ -109,10 +108,13 @@ export function SaveInformationDialog({
         onClick={submitting ? undefined : onClose}
       />
       <form
+        ref={panel}
+        noValidate
+        tabIndex={-1}
         aria-describedby={descriptionId}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(680px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
+        className={cn("relative z-10 flex max-h-[calc(100dvh-32px)] w-full flex-col overflow-hidden rounded-lg border bg-white shadow-viewport outline-none", onModeChange ? "max-w-[760px]" : "max-w-[680px]")}
         role="dialog"
         onSubmit={submit}
       >
@@ -121,11 +123,11 @@ export function SaveInformationDialog({
             <div className="flex items-center gap-2">
               <config.Icon className="h-5 w-5 text-primary" />
               <h2 id={titleId} className="text-lg font-semibold">
-                {config.title}
+                {onModeChange ? "Save flow" : config.title}
               </h2>
             </div>
             <p id={descriptionId} className="mt-1 text-sm text-muted-foreground">
-              {config.description}
+              {onModeChange ? "Choose what to save, then confirm the information below." : config.description}
             </p>
           </div>
           <Button
@@ -133,6 +135,7 @@ export function SaveInformationDialog({
             variant="ghost"
             size="icon"
             title="Close"
+            aria-label="Close save dialog"
             disabled={submitting}
             onClick={onClose}
           >
@@ -140,12 +143,35 @@ export function SaveInformationDialog({
           </Button>
         </header>
 
+        <SaveValidationContext.Provider value={attempted}>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+          {onModeChange ? <fieldset className="space-y-3" disabled={submitting}>
+            <legend className="mb-2 text-sm font-semibold">What would you like to save?</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                { value: "template", label: "Template only", description: "Reusable topology and scalar defaults." },
+                { value: "template-and-instance", label: "Template & Instance", description: "Template plus current geometry bindings and complete configuration." },
+              ] as const).map((option) => <label key={option.value} className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-md border p-4 transition-colors hover:bg-muted/30 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                mode === option.value ? "border-primary bg-primary/5" : "border-border") }>
+                <input className="mt-0.5 h-4 w-4 shrink-0 accent-primary" type="radio" name="save-mode" value={option.value}
+                  checked={mode === option.value} onChange={() => onModeChange(option.value)} />
+                <span><span className="block text-sm font-medium">{option.label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.description}</span></span>
+              </label>)}
+            </div>
+          </fieldset> : null}
+          {issues.length > 0 ? <details open className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <summary className="cursor-pointer font-medium">{blockingIssues.length > 0 ? "Flow needs attention" : "Configuration needs attention"} · {issues.length} {issues.length === 1 ? "issue" : "issues"}</summary>
+            <ul className="mt-2 space-y-1 pl-5 list-disc">{issues.map((issue, index) => <li key={`${index}:${issue}`}>{issue}</li>)}</ul>
+            {blockingIssues.length === 0 && mode === "template-and-instance" ? <p className="mt-3 text-xs">Complete these settings in the editor, or choose Template only to save the reusable flow.</p> : null}
+            {blockingIssues.length === 0 && mode === "instance" ? <p className="mt-3 text-xs">Complete these settings in the editor before saving the instance.</p> : null}
+          </details> : onModeChange ? <p className="text-xs text-primary">Ready to save {mode === "template" ? "template" : "template and instance"}.</p> : null}
           {(mode === "template" || mode === "template-and-instance") &&
           template &&
           onTemplateChange ? (
             <section className="space-y-4">
-              {mode === "template-and-instance" ? (
+              {mode === "template-and-instance" || onModeChange ? (
                 <div>
                   <h3 className="text-sm font-semibold">Template information</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -156,7 +182,7 @@ export function SaveInformationDialog({
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField label="Template name" required>
                   <input
-                    autoFocus
+                    data-autofocus
                     className={inputClass}
                     value={template.name}
                     disabled={submitting}
@@ -212,7 +238,7 @@ export function SaveInformationDialog({
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField label="Instance name" required>
                   <input
-                    autoFocus={mode === "instance"}
+                    data-autofocus={mode === "instance" ? true : undefined}
                     className={inputClass}
                     value={instance.name}
                     disabled={submitting}
@@ -356,8 +382,9 @@ export function SaveInformationDialog({
             </p>
           ) : null}
         </div>
+        </SaveValidationContext.Provider>
 
-        <footer className="flex justify-end gap-2 border-t bg-white px-5 py-3">
+        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t bg-white px-5 py-3">
           <Button
             type="button"
             variant="outline"
@@ -366,9 +393,9 @@ export function SaveInformationDialog({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting || issues.length > 0}>
             {submitting ? <Loader2 className="animate-spin" /> : <config.Icon />}
-            {config.submitLabel}
+            {submitting ? "Saving…" : config.submitLabel}
           </Button>
         </footer>
       </form>
@@ -385,13 +412,20 @@ function FormField({
   required?: boolean;
   children: React.ReactNode;
 }) {
+  const id = React.useId();
+  const attempted = React.useContext(SaveValidationContext);
+  const child = React.isValidElement<{ value?: string; className?: string }>(children) ? children : null;
+  const invalid = Boolean(attempted && required && !child?.props.value?.trim());
   return (
-    <label className="block min-w-0">
+    <label htmlFor={id} className="block min-w-0">
       <span className="mb-1.5 block text-xs font-medium">
-        {label}
-        {required ? <span className="ml-1 text-destructive">*</span> : null}
+        {label}{required ? <span className="ml-1 text-destructive">*</span> : null}
       </span>
-      {children}
+      {child ? React.cloneElement(child as React.ReactElement<React.InputHTMLAttributes<HTMLInputElement>>, {
+        id, required, "aria-invalid": invalid || undefined, "aria-describedby": invalid ? `${id}-error` : undefined,
+        className: cn(child.props.className, invalid && "border-destructive"),
+      }) : children}
+      {invalid ? <span id={`${id}-error`} className="mt-1 block text-xs text-destructive">{label} is required.</span> : null}
     </label>
   );
 }

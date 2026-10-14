@@ -88,10 +88,21 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-HBM-004` | valid HBM parameters | click Generate JSON | 下載合法純GeometryStructure，root molding與child dies符合HBM mapping。 |
 | `UI-HBM-007` | valid HBM parameters與metadata | click Save to DB | catalog建立`die.hbm` immutable geometry並回報server id。 |
 | `UI-FTE-001` | fresh Template draft | add step by click | step出現在 graph，Node Editor以單擊可開啟。 |
-| `UI-FTE-002` | topology valid、configuration incomplete | Save Template → complete save dialog | metadata不在editor常駐顯示；template保存、topology locked、configuration仍可編輯。 |
+| `UI-FTE-002` | topology valid、configuration incomplete | Save… → Template only → complete save dialog | metadata不在editor常駐顯示；template保存成功後返回Home，來源草稿僅在成功時消耗。 |
+| `UI-FTE-010` | fresh editor | inspect toolbar、expand issues | 四個入口與獨立進度／缺項狀態；只有Save為實心主操作。 |
+| `UI-FTE-011` | unsaved working contents | select template/draft、cancel/confirm、simulate missing dependency | 列選取不替換；確認才載入；取消與失敗保留原畫布。 |
+| `UI-FTE-012` | valid topology、incomplete configuration | Save…、switch mode、cancel/reopen、load new source | combined預設且提交停用；template-only可提交；切換／重開保留欄位，新來源重設combined與instance overrides。 |
+| `UI-FTE-013` | saved/loaded draft | quick update、edit details、new copy、simulate stale revision、edit during save | quick update不開彈窗且沿用identity；copy建立新記錄；衝突不覆寫；送出後的新修改仍dirty。 |
+| `UI-FTE-014` | save/source dialog | submit blank metadata、Tab/Shift+Tab、Escape、nested confirmation | 行內錯誤與首個錯誤焦點；最上層modal鎖定焦點，關閉還原trigger。 |
+| `UI-FTE-015` | editor and dialogs | inspect 1440×900、1024×768、390×844 | 操作列／modal不溢出；頁尾可見，body捲動；工作區沿用原minimum width。 |
 | `UI-FIE-001` | Home ready | click AAA template | fixed AAA topology與default configuration出現，沒有template selector。 |
 | `UI-FIE-002` | AAA route | inspect From instance | 只列AAA instances；選擇後copy values但identity保持new draft。 |
 | `UI-FIE-003` | complete configuration | Save → enter full metadata | 建立新的immutable instance並返回Home，source保持不變。 |
+| `UI-FIE-015` | fixed template loaded | inspect toolbar、status、expand issues | 四個入口、template副標題與進度／缺項／錯誤分區呈現；只有Save為實心主操作。 |
+| `UI-FIE-016` | dirty instance editor | select blank／instance／draft；Keep editing／Discard changes；simulate load failure | row只選取；footer才載入；保留或替換符合確認結果，失敗不改原內容。 |
+| `UI-FIE-017` | incomplete or disabled configuration | open Save… | modal顯示完整原因與metadata；可開啟但最後提交停用，完整enabled配置可提交。 |
+| `UI-FIE-018` | source/save/draft modal | required-field submit、Tab/Shift+Tab、Escape、nested confirmation | inline錯誤與首錯焦點；topmost modal鎖焦點並關閉後還原trigger。 |
+| `UI-FIE-019` | editor and dialogs | inspect 1440×900、1024×768、390×844 | 操作列與modal不溢出；footer可見且內容區獨立捲動。 |
 | `UI-MGMT-001` | bootstrap 與 draft summaries ready | open Management tabs | 六類 resource count 與 rows 符合 bootstrap 及兩種草稿摘要。 |
 | `UI-MGMT-002` | Process steps tab | click row Edit、change allowed fields/default、Save | 頁內modal只暴露允許欄位；成功後row即時更新且不導頁。 |
 | `UI-MGMT-009` | Process step input ports | Move up/down with mouse or keyboard、Cancel／Save and reopen | 順序可修改且首尾與saving按鈕停用；Cancel丟棄排序，Save保留排序，port definitions與output ports仍鎖定。 |

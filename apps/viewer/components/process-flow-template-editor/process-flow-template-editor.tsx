@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   MarkerType,
@@ -16,16 +15,11 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import {
-  ArrowLeft,
   Box,
   Boxes,
-  Check,
-  CircleDot,
   Eye,
   FileJson,
-  GitBranch,
   LayoutGrid,
-  Save,
   Trash2,
   Workflow,
   X,
@@ -67,6 +61,8 @@ import {
   type ProcessFlowGraphNodeData,
 } from "@/components/process-flow-graph/process-flow-graph";
 import { useEditorDrafts } from "@/components/process-flow-save/editor-draft-controls";
+import { EditorShellHeader, EditorStatusBar } from "@/components/process-flow-save/editor-shell-header";
+import { TemplateSourceDialog } from "@/components/process-flow-save/template-source-dialog";
 import { validateTemplateDraftState } from "@/lib/process-flow/editor-drafts";
 import { commitTemplateEditorDraft, commitTemplateInstanceEditorDraft } from "@/lib/process-flow-api";
 import { Badge } from "@/components/ui/badge";
@@ -96,8 +92,8 @@ import { buildTemplatePayload } from "@/lib/process-flow/template-builder";
 import { validateInstanceIdentity } from "@/lib/process-flow/instance-editor";
 import {
   buildTemplateInstanceCreate,
+  flowConfigurationIssues,
   instanceMetadataForTemplate,
-  templateInstanceConfigurationIssues,
 } from "@/lib/process-flow/template-editor-save";
 import type {
   FlowConfiguration,
@@ -199,6 +195,9 @@ function ProcessFlowTemplateEditorInner() {
   const [saveDialogMode, setSaveDialogMode] = React.useState<
     TemplateSaveMode | null
   >(null);
+  const [preferredSaveMode, setPreferredSaveMode] = React.useState<TemplateSaveMode>("template-and-instance");
+  const [sourceOpen, setSourceOpen] = React.useState(false);
+  const [requirementsOpen, setRequirementsOpen] = React.useState(false);
   const [saveDialogError, setSaveDialogError] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<
     { kind: "success" | "error"; text: string } | null
@@ -246,7 +245,7 @@ function ProcessFlowTemplateEditorInner() {
     viewport: draftViewport,
   }), [metadata, configuration, nodes, edges, draftViewport]);
   const drafts = useEditorDrafts({
-    kind: "template", state: editorDraftState, enabled: hydrated,
+    kind: "template", state: editorDraftState, enabled: hydrated, modern: true,
     saveDisabled: savedTemplate !== null, busy: busyAction !== null,
     onLoad(draft) {
       if (!("nodes" in draft.state)) throw new Error("This is not a template draft.");
@@ -263,6 +262,7 @@ function ProcessFlowTemplateEditorInner() {
       setMetadata(state.metadata);
       setInstanceMetadataOverrides({});
       setSaveDialogMode(null); setSaveDialogError(null);
+      setPreferredSaveMode("template-and-instance"); setRequirementsOpen(false);
       setConfiguration(state.configuration);
       setNodes(restoredNodes);
       setEdges(restoredEdges);
@@ -295,7 +295,7 @@ function ProcessFlowTemplateEditorInner() {
   const configurationComplete = isConfigurationComplete(draftTemplate, stepTemplates, configuration, resolvedGeometries);
   const canSaveTemplateInstance = canSaveTemplate && configurationComplete;
   const instanceConfigurationIssues = !analysis.error && !configurationComplete
-    ? templateInstanceConfigurationIssues(draftTemplate, stepTemplates, configuration, resolvedGeometries)
+    ? flowConfigurationIssues(draftTemplate, stepTemplates, configuration, resolvedGeometries)
     : [];
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
   const editingStepPreviewAvailability =
@@ -490,29 +490,36 @@ function ProcessFlowTemplateEditorInner() {
     setSaveDialogError(null);
   }
 
-  function loadTemplateAsCopy(templateId: string) {
-    if (savingRef.current) return;
+  async function loadTemplateAsCopy(templateId: string) {
+    if (savingRef.current || drafts.busy) return false;
     const template = flowTemplates.find((item) => item.id === templateId);
-    if (!template || !drafts.confirmReplace()) return;
+    if (!template) throw new Error("This template is no longer available.");
+    const missing = template.stepRefs.filter((ref) => !stepTemplates.some((step) => step.id === ref.processStepTemplateId));
+    if (missing.length) throw new Error(`Missing process step templates: ${missing.map((ref) => ref.processStepTemplateId).join(", ")}.`);
+    // Resolve dependencies before replacing any working editor state.
+    const graph = graphFromTemplate(template, stepTemplates);
+    const nextConfiguration = createEmptyFlowConfiguration(template, stepTemplates);
+    if (!await drafts.confirmReplaceAsync(`Use template "${template.name}" to start a new flow?`)) return false;
     drafts.detach();
     setInstanceMetadataOverrides({});
-    const graph = graphFromTemplate(template, stepTemplates);
     setMetadata({
-      name: template.name,
-      version: template.version,
-      description: template.description ?? "",
-      owner: template.owner ?? "",
+      name: template.name, version: template.version,
+      description: template.description ?? "", owner: template.owner ?? "",
     });
-    setNodes(graph.nodes);
-    setEdges(graph.edges);
-    setConfiguration(createEmptyFlowConfiguration(template, stepTemplates));
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
-    setSavedTemplate(null);
-    setSaveDialogMode(null);
-    setSaveDialogError(null);
-    setMessage(null);
+    setNodes(graph.nodes); setEdges(graph.edges); setConfiguration(nextConfiguration);
+    setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null);
+    setGeneratorEditor(null); setPreview(null); setSavedTemplate(null);
+    setSaveDialogMode(null); setSaveDialogError(null);
+    setPreferredSaveMode("template-and-instance"); setRequirementsOpen(false); setMessage(null);
     requestAnimationFrame(() => reactFlow.fitView({ padding: 0.18, duration: 250 }));
+    return true;
+  }
+
+  async function navigateHome() {
+    if (savingRef.current || drafts.busy) return;
+    if (!await drafts.confirmReplaceAsync("Return Home?")) return;
+    drafts.markClean();
+    router.push("/");
   }
 
   function arrangeFlow() {
@@ -930,93 +937,41 @@ function ProcessFlowTemplateEditorInner() {
     setFileExportJobsRefreshKey((current) => current + 1);
   }
 
-  const statusText =
-    availabilityError ?? analysis.error ??
-    (topologyLocked
-      ? `Template ${savedTemplate.id} is saved and topology is locked.`
-      : "Save Template stores topology and scalar defaults. Save Template & Instance also stores the current bindings and collection values.");
+  const blockingIssues = [analysis.error, availabilityError].filter((issue): issue is string => Boolean(issue));
+  const configurationIssues = !analysis.error && !configurationComplete
+    ? (instanceConfigurationIssues.length ? instanceConfigurationIssues : ["Check the instance configuration for invalid input or step settings."])
+    : [];
+  const flowIssues = [...blockingIssues, ...configurationIssues];
+  const progressStatus = busyAction || drafts.saving ? "Saving…"
+    : drafts.dirty ? "Unsaved changes"
+    : drafts.lastSavedAt ? `Draft saved · ${new Date(drafts.lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    : "Not saved";
+  const flowName = drafts.active?.name || metadata.name.trim() || "Untitled flow";
 
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground lg:h-screen lg:min-h-[760px] lg:overflow-hidden">
-      <header className="shrink-0 border-b bg-white px-5 py-3">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Workflow className="h-5 w-5 text-primary" />
-              <h1 className="text-xl font-semibold tracking-normal">
-                Process Flow Template Editor
-              </h1>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Create reusable topology using process steps and catalog geometry.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/" aria-disabled={busyAction !== null} onClick={(event) => { if (savingRef.current || !drafts.confirmReplace()) event.preventDefault(); }}>
-                <ArrowLeft />
-                Home
-              </Link>
-            </Button>
-            <select
-              className={cn(selectClass, "w-[220px]")}
-              value=""
-              disabled={topologyLocked || drafts.busy}
-              aria-label="Start from template"
-              onChange={(event) => loadTemplateAsCopy(event.target.value)}
-            >
-              <option value="">Start from template...</option>
-              {flowTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name} / {template.version}
-                </option>
-              ))}
-            </select>
-            {drafts.controls}
-            <Button
-              variant="outline"
-              disabled={!canSaveTemplate}
-              onClick={() => openSaveDialog("template")}
-            >
-              <Save />
-              Save Template
-            </Button>
-            <Button
-              disabled={!canSaveTemplateInstance}
-              aria-describedby={!analysis.error && !configurationComplete ? "instance-save-requirements" : undefined}
-              onClick={() => openSaveDialog("template-and-instance")}
-            >
-              <GitBranch />
-              Save Template & Instance
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div
-        className={cn(
-          "flex min-h-9 items-center gap-2 border-b px-4 py-2 text-sm",
-          message?.kind === "error"
-            ? "border-destructive/30 bg-destructive/5 text-destructive"
-            : message?.kind === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "bg-muted/25 text-muted-foreground",
-        )}
-      >
-        {message?.kind === "success" ? <Check className="h-4 w-4" /> : <CircleDot className="h-4 w-4" />}
-        <span className="truncate">{message?.text ?? drafts.notice ?? availabilityError ?? statusText}</span>
-      </div>
-
-      {!analysis.error && !configurationComplete ? (
-        <div id="instance-save-requirements" className="shrink-0 border-b bg-muted/25 px-4 py-2 text-sm text-muted-foreground">
-          <p>Complete these settings to enable Save Template &amp; Instance:</p>
-          <ul className="mt-1 max-h-24 list-disc overflow-y-auto pl-5">
-            {(instanceConfigurationIssues.length > 0 ? instanceConfigurationIssues : ["Check the instance configuration for invalid input or step settings."])
-              .map((issue, index) => <li key={`${index}:${issue}`}>{issue}</li>)}
-          </ul>
-        </div>
-      ) : null}
+      <EditorShellHeader editor="template" subtitle={flowName}
+        busy={busyAction !== null || drafts.busy}
+        sourceDisabled={!hydrated || topologyLocked || drafts.busy}
+        saveDisabled={!hydrated || topologyLocked || busyAction !== null || drafts.busy}
+        draftControl={drafts.saveControl}
+        onHome={() => void navigateHome()}
+        onStartFrom={() => setSourceOpen(true)}
+        onSave={() => openSaveDialog(preferredSaveMode)} />
+      <EditorStatusBar progress={progressStatus}
+        saving={Boolean(busyAction || drafts.saving)}
+        saved={!drafts.dirty && Boolean(drafts.lastSavedAt)}
+        issueCount={flowIssues.length}
+        issueKind={blockingIssues.length ? "Flow" : "Configuration"}
+        expanded={requirementsOpen}
+        onToggle={() => setRequirementsOpen(!requirementsOpen)} />
+      {message || (drafts.error && !sourceOpen) ? <div role={message?.kind === "success" ? "status" : "alert"}
+        className={cn("shrink-0 border-b px-5 py-2 text-sm", message?.kind === "success" ? "bg-emerald-50 text-emerald-800" : "bg-destructive/5 text-destructive")}>
+        {message?.text ?? drafts.error}
+      </div> : null}
+      {requirementsOpen && flowIssues.length > 0 ? <div id="flow-save-requirements" className="shrink-0 border-b bg-amber-50 px-5 py-3 text-sm text-amber-900">
+        <ul className="max-h-24 list-disc space-y-1 overflow-y-auto pl-5">{flowIssues.map((issue, index) => <li key={`${index}:${issue}`}>{issue}</li>)}</ul>
+      </div> : null}
 
       <section className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(540px,1fr)_320px] lg:overflow-hidden">
         <aside className="flex min-h-[240px] flex-col border-r bg-white lg:min-h-0">
@@ -1142,9 +1097,15 @@ function ProcessFlowTemplateEditorInner() {
         </aside>
       </section>
 
+      {sourceOpen ? <TemplateSourceDialog templates={flowTemplates} drafts={drafts}
+        onUseTemplate={loadTemplateAsCopy} onClose={() => setSourceOpen(false)} /> : null}
+      {drafts.dialogs}
       {saveDialogMode ? (
         <SaveInformationDialog
           mode={saveDialogMode}
+          onModeChange={(mode) => { setPreferredSaveMode(mode); setSaveDialogMode(mode); setSaveDialogError(null); }}
+          blockingIssues={blockingIssues}
+          configurationIssues={configurationIssues}
           template={metadata}
           instance={instanceMetadata}
           error={saveDialogError}
