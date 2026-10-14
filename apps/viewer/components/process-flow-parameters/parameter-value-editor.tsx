@@ -4,7 +4,9 @@ import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { PlacementListControl } from "@/components/process-flow-fields/placement-list-control";
+import { RepeatableGroupCsvImport } from "./repeatable-group-csv-import";
 import { Button } from "@/components/ui/button";
+import { canImportRepeatableGroupCsv } from "@/lib/process-flow/repeatable-group-csv";
 import type {
   ParameterDefinition,
   ParameterDefinitionGroup,
@@ -266,6 +268,18 @@ function RepeaterControl({
       <div className="mb-3">
         <ParameterLabel definition={definition} />
       </div>
+
+      {canImportRepeatableGroupCsv(definition) ? (
+        <RepeatableGroupCsvImport
+          definition={definition}
+          value={value}
+          disabled={disabled}
+          onImport={(imported) => {
+            pendingItemIdRef.current = null;
+            onChange(imported);
+          }}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-3">
         {repeatValue.items.map((item, itemIndex) => (

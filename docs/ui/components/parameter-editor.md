@@ -7,7 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
+last_verified: 2026-10-14
 last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
 source_of_truth:
   - apps/viewer/components/process-flow-parameters/parameter-value-editor.tsx
@@ -83,9 +83,45 @@ Value shape：
 
 React key MUST 用`itemId`，不可用array index；edit child不得重建item identity。
 
+## Repeatable group CSV 匯入
+
+每個 repeater 獨立檢查 `itemParameterDefinitions`。子欄位非空，且全部為 `string`、
+`materialRef`、`integer`、`float` 或 `boolean` 時，header 下方顯示 CSV 區塊與
+`Import CSV` 按鈕。包含 `placements`、任一 array type 或 nested `fieldGroupArray`
+的群組不提供匯入；其 nested repeater 若自身符合條件仍可匯入。判斷只依 definition，
+不依目前值或特定 process program。
+
+區塊列出 parameter ids 作為 CSV 表頭，提示每列產生一個 item、匯入取代目前整份清單、
+optional 欄位可省略。使用瀏覽器內建 `File.text()` 與本機 TypeScript parser，無新增套件、
+CDN、檔案上傳或外部服務。
+
+RDL 範例（`thk` 使用 definition 的 `um` 單位，不轉換單位）：
+
+```csv
+Dielectric,Conductivity,thk,density
+PI-2611,Cu,8,62
+PI-2611,Cu,6,48
+```
+
+- UTF-8 CSV 支援 BOM、CRLF/LF、引號內逗號/換行與 doubled quotes；完全空白列忽略。
+- 表頭 trim 後大小寫精確匹配 child `id`，順序不限；重複/未知/空 key、missing required
+  header、欄數不一致、malformed quoting、empty file 或 header-only file 必須拒絕。
+- Number cell trim 後完整解析 decimal/scientific notation，不接受單位、partial number、
+  hex、NaN 或 Infinity；integer 必須 integral。Boolean 只接受 `true` / `false`。
+- String/materialRef 保留 cell 內容；required 空白值拒絕，optional missing/blank cell
+  省略，不套用 default。套用 range（含 exclusive bounds）、length、full-match regex、
+  typed enum 與 repeat min/max 規則。
+- 整份通過才一次取代該群組；每列產生新唯一 `itemId`，`index` 從 `indexBase` 遞增，
+  CSV 列序就是執行順序。匯入不觸發 Add 的 heading focus/scroll，其他參數不變。
+- 失敗保留原值，錯誤顯示 physical line 與 key（cell/header error），透過 `role=alert`
+  宣告並聚焦錯誤訊息；成功透過 `role=status` 宣告檔名、item count 與取代結果。
+- Read 期間顯示 `Importing…` 並停用匯入；群組 value/definition 改變、disabled 或卸載
+  使舊讀取失效。手動 edit 不會被舊讀取覆寫；file input 清空以允許重選同一檔案。
+  取消選檔不改值，後續仍可手動編輯或重新匯入。
+
 ## Disabled 與 read-only
 
-所有native controls disabled；repeater Add/Remove disabled。Readonly placements顯示ordered summary
+所有native controls disabled；repeater Add/Remove/CSV import disabled。Readonly placements顯示ordered summary
 與polygon SVG preview，但不render mutating actions。Disabled不代表值被清除。
 
 ## Validation 呈現
@@ -120,3 +156,7 @@ rectangle/polygon placements、one-level repeat、nested repeat、disabled state
 | `UI-PARAM-007` | repeat有多個items或empty | Remove/Add位於最後item或`No items`下方，靠右排列。 |
 | `UI-PARAM-008` | 在可捲動dialog以mouse或keyboard連續Add | 每次尾端新增後即時捲到新item heading並聚焦；Tab進入該item欄位，小視窗下heading與focus仍可見。 |
 | `UI-PARAM-009` | nested repeat Add，或載入/edit/Remove | nested Add只定位該層新item；其餘操作不觸發自動捲動或focus，既有itemId/index與sibling values維持穩定。 |
+| `UI-PARAM-010` | simple repeat / complex repeat / simple nested repeat | 僅符合 scalar schema 的 repeater 顯示 CSV；nested 獨立判斷。 |
+| `UI-PARAM-011` | 匯入合法 RDL CSV | 一次取代清單，fresh identities、indexBase 與列序正確；可手動 edit，save/reload 後層序不變。 |
+| `UI-PARAM-012` | CSV 格式/表頭/值/項目數錯誤 | 原值不變，顯示列號/key/原因；同檔可重選。 |
+| `UI-PARAM-013` | cancel / disabled / read 期間 edit 或卸載 | cancel 不改值，disabled 不允許匯入，stale read 不覆寫最新值或更新卸載元件。 |
