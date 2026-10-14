@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   MarkerType,
   ReactFlowProvider,
@@ -22,6 +23,7 @@ import {
   CircleDot,
   Eye,
   FileJson,
+  GitBranch,
   LayoutGrid,
   Save,
   Trash2,
@@ -66,7 +68,7 @@ import {
 } from "@/components/process-flow-graph/process-flow-graph";
 import { useEditorDrafts } from "@/components/process-flow-save/editor-draft-controls";
 import { validateTemplateDraftState } from "@/lib/process-flow/editor-drafts";
-import { commitTemplateEditorDraft } from "@/lib/process-flow-api";
+import { commitTemplateEditorDraft, commitTemplateInstanceEditorDraft } from "@/lib/process-flow-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
@@ -78,6 +80,7 @@ import {
   geometryCategoryConstraints,
   geometryForFlowInput,
   geometryMatchesFlowInput,
+  isConfigurationComplete,
   type ConfigurationReadiness,
 } from "@/lib/process-flow/configuration";
 import {
@@ -90,6 +93,12 @@ import { analyzeFlowDependencies } from "@/lib/process-flow/dependencies";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import { createDefaultParameterValues } from "@/lib/process-flow/parameter-values";
 import { buildTemplatePayload } from "@/lib/process-flow/template-builder";
+import { validateInstanceIdentity } from "@/lib/process-flow/instance-editor";
+import {
+  buildTemplateInstanceCreate,
+  instanceMetadataForTemplate,
+  templateInstanceConfigurationIssues,
+} from "@/lib/process-flow/template-editor-save";
 import type {
   FlowConfiguration,
   TemplateEditorDraftState,
@@ -103,7 +112,7 @@ import type {
 } from "@/lib/process-flow/types";
 import { clone, normalizeStepLabel } from "@/lib/process-flow/utils";
 import { disabledStepsForNewFlow, isTemplateEnabled } from "@/lib/process-flow/template-availability";
-import { createProcessFlowTemplate, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
+import { createProcessFlowTemplate, createProcessFlowTemplateInstance, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const STEP_TEMPLATE_DRAG_TYPE = "application/process-step-template-v2";
@@ -117,6 +126,7 @@ const textareaClass =
   "min-h-[72px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted";
 
 type TemplateMetadata = TemplateSaveInformation;
+type TemplateSaveMode = Extract<SaveInformationMode, "template" | "template-and-instance">;
 
 type FlowInputNodeData = ProcessFlowGraphNodeData & {
   nodeKind: "flowInput";
@@ -160,6 +170,7 @@ export function ProcessFlowTemplateEditor() {
 }
 
 function ProcessFlowTemplateEditorInner() {
+  const router = useRouter();
   const reactFlow = useReactFlow<FlowNode, FlowEdge>();
   const [hydrated, setHydrated] = React.useState(false);
   const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>([]);
@@ -173,6 +184,8 @@ function ProcessFlowTemplateEditorInner() {
     initialParameters?: Record<string, unknown>;
   } | null>(null);
   const [metadata, setMetadata] = React.useState<TemplateMetadata>(newMetadata());
+  const [instanceMetadataOverrides, setInstanceMetadataOverrides] = React.useState<Partial<TemplateMetadata>>({});
+  const instanceMetadata = instanceMetadataForTemplate(metadata, instanceMetadataOverrides);
   const [configuration, setConfiguration] = React.useState<FlowConfiguration>(emptyConfiguration());
   const [nodes, setNodes] = React.useState<FlowNode[]>([]);
   const [edges, setEdges] = React.useState<FlowEdge[]>([]);
@@ -181,9 +194,10 @@ function ProcessFlowTemplateEditorInner() {
   const [pickerNodeId, setPickerNodeId] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
   const [savedTemplate, setSavedTemplate] = React.useState<ProcessFlowTemplate | null>(null);
-  const [busyAction, setBusyAction] = React.useState<"template" | null>(null);
+  const [busyAction, setBusyAction] = React.useState<TemplateSaveMode | null>(null);
+  const savingRef = React.useRef(false);
   const [saveDialogMode, setSaveDialogMode] = React.useState<
-    Extract<SaveInformationMode, "template"> | null
+    TemplateSaveMode | null
   >(null);
   const [saveDialogError, setSaveDialogError] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<
@@ -247,6 +261,8 @@ function ProcessFlowTemplateEditorInner() {
       const restoredEdges = state.edges.map<FlowEdge>((edge) => ({ ...edge, type: "dataFlow",
         markerEnd: { type: MarkerType.ArrowClosed }, data: emptyEdgeData() }));
       setMetadata(state.metadata);
+      setInstanceMetadataOverrides({});
+      setSaveDialogMode(null); setSaveDialogError(null);
       setConfiguration(state.configuration);
       setNodes(restoredNodes);
       setEdges(restoredEdges);
@@ -259,6 +275,7 @@ function ProcessFlowTemplateEditorInner() {
     },
   });
   const topologyLocked = savedTemplate !== null;
+  const editingLocked = topologyLocked || busyAction !== null;
   const generated = useGeneratorBindingGeometries(configuration);
   const resolvedGeometries = [...geometries, ...generated.geometries];
   const draftTemplate = React.useMemo(
@@ -275,6 +292,11 @@ function ProcessFlowTemplateEditorInner() {
     : null;
   const canSaveTemplate =
     hydrated && !topologyLocked && !busyAction && !drafts.busy && !analysis.error && !availabilityError;
+  const configurationComplete = isConfigurationComplete(draftTemplate, stepTemplates, configuration, resolvedGeometries);
+  const canSaveTemplateInstance = canSaveTemplate && configurationComplete;
+  const instanceConfigurationIssues = !analysis.error && !configurationComplete
+    ? templateInstanceConfigurationIssues(draftTemplate, stepTemplates, configuration, resolvedGeometries)
+    : [];
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
   const editingStepPreviewAvailability =
     editingNode && isStepNode(editingNode)
@@ -442,13 +464,21 @@ function ProcessFlowTemplateEditorInner() {
       });
 
   function updateMetadata(patch: Partial<TemplateMetadata>) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     setMetadata((current) => ({ ...current, ...patch }));
     setSaveDialogError(null);
     setMessage(null);
   }
 
-  function openSaveDialog(mode: Extract<SaveInformationMode, "template">) {
+  function updateInstanceMetadata(patch: Partial<TemplateMetadata>) {
+    if (savingRef.current) return;
+    setInstanceMetadataOverrides((current) => ({ ...current, ...patch }));
+    setSaveDialogError(null);
+  }
+
+  function openSaveDialog(mode: TemplateSaveMode) {
+    if (savingRef.current) return;
+    setEditingNodeId(null); setPickerNodeId(null); setGeneratorEditor(null); setPreview(null);
     setSaveDialogError(null);
     setMessage(null);
     setSaveDialogMode(mode);
@@ -461,9 +491,11 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function loadTemplateAsCopy(templateId: string) {
+    if (savingRef.current) return;
     const template = flowTemplates.find((item) => item.id === templateId);
     if (!template || !drafts.confirmReplace()) return;
     drafts.detach();
+    setInstanceMetadataOverrides({});
     const graph = graphFromTemplate(template, stepTemplates);
     setMetadata({
       name: template.name,
@@ -484,7 +516,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function arrangeFlow() {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0 || savingRef.current) return;
     const layout = computeTemplateLayout(draftTemplate, stepTemplates);
     setNodes((current) =>
       current.map((node) => {
@@ -507,7 +539,7 @@ function ProcessFlowTemplateEditorInner() {
       suggestedName?: string;
     },
   ) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     const geometryConstraints = geometryCategoryConstraints(source.geometry);
     if (!geometryConstraints) {
       setMessage({
@@ -556,7 +588,7 @@ function ProcessFlowTemplateEditorInner() {
     template: ProcessStepTemplate,
     position = defaultDropPosition(nodes),
   ) {
-    if (topologyLocked || !isTemplateEnabled(template)) return;
+    if (topologyLocked || savingRef.current || !isTemplateEnabled(template)) return;
     const usedIds = new Set(nodes.filter(isStepNode).map((node) => node.data.stepRef.stepRefId));
     const stepRefId = nextId(slugId(template.name) || "step", usedIds);
     const node: StepNode = {
@@ -591,7 +623,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function deleteNode(nodeId: string) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     const node = nodes.find((item) => item.id === nodeId);
     setNodes((current) => current.filter((item) => item.id !== nodeId));
     setEdges((current) =>
@@ -624,11 +656,12 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function deleteEdge(edgeId: string) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     setEdges((current) => current.filter((edge) => edge.id !== edgeId));
   }
 
   function handleNodesChange(changes: NodeChange<FlowNode>[]) {
+    if (savingRef.current) return;
     const accepted = topologyLocked
       ? changes.filter((change) => change.type === "select")
       : changes;
@@ -636,12 +669,12 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function handleEdgesChange(changes: EdgeChange<FlowEdge>[]) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     setEdges((current) => applyEdgeChanges(changes, current));
   }
 
   function handleConnect(connection: Connection) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     setEdges((current) => {
       if (!validConnection(connection, nodes, current)) return current;
       const existingEdge = current.find((edge) => sameConnection(edge, connection));
@@ -664,7 +697,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function handleReconnect(oldEdge: FlowEdge, connection: Connection) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     setEdges((current) => {
       const existingEdge = current.find((edge) => edge.id === oldEdge.id);
       if (
@@ -691,7 +724,7 @@ function ProcessFlowTemplateEditorInner() {
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     const position = reactFlow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
     const stepTemplateId = event.dataTransfer.getData(STEP_TEMPLATE_DRAG_TYPE);
     if (stepTemplateId) {
@@ -710,13 +743,13 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   }
 
   function updateFlowInput(node: FlowInputNode, patch: EditableFlowInputPatch) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     setNodes((current) =>
       current.map((item) =>
         item.id === node.id && isFlowInputNode(item)
@@ -733,7 +766,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function updateStepLabel(node: StepNode, stepLabel: string) {
-    if (topologyLocked) return;
+    if (topologyLocked || savingRef.current) return;
     setNodes((current) =>
       current.map((item) =>
         item.id === node.id && isStepNode(item)
@@ -750,6 +783,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function setInputGeometry(node: FlowInputNode, geometryId: string) {
+    if (savingRef.current) return;
     const flowInputId = node.data.definition.flowInputId;
     setConfiguration((current) => {
       return {
@@ -765,6 +799,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function setInputGenerator(node: FlowInputNode, binding: GeometryBinding) {
+    if (savingRef.current) return;
     setConfiguration((current) => ({
       ...current,
       inputBindings: {
@@ -777,12 +812,14 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   async function editCurrentGenerator(node: FlowInputNode) {
+    if (savingRef.current) return;
     const binding = configuration.inputBindings[node.data.definition.flowInputId];
     if (binding?.kind !== "generator") return;
     try {
       const definition = await getGeometryGeneratorVersion(
         binding.generatorId, binding.generatorVersion,
       );
+      if (savingRef.current) return;
       setPickerNodeId(null);
       setGeneratorEditor({ targetNodeId: node.id, definition, initialParameters: binding.parameters });
     } catch (error) {
@@ -791,6 +828,7 @@ function ProcessFlowTemplateEditorInner() {
   }
 
   function setStepParameterValues(node: StepNode, parameterValues: Record<string, unknown>) {
+    if (savingRef.current) return;
     setConfiguration((current) => ({
       ...current,
       stepConfigurations: {
@@ -844,33 +882,45 @@ function ProcessFlowTemplateEditorInner() {
     });
   }
 
-  async function saveTemplateOnly() {
-    if (!canSaveTemplate) return;
-    const validationError = validateTemplateSaveInformation(metadata);
+  async function saveTemplate() {
+    if (!saveDialogMode || savingRef.current || !canSaveTemplate) return;
+    const combined = saveDialogMode === "template-and-instance";
+    if (combined && !canSaveTemplateInstance) {
+      setSaveDialogError("Complete the instance configuration before saving.");
+      return;
+    }
+    const validationError = validateTemplateSaveInformation(metadata)
+      ?? (combined ? validateInstanceIdentity(instanceMetadata) : null);
     if (validationError) {
       setSaveDialogError(validationError);
       return;
     }
     const captured = structuredClone(editorDraftState);
-    setBusyAction("template");
+    const request = buildTemplateInstanceCreate(draftTemplate, instanceMetadata, captured.configuration);
+    savingRef.current = true;
+    setBusyAction(saveDialogMode);
     setSaveDialogError(null);
     setMessage(null);
     try {
-      const { id: _draftId, ...createPayload } = draftTemplate;
-      const saved = drafts.active
-        ? await commitTemplateEditorDraft(drafts.active, createPayload)
-        : await createProcessFlowTemplate(createPayload);
+      const saved = combined
+        ? (drafts.active
+            ? await commitTemplateInstanceEditorDraft(drafts.active, request)
+            : await createProcessFlowTemplateInstance(request)).processFlowTemplate
+        : drafts.active
+          ? await commitTemplateEditorDraft(drafts.active, request.processFlowTemplate)
+          : await createProcessFlowTemplate(request.processFlowTemplate);
       drafts.detach();
       drafts.markClean(captured);
       setSavedTemplate(saved);
       setFlowTemplates((current) => [...current, saved]);
       setSaveDialogMode(null);
-      setMessage({ kind: "success", text: `Template ${saved.id} saved. Topology is now locked.` });
+      router.push("/");
     } catch (error) {
       setSaveDialogError(
-        error instanceof Error ? error.message : "Unable to save template.",
+        error instanceof Error ? error.message : "Unable to save flow.",
       );
     } finally {
+      savingRef.current = false;
       setBusyAction(null);
     }
   }
@@ -884,7 +934,7 @@ function ProcessFlowTemplateEditorInner() {
     availabilityError ?? analysis.error ??
     (topologyLocked
       ? `Template ${savedTemplate.id} is saved and topology is locked.`
-      : "Template topology is ready to save. Scalar step values become defaults; geometry bindings and collection values are preview-only.");
+      : "Save Template stores topology and scalar defaults. Save Template & Instance also stores the current bindings and collection values.");
 
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground lg:h-screen lg:min-h-[760px] lg:overflow-hidden">
@@ -904,7 +954,7 @@ function ProcessFlowTemplateEditorInner() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link href="/" onClick={(event) => { if (!drafts.confirmReplace()) event.preventDefault(); }}>
+              <Link href="/" aria-disabled={busyAction !== null} onClick={(event) => { if (savingRef.current || !drafts.confirmReplace()) event.preventDefault(); }}>
                 <ArrowLeft />
                 Home
               </Link>
@@ -925,11 +975,20 @@ function ProcessFlowTemplateEditorInner() {
             </select>
             {drafts.controls}
             <Button
+              variant="outline"
               disabled={!canSaveTemplate}
               onClick={() => openSaveDialog("template")}
             >
               <Save />
               Save Template
+            </Button>
+            <Button
+              disabled={!canSaveTemplateInstance}
+              aria-describedby={!analysis.error && !configurationComplete ? "instance-save-requirements" : undefined}
+              onClick={() => openSaveDialog("template-and-instance")}
+            >
+              <GitBranch />
+              Save Template & Instance
             </Button>
           </div>
         </div>
@@ -949,6 +1008,16 @@ function ProcessFlowTemplateEditorInner() {
         <span className="truncate">{message?.text ?? drafts.notice ?? availabilityError ?? statusText}</span>
       </div>
 
+      {!analysis.error && !configurationComplete ? (
+        <div id="instance-save-requirements" className="shrink-0 border-b bg-muted/25 px-4 py-2 text-sm text-muted-foreground">
+          <p>Complete these settings to enable Save Template &amp; Instance:</p>
+          <ul className="mt-1 max-h-24 list-disc overflow-y-auto pl-5">
+            {(instanceConfigurationIssues.length > 0 ? instanceConfigurationIssues : ["Check the instance configuration for invalid input or step settings."])
+              .map((issue, index) => <li key={`${index}:${issue}`}>{issue}</li>)}
+          </ul>
+        </div>
+      ) : null}
+
       <section className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(540px,1fr)_320px] lg:overflow-hidden">
         <aside className="flex min-h-[240px] flex-col border-r bg-white lg:min-h-0">
           <PaletteHeader icon={<Boxes className="h-4 w-4" />} title="Geometry library" />
@@ -961,7 +1030,7 @@ function ProcessFlowTemplateEditorInner() {
                   type="button"
                   variant="outline"
                   className="w-full justify-start"
-                  disabled={topologyLocked}
+                  disabled={editingLocked}
                   onClick={() => setGeneratorEditor({ targetNodeId: null, definition })}
                 >
                   {definition.label}
@@ -984,7 +1053,7 @@ function ProcessFlowTemplateEditorInner() {
                 <GeometryPaletteItem
                   geometry={geometry}
                   showCategoryPath={showCategoryPath}
-                  disabled={topologyLocked}
+                  disabled={editingLocked}
                 />
               )}
               onPathChange={setGeometryCategoryPath}
@@ -994,7 +1063,7 @@ function ProcessFlowTemplateEditorInner() {
         </aside>
 
         <ProcessFlowGraph
-          mode={topologyLocked ? "view" : "edit"}
+          mode={editingLocked ? "view" : "edit"}
           nodes={displayNodes}
           edges={displayEdges}
           className="min-h-[560px] lg:min-h-0"
@@ -1022,11 +1091,12 @@ function ProcessFlowTemplateEditorInner() {
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onNodeClick={(_, node) => {
+            if (savingRef.current) return;
             setSelectedNodeId(node.id);
             setEditingNodeId(node.id);
           }}
-          onMoveEnd={(_, viewport) => setDraftViewport(viewport)}
-          onPaneClick={() => setSelectedNodeId(null)}
+          onMoveEnd={(_, viewport) => { if (!savingRef.current) setDraftViewport(viewport); }}
+          onPaneClick={() => { if (!savingRef.current) setSelectedNodeId(null); }}
           emptyState={
             nodes.length === 0 ? (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -1061,7 +1131,7 @@ function ProcessFlowTemplateEditorInner() {
                 <StepTemplatePaletteItem
                   template={template}
                   showCategoryPath={showCategoryPath}
-                  disabled={topologyLocked || !isTemplateEnabled(template)}
+                  disabled={editingLocked || !isTemplateEnabled(template)}
                   onAdd={() => addStepTemplate(template)}
                 />
               )}
@@ -1074,13 +1144,15 @@ function ProcessFlowTemplateEditorInner() {
 
       {saveDialogMode ? (
         <SaveInformationDialog
-          mode="template"
+          mode={saveDialogMode}
           template={metadata}
+          instance={instanceMetadata}
           error={saveDialogError}
           submitting={busyAction !== null}
           onTemplateChange={updateMetadata}
+          onInstanceChange={updateInstanceMetadata}
           onClose={closeSaveDialog}
-          onSubmit={saveTemplateOnly}
+          onSubmit={saveTemplate}
         />
       ) : null}
 

@@ -70,9 +70,14 @@ export function SaveInformationDialog({
   const titleId = React.useId();
   const descriptionId = React.useId();
   const previousFocus = React.useRef<HTMLElement | null>(null);
+  const errorRef = React.useRef<HTMLParagraphElement | null>(null);
   const onCloseRef = React.useRef(onClose);
   const submittingRef = React.useRef(submitting);
   const config = dialogConfig(mode);
+
+  React.useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
 
   React.useEffect(() => {
     onCloseRef.current = onClose;
@@ -342,7 +347,9 @@ export function SaveInformationDialog({
 
           {error ? (
             <p
-              aria-live="polite"
+              ref={errorRef}
+              role="alert"
+              tabIndex={-1}
               className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
             >
               {error}

@@ -62,14 +62,18 @@ Option checkbox card最小寬140px、padding12px/8px；multiple依
 
 `fieldGroupArray` + `repeatDefinition` render full-width repeater：
 
-- header保留Parameter label與description；清單底部靠右依序排列 `Remove`、`Add`，與清單間距12px；
-- Remove只移除最後一個item，items等於`minItems`時disabled；
-- Add在`maxItems`時disabled；新index是空陣列用`indexBase`，否則current max + 1；
-- Add後以新item的`itemId`定位，DOM更新後即時捲到新item heading並聚焦heading，按Tab可進入新item欄位；
-- 每個item是 muted/20 card、padding12、gap12，heading由`itemNameTemplate`格式化；
-- child definitions在`md`兩欄；nested group跨兩欄並recursive render；
-- empty顯示 `No items` dashed block，Add/Remove仍在block下方；
-- nested repeater沿用相同版面與互動，新增只定位該repeater的新item；初次載入、edit與Remove不觸發自動捲動或focus。
+- header保留Parameter label與description；清單底部靠右保留 `Add`，與清單間距12px；
+- 每個item標題右上角顯示小叉叉，直接刪除指定item；底部不再顯示 `Remove`。items等於或低於`minItems`時叉叉disabled；
+- 第一個item上方及相鄰item之間是高度32px的插入位置button。hover、keyboard focus或選取時顯示 `Insert here`，選取以插入線及`aria-pressed`表達；點擊只設定位置，不新增item；
+- 未選取位置時Add追加至最後；選取後Add插入該位置，連續Add接續插在上一個新增item後方。底部顯示 `Insert before <item heading>` 與 `Add at end`，後者清除選取並聚焦Add（Add disabled時聚焦最後一組heading），不直接新增；
+- 選取位置以右側item的`itemId`作anchor，編號變動及刪除其他item不改變anchor。anchor被刪除、CSV成功匯入或外部替換清單時清除選取；一般欄位edit保留選取；
+- Add在`maxItems`時disabled；增刪handler同樣防止超出min/max及disabled限制；
+- 每次成功增刪後，該層items依array order從`indexBase`連續編號；既有`itemId`、values與nested values保留。初次載入及一般edit不重新編號；新item沿用definition default；
+- Add後以新item的`itemId`定位，DOM更新後即時捲到新item heading並聚焦heading；
+- 刪除後聚焦原位置的下一個item heading，沒有下一個時聚焦前一個，清單清空時聚焦Add；不觸發自動捲動；
+- 每個item是 muted/20 card、padding12，heading由`itemNameTemplate`格式化；child definitions在`md`兩欄、gap12；nested group跨兩欄並recursive render；
+- empty顯示 `No items` dashed block，Add仍在block下方；
+- nested repeater沿用相同版面與互動，每個repeater獨立保存插入位置；新增只定位該repeater的新item，增刪只重新編號該層。初次載入與edit不觸發自動捲動或focus。
 
 Value shape：
 
@@ -121,7 +125,7 @@ PI-2611,Cu,6,48
 
 ## Disabled 與 read-only
 
-所有native controls disabled；repeater Add/Remove/CSV import disabled。Readonly placements顯示ordered summary
+所有native controls disabled；repeater Add/叉叉/插入位置/Add at end/CSV import disabled。Readonly placements顯示ordered summary
 與polygon SVG preview，但不render mutating actions。Disabled不代表值被清除。
 
 ## Validation 呈現
@@ -135,7 +139,8 @@ placements、repeat min/max、nested required等均使configuration incomplete/e
 - Dynamic control用definition name作`aria-label`。
 - Required star是視覺提示；semantic required/`aria-required`是target gap，應補但不能改copy/layout。
 - Checkbox label包住control；select/input依DOM definition order。
-- Add/Remove在disabled時仍保留位置；不得造成layout jump。
+- Add與叉叉在disabled時仍保留位置；不得造成layout jump。叉叉有包含item heading的accessible name，icon為decorative。
+- 插入位置button可透過Tab、Enter或Space操作；`aria-pressed`宣告選取狀態，選取提示使用`role=status`。
 - Item heading使用`tabIndex=-1`供新增後程式聚焦，不加入一般Tab順序；鍵盤focus須有可見指示，捲動不得被dialog header/footer遮住。
 
 ## 測試 fixture
@@ -150,13 +155,19 @@ rectangle/polygon placements、one-level repeat、nested repeat、disabled state
 | `UI-PARAM-001` | definitions empty | exact `No parameters` state。 |
 | `UI-PARAM-002` | select enum | UI只能產生options內值，type coercion正確。 |
 | `UI-PARAM-003` | comma array input | trim/remove empty並輸出typed array。 |
-| `UI-PARAM-004` | repeat at min/max | Remove/Add各自在boundary disabled。 |
+| `UI-PARAM-004` | repeat at min/max | 叉叉/Add各自在boundary disabled，handler同樣拒絕越界。 |
 | `UI-PARAM-005` | edit nested child | itemId/index穩定、sibling values不變。 |
 | `UI-PARAM-006` | committed/disabled | 值可讀但所有mutation commands不可用。 |
-| `UI-PARAM-007` | repeat有多個items或empty | Remove/Add位於最後item或`No items`下方，靠右排列。 |
-| `UI-PARAM-008` | 在可捲動dialog以mouse或keyboard連續Add | 每次尾端新增後即時捲到新item heading並聚焦；Tab進入該item欄位，小視窗下heading與focus仍可見。 |
-| `UI-PARAM-009` | nested repeat Add，或載入/edit/Remove | nested Add只定位該層新item；其餘操作不觸發自動捲動或focus，既有itemId/index與sibling values維持穩定。 |
+| `UI-PARAM-007` | repeat有多個items或empty | Add位於最後item或`No items`下方，靠右排列；叉叉位於各item右上角。 |
+| `UI-PARAM-008` | 在可捲動dialog以mouse或keyboard連續Add | 每次新增後即時捲到新item heading並聚焦；小視窗下heading與focus仍可見。 |
+| `UI-PARAM-009` | nested repeat Add，或載入/edit/Delete | nested Add只定位該層新item；載入/edit不移動focus或編號；Delete只重新編號該層並依指定規則移動focus。 |
 | `UI-PARAM-010` | simple repeat / complex repeat / simple nested repeat | 僅符合 scalar schema 的 repeater 顯示 CSV；nested 獨立判斷。 |
 | `UI-PARAM-011` | 匯入合法 RDL CSV | 一次取代清單，fresh identities、indexBase 與列序正確；可手動 edit，save/reload 後層序不變。 |
 | `UI-PARAM-012` | CSV 格式/表頭/值/項目數錯誤 | 原值不變，顯示列號/key/原因；同檔可重選。 |
 | `UI-PARAM-013` | cancel / disabled / read 期間 edit 或卸載 | cancel 不改值，disabled 不允許匯入，stale read 不覆寫最新值或更新卸載元件。 |
+| `UI-PARAM-014` | 點第一組上方／組間位置後連續Add | 插入位置正確，連續新增順序穩定；Add at end恢復尾端新增。 |
+| `UI-PARAM-015` | 刪除指定頭／中／尾item | 只刪除指定item；該層從indexBase重新編號，sibling identity、values及nested值保留。 |
+| `UI-PARAM-016` | 選取位置後edit／刪除其他item／刪除anchor | edit及其他item刪除保留anchor；刪除anchor清除選取。 |
+| `UI-PARAM-017` | 巢狀repeater獨立選取與增刪 | 不影響其他repeater的插入位置、identity或編號。 |
+| `UI-PARAM-018` | 鍵盤選取、新增及刪除 | 選取可用Enter/Space；新增focus新heading，刪除focus下一組／前一組／Add。 |
+| `UI-PARAM-019` | CSV成功匯入或外部替換清單 | 清除插入位置，CSV不觸發新增focus/scroll；失敗匯入保留原值及選取。 |

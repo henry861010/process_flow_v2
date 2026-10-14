@@ -115,6 +115,45 @@ export function createRepeatItem(
   };
 }
 
+export function insertRepeatItem(
+  parameter: ParameterDefinition,
+  value: RepeatableGroupValue,
+  beforeItemId: string | null = null,
+): RepeatableGroupValue {
+  const repeat = parameter.repeatDefinition!;
+  if (value.items.length >= (repeat.maxItems ?? Number.POSITIVE_INFINITY)) return value;
+  const targetIndex = value.items.findIndex((item) => item.itemId === beforeItemId);
+  const insertionIndex = targetIndex < 0 ? value.items.length : targetIndex;
+  const item = createRepeatItem(parameter, repeat.indexBase + insertionIndex);
+  return reindexRepeatItems(parameter, [
+    ...value.items.slice(0, insertionIndex),
+    item,
+    ...value.items.slice(insertionIndex),
+  ]);
+}
+
+export function removeRepeatItem(
+  parameter: ParameterDefinition,
+  value: RepeatableGroupValue,
+  itemId: string,
+): RepeatableGroupValue {
+  if (value.items.length <= (parameter.repeatDefinition!.minItems ?? 0)) return value;
+  if (!value.items.some((item) => item.itemId === itemId)) return value;
+  return reindexRepeatItems(parameter, value.items.filter((item) => item.itemId !== itemId));
+}
+
+function reindexRepeatItems(
+  parameter: ParameterDefinition,
+  items: RepeatableGroupValue["items"],
+): RepeatableGroupValue {
+  return {
+    items: items.map((item, offset) => ({
+      ...item,
+      index: parameter.repeatDefinition!.indexBase + offset,
+    })),
+  };
+}
+
 export function isArrayValueType(valueType: ValueType) {
   return valueType.endsWith("[]");
 }

@@ -604,13 +604,19 @@ class SQLiteStore:
         instance: JsonObject,
         *,
         geometries: Iterable[JsonObject] = (),
+        draft: tuple[str, int] | None = None,
     ) -> tuple[JsonObject, JsonObject]:
         try:
             with self._connection:
+                self._connection.execute("BEGIN IMMEDIATE")
+                if draft is not None:
+                    self._required_draft("template", draft[0], draft[1])
                 self._insert_process_flow_template_in_transaction(template)
                 for geometry in geometries:
                     self._insert_geometry_in_transaction(geometry)
                 self._insert_process_flow_instance_in_transaction(instance)
+                if draft is not None:
+                    self._delete_in_transaction(_draft_table("template"), draft[0])
         except sqlite3.IntegrityError as error:
             raise _duplicate_item_error(error) from error
         return template, instance

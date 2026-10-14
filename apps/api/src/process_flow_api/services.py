@@ -303,7 +303,22 @@ def create_template_instance(
     body: TemplateInstanceCreateRequest,
     generators: GeometryGeneratorRegistry,
 ) -> JsonObject:
-    template = {**body.processFlowTemplate.payload(), "id": generated_flow_template_id()}
+    template, instance, geometries = prepare_template_instance(store, body, generators)
+    created_template, created_instance = store.insert_template_and_instance(
+        template, instance, geometries=geometries,
+    )
+    return {
+        "processFlowTemplate": created_template,
+        "processFlowInstance": created_instance,
+    }
+
+
+def prepare_template_instance(
+    store: SQLiteStore,
+    body: TemplateInstanceCreateRequest,
+    generators: GeometryGeneratorRegistry,
+) -> tuple[JsonObject, JsonObject, list[JsonObject]]:
+    template = prepare_flow_template(store, body.processFlowTemplate)
     instance = {
         **body.processFlowInstance.payload(),
         "id": generated_flow_instance_id(),
@@ -311,23 +326,10 @@ def create_template_instance(
     }
     require_enabled_template(template, kind="Process flow", action="create a new instance")
     step_templates = load_step_templates_for_template(store, template)
-    require_enabled_steps_for_new_flow(step_templates)
-    materialize_flow_parameter_defaults(template, step_templates)
-    validate_flow_graph(template, step_templates)
-    validate_flow_parameter_defaults(template, step_templates)
     plan = _compiler(store, generators).compile(template, instance, step_templates)
     instance = canonicalize_generator_bindings(instance, plan)
     geometries, persisted_bindings = materialize_embedded_bindings(instance)
-    persisted_instance = _persisted_instance(instance, persisted_bindings)
-    created_template, created_instance = store.insert_template_and_instance(
-        template,
-        persisted_instance,
-        geometries=geometries,
-    )
-    return {
-        "processFlowTemplate": created_template,
-        "processFlowInstance": created_instance,
-    }
+    return template, _persisted_instance(instance, persisted_bindings), geometries
 
 
 def create_flow_instance(

@@ -293,6 +293,15 @@ export async function commitTemplateEditorDraft(draft: Pick<EditorDraft, "id" | 
     method: "POST", body: JSON.stringify({ revision: draft.revision, processFlowTemplate: body }),
   });
 }
+export async function commitTemplateInstanceEditorDraft(
+  draft: Pick<EditorDraft, "id" | "revision">,
+  body: TemplateInstanceCreateRequest,
+) {
+  return apiFetch<{ processFlowTemplate: ProcessFlowTemplate; processFlowInstance: ProcessFlowInstance }>(
+    editorDraftPath("template", draft.id) + "/commit",
+    { method: "POST", body: JSON.stringify({ revision: draft.revision, ...body }) },
+  );
+}
 export async function commitInstanceEditorDraft(draft: Pick<EditorDraft, "id" | "revision">, body: ProcessFlowInstanceCreate) {
   return apiFetch<ProcessFlowInstance>(editorDraftPath("instance", draft.id) + "/commit", {
     method: "POST", body: JSON.stringify({ revision: draft.revision, processFlowInstance: body }),

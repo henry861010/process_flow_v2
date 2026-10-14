@@ -63,6 +63,137 @@ class EditorDraftTests(unittest.TestCase):
         params = {"processFlowTemplateId": self.template["id"]} if kind == "instance" else {}
         return self.client.get(f"/api/process-flow-{kind}-drafts/{draft['id']}", params=params)
 
+    def combined_commit_body(self, *, embedded=False):
+        template = copy.deepcopy(template_create_payload(self.template))
+        instance = copy.deepcopy(instance_create_payload(self.instance, for_new_template=True))
+        template["name"] = "Combined draft template"
+        instance["name"] = "Combined draft instance"
+        instance["owner"] = "instance.owner"
+        if embedded:
+            input_id, binding = next((key, value) for key, value in instance["inputBindings"].items()
+                                     if value["kind"] == "catalog")
+            geometry = next(item for item in self.bootstrap["geometries"] if item["id"] == binding["geometryId"])
+            instance["inputBindings"][input_id] = {"kind": "embedded", "localId": "combined-local"}
+            instance["embeddedGeometries"] = {"combined-local": copy.deepcopy(
+                {key: value for key, value in geometry.items() if key != "id"})}
+        return {"revision": 1, "processFlowTemplate": template, "processFlowInstance": instance}
+
+    def test_combined_commit_uses_current_values_and_consumes_only_active_template_draft(self):
+        draft = self.create("template")
+        other = self.create("template")
+        instance_draft = self.create("instance")
+        body = self.combined_commit_body()
+        response = self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit", json=body)
+        self.assertEqual(response.status_code, 201, response.text)
+        saved = response.json()
+        template, instance = saved["processFlowTemplate"], saved["processFlowInstance"]
+        self.assertEqual(instance["processFlowTemplateId"], template["id"])
+        self.assertRegex(template["id"], r"^[0-9a-f]{32}$")
+        self.assertRegex(instance["id"], r"^[0-9a-f]{32}$")
+        self.assertEqual(instance["name"], body["processFlowInstance"]["name"])
+        self.assertEqual(instance["owner"], "instance.owner")
+        self.assertEqual(instance["stepConfigurations"], body["processFlowInstance"]["stepConfigurations"])
+        self.assertEqual(instance["inputBindings"], body["processFlowInstance"]["inputBindings"])
+        self.assertEqual(self.detail("template", draft).status_code, 404)
+        self.assertEqual(self.detail("template", other).status_code, 200)
+        self.assertEqual(self.detail("instance", instance_draft).status_code, 200)
+        self.assertEqual(self.client.get(f"/api/process-flow-templates/{template['id']}").json(), template)
+        self.assertEqual(self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), instance)
+        self.assertEqual(self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit", json=body).status_code, 404)
+
+    def test_combined_commit_preserves_generator_recipe_without_creating_catalog_geometry(self):
+        draft = self.create("template")
+        body = self.combined_commit_body()
+        body["processFlowInstance"]["inputBindings"]["incoming_hbm"] = {
+            "kind": "generator", "generatorId": "hbm", "generatorVersion": 2,
+            "parameters": {"packageX": 1400, "packageY": 1000, "coreDieX": 800, "coreDieY": 600},
+        }
+        before = self.store.list_geometries()
+        response = self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit", json=body)
+        self.assertEqual(response.status_code, 201, response.text)
+        recipe = response.json()["processFlowInstance"]["inputBindings"]["incoming_hbm"]
+        self.assertEqual(recipe["kind"], "generator")
+        self.assertEqual(recipe["generatorVersion"], 2)
+        self.assertEqual(recipe["parameters"]["coreDieCount"], 4)
+        self.assertEqual(self.store.list_geometries(), before)
+
+    def test_combined_commit_validation_and_identity_failures_leave_all_resources_and_draft(self):
+        draft = self.create("template")
+        route = f"/api/process-flow-template-drafts/{draft['id']}/commit"
+        before = self.client.get("/api/bootstrap").json()
+        for failure in ("template-identity", "instance-identity", "topology", "configuration", "metadata", "revision"):
+            with self.subTest(failure=failure):
+                body = self.combined_commit_body(embedded=True)
+                expected = 409
+                if failure == "template-identity":
+                    body["processFlowTemplate"]["name"] = self.template["name"]
+                elif failure == "instance-identity":
+                    body["processFlowInstance"]["name"] = self.instance["name"]
+                elif failure == "topology":
+                    body["processFlowTemplate"]["flowEdges"] = []
+                    expected = 400
+                elif failure == "configuration":
+                    body["processFlowInstance"]["inputBindings"] = {}
+                    expected = 400
+                elif failure == "metadata":
+                    body["processFlowInstance"]["owner"] = " "
+                    expected = 422
+                else:
+                    body["revision"] = 2
+                response = self.client.post(route, json=body)
+                self.assertEqual(response.status_code, expected, response.text)
+                self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+                self.assertEqual(self.detail("template", draft).json(), draft)
+
+    def test_combined_commit_rolls_back_geometry_instance_and_draft_deletion_failures(self):
+        draft = self.create("template")
+        before = self.client.get("/api/bootstrap").json()
+        for method in ("_insert_geometry_in_transaction", "_insert_process_flow_instance_in_transaction", "_delete_in_transaction"):
+            with self.subTest(method=method), mock.patch.object(self.store, method, side_effect=sqlite3.IntegrityError("forced write failure")):
+                response = self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit",
+                                            json=self.combined_commit_body(embedded=True))
+                self.assertEqual(response.status_code, 409, response.text)
+            self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+            self.assertEqual(self.detail("template", draft).json(), draft)
+
+    def test_combined_commit_rechecks_revision_inside_write_transaction(self):
+        from process_flow_api.services import prepare_template_instance
+
+        draft = self.create("template")
+        before = self.client.get("/api/bootstrap").json()
+        def prepare_then_change_revision(*args):
+            prepared = prepare_template_instance(*args)
+            self.store.update_editor_draft("template", draft["id"], {**self.body("template"), "revision": 1})
+            return prepared
+
+        with mock.patch("process_flow_api.draft_service.prepare_template_instance", side_effect=prepare_then_change_revision):
+            response = self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit", json=self.combined_commit_body())
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(self.client.get("/api/bootstrap").json(), before)
+        self.assertEqual(self.detail("template", draft).json()["revision"], 2)
+
+    def test_combined_commit_analytics_records_both_ids_and_configuration_summary(self):
+        draft = self.create("template")
+        response = self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit", json=self.combined_commit_body())
+        self.assertEqual(response.status_code, 201, response.text)
+        saved = response.json()
+        self.assertTrue(self.app.state.analytics.flush())
+        with sqlite3.connect(self.app.state.analytics.db_path) as connection:
+            rows = connection.execute(
+                "SELECT event_name, flow_template_id, flow_instance_id, properties_json FROM usage_events "
+                "WHERE flow_template_id=? AND outcome='success' ORDER BY rowid",
+                (saved["processFlowTemplate"]["id"],),
+            ).fetchall()
+        self.assertEqual([row[0] for row in rows], ["flow_template.create", "flow_instance.create", "template_draft.commit"])
+        for _, template_id, instance_id, properties in rows:
+            self.assertEqual(template_id, saved["processFlowTemplate"]["id"])
+            self.assertEqual(instance_id, saved["processFlowInstance"]["id"])
+            summary = json.loads(properties)
+            self.assertEqual(summary["instance_name"], "Combined draft instance")
+            self.assertIn("binding_counts", summary)
+            self.assertNotIn("inputBindings", summary)
+            self.assertNotIn("stepConfigurations", summary)
+
     def test_incomplete_snapshots_round_trip_and_survive_reopen(self):
         for kind in ("template", "instance"):
             body = self.body(kind)

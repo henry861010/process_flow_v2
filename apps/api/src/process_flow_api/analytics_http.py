@@ -127,10 +127,11 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
             payload = value(body, "processFlowTemplate" if kind == "template" else "processFlowInstance")
             template = payload if kind == "template" else store.get_process_flow_template(value(payload, "processFlowTemplateId"))
             properties.update(flow_summary(template))
-            if kind == "instance":
-                properties.update(configuration_summary(payload))
-                properties.update(instance_name=(value(payload, "name", "") or "")[:256],
-                                  instance_version=text_value(value(payload, "version")))
+            instance = value(body, "processFlowInstance")
+            if instance is not None:
+                properties.update(configuration_summary(instance))
+                properties.update(instance_name=(value(instance, "name", "") or "")[:256],
+                                  instance_version=text_value(value(instance, "version")))
         return result
     if "/process-flow-template" in route:
         template = value(body, "processFlowTemplate", body)
@@ -304,8 +305,14 @@ class AnalyticsRoute(APIRoute):
             if action in ("create", "update"):
                 properties.update(draft_id=value(result, "id"), revision=value(result, "revision"))
             if action == "commit":
-                summary[f"flow_{kind}_id"] = text_value(value(result, "id"))
+                resource = value(result, "processFlowTemplate", result) if kind == "template" else result
+                summary[f"flow_{kind}_id"] = text_value(value(resource, "id"))
+                combined_instance = value(result, "processFlowInstance")
+                if combined_instance is not None:
+                    summary["flow_instance_id"] = text_value(value(combined_instance, "id"))
                 recorder.event(current_origin() or {}, event_name=f"flow_{kind}.create", outcome="success")
+                if combined_instance is not None:
+                    recorder.event(current_origin() or {}, event_name="flow_instance.create", outcome="success")
         if event_name in ("data.reset", "data.import"):
             properties["new_dataset_id"] = context["store"].dataset_id
         recorder.event(current_origin() or {}, event_name=event_name, outcome="success",

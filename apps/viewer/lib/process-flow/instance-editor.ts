@@ -3,6 +3,7 @@ import type {
   FlowConfiguration,
   ProcessFlowInstance,
   ProcessFlowInstanceCreate,
+  ProcessFlowInstanceForNewTemplateCreate,
   ProcessFlowTemplate,
   ProcessStepTemplate,
 } from "./types";
@@ -69,12 +70,21 @@ export function buildProcessFlowInstanceCreate(
   configuration: FlowConfiguration,
 ): ProcessFlowInstanceCreate {
   return {
+    ...buildProcessFlowInstanceForNewTemplateCreate(identity, configuration),
+    processFlowTemplateId: templateId,
+  };
+}
+
+export function buildProcessFlowInstanceForNewTemplateCreate(
+  identity: InstanceIdentityDraft,
+  configuration: FlowConfiguration,
+): ProcessFlowInstanceForNewTemplateCreate {
+  return {
     schemaVersion: 2,
     name: identity.name.trim(),
     version: identity.version.trim(),
     owner: identity.owner.trim(),
     description: identity.description.trim(),
-    processFlowTemplateId: templateId,
     inputBindings: structuredClone(configuration.inputBindings),
     stepConfigurations: structuredClone(configuration.stepConfigurations),
     embeddedGeometries: structuredClone(configuration.embeddedGeometries),

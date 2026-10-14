@@ -389,6 +389,7 @@ class InstanceEditorDraft(InstanceEditorDraftUpdate):
 class TemplateEditorDraftCommit(StrictModel):
     revision: int = Field(ge=1)
     processFlowTemplate: ProcessFlowTemplateCreate
+    processFlowInstance: ProcessFlowInstanceForNewTemplateCreate | None = None
 
 
 class InstanceEditorDraftCommit(StrictModel):

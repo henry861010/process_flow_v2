@@ -375,7 +375,7 @@ def create_app(
 
     @app.post("/api/process-flow-template-drafts/{draft_id}/commit", status_code=201)
     async def finish_template_draft(request: Request, draft_id: str, body: TemplateEditorDraftCommit):
-        return commit_template_draft(get_store(request), draft_id, body)
+        return commit_template_draft(get_store(request), draft_id, body, get_geometry_generators(request))
 
     @app.get("/api/process-flow-instance-drafts")
     async def list_instance_drafts(request: Request, processFlowTemplateId: str,

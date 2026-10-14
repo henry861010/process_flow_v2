@@ -79,6 +79,11 @@ geometry 採 insert-only，兩種 editor draft 則有獨立 snapshot 與 revisio
 
 兩種 draft 各自保存在獨立資料表。Create/update 只驗證 snapshot 格式並檢查 revision，允許未完成的 flow。Commit 使用目前 editor 的正式 create payload 進行完整驗證，同一 SQLite transaction 寫入必要 geometries、immutable template/instance 並刪除來源 draft；失敗全部 rollback。
 
+Template draft commit 可附帶新 instance 的 metadata 與完整 configuration。此時共用 combined
+create 的 preparation，transaction 重新檢查 draft revision，再一次建立 template、必要
+geometries 與 instance 並刪除來源 draft。一般 combined create 與 draft combined commit 均不會
+留下部分正式資料；instance 使用伺服器產生的新 template ID。
+
 ### Preview 與 export
 
 Preview 可以直接解析 flow input，或只執行 step output 的 upstream closure。API 接著啟動

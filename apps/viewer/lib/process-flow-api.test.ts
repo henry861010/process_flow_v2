@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiRequestError,
   commitInstanceEditorDraft,
+  commitTemplateEditorDraft,
+  commitTemplateInstanceEditorDraft,
   createProcessFlowInstance,
   createProcessFlowTemplate,
   createProcessFlowTemplateInstance,
@@ -150,5 +152,36 @@ describe("server-generated flow IDs", () => {
     vi.stubGlobal("fetch", fetch);
     await expect(commitInstanceEditorDraft({ id: "draft", revision: 2 }, request)).resolves.toEqual(saved);
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, processFlowInstance: request });
+  });
+
+  it("commits a template with its instance in one revision-checked request", async () => {
+    const request = { processFlowTemplate: template, processFlowInstance: instance };
+    const saved = {
+      processFlowTemplate: { ...template, id: "assigned-template" },
+      processFlowInstance: { ...instance, id: "assigned-instance", processFlowTemplateId: "assigned-template" },
+    };
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(commitTemplateInstanceEditorDraft({ id: "draft/id", revision: 4 }, request)).resolves.toEqual(saved);
+    expect(fetch.mock.calls[0][0]).toContain("/api/process-flow-template-drafts/draft%2Fid/commit");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 4, ...request });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the template-only draft request and response compatible", async () => {
+    const saved = { ...template, id: "assigned-template" };
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(commitTemplateEditorDraft({ id: "draft", revision: 2 }, template)).resolves.toEqual(saved);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, processFlowTemplate: template });
+  });
+
+  it("preserves a combined draft conflict for display without falling back to separate creates", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Draft changed" }), { status: 409 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(commitTemplateInstanceEditorDraft({ id: "draft", revision: 2 }, {
+      processFlowTemplate: template, processFlowInstance: instance,
+    })).rejects.toMatchObject({ status: 409, message: "Draft changed" });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

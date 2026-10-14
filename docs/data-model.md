@@ -728,6 +728,13 @@ API 共用正式 template／instance create 的驗證與 preparation。Template 
 
 Write transaction MUST 重新讀取對應種類的 draft，檢查 revision 與 instance 的 template ID，寫入必要的 materialized geometries、正式 resource，最後刪除來源草稿。Duplicate identity、revision conflict 或任一步寫入失敗 MUST rollback 全部 writes。Validation failure 不得先刪除草稿。
 
+Template draft 的 `POST /api/process-flow-template-drafts/{draft_id}/commit` 接受可選的
+`processFlowInstance`，其格式為 `ProcessFlowInstanceForNewTemplateCreate`，不含 `id` 或
+`processFlowTemplateId`。提供此欄位時，共用 combined create 的完整驗證，伺服器產生兩個 ID
+並將 instance 關聯到新 template；同一 transaction 建立 template、必要 geometry、instance，
+最後刪除來源 template draft。成功回傳 `{ processFlowTemplate, processFlowInstance }`。
+未提供此欄位時，維持只建立 template 並回傳 template 的原有行為。
+
 ## 13. Compile 與 execute 邊界
 
 ```mermaid

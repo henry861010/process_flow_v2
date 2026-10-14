@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import { PlacementListControl } from "@/components/process-flow-fields/placement-list-control";
 import { RepeatableGroupCsvImport } from "./repeatable-group-csv-import";
@@ -16,12 +16,13 @@ import {
   coerceArrayValue,
   coercePrimitiveValue,
   createDefaultParameterValue,
-  createRepeatItem,
   formatRepeatItemName,
+  insertRepeatItem,
   isArrayValueType,
   isIntegerValueType,
   isNumericValueType,
   isRepeatableGroupValue,
+  removeRepeatItem,
 } from "@/lib/process-flow/parameter-values";
 import { cn } from "@/lib/utils";
 
@@ -232,31 +233,73 @@ function RepeaterControl({
     : (createDefaultParameterValue(definition) as RepeatableGroupValue);
   const minItems = repeat.minItems ?? 0;
   const maxItems = repeat.maxItems ?? Number.POSITIVE_INFINITY;
+  const [beforeItemId, setBeforeItemId] = React.useState<string | null>(null);
+  const selectedItem = repeatValue.items.find((item) => item.itemId === beforeItemId);
+  const addButtonRef = React.useRef<HTMLButtonElement>(null);
   const itemHeadingRefs = React.useRef(new Map<string, HTMLHeadingElement>());
-  const pendingItemIdRef = React.useRef<string | null>(null);
+  const pendingFocusRef = React.useRef<{ itemId: string | null; scroll: boolean } | null>(null);
+  const expectedValueRef = React.useRef<RepeatableGroupValue | null>(null);
+  const previousPropsRef = React.useRef({ value, definitionId: definition.id });
 
-  React.useEffect(() => {
-    const itemId = pendingItemIdRef.current;
-    if (!itemId) return;
-    const heading = itemHeadingRefs.current.get(itemId);
-    if (!heading) return;
-    pendingItemIdRef.current = null;
-    heading.focus({ preventScroll: true });
-    heading.scrollIntoView({ behavior: "instant", block: "start", inline: "nearest" });
+  React.useLayoutEffect(() => {
+    const previous = previousPropsRef.current;
+    // Preserve the insertion anchor for our own edits, but reset on an external replacement.
+    if (previous.definitionId !== definition.id ||
+        (previous.value !== value && value !== expectedValueRef.current)) {
+      setBeforeItemId(null);
+      pendingFocusRef.current = null;
+    }
+    previousPropsRef.current = { value, definitionId: definition.id };
+    expectedValueRef.current = null;
+  }, [value, definition.id]);
+
+  React.useLayoutEffect(() => {
+    if (beforeItemId && !selectedItem) setBeforeItemId(null);
+  }, [beforeItemId, selectedItem]);
+
+  React.useLayoutEffect(() => {
+    const pending = pendingFocusRef.current;
+    if (!pending) return;
+    const target = pending.itemId
+      ? itemHeadingRefs.current.get(pending.itemId)
+      : addButtonRef.current;
+    if (!target) return;
+    pendingFocusRef.current = null;
+    target.focus({ preventScroll: true });
+    if (pending.scroll) {
+      target.scrollIntoView({ behavior: "instant", block: "start", inline: "nearest" });
+    }
   }, [repeatValue.items]);
 
+  function changeValue(nextValue: RepeatableGroupValue) {
+    expectedValueRef.current = nextValue;
+    onChange(nextValue);
+  }
+
   function addItem() {
-    const nextIndex =
-      repeatValue.items.length === 0
-        ? repeat.indexBase
-        : Math.max(...repeatValue.items.map((item) => item.index)) + 1;
-    const item = createRepeatItem(definition, nextIndex);
-    pendingItemIdRef.current = item.itemId;
-    onChange({ items: [...repeatValue.items, item] });
+    if (disabled) return;
+    const nextValue = insertRepeatItem(definition, repeatValue, beforeItemId);
+    if (nextValue === repeatValue) return;
+    const existingIds = new Set(repeatValue.items.map((item) => item.itemId));
+    const item = nextValue.items.find((nextItem) => !existingIds.has(nextItem.itemId))!;
+    pendingFocusRef.current = { itemId: item.itemId, scroll: true };
+    changeValue(nextValue);
+  }
+
+  function removeItem(itemId: string) {
+    if (disabled) return;
+    const nextValue = removeRepeatItem(definition, repeatValue, itemId);
+    if (nextValue === repeatValue) return;
+    const removedIndex = repeatValue.items.findIndex((item) => item.itemId === itemId);
+    const focusItem = nextValue.items[removedIndex] ?? nextValue.items[removedIndex - 1];
+    pendingFocusRef.current = { itemId: focusItem?.itemId ?? null, scroll: false };
+    if (beforeItemId === itemId) setBeforeItemId(null);
+    changeValue(nextValue);
   }
 
   function updateItemValues(itemIndex: number, values: Record<string, unknown>) {
-    onChange({
+    if (disabled) return;
+    changeValue({
       items: repeatValue.items.map((item, index) =>
         index === itemIndex ? { ...item, values } : item,
       ),
@@ -275,66 +318,100 @@ function RepeaterControl({
           value={value}
           disabled={disabled}
           onImport={(imported) => {
-            pendingItemIdRef.current = null;
-            onChange(imported);
+            pendingFocusRef.current = null;
+            setBeforeItemId(null);
+            changeValue(imported);
           }}
         />
       ) : null}
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col">
         {repeatValue.items.map((item, itemIndex) => (
-          <section key={item.itemId} className="rounded-md border bg-muted/20 p-3">
-            <h4
-              ref={(heading) => {
-                if (heading) itemHeadingRefs.current.set(item.itemId, heading);
-                else itemHeadingRefs.current.delete(item.itemId);
-              }}
-              tabIndex={-1}
-              className="mb-3 rounded-sm text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <React.Fragment key={item.itemId}>
+            <button
+              type="button"
+              aria-label={`Insert before ${formatRepeatItemName(definition, item.index)} in ${definition.name}`}
+              aria-pressed={beforeItemId === item.itemId}
+              disabled={disabled || repeatValue.items.length >= maxItems}
+              onClick={() => setBeforeItemId(item.itemId)}
+              className={cn(
+                "group flex h-8 w-full shrink-0 items-center gap-2 rounded-sm text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                beforeItemId === item.itemId ? "text-primary" : "text-muted-foreground hover:text-primary",
+              )}
             >
-              {formatRepeatItemName(definition, item.index)}
-            </h4>
-            <div className="grid gap-3 md:grid-cols-2">
-              {repeat.itemParameterDefinitions.map((child) => (
-                <div
-                  key={child.id}
-                  className={cn(
-                    "min-w-0",
-                    child.valueType === "fieldGroupArray" && "md:col-span-2",
-                  )}
+              <span aria-hidden="true" className={cn("h-px flex-1 bg-border group-hover:bg-primary group-focus-visible:bg-primary", beforeItemId === item.itemId && "bg-primary")} />
+              <span className={cn("opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100", beforeItemId === item.itemId && "opacity-100")}>
+                Insert here
+              </span>
+              <span aria-hidden="true" className={cn("h-px flex-1 bg-border group-hover:bg-primary group-focus-visible:bg-primary", beforeItemId === item.itemId && "bg-primary")} />
+            </button>
+            <section className="rounded-md border bg-muted/20 p-3">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <h4
+                  ref={(heading) => {
+                    if (heading) itemHeadingRefs.current.set(item.itemId, heading);
+                    else itemHeadingRefs.current.delete(item.itemId);
+                  }}
+                  tabIndex={-1}
+                  className="min-w-0 rounded-sm text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <ParameterLabel definition={child} compact />
-                  <div className="mt-2">
-                    {child.valueType === "fieldGroupArray" ? (
-                      <RepeaterControl
-                        definition={child}
-                        value={item.values[child.id]}
-                        disabled={disabled}
-                        onChange={(nextValue) =>
-                          updateItemValues(itemIndex, {
-                            ...item.values,
-                            [child.id]: nextValue,
-                          })
-                        }
-                      />
-                    ) : (
-                      <PrimitiveControl
-                        definition={child}
-                        value={item.values[child.id]}
-                        disabled={disabled}
-                        onChange={(nextValue) =>
-                          updateItemValues(itemIndex, {
-                            ...item.values,
-                            [child.id]: nextValue,
-                          })
-                        }
-                      />
+                  {formatRepeatItemName(definition, item.index)}
+                </h4>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="-mt-1 shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label={`Delete ${formatRepeatItemName(definition, item.index)} from ${definition.name}`}
+                  title={`Delete ${formatRepeatItemName(definition, item.index)}`}
+                  disabled={disabled || repeatValue.items.length <= minItems}
+                  onClick={() => removeItem(item.itemId)}
+                >
+                  <X aria-hidden="true" />
+                </Button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {repeat.itemParameterDefinitions.map((child) => (
+                  <div
+                    key={child.id}
+                    className={cn(
+                      "min-w-0",
+                      child.valueType === "fieldGroupArray" && "md:col-span-2",
                     )}
+                  >
+                    <ParameterLabel definition={child} compact />
+                    <div className="mt-2">
+                      {child.valueType === "fieldGroupArray" ? (
+                        <RepeaterControl
+                          definition={child}
+                          value={item.values[child.id]}
+                          disabled={disabled}
+                          onChange={(nextValue) =>
+                            updateItemValues(itemIndex, {
+                              ...item.values,
+                              [child.id]: nextValue,
+                            })
+                          }
+                        />
+                      ) : (
+                        <PrimitiveControl
+                          definition={child}
+                          value={item.values[child.id]}
+                          disabled={disabled}
+                          onChange={(nextValue) =>
+                            updateItemValues(itemIndex, {
+                              ...item.values,
+                              [child.id]: nextValue,
+                            })
+                          }
+                        />
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+          </React.Fragment>
         ))}
         {repeatValue.items.length === 0 ? (
           <div className="border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">
@@ -342,24 +419,37 @@ function RepeaterControl({
           </div>
         ) : null}
       </div>
-      <div className="mt-3 flex items-center justify-end gap-2">
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        {selectedItem ? (
+          <>
+            <span role="status" className="mr-auto text-xs text-muted-foreground">
+              Insert before {formatRepeatItemName(definition, selectedItem.index)}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => {
+                setBeforeItemId(null);
+                const target = addButtonRef.current?.disabled
+                  ? itemHeadingRefs.current.get(repeatValue.items.at(-1)!.itemId)
+                  : addButtonRef.current;
+                target?.focus({ preventScroll: true });
+              }}
+            >
+              Add at end
+            </Button>
+          </>
+        ) : null}
         <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled || repeatValue.items.length <= minItems}
-          onClick={() => onChange({ items: repeatValue.items.slice(0, -1) })}
-        >
-          <Trash2 />
-          Remove
-        </Button>
-        <Button
+          ref={addButtonRef}
           type="button"
           size="sm"
           disabled={disabled || repeatValue.items.length >= maxItems}
           onClick={addItem}
         >
-          <Plus />
+          <Plus aria-hidden="true" />
           Add
         </Button>
       </div>
