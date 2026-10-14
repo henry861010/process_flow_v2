@@ -7,7 +7,7 @@
     "name": "molding",
     "category": "layer",
     "program": "layer/molding",
-    "description": "Deposits a molding material layer over the current process footprint from cursorZ to cursorZ + thickness.",
+    "description": "封膠成型（Molding）：代表以封膠材料包覆封裝內的元件，提供保護與結構支撐的製程。模型會依目前製程的平面範圍，在目前製程表面向上新增指定材料與厚度的封膠層，並將後續製程表面移至新層頂部。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -62,7 +62,7 @@
     "name": "PnP",
     "category": "PnP",
     "program": "pnp/pnp",
-    "description": "Materializes a target-specific geometry variant, then places bottom deposited/reflowed bumps in contact with covering main bumps without joining them.",
+    "description": "取放與定位（Pick and Place，PnP）：將晶片或封裝元件放到主結構的指定位置，建立後續組裝的配置。模型會依每筆目標區域與元件的尺寸調整規則產生元件，再定位到主結構上；若元件底部有凸塊，會對齊並接觸主結構上可配對的凸塊，否則底部對齊目前製程表面。此步完成放置，凸塊接合需由後續 MR joint 或 TCB joint 完成。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -110,7 +110,7 @@
     "name": "ECL",
     "category": "layer",
     "program": "layer/ecl",
-    "description": "Deposits an ECL body layer above cursorZ using the current process footprint after applying koz as an inward XY inset.",
+    "description": "ECL 成層：在目前製程表面新增一層指定材料，代表製程堆疊中的 ECL 材料層。模型會依目前製程的平面範圍，將邊緣向內退縮指定的保留距離（koz）後，向上建立指定厚度（thk）的材料層，並將後續製程表面移至新層頂部。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -175,7 +175,7 @@
     "name": "DAF",
     "category": "layer",
     "program": "layer/daf",
-    "description": "Deposits a body keyed daf on the full geometry top using the current process footprint and advances cursorZ by the DAF thickness.",
+    "description": "晶片黏著膜成層（Die Attach Film，DAF）：代表在晶片與基板或另一顆晶片之間加入黏著膜，供後續貼合與堆疊使用。模型會依目前製程的平面範圍，在整體結構最上方新增指定材料與厚度的 DAF 層，並將後續製程表面移至新層頂部。此步只建立黏著膜層，元件放置與載板貼合由各自的步驟完成。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -228,7 +228,7 @@
     "name": "FOW",
     "category": "layer",
     "program": "layer/fow",
-    "description": "Deposits a body keyed fow on the full geometry top using the current process footprint and sets cursorZ to the new layer top.",
+    "description": "覆線黏著膜成層（Film Over Wire，FOW）：代表堆疊晶片時，用於包覆下層焊線並黏接上層晶片的膜層。模型會依目前製程的平面範圍，在整體結構最上方新增指定材料與厚度的 FOW 層，並將後續製程表面移至新層頂部；目前以材料層表示，不模擬焊線包覆細節。後續 Debond 會保留此層。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -281,7 +281,7 @@
     "name": "RDL layer",
     "category": "layer",
     "program": "layer/rdl",
-    "description": "Builds RDL dielectric layers with odd-layer downward via features and even-layer circuit features over the current process footprint.",
+    "description": "重佈線層製作（Redistribution Layer，RDL）：代表以絕緣介電層、垂直導通孔與平面導線重新分配晶片的電性連接位置，供後續凸塊或其他元件連接。模型會依設定順序逐層增加堆疊厚度，在奇數層建立介電層與向下導通孔，在偶數層建立平面導線與介電層；各層的材料、厚度與導體密度由 layers 指定。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -396,7 +396,7 @@
     "name": "Grinding",
     "category": "grinding",
     "program": "grinding/grinding",
-    "description": "Removes geometry from the current full geometry top downward by thk while preserving the runtime process footprint.",
+    "description": "研磨減薄（Grinding）：代表從結構表面移除材料，以降低厚度或露出下方結構的製程。模型會從整體結構最高處向下移除指定厚度（thk），將超過研磨後高度的材料與特徵截短或移除；平面尺寸維持不變。thk 是要移除的厚度，並非研磨後的剩餘厚度。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -440,7 +440,7 @@
     "name": "saw",
     "category": "saw",
     "program": "saw/saw",
-    "description": "Recursively cuts the main geometry to a retained XY rectangle and updates the process footprint to that rectangle.",
+    "description": "切割分離（Saw／Dicing）：代表從晶圓、面板或較大結構中切出所需晶片或封裝單元的製程。模型會保留左下角與右上角座標所指定的 XY 矩形，裁除該範圍外的材料、特徵與子元件，並將後續製程的平面範圍更新為此矩形。此步以保留區域表示切割結果，不模擬刀具路徑或切割道寬度。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -507,7 +507,7 @@
     "name": "Debond",
     "category": "carrier",
     "program": "carrier/debond",
-    "description": "Recursively finds and removes exactly one carrier body at the full geometry top and, when present, one DAF body touching its bottom with the same footprint. Invalid or ambiguous targets are rejected without changing geometry.",
+    "description": "載板解鍵合（Debond）：代表完成暫時支撐用途後，將載板與產品結構分離的製程。模型會移除整體結構最上方唯一的載板；若其底面連接一層形狀與平面範圍相同的 DAF，也會一併移除，未連接的 DAF 與 FOW 則保留。執行前須讓目標載板位於最上方；若位置或配對不符合條件，會回報錯誤。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -537,7 +537,7 @@
     "name": "Carrier Bond",
     "category": "carrier",
     "program": "carrier/bond",
-    "description": "Copies carrier geometry root direct bodies onto the full geometry top while preserving each source body key, requires at least one body keyed carrier, and updates cursorZ to the bonded stack top.",
+    "description": "載板鍵合（Carrier Bond）：代表將晶圓或封裝結構貼合到暫時載板，提供後續研磨、翻面或成層時所需的支撐。模型會將輸入載板的材料層堆疊到主結構最上方，保留載板及其附帶 DAF 等材料層的身分，並將後續製程表面移至貼合後的頂部；載板輸入須包含 carrier 材料層。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -575,7 +575,7 @@
     "name": "Flip",
     "category": "flip",
     "program": "flip/flip",
-    "description": "Flips the main geometry around Z=0, normalizes the flipped structure to zMin 0, reverses directional via and bump features, and sets cursorZ to the highest direct root body top.",
+    "description": "結構翻面（Flip）：代表將晶片、晶圓或封裝上下翻轉，讓另一面朝向後續加工或組裝方向；例如將晶片凸塊面朝下以供 PnP 放置。模型會反轉整個結構的上下位置及導通孔、凸塊的方向，再平移結構使最低處回到 Z=0，並重新設定後續製程表面。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -605,7 +605,7 @@
     "name": "Under Fill",
     "category": "UF",
     "program": "uf/under_fill",
-    "description": "Fills underfill material into bump-side child cavities and root die-to-die gaps up to gap without moving cursorZ.",
+    "description": "底部填膠（Underfill）：代表在晶片與主結構之間的凸塊接合區填入膠材，以支撐接點並分散應力。模型會在元件的凸塊高度範圍建立填膠材料，並填補相鄰元件之間不超過指定距離（gap）的平面間隙；元件間填膠的高度由 thk 指定。此步新增填膠結構，後續製程表面高度維持不變。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -670,7 +670,7 @@
     "name": "Micro Bump",
     "category": "bump",
     "program": "bump/uBump_formation",
-    "description": "Forms upward reflowed micro bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
+    "description": "微凸塊成形（Micro Bump）：代表在晶片、晶圓或封裝表面形成細間距互連凸塊，供晶片堆疊或高密度接合使用。模型會在目前製程表面上方建立指定材料、厚度與密度的凸塊特徵區域，記錄邊緣保留距離（koz），並視為已完成單側回焊成形。與另一側凸塊的接合由後續 Joint 步驟完成。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -752,7 +752,7 @@
     "name": "BGA Bump",
     "category": "bump",
     "program": "bump/bga_bump_formation",
-    "description": "Forms upward reflowed BGA bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
+    "description": "球柵陣列凸塊成形（Ball Grid Array，BGA）：代表形成封裝對外連接所用的焊球陣列，供後續與基板或電路板組裝。模型會在目前製程表面上方建立指定材料、厚度與密度的 BGA 凸塊特徵區域，記錄邊緣保留距離（koz），並視為已完成單側回焊成形；此步以整體特徵區域表示焊球分布，不逐顆建立焊球。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -834,7 +834,7 @@
     "name": "C4 Bump",
     "category": "bump",
     "program": "bump/c4_bump_formation",
-    "description": "Forms upward reflowed C4 bump features above cursorZ using the current process footprint and records koz for downstream keep-out handling.",
+    "description": "覆晶凸塊成形（Controlled Collapse Chip Connection，C4）：代表在晶片或封裝表面形成覆晶接合所用的焊料凸塊，供後續連接基板或其他互連結構。模型會在目前製程表面上方建立指定材料、厚度與密度的 C4 凸塊特徵區域，記錄邊緣保留距離（koz），並視為已完成單側回焊成形。此步建立凸塊，實際組裝接合由後續 Joint 步驟表示。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -916,7 +916,7 @@
     "name": "tmv",
     "category": "tmv",
     "program": "tmv/tmv",
-    "description": "Forms an upward TMV via feature above cursorZ using the current process footprint without advancing the cursor.",
+    "description": "通模導通孔製作（Through Mold Via，TMV）：代表在封膠區形成垂直導電通道，供封裝上下層或堆疊封裝之間互連。模型會依目前製程的平面範圍，在目前製程表面上方建立指定材料、厚度與密度的向上導通孔特徵區域；此步以導通孔特徵表示結果，不模擬鑽孔或鍍填流程，後續製程表面高度維持不變。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -982,7 +982,7 @@
     "name": "Frame Mount",
     "category": "frame",
     "program": "frame/mount",
-    "description": "Copies the sole frame body from frame geometry onto the full geometry top as a root-direct body and advances cursorZ to the mounted frame top.",
+    "description": "框架上片（Frame Mount）：代表將晶圓或封裝結構固定到框架膠帶等支撐材料上，供後續搬運或切割使用。模型會將輸入的單一 frame 材料層貼到主結構最上方，並將後續製程表面移至該層頂部；實際支撐形狀由 frame_geometry 決定，例如目前 fixture 使用框架膠帶。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -1020,7 +1020,7 @@
     "name": "Frame Demount",
     "category": "frame",
     "program": "frame/demount",
-    "description": "Recursively finds and removes exactly one frame body at the full geometry top. Missing, covered, or ambiguous targets are rejected without changing geometry.",
+    "description": "框架卸片（Frame Demount）：代表支撐用途完成後，將產品與框架膠帶等支撐材料分離的製程。模型會移除整體結構最上方唯一的 frame 材料層，並將後續製程表面更新到剩餘結構的頂部。執行前須讓目標 frame 層位於最上方；若沒有符合條件的層或同時有多個候選層，會回報錯誤。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -1051,7 +1051,7 @@
     "category": "joint",
     "program": "joint/mr_joint",
     "owner": "integration.platform",
-    "description": "Joins paired reflowed bumps on root direct children into child-owned envelopes at the requested total joined height; preserves lower bump data.",
+    "description": "整體回焊接合（Mass Reflow，MR）：代表 PnP 放置後，透過回焊讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合，並調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height。目前 MR 與 TCB 使用相同的幾何接合模型，不模擬溫度歷程。",
     "inputPorts": [
       {
         "portId": "main_geometry",
@@ -1095,7 +1095,7 @@
     "category": "joint",
     "program": "joint/tcb_joint",
     "owner": "integration.platform",
-    "description": "Joins paired reflowed bumps on root direct children into child-owned envelopes at the requested total joined height; preserves lower bump data.",
+    "description": "熱壓接合（Thermocompression Bonding，TCB）：代表 PnP 放置後，透過加熱與施壓讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合，並調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height。目前 TCB 與 MR 使用相同的幾何接合模型，不模擬溫度或壓力歷程。",
     "inputPorts": [
       {
         "portId": "main_geometry",

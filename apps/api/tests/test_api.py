@@ -265,7 +265,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(debond["version"], "V0.0.0")
         self.assertEqual(debond["program"], "carrier/debond")
         self.assertEqual(debond["parameterDefinitions"], [])
-        self.assertIn("full geometry top", debond["description"])
+        self.assertIn("整體結構最上方", debond["description"])
         self.assertIn("touching DAF is optional", debond["inputPorts"][0]["description"])
         api_services.validate_process_step_template(debond)
         self.assertTrue(callable(ProcessStepModuleResolver().resolve(debond).execute))
