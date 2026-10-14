@@ -11,9 +11,27 @@ from process_flow_geometry_generators import (
     register_builtin_generators,
 )
 from process_flow_geometry_generators.hbm import HbmGenerator
+from process_flow_geometry_generators.manifest import GeneratorParameterVisibility
 
 
 class RegistryTests(unittest.TestCase):
+    def test_visibility_accepts_equality_or_membership_and_preserves_payload(self):
+        for condition in (
+            {"parameterId": "generation", "equals": "gen2"},
+            {"parameterId": "generation", "in": ["gen2", "gen2-bs-first"]},
+            {"parameterId": "enabled", "equals": False},
+            {"parameterId": "count", "equals": 0},
+            {"parameterId": "count", "in": [0, 1]},
+        ):
+            with self.subTest(condition=condition):
+                self.assertEqual(GeneratorParameterVisibility.model_validate(condition).payload(), condition)
+        for operators in ({}, {"equals": None}, {"in": None}, {"in": []},
+                          {"equals": "gen2", "in": ["gen2"]},
+                          {"equals": None, "in": ["gen2"]},
+                          {"equals": "gen2", "in": None}):
+            with self.subTest(operators=operators), self.assertRaises(ValueError):
+                GeneratorParameterVisibility.model_validate({"parameterId": "generation", **operators})
+
     def test_package_import_does_not_import_api(self):
         package_src = Path(__file__).resolve().parents[1] / "src"
         result = subprocess.run(

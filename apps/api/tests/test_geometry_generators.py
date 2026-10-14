@@ -297,7 +297,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(
             [(group["id"], group["label"]) for group in lsi["parameterGroups"]],
             [
-                ("generation", "Generation"), ("layer-daf", "DAF"),
+                ("generation", "Generation"), ("bump-microBump", "Micro bump (reflowed)"), ("layer-daf", "DAF"),
                 ("layer-bsPm0", "BsPm0"), ("via-bsVia0", "BsVia0"),
                 ("layer-si", "Si"), ("layer-usg", "USG"),
                 ("layer-prePm0", "PrePm0"), ("layer-fsPm0", "FsPm0"),
@@ -309,17 +309,57 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(set(fields), set(lsi["defaultParameters"]))
         self.assertNotIn("bsmcMaterial", fields)
         self.assertNotIn("lsiTopMoldingMaterial", fields)
-        gen2_prefixes = ("daf", "bsPm0", "bsVia0", "prePm0", "fow", "siCarrier")
+        bs_first_option = fields["generation"]["optionSource"]["options"][-1]
+        self.assertEqual((bs_first_option["value"], bs_first_option["name"]),
+                         ("gen2-bs-first", "gen2 (bs-first)"))
         for field_id, field in fields.items():
             expected_condition = (
+                {"parameterId": "generation", "equals": "gen2-bs-first"}
+                if field_id.startswith("microBump") else
+                {"parameterId": "generation", "in": ["gen2", "gen2-bs-first"]}
+                if field_id.startswith(("prePm0", "fow", "siCarrier")) else
                 {"parameterId": "generation", "equals": "gen2"}
-                if field_id.startswith(gen2_prefixes) else None
+                if field_id.startswith(("daf", "bsPm0", "bsVia0")) else None
             )
             self.assertEqual(field.get("visibleWhen"), expected_condition)
-        for via in ("fsVia0", "bsVia0"):
+        for via in ("fsVia0", "bsVia0", "microBump"):
             self.assertEqual(fields[f"{via}Thickness"]["name"], "Height")
             self.assertEqual(fields[f"{via}Density"]["unit"], "%")
             self.assertEqual(fields[f"{via}Density"]["validation"]["max"], 100)
+
+    def test_lsi_bs_first_preview_materialize_save_and_regenerate(self):
+        response = self.client.post("/api/geometry-generators/lsi/preview", json={
+            "generatorVersion": 1,
+            "parameters": {"generation": "gen2-bs-first", "microBumpMaterial": "  Custom solder  ",
+                           "microBumpThickness": 12, "microBumpDensity": 80, "microBumpKoz": 3},
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        preview = response.json()
+        self.assertTrue(preview["valid"], preview["errors"])
+        self.assertEqual(preview["computedParameters"]["totalThickness"], 478.5)
+        root = preview["geometryEntityJson"]["structure"]["root"]
+        self.assertEqual(len(root["bodies"]), 6)
+        self.assertEqual(len(root["vias"]), 1)
+        self.assertEqual(len(root["bumps"]), 1)
+        bump = root["bumps"][0]
+        self.assertEqual((bump["material"], bump["density"], bump["koz"], bump["stage"], bump["direction"]),
+                         ("Custom solder", 80, 3, "reflowed", "-z"))
+        materialized = self.client.post("/api/geometry-materializations", json={"previewToken": preview["previewToken"]})
+        self.assertEqual(materialized.status_code, 200, materialized.text)
+        self.assertEqual(materialized.json()["geometryEntityJson"], preview["geometryEntityJson"])
+        saved = self.client.post("/api/geometries", json={
+            **materialized.json()["geometryEntityJson"], "name": "Gen 2 BS-first LSI", "owner": "test",
+        })
+        self.assertEqual(saved.status_code, 201, saved.text)
+        entity = saved.json()
+        self.assertEqual(entity["generation"]["parameters"], preview["normalizedParameters"])
+        self.assertEqual(entity["structure"]["root"], root)
+        fetched = self.client.get(f"/api/geometries/{entity['id']}")
+        self.assertEqual(fetched.status_code, 200, fetched.text)
+        self.assertEqual(fetched.json(), entity)
+        regenerated = self.app.state.geometry_generators.generate("lsi", 1, entity["generation"]["parameters"])
+        for field in ("structure", "generation", "dim", "adaptationContract"):
+            self.assertEqual(regenerated[field], preview["geometryEntityJson"][field])
 
     def test_lsi_defaults_preview_both_generations(self):
         initial = self.app.state.geometry_generators.preview("lsi", {}, generator_version=1)
@@ -514,12 +554,12 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         )
         self.assertFalse(invalid_gen2["valid"])
 
-    def test_lsi_vias_follow_bodies_when_adapted_to_rectangle_and_polygon(self):
+    def test_lsi_density_features_follow_bodies_when_adapted_to_rectangle_and_polygon(self):
         regions = (
             {"type": "rectangle", "width": 2000, "height": 1600},
             {"type": "polygon", "points": [[0, 0], [2000, 0], [1500, 1600], [0, 1600]]},
         )
-        for generation in ("gen1", "gen2"):
+        for generation in ("gen1", "gen2", "gen2-bs-first"):
             preview = self.app.state.geometry_generators.preview("lsi", {"generation": generation})
             entity = preview["geometryEntityJson"]
             original = entity["structure"]["root"]
@@ -527,9 +567,11 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 with self.subTest(generation=generation, region=region["type"]):
                     adapted = adapt_geometry(GeometryArtifact.from_entity(entity), region)
                     root = adapted["root"]
-                    features = [*root["bodies"], *root["vias"]]
+                    features = [*root["bodies"], *root["vias"], *root["bumps"]]
                     reference = root["bodies"][0]["geometry"]
-                    for before, after in zip([*original["bodies"], *original["vias"]], features):
+                    originals = [*original["bodies"], *original["vias"], *original["bumps"]]
+                    self.assertEqual(len(features), len(originals))
+                    for before, after in zip(originals, features):
                         geometry = after["geometry"]
                         self.assertEqual(geometry["thk"], before["geometry"]["thk"])
                         if region["type"] == "rectangle":
@@ -541,11 +583,11 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                             self.assertEqual(geometry["type"], "PolygonGeometry")
                             self.assertEqual([[point[:2] for point in loop] for loop in geometry["polys"]], [region["points"]])
                             self.assertEqual(geometry["polys"][0][0][2], before["geometry"]["bottom_left"][2])
-                        for field in ("material", "key", "density", "direction", "koz"):
+                        for field in ("id", "material", "key", "density", "direction", "koz", "stage"):
                             self.assertEqual(after.get(field), before.get(field))
 
     def test_lsi_height_error_over_http_does_not_materialize(self):
-        for generation, field, height in (("gen1", "fsVia0Thickness", 27), ("gen2", "fsVia0Thickness", 42), ("gen2", "bsVia0Thickness", 16)):
+        for generation, field, height in (("gen1", "fsVia0Thickness", 27), ("gen2", "fsVia0Thickness", 42), ("gen2", "bsVia0Thickness", 16), ("gen2-bs-first", "fsVia0Thickness", 42)):
             response = self.client.post("/api/geometry-generators/lsi/preview", json={"parameters": {"generation": generation, field: height}})
             self.assertEqual(response.status_code, 200, response.text)
             preview = response.json()
@@ -1273,6 +1315,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             ("wafer-dmy", 1, {"siThickness": 0}),
             ("lsi", 1, {"generation": "gen1", **{f"{layer}Thickness": 0 for layer in ("si", "usg", "fsPm0", "fsVia0")}}),
             ("lsi", 1, {"generation": "gen2", **{f"{layer}Thickness": 0 for layer in ("daf", "bsPm0", "si", "usg", "prePm0", "fsPm0", "fow", "siCarrier", "fsVia0", "bsVia0")}}),
+            ("lsi", 1, {"generation": "gen2-bs-first", **{f"{layer}Thickness": 0 for layer in ("microBump", "si", "usg", "prePm0", "fsPm0", "fow", "siCarrier", "fsVia0")}}),
         )
         for generator_id, version, parameters in cases:
             with self.subTest(generator=generator_id, parameters=parameters):

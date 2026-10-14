@@ -9,6 +9,10 @@ PACKAGE_X = 8000
 PACKAGE_Y = 10000
 DEFAULT_PARAMETERS: JsonObject = {
     "generation": "gen1",
+    "microBumpMaterial": "Cu/Ni/SnAg",
+    "microBumpThickness": 28,
+    "microBumpDensity": 42,
+    "microBumpKoz": 0,
     "dafMaterial": "DAF",
     "dafThickness": 10,
     "bsPm0Material": "Mat_MCA7UUU0P1",
@@ -37,20 +41,26 @@ LAYER_ORDERS = {
     "gen2": (
         "daf", "bsPm0", "si", "usg", "prePm0", "fsPm0", "fow", "siCarrier",
     ),
+    "gen2-bs-first": ("si", "usg", "prePm0", "fsPm0", "fow", "siCarrier"),
 }
-VIA_ORDERS = {"gen1": ("fsVia0",), "gen2": ("fsVia0", "bsVia0")}
+VIA_ORDERS = {
+    "gen1": ("fsVia0",), "gen2": ("fsVia0", "bsVia0"),
+    "gen2-bs-first": ("fsVia0",),
+}
+BUMP_ORDERS = {"gen1": (), "gen2": (), "gen2-bs-first": ("microBump",)}
 # Groups follow the stack from bottom to top, with vias next to their host layers.
 FEATURE_DEFINITIONS = (
+    ("microBump", "Micro bump (reflowed)", "gen2-bs-first", False),
     ("daf", "DAF", "gen2", False),
     ("bsPm0", "BsPm0", "gen2", False),
     ("bsVia0", "BsVia0", "gen2", True),
     ("si", "Si", None, False),
     ("usg", "USG", None, False),
-    ("prePm0", "PrePm0", "gen2", False),
+    ("prePm0", "PrePm0", ("gen2", "gen2-bs-first"), False),
     ("fsPm0", "FsPm0", None, False),
     ("fsVia0", "FsVia0", None, True),
-    ("fow", "Fow", "gen2", False),
-    ("siCarrier", "Si carrier", "gen2", False),
+    ("fow", "Fow", ("gen2", "gen2-bs-first"), False),
+    ("siCarrier", "Si carrier", ("gen2", "gen2-bs-first"), False),
 )
 BODY_IDS = {
     "daf": "body:lsi-daf",
@@ -103,6 +113,7 @@ class LsiGenerator:
                     "options": [
                         {"value": "gen1", "name": "Gen 1"},
                         {"value": "gen2", "name": "Gen 2"},
+                        {"value": "gen2-bs-first", "name": "gen2 (bs-first)"},
                     ],
                 },
             }
@@ -111,8 +122,13 @@ class LsiGenerator:
             {"id": "generation", "label": "Generation", "parameterIds": ["generation"]}
         ]
         for feature_id, label, generation, is_via in FEATURE_DEFINITIONS:
+            is_bump = feature_id == "microBump"
+            is_density_feature = is_via or is_bump
             condition = (
-                {"visibleWhen": {"parameterId": "generation", "equals": generation}}
+                {"visibleWhen": {
+                    "parameterId": "generation",
+                    **({"in": list(generation)} if isinstance(generation, tuple) else {"equals": generation}),
+                }}
                 if generation is not None
                 else {}
             )
@@ -129,7 +145,7 @@ class LsiGenerator:
                 },
                 {
                     "id": f"{feature_id}Thickness",
-                    "name": "Height" if is_via else "Thickness",
+                    "name": "Height" if is_density_feature else "Thickness",
                     "description": "Must remain within the host layers." if is_via else "",
                     "valueType": "float",
                     "controlType": "number",
@@ -139,7 +155,7 @@ class LsiGenerator:
                     **condition,
                 },
             ]
-            if is_via:
+            if is_density_feature:
                 fields.append(
                     {
                         "id": f"{feature_id}Density",
@@ -153,10 +169,22 @@ class LsiGenerator:
                         **condition,
                     }
                 )
+            if is_bump:
+                fields.append({
+                    "id": f"{feature_id}Koz",
+                    "name": "KOZ",
+                    "description": "Keep out zone distance recorded on the micro bump.",
+                    "valueType": "float",
+                    "controlType": "number",
+                    "required": True,
+                    "unit": "um",
+                    "validation": {"min": 0},
+                    **condition,
+                })
             parameter_definitions.extend(fields)
             parameter_groups.append(
                 {
-                    "id": f"{'via' if is_via else 'layer'}-{feature_id}",
+                    "id": f"{'bump' if is_bump else 'via' if is_via else 'layer'}-{feature_id}",
                     "label": label,
                     "parameterIds": [field["id"] for field in fields],
                 }
@@ -168,7 +196,7 @@ class LsiGenerator:
             "version": 1,
             "label": "LSI generator",
             "description": (
-                "Build a Gen 1 or Gen 2 layered LSI die with density vias "
+                "Build a Gen 1, Gen 2, or Gen 2 (bs-first) layered LSI die with density features "
                 "at 8000 x 10000 um."
             ),
             "uiPlacements": ["management", "templateGeometryLibrary", "flowInputPicker"],
@@ -188,13 +216,14 @@ class LsiGenerator:
         errors: JsonObject = {}
         generation = parameters.get("generation")
         if not isinstance(generation, str) or generation not in LAYER_ORDERS:
-            return {"generation": "Generation must be gen1 or gen2."}
+            return {"generation": "Generation must be gen1, gen2, or gen2-bs-first."}
 
         for parameter_id in LEGACY_PARAMETER_IDS:
             if parameter_id in parameters:
                 errors[parameter_id] = "Legacy LSI layer parameters are not supported."
 
-        for feature_id in (*LAYER_ORDERS[generation], *VIA_ORDERS[generation]):
+        stack_order = (*BUMP_ORDERS[generation], *LAYER_ORDERS[generation])
+        for feature_id in (*stack_order, *VIA_ORDERS[generation]):
             material_id = f"{feature_id}Material"
             material = parameters.get(material_id)
             if not isinstance(material, str) or not material.strip():
@@ -206,16 +235,23 @@ class LsiGenerator:
                     f"{thickness_id} must be a finite number greater than or equal to 0."
                 )
 
-        layer_thickness_ids = [f"{layer}Thickness" for layer in LAYER_ORDERS[generation]]
+        layer_thickness_ids = [f"{layer}Thickness" for layer in stack_order]
         if not any(key in errors for key in layer_thickness_ids):
             if not math.isfinite(sum(float(parameters[key]) for key in layer_thickness_ids)):
                 errors[layer_thickness_ids[-1]] = "Total thickness must be finite."
 
-        for via in VIA_ORDERS[generation]:
-            density_id = f"{via}Density"
+        for feature_id in (*BUMP_ORDERS[generation], *VIA_ORDERS[generation]):
+            density_id = f"{feature_id}Density"
             density = parameters.get(density_id)
             if not _finite_number(density) or not 0 <= density <= 100:
                 errors[density_id] = f"{density_id} must be a finite number from 0 to 100."
+        for bump in BUMP_ORDERS[generation]:
+            koz_id = f"{bump}Koz"
+            koz = parameters.get(koz_id)
+            if not _finite_number(koz) or koz < 0:
+                errors[koz_id] = f"{koz_id} must be a finite number greater than or equal to 0."
+
+        for via in VIA_ORDERS[generation]:
             if via == "bsVia0":
                 host_layers = ("bsPm0",)
             elif generation == "gen1":
@@ -237,16 +273,32 @@ class LsiGenerator:
             raise ValueError("Cannot build LSI geometry from invalid parameters")
         generation = parameters["generation"]
         normalized: JsonObject = {"generation": generation}
-        for feature_id in (*LAYER_ORDERS[generation], *VIA_ORDERS[generation]):
+        stack_order = (*BUMP_ORDERS[generation], *LAYER_ORDERS[generation])
+        for feature_id in (*stack_order, *VIA_ORDERS[generation]):
             normalized[f"{feature_id}Material"] = parameters[f"{feature_id}Material"].strip()
             normalized[f"{feature_id}Thickness"] = float(parameters[f"{feature_id}Thickness"])
-            if feature_id in VIA_ORDERS[generation]:
+            if feature_id in (*BUMP_ORDERS[generation], *VIA_ORDERS[generation]):
                 normalized[f"{feature_id}Density"] = float(parameters[f"{feature_id}Density"])
+            if feature_id in BUMP_ORDERS[generation]:
+                normalized[f"{feature_id}Koz"] = float(parameters[f"{feature_id}Koz"])
 
         total_thickness = sum(
-            normalized[f"{layer}Thickness"] for layer in LAYER_ORDERS[generation]
+            normalized[f"{layer}Thickness"] for layer in stack_order
         )
         cursor_z = -total_thickness / 2
+        bumps: list[JsonObject] = []
+        for bump in BUMP_ORDERS[generation]:
+            thickness = normalized[f"{bump}Thickness"]
+            bumps.append({
+                "id": "bump:lsi-micro-bump",
+                "geometry": _box(cursor_z, thickness),
+                "material": normalized[f"{bump}Material"],
+                "density": normalized[f"{bump}Density"],
+                "direction": "-z",
+                "stage": "reflowed",
+                "koz": normalized[f"{bump}Koz"],
+            })
+            cursor_z += thickness
         bodies: list[JsonObject] = []
         layer_bottoms: dict[str, float] = {}
         for layer in LAYER_ORDERS[generation]:
@@ -298,7 +350,7 @@ class LsiGenerator:
                     "bodies": bodies,
                     "vias": vias,
                     "circuits": [],
-                    "bumps": [],
+                    "bumps": bumps,
                     "children": [],
                 },
             },

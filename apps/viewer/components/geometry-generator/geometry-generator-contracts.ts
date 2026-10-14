@@ -6,10 +6,10 @@ import type {
 } from "@/lib/process-flow/types";
 
 export type GeneratorParameterDefinition = ParameterDefinition & {
-  visibleWhen?: {
-    parameterId: string;
-    equals: string | number | boolean;
-  } | null;
+  visibleWhen?: ({ parameterId: string } & (
+    | { equals: string | number | boolean; in?: never }
+    | { in: Array<string | number | boolean>; equals?: never }
+  )) | null;
 };
 
 export type GeometryGeneratorUiPlacement =

@@ -41,9 +41,12 @@ XYZ置中，root container key為`wafer-dmy`，唯一body key為`wafer-dmy.si`�
 不提供DMY die geometry。wafer邊緣的放置位置、數量與形狀由既有flow／PnP設定；generator
 不自動排列die，也不計算warpage。
 
-LSI generator v1以`generation`參數選擇`gen1`或`gen2`，使用固定8000 × 10000 um
+LSI generator v1以`generation`參數選擇`gen1`、`gen2`或`gen2-bs-first`
+（選單顯示`gen2 (bs-first)`），使用固定8000 × 10000 um
 footprint。gen1由下往上為`Si`、`USG`、`FsPm0`；gen2由下往上為`DAF`、`BsPm0`、`Si`、
-`USG`、`PrePm0`、`FsPm0`、`Fow`、`Si carrier`。所有層使用完整footprint並相貼堆疊，
+`USG`、`PrePm0`、`FsPm0`、`Fow`、`Si carrier`。gen2 (bs-first)由下往上為
+`Micro bump (reflowed)`、`Si`、`USG`、`PrePm0`、`FsPm0`、`Fow`、`Si carrier`，
+不產生DAF、BsPm0與BsVia0。所有層使用完整footprint並相貼堆疊，
 XYZ置中，root key為`lsi`。Si carrier使用body key=`carrier`，DAF使用`daf`；其他層不提供body key。
 
 每層提供`<prefix>Material`與`<prefix>Thickness`，全部可編輯，預設如下：
@@ -60,19 +63,28 @@ XYZ置中，root key為`lsi`。Si carrier使用body key=`carrier`，DAF使用`da
 | Si carrier | `siCarrier` | `Si` | 200 |
 
 DAF、Fow與Si carrier預設為暫定值。gen1總厚度預設241.5 um，gen2預設491.5 um；
-`totalThickness`只加總材料層厚，不重複加入via高度。厚度0仍保留body，負值或非有限數值無效。
+gen2 (bs-first)預設494.5 um。`totalThickness`加總材料層厚及bs-first的bump高度，
+不重複加入via高度。厚度0仍保留body，負值或非有限數值無效。
 
-兩個世代皆提供`fsVia0Material`、`fsVia0Thickness`、`fsVia0Density`；gen2另提供`bsVia0*`。
+Micro bump位於`root.bumps`，使用完整footprint的Box density region，ID為
+`bump:lsi-micro-bump`，上表面貼齊Si下表面，方向固定`-z`，`stage`固定`reflowed`。
+其欄位只在gen2 (bs-first)顯示：`microBumpMaterial`預設`Cu/Ni/SnAg`、
+`microBumpThickness`（Height）預設28 um、`microBumpDensity`預設42%、
+`microBumpKoz`（KOZ）預設0 um。材料須非空並trim；高度與KOZ須有限且非負；
+密度為inclusive 0–100%。高度0仍保留bump。
+
+三種結構皆提供`fsVia0Material`、`fsVia0Thickness`、`fsVia0Density`；原gen2另提供`bsVia0*`。
 Via使用完整footprint的Box density region，與bodies位於同一root scope，不建立個別via陣列。
-Height單位um，正面兩個世代共用預設26，背面預設15；材料皆預設`Cu`、密度皆預設50%。
+Height單位um，正面三種結構共用預設26，背面預設15；材料皆預設`Cu`、密度皆預設50%。
 所有值可獨立編輯，材料須非空並trim，密度為inclusive 0–100%，`koz`固定0。
-FsVia0由USG上表面向`+z`延伸，gen1高度不得超過FsPm0厚度，gen2不得超過PrePm0＋FsPm0。
+FsVia0由USG上表面向`+z`延伸，gen1高度不得超過FsPm0厚度，兩種gen2不得超過PrePm0＋FsPm0。
 BsVia0由Si下表面向`-z`延伸，高度不得超過BsPm0。高度須有限且非負，0仍保留via。
 修改層厚後重新驗證，超出上限在對應Height欄位顯示錯誤，不自動截短。
 
-Gen2專用欄位依`visibleWhen`隱藏，切換世代保留草稿，正規化配方只保存當前世代參數。
+專用欄位依`visibleWhen`隱藏；PrePm0、Fow與Si carrier在兩種gen2共用。
+切換世代保留草稿，送出與正規化配方只保存當前世代參數。
 LSI從flow editor的generator selector及Management的共用catalog頁面使用，生成geometry使用
-`box-rescale@1`，可將所有body與via共同調整為矩形或多邊形target footprint；fixture catalog
+`box-rescale@1`，可將所有body、via與bump共同調整為矩形或多邊形target footprint；fixture catalog
 不提供LSI geometry。本次直接修改v1，舊`layer1*`至`layer4*`、`lsiTopMolding*`與`bsmc*`
 參數不再接受，不提供遷移或相容處理。
 
@@ -82,8 +94,9 @@ LSI從flow editor的generator selector及Management的共用catalog頁面使用�
 `POST /api/geometry-generators/{id}/preview`。編輯舊instance的配方時使用
 `GET /api/geometry-generators/{id}/versions/{version}`取得指定版本definition。
 
-Generator parameter definition可另外提供`visibleWhen: { parameterId, equals }`。此條件
-以同一definition中top-level scalar select的目前值做嚴格相等比較；未提供條件的欄位永遠
+Generator parameter definition可另外提供`visibleWhen: { parameterId, equals }`或
+`visibleWhen: { parameterId, in: [...] }`，兩個operator互斥且必須擇一，`in`不得為空。
+此條件以同一definition中top-level scalar select的目前值做嚴格相等或集合成員比較；未提供條件的欄位永遠
 顯示。條件由通用generator dialog評估，並將不可見欄位從preview request排除；編輯期間
 保留不可見欄位的草稿值以便切回。後端仍依`generation`獨立驗證，正規化配方只包含當前
 gen所需欄位，不能依賴前端隱藏來保證資料正確。沒有可見欄位的group不顯示。

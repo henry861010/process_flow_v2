@@ -43,7 +43,7 @@ class ThicknessTests(unittest.TestCase):
 
     def _recipes(self):
         for definition in self.registry.definitions():
-            for generation in (("gen1", "gen2") if definition["id"] == "lsi" else (None,)):
+            for generation in (("gen1", "gen2", "gen2-bs-first") if definition["id"] == "lsi" else (None,)):
                 parameters = copy.deepcopy(definition["defaultParameters"])
                 if generation is not None:
                     parameters["generation"] = generation
@@ -102,7 +102,8 @@ class ThicknessTests(unittest.TestCase):
                 parameter["id"]
                 for parameter in definition["parameterDefinitions"]
                 if "visibleWhen" not in parameter
-                or parameter["visibleWhen"]["equals"] == defaults.get("generation")
+                or parameter["visibleWhen"].get("equals") == defaults.get("generation")
+                or defaults.get("generation") in parameter["visibleWhen"].get("in", [])
             }
             for path in _thickness_paths(defaults):
                 if path[0] not in visible_ids:

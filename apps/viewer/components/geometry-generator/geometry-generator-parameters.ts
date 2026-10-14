@@ -6,11 +6,12 @@ export function visibleGeneratorParameters(
   definitions: GeneratorParameterDefinition[],
   values: Record<string, unknown>,
 ): GeneratorParameterDefinition[] {
-  return definitions.filter(
-    (definition) =>
-      !definition.visibleWhen ||
-      values[definition.visibleWhen.parameterId] === definition.visibleWhen.equals,
-  );
+  return definitions.filter((definition) => {
+    const condition = definition.visibleWhen;
+    if (!condition) return true;
+    const value = values[condition.parameterId];
+    return condition.in ? condition.in.some((candidate) => candidate === value) : value === condition.equals;
+  });
 }
 
 export function toGeneratorEditorValues(

@@ -84,7 +84,19 @@ class GeometryGeneratorParameterGroup(StrictModel):
 
 class GeneratorParameterVisibility(StrictModel):
     parameterId: str = Field(min_length=1)
-    equals: str | int | float | bool
+    equals: str | int | float | bool | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    in_: list[str | int | float | bool] | None = Field(
+        default=None, alias="in", min_length=1, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def require_one_operator(self):
+        operators = self.model_fields_set & {"equals", "in_"}
+        if len(operators) != 1 or (self.equals is None) == (self.in_ is None):
+            raise ValueError("visibleWhen requires exactly one of equals or in")
+        return self
 
 
 class GeometryGeneratorParameterDefinition(ParameterDefinition):
