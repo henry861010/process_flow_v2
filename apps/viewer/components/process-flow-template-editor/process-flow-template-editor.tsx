@@ -235,6 +235,7 @@ function ProcessFlowTemplateEditorInner() {
   }, []);
 
   const [draftViewport, setDraftViewport] = React.useState({ x: 0, y: 0, zoom: 1 });
+  const [graphInteractionKey, setGraphInteractionKey] = React.useState(0);
   const editorDraftState = React.useMemo<TemplateEditorDraftState>(() => ({
     metadata, configuration,
     nodes: nodes.map((node) => isFlowInputNode(node)
@@ -265,6 +266,7 @@ function ProcessFlowTemplateEditorInner() {
       setPreferredSaveMode("template-and-instance"); setRequirementsOpen(false);
       setConfiguration(state.configuration);
       setNodes(restoredNodes);
+      setGraphInteractionKey((current) => current + 1);
       setEdges(restoredEdges);
       setDraftViewport(state.viewport);
       setSavedTemplate(null);
@@ -391,6 +393,7 @@ function ProcessFlowTemplateEditorInner() {
               node.data.stepRef.stepRefId,
             ),
             onEdit: (nodeId) => {
+              if (savingRef.current) return;
               setSelectedNodeId(nodeId);
               setEditingNodeId(nodeId);
             },
@@ -507,6 +510,7 @@ function ProcessFlowTemplateEditorInner() {
       description: template.description ?? "", owner: template.owner ?? "",
     });
     setNodes(graph.nodes); setEdges(graph.edges); setConfiguration(nextConfiguration);
+    setGraphInteractionKey((current) => current + 1);
     setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null);
     setGeneratorEditor(null); setPreview(null); setSavedTemplate(null);
     setSaveDialogMode(null); setSaveDialogError(null);
@@ -1019,6 +1023,7 @@ function ProcessFlowTemplateEditorInner() {
 
         <ProcessFlowGraph
           mode={editingLocked ? "view" : "edit"}
+          interactionKey={graphInteractionKey}
           nodes={displayNodes}
           edges={displayEdges}
           className="min-h-[560px] lg:min-h-0"
@@ -1047,6 +1052,11 @@ function ProcessFlowTemplateEditorInner() {
           onDragOver={handleDragOver}
           onNodeClick={(_, node) => {
             if (savingRef.current) return;
+            setSelectedNodeId(node.id);
+            if (isFlowInputNode(node)) setEditingNodeId(node.id);
+          }}
+          onNodeDoubleClick={(_, node) => {
+            if (savingRef.current || !isStepNode(node)) return;
             setSelectedNodeId(node.id);
             setEditingNodeId(node.id);
           }}

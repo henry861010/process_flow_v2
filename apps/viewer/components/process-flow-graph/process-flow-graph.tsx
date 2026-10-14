@@ -10,8 +10,13 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  ViewportPortal,
   getBezierPath,
   useConnection,
+  useInternalNode,
+  useNodeId,
+  useReactFlow,
+  useViewport,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -25,6 +30,12 @@ import { CircleDot, Eye, Pencil, Trash2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  clickConnectionCandidate,
+  clickConnectionReducer,
+  type ClickConnectionState,
+  type ClickHandle,
+} from "./click-connection-state";
 
 export type ProcessFlowGraphMode = "edit" | "view";
 export type ProcessFlowGraphStatus =
@@ -116,6 +127,8 @@ type ProcessFlowGraphProps<
   onDrop?: React.DragEventHandler<HTMLDivElement>;
   onDragOver?: React.DragEventHandler<HTMLDivElement>;
   onNodeClick?: (event: React.MouseEvent, node: TNode) => void;
+  onNodeDoubleClick?: (event: React.MouseEvent, node: TNode) => void;
+  interactionKey?: number;
   onPaneClick?: ReactFlowBaseProps["onPaneClick"];
   onMoveEnd?: ReactFlowBaseProps["onMoveEnd"];
   miniMapNodeColor?: (node: TNode) => string;
@@ -132,6 +145,14 @@ const edgeTypes = {
 
 const DEFAULT_GEOMETRY_ICON_SCALE = 0.8;
 const warnedMissingGeometryIconUrls = new Set<string>();
+
+const ClickConnectionContext = React.createContext<{
+  state: ClickConnectionState;
+  enabled: boolean;
+  validTarget: boolean;
+  cancel: () => void;
+  clickHandle: (event: React.MouseEvent, handle: ClickHandle, type: "source" | "target") => void;
+} | null>(null);
 
 export function ProcessFlowGraph<
   TNode extends Node = Node,
@@ -164,14 +185,80 @@ export function ProcessFlowGraph<
   onDrop,
   onDragOver,
   onNodeClick,
+  onNodeDoubleClick,
+  interactionKey,
   onPaneClick,
   onMoveEnd,
   miniMapNodeColor,
 }: ProcessFlowGraphProps<TNode, TEdge>) {
   const canEditTopology = mode === "edit";
+  const [clickConnection, dispatchConnection] = React.useReducer(clickConnectionReducer, null);
+  const suppressHandleClick = React.useRef(false);
+  const cancelClickConnection = React.useCallback(() => dispatchConnection({ type: "cancel" }), []);
+  const sourceExists = clickConnection && nodes.some((node) => {
+    const data = getGraphNodeData(node);
+    return node.id === clickConnection.source.nodeId &&
+      clickConnection.source.handleId === (data.nodeKind === "flowInput" ? "out" : data.outputPortId ?? "result_geometry");
+  });
+  const activeConnection = canEditTopology && sourceExists ? clickConnection : null;
+
+  React.useEffect(cancelClickConnection, [canEditTopology, interactionKey, cancelClickConnection]);
+  React.useEffect(() => {
+    if (clickConnection && !sourceExists) cancelClickConnection();
+  }, [clickConnection, sourceExists, cancelClickConnection]);
+  React.useEffect(() => {
+    if (!activeConnection) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelClickConnection();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeConnection, cancelClickConnection]);
+
+  function validClickTarget(target: ClickHandle) {
+    if (!activeConnection) return false;
+    const node = nodes.find((node) => node.id === target.nodeId);
+    const data = node && getGraphNodeData(node);
+    return Boolean(data?.nodeKind === "processStep" &&
+      data.geometryInputPorts?.some((port) => port.id === target.handleId) &&
+      activeConnection.source.nodeId !== target.nodeId &&
+      (isValidConnection?.(clickConnectionCandidate(activeConnection.source, target)) ?? true));
+  }
+
+  function clickHandle(event: React.MouseEvent, handle: ClickHandle, type: "source" | "target") {
+    event.stopPropagation();
+    if (!canEditTopology || suppressHandleClick.current || event.detail > 1) return;
+    if (type === "source") {
+      dispatchConnection({ type: "source", handle, pointer: { x: event.clientX, y: event.clientY } });
+    } else if (activeConnection && validClickTarget(handle)) {
+      onConnect?.(clickConnectionCandidate(activeConnection.source, handle));
+      cancelClickConnection();
+    }
+  }
+
+  const connectionContext = {
+    state: activeConnection,
+    enabled: canEditTopology,
+    validTarget: Boolean(activeConnection?.target && validClickTarget(activeConnection.target)),
+    cancel: cancelClickConnection,
+    clickHandle,
+  };
 
   return (
+    <ClickConnectionContext.Provider value={connectionContext}>
     <section
+      onPointerDownCapture={() => { suppressHandleClick.current = false; }}
+      onPointerMove={(event) => {
+        if (!activeConnection) return;
+        const handle = (event.target as Element).closest<HTMLElement>(".react-flow__handle.target");
+        dispatchConnection({
+          type: "pointer",
+          pointer: { x: event.clientX, y: event.clientY },
+          target: handle?.dataset.nodeid && handle.dataset.handleid
+            ? { nodeId: handle.dataset.nodeid, handleId: handle.dataset.handleid }
+            : null,
+        });
+      }}
       className={cn(
         "relative min-h-0 flex-1 bg-[linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[length:32px_32px]",
         className,
@@ -185,6 +272,8 @@ export function ProcessFlowGraph<
         edgeTypes={edgeTypes}
         nodesDraggable={canEditTopology}
         nodesConnectable={canEditTopology}
+        connectOnClick={false}
+        zoomOnDoubleClick={false}
         edgesReconnectable={canEditTopology ? edgesReconnectable : false}
         elementsSelectable={elementsSelectable}
         panOnScroll={panOnScroll}
@@ -196,17 +285,47 @@ export function ProcessFlowGraph<
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onConnectStart={onConnectStart}
+        onConnectStart={(...args) => {
+          suppressHandleClick.current = true;
+          cancelClickConnection();
+          onConnectStart?.(...args);
+        }}
         onConnectEnd={onConnectEnd}
         onReconnect={onReconnect}
-        onReconnectStart={onReconnectStart}
+        onReconnectStart={(...args) => {
+          suppressHandleClick.current = true;
+          cancelClickConnection();
+          onReconnectStart?.(...args);
+        }}
         onReconnectEnd={onReconnectEnd}
         isValidConnection={isValidConnection}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
+        onNodeDragStart={cancelClickConnection}
+        onNodeClick={(event, node) => {
+          onNodeClick?.(event, node);
+          const data = getGraphNodeData(node);
+          if (data.nodeKind === "processStep" && canEditTopology && event.detail === 1) {
+            dispatchConnection({
+              type: "source",
+              handle: { nodeId: node.id, handleId: data.outputPortId ?? "result_geometry" },
+              pointer: { x: event.clientX, y: event.clientY },
+            });
+          } else if (data.nodeKind !== "processStep") {
+            cancelClickConnection();
+          }
+        }}
+        onNodeDoubleClick={(event, node) => {
+          if (getGraphNodeData(node).nodeKind !== "processStep") return;
+          cancelClickConnection();
+          onNodeDoubleClick?.(event, node);
+        }}
+        onPaneClick={(event) => {
+          cancelClickConnection();
+          onPaneClick?.(event);
+        }}
       >
+        {activeConnection ? <ClickConnectionPreview state={activeConnection} valid={connectionContext.validTarget} /> : null}
         <Background color="rgba(15, 118, 110, 0.18)" gap={32} />
         <Controls position="bottom-left" />
         {showMiniMap ? (
@@ -226,7 +345,58 @@ export function ProcessFlowGraph<
       ) : null}
       {emptyState}
     </section>
+    </ClickConnectionContext.Provider>
   );
+}
+
+function ClickConnectionPreview({ state, valid }: { state: NonNullable<ClickConnectionState>; valid: boolean }) {
+  const sourceNode = useInternalNode(state.source.nodeId);
+  const { getInternalNode, screenToFlowPosition } = useReactFlow();
+  // Recompute the screen-space pointer after zooming or panning the viewport.
+  useViewport();
+  const sourceHandle = sourceNode?.internals.handleBounds?.source?.find((handle) => handle.id === state.source.handleId);
+  if (!sourceNode || !sourceHandle) return null;
+  const source = {
+    x: sourceNode.internals.positionAbsolute.x + sourceHandle.x + sourceHandle.width / 2,
+    y: sourceNode.internals.positionAbsolute.y + sourceHandle.y + sourceHandle.height / 2,
+  };
+  const targetNode = state.target ? getInternalNode(state.target.nodeId) : undefined;
+  const targetHandle = targetNode?.internals.handleBounds?.target?.find((handle) => handle.id === state.target?.handleId);
+  const target = targetNode && targetHandle ? {
+    x: targetNode.internals.positionAbsolute.x + targetHandle.x + targetHandle.width / 2,
+    y: targetNode.internals.positionAbsolute.y + targetHandle.y + targetHandle.height / 2,
+  } : screenToFlowPosition(state.pointer, { snapToGrid: false });
+  const [path] = getBezierPath({
+    sourceX: source.x, sourceY: source.y, sourcePosition: Position.Right,
+    targetX: target.x, targetY: target.y, targetPosition: Position.Left,
+  });
+  return (
+    <ViewportPortal>
+      <svg aria-hidden="true" data-testid="click-connection-preview" className="pointer-events-none absolute left-0 top-0 h-px w-px overflow-visible">
+        <path d={path} fill="none" strokeWidth={2.5} strokeDasharray="6 4"
+          className={state.target ? valid ? "stroke-emerald-500" : "stroke-destructive" : "stroke-primary"} />
+      </svg>
+    </ViewportPortal>
+  );
+}
+
+function ClickConnectionHandle(props: React.ComponentProps<typeof Handle>) {
+  const connection = React.useContext(ClickConnectionContext);
+  const nodeId = useNodeId();
+  const { type = "source", id, className, ...rest } = props;
+  const activeSource = connection?.state?.source.nodeId === nodeId && connection.state.source.handleId === id;
+  const activeTarget = connection?.state?.target?.nodeId === nodeId && connection.state.target.handleId === id;
+  return <Handle {...rest} id={id} type={type}
+    isConnectable={connection?.enabled ?? props.isConnectable}
+    isConnectableStart={connection?.enabled ?? props.isConnectableStart}
+    isConnectableEnd={connection?.enabled ?? props.isConnectableEnd}
+    className={cn(className, activeSource && "ring-2 ring-primary ring-offset-2",
+      activeTarget && (connection?.validTarget ? "ring-2 ring-emerald-500 ring-offset-2" : "ring-2 ring-destructive ring-offset-2"))}
+    onClick={(event) => {
+      event.stopPropagation();
+      if (nodeId && id) connection?.clickHandle(event, { nodeId, handleId: id }, type);
+    }}
+    onDoubleClick={(event) => event.stopPropagation()} />;
 }
 
 function FlowInputNode({
@@ -265,7 +435,7 @@ function FlowInputNode({
           data.onPick?.(pickId);
         }}
       >
-        <Handle
+        <ClickConnectionHandle
           type="source"
           id="out"
           position={Position.Right}
@@ -337,7 +507,7 @@ function FlowInputNode({
         data.onPick?.(pickId);
       }}
     >
-      <Handle
+      <ClickConnectionHandle
         type="source"
         id="out"
         position={Position.Right}
@@ -381,6 +551,7 @@ function FlowInputNode({
 }
 
 function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>) {
+  const clickConnection = React.useContext(ClickConnectionContext);
   const graphMode = data.graphMode ?? "edit";
   const status = data.status ?? "incomplete";
   const ready = status === "ready";
@@ -411,7 +582,8 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
   const outputPortId = data.outputPortId ?? "result_geometry";
   const terminalViewVisible =
     Boolean(data.terminalGeometryViewVisible && data.onTerminalGeometryView) &&
-    activeSourceHandleId !== outputPortId;
+    activeSourceHandleId !== outputPortId &&
+    clickConnection?.state?.source.nodeId !== id;
 
   return (
     <div
@@ -428,22 +600,16 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
               ? "border-muted-foreground/40"
               : "border-amber-500",
       )}
-      title={graphMode === "view" ? "Edit step values" : undefined}
-      onDoubleClick={(event) => {
-        if (graphMode !== "view") {
-          return;
-        }
-        event.stopPropagation();
-        data.onEdit?.(editId);
-      }}
+      title={graphMode === "edit" ? "Click to connect; double-click to edit step" : "Double-click to edit step"}
     >
       <div className="absolute left-0 top-3 flex -translate-x-1/2 flex-col gap-2">
         {inputPorts.map((port) => {
-          const labelVisible = activeTargetPortId === port.id;
+          const labelVisible = activeTargetPortId === port.id ||
+            (clickConnection?.state?.target?.nodeId === id && clickConnection.state.target.handleId === port.id);
 
           return (
             <div key={port.id} className="group/input relative flex items-center">
-              <Handle
+              <ClickConnectionHandle
                 type="target"
                 id={port.id}
                 position={Position.Left}
@@ -463,7 +629,7 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
         })}
       </div>
 
-      <Handle
+      <ClickConnectionHandle
         type="source"
         id={outputPortId}
         position={Position.Right}
@@ -497,57 +663,48 @@ function ProcessStepNode({ id, data }: NodeProps<Node<ProcessFlowGraphNodeData>>
       ) : null}
 
       <div className="flex min-h-0 flex-col justify-center border-b bg-muted/40 px-3 py-2">
-        {graphMode === "edit" ? (
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="line-clamp-2 text-base font-semibold leading-tight">
-                {nodeTitle}
-              </div>
-              {displaySublabel ? (
-                <div className="mt-1 truncate text-xs text-muted-foreground">
-                  {displaySublabel}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 gap-1 opacity-0 transition group-hover:opacity-100">
-              {data.onEdit ? (
-                <button
-                  className="nodrag flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-white hover:text-foreground"
-                  title="Edit values"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    data.onEdit?.(editId);
-                  }}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-              {data.onDelete ? (
-                <button
-                  className="nodrag flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-white hover:text-destructive"
-                  title="Delete step"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    data.onDelete?.(id);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="line-clamp-2 text-base font-semibold leading-tight">
-              {nodeTitle}
-            </div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="line-clamp-2 text-base font-semibold leading-tight">{nodeTitle}</div>
             {displaySublabel ? (
-              <div className="mt-1 truncate text-xs text-muted-foreground">
-                {displaySublabel}
-              </div>
+              <div className="mt-1 truncate text-xs text-muted-foreground">{displaySublabel}</div>
             ) : null}
-          </>
-        )}
+          </div>
+          <div className="flex shrink-0 gap-1">
+            {graphMode === "edit" && data.onDelete ? (
+              <button
+                type="button"
+                className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition hover:bg-white hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 group-focus-within:opacity-100"
+                title="Delete step"
+                aria-label={`Delete step ${nodeTitle}`}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  clickConnection?.cancel();
+                  data.onDelete?.(id);
+                }}
+              >
+                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+            {data.onEdit ? (
+              <button
+                type="button"
+                className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-white hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                title="Edit step"
+                aria-label={`Edit step ${nodeTitle}`}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  clickConnection?.cancel();
+                  data.onEdit?.(editId);
+                }}
+              >
+                <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+        </div>
       </div>
       <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
         <span className="truncate text-muted-foreground">{template.version}</span>
@@ -574,6 +731,7 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
   const data = props.data;
   const graphMode = data?.graphMode ?? "edit";
   const status = data?.status ?? "neutral";
+  const clickConnection = React.useContext(ClickConnectionContext);
   const sourceIsBeingReconnected = useConnection((connection) => {
     const sourceHandleId = props.sourceHandleId ?? "result_geometry";
     return (
@@ -596,7 +754,9 @@ function DataFlowEdge(props: EdgeProps<Edge<ProcessFlowGraphEdgeData>>) {
         interactionWidth={graphMode === "edit" ? 18 : 16}
         className={cn(
           "!stroke-[2.5px]",
-          sourceIsBeingReconnected
+          (sourceIsBeingReconnected ||
+            (clickConnection?.state?.source.nodeId === props.source &&
+              clickConnection.state.source.handleId === (props.sourceHandleId ?? "result_geometry")))
             ? "!stroke-muted-foreground/35"
             : props.selected
               ? "!stroke-primary"

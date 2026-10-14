@@ -230,6 +230,7 @@ function ProcessFlowInstanceEditorInner() {
         selectedNodeId,
         false,
         (nodeId) => {
+          if (savingRef.current) return;
           setSelectedNodeId(nodeId);
           setEditingNodeId(nodeId);
         },
@@ -463,6 +464,12 @@ function ProcessFlowInstanceEditorInner() {
         showMiniMap={graph.nodes.length > 0}
         defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
         onNodeClick={(_, node) => {
+          if (savingRef.current) return;
+          setSelectedNodeId(node.id);
+          if (isFlowInputNode(node)) setEditingNodeId(node.id);
+        }}
+        onNodeDoubleClick={(_, node) => {
+          if (savingRef.current || !isStepNode(node)) return;
           setSelectedNodeId(node.id);
           setEditingNodeId(node.id);
         }}
