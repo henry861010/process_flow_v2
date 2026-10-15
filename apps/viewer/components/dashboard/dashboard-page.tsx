@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { jobElapsed, progressPercent, stageLabels, type DashboardJob } from "./dashboard-state";
 import { useDashboardJobs } from "./use-dashboard-jobs";
+import { TargetFolderPath } from "./target-folder-path";
 
 export function DashboardPage() {
   const { snapshot, refreshing, stale, error, advanceSeconds, refresh } = useDashboardJobs();
@@ -141,6 +142,7 @@ function JobSection({ title, jobs, queued, advanceSeconds, stale }: {
                   <JobStatus job={job} />
                 </div>
                 <p className="break-all font-mono text-xs text-muted-foreground">{job.jobId}</p>
+                <TargetFolderPath key={job.targetFolderPath} jobId={job.jobId} path={job.targetFolderPath} />
                 {!queued ? <JobProgress job={job} /> : null}
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Timer aria-hidden="true" className="h-4 w-4" />
@@ -157,7 +159,13 @@ function JobSection({ title, jobs, queued, advanceSeconds, stale }: {
 }
 
 function JobIdentity({ job }: { job: DashboardJob }) {
-  return <div><p className="font-medium">{job.kind.toUpperCase()} export</p><p className="mt-1 break-all font-mono text-xs text-muted-foreground">{job.jobId}</p></div>;
+  return (
+    <div>
+      <p className="font-medium">{job.kind.toUpperCase()} export</p>
+      <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{job.jobId}</p>
+      <TargetFolderPath key={job.targetFolderPath} jobId={job.jobId} path={job.targetFolderPath} />
+    </div>
+  );
 }
 
 function JobStatus({ job }: { job: DashboardJob }) {

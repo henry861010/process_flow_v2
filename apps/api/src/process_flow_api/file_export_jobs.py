@@ -323,6 +323,7 @@ class FileExportJobManager:
                 progress = job.progress
                 payload = {
                     "jobId": job.job_id,
+                    "targetFolderPath": str(job.output_path.parent),
                     "kind": job.kind,
                     "status": job.status,
                     "createdAt": _iso(job.created_at),

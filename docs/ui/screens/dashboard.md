@@ -6,7 +6,7 @@ audience:
   - operators
   - frontend
   - QA
-last_verified: 2026-10-07
+last_verified: 2026-10-15
 last_verified_commit: 7308bb19
 source_of_truth:
   - apps/viewer/app/dashboard/page.tsx
@@ -30,6 +30,11 @@ connection badge 與 `Refresh`。總覽 cards 是 `Running`（數量／並行上
 桌面從 md (768px) 起使用 semantic tables，窄螢幕改為 cards。Job ID 全文可換行。
 Running row 顯示格式、ID、status、目前 stage、細部動作說明、stage progress 與 elapsed；queued row 顯示
 格式、ID、status、1-based queue position 與 waiting duration。Canceling 仍占執行額度。
+所有 active job 在 ID 下方直接顯示 `Target folder`，為 API 主機上輸出檔案的 parent
+directory，也是 `<jobId>.log` 所在資料夾。桌面與手機共用路徑元件；完整路徑使用等寬
+字體、可選取與換行，不截斷，不解析 symlink。複製按鈕有包含 job ID 的 accessible
+label，複製完整原始路徑；成功顯示 `Copied` 兩秒，失敗顯示
+`Unable to copy. Select the path and copy it manually.`，以 polite status 宣告。
 終態 job 從下一次成功快照消失；不提供歷史、取消或輸入／輸出下載。
 
 只有 current/total 皆 finite，且 `0 <= current <= total`、`total > 0` 時顯示 stage 百分比、
@@ -43,7 +48,8 @@ Stage 下方顯示與使用者 export drawer 相同的細部進度說明，例�
 純數字模板會公開；未知訊息為 null，介面保留 stage 與 progress。桌面與手機皆顯示，
 沒有可靠 total 時也保留動作說明。
 
-公開回應與畫面不包含 clientId、sourceLabel、主機 paths、meshControl、任意 worker
+公開回應與畫面允許 `targetFolderPath`，所有能存取 dashboard 的人皆可查看；不包含
+clientId、sourceLabel、其他主機 paths、meshControl、任意 worker
 message/warning 或 geometry。Stage 名稱由既定 enum 對應介面文字。
 
 ## 更新與錯誤
@@ -74,5 +80,6 @@ name、min/max/now。Icon 為 decorative；狀態不單靠顏色。Refresh spinn
 | `UI-DASH-006` | 390px 與 1440px | cards/table 切換，無 document horizontal overflow。 |
 | `UI-DASH-007` | 首次 loading／失敗、零工作 | 未知值不顯示零，錯誤與 empty 明確區分。 |
 | `UI-DASH-008` | worker 的細部動作更新 | 桌面／手機在 stage 下顯示最新允許的動作；未知訊息不公開。 |
+| `UI-DASH-009` | 各格式與 active status、長路徑含空白／中文 | ID 下方顯示完整 Target folder，390px／1440px 無 horizontal overflow，複製完整原始路徑；成功／失敗回饋與鍵盤操作可用。 |
 
 Queue 是單一 API process 的記憶體狀態；restart 清空，不跨多個 process 彙總。

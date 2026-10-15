@@ -29,6 +29,7 @@ describe("dashboard presentation", () => {
 
   it("uses server elapsed values rather than browser date differences", () => {
     const job: DashboardJob = {
+      targetFolderPath: "/exports",
       jobId: "id", kind: "cdb", status: "running", createdAt: "2000-01-01T00:00:00Z",
       startedAt: "2000-01-01T00:00:00Z", queuePosition: null,
       runElapsedSeconds: 60, queueElapsedSeconds: null, progress,

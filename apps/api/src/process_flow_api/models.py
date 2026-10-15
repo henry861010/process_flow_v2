@@ -762,6 +762,7 @@ class DashboardJobProgress(StrictModel):
 
 class DashboardJob(StrictModel):
     jobId: str
+    targetFolderPath: str
     kind: Literal["cdb", "json", "step"]
     status: Literal["queued", "running", "canceling"]
     createdAt: str

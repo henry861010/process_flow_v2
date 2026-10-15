@@ -234,7 +234,9 @@ Job list/get/cancel 以 browser-generated `clientId` filter。這是 UI isolatio
 
 另有公開唯讀 `GET /api/dashboard/jobs`，提供所有 client 的 active jobs 原子快照與
 running/queued counts，canceling 計入 running。它只公開 job ID、格式、狀態、時間、FIFO
-順位、stage/count progress 與 allowlisted 細部動作說明，省略 clientId、sourceLabel、paths、meshControl
+順位、stage/count progress、allowlisted 細部動作說明與 `targetFolderPath`（輸出檔案的
+parent directory，也是 `<jobId>.log` 所在資料夾，沿用已保存路徑、不解析 symlink）。
+所有可存取 dashboard 的人皆可看到 target folder；省略 clientId、sourceLabel、其他 paths、meshControl
 及任意 message/warning。耗時由 manager 的 monotonic clock 計算，快照不受 client history
 筆數限制，terminal job 不列入。Viewer `/dashboard` 顯示此快照；完整契約見
 [API README](../../apps/api/README.md) 與 [Dashboard](../ui/screens/dashboard.md)。

@@ -70,8 +70,13 @@ Outer fixed inset、z `50`、padding base `12px` / `sm` `24px`。Backdrop
 | Body | flex fill、`min-height:0`。 |
 | Footer | white、padding x16 y12、top border、right aligned、wrap。 |
 
-Header：`Geometry Preview`、request badge `Loading/Ready/Error`、source badge
-`Geometry Input/Step output`；次行 `<sourceLabel> -> <slotLabel>`；右側 Close。
+Header：step output 主標題使用 `<sourceLabel>`（目前 process step label；未設定時沿用
+step template 名稱），主標題字級 `1.6875rem`（27px，原字級的 1.5 倍）、行高 `2.25rem`；
+次行只顯示 `<slotLabel>`（目前為 `Result`）；Geometry Input 主標題維持
+`Geometry Preview`，次行 `<sourceLabel> -> <slotLabel>`。兩者皆保留 request badge
+`Loading/Ready/Error`、source badge `Geometry Input/Step output` 與右側 Close；標題規則不隨
+request 狀態變化。Step label 與 badge 群組水平間距 `24px`，badge 之間維持 `8px`。
+長標題可換行，Close 不縮小。
 
 Footer actions order固定：`Export JSON`、`Export CDB`。非Ready全部disabled。
 Backdrop、Close、Escape關閉；unmount abort進行中的preview request。關閉不改editor draft，也不取消

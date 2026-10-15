@@ -196,26 +196,46 @@ export function GeometryPreviewPanel({
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b bg-white px-4 py-3 md:px-5">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold">Geometry Preview</h2>
-              <Badge variant={state.status === "error" ? "outline" : "signal"}>
-                {state.status === "loading"
-                  ? "Loading"
-                  : state.status === "ready"
-                    ? "Ready"
-                    : "Error"}
-              </Badge>
-              <Badge variant="secondary">
-                {preview.sourceKind === "flowInput"
-                  ? "Geometry Input"
-                  : "Step output"}
-              </Badge>
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-y-2",
+                preview.sourceKind === "stepOutput" ? "gap-x-6" : "gap-x-2",
+              )}
+            >
+              <h2
+                className={cn(
+                  "min-w-0 max-w-full break-words font-semibold",
+                  preview.sourceKind === "stepOutput"
+                    ? "text-[1.6875rem] leading-9"
+                    : "text-lg",
+                )}
+              >
+                {preview.sourceKind === "stepOutput"
+                  ? preview.sourceLabel
+                  : "Geometry Preview"}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={state.status === "error" ? "outline" : "signal"}>
+                  {state.status === "loading"
+                    ? "Loading"
+                    : state.status === "ready"
+                      ? "Ready"
+                      : "Error"}
+                </Badge>
+                <Badge variant="secondary">
+                  {preview.sourceKind === "flowInput"
+                    ? "Geometry Input"
+                    : "Step output"}
+                </Badge>
+              </div>
             </div>
             <div className="mt-1 truncate text-sm text-muted-foreground">
-              {preview.sourceLabel} {"->"} {preview.slotLabel}
+              {preview.sourceKind === "stepOutput"
+                ? preview.slotLabel
+                : `${preview.sourceLabel} -> ${preview.slotLabel}`}
             </div>
           </div>
-          <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
+          <Button className="shrink-0" variant="ghost" size="icon" title="Close" onClick={onClose}>
             <X />
           </Button>
         </header>

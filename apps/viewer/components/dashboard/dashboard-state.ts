@@ -5,6 +5,7 @@ import type {
 
 export type DashboardJob = {
   jobId: string;
+  targetFolderPath: string;
   kind: FileExportKind;
   status: "queued" | "running" | "canceling";
   createdAt: string;

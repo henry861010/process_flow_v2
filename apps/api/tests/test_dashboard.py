@@ -109,6 +109,19 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(len(payload["jobs"]), 25)
         self.assertEqual([job["queuePosition"] for job in payload["jobs"]], list(range(1, 26)))
 
+    def test_target_folder_uses_saved_output_parent_for_all_active_jobs(self):
+        for kind in ("cdb", "json", "step"):
+            for status in ("queued", "running", "canceling"):
+                job_id = f"{kind}-{status}"
+                job = self.add_job(job_id, kind=kind, status=status)
+                job.output_path = self.root / "匯出 folder" / ("long-segment-" * 20) / f"{job_id}.{kind}"
+        payload = self.snapshot()
+        self.assertEqual(len(payload["jobs"]), 9)
+        for item in payload["jobs"]:
+            job = self.manager._jobs[item["jobId"]]
+            self.assertEqual(item["targetFolderPath"], str(job.output_path.parent))
+        DashboardJobsResponse.model_validate(payload)
+
     def test_status_changes_remove_terminal_jobs_and_update_positions(self):
         first = self.add_job("first")
         second = self.add_job("second")
@@ -135,9 +148,14 @@ class DashboardTests(unittest.TestCase):
             message="private-worker-path",
         )
         payload = self.snapshot()
-        self.assertNotIn("private", json.dumps(payload))
+        self.assertEqual(payload["jobs"][0]["targetFolderPath"], str(job.output_path.parent))
+        filtered = {**payload, "jobs": [
+            {key: value for key, value in item.items() if key != "targetFolderPath"}
+            for item in payload["jobs"]
+        ]}
+        self.assertNotIn("private", json.dumps(filtered))
         self.assertEqual(set(payload["jobs"][0]), {
-            "jobId", "kind", "status", "createdAt", "startedAt", "queuePosition",
+            "jobId", "targetFolderPath", "kind", "status", "createdAt", "startedAt", "queuePosition",
             "runElapsedSeconds", "queueElapsedSeconds", "progress",
         })
         self.assertEqual(set(payload["jobs"][0]["progress"]), {

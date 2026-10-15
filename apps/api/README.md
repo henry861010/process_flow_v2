@@ -167,14 +167,18 @@ canceling）、`queuedCount` 與 `jobs`。僅列 queued/running/canceling；runn
 queued 依 FIFO 排列。Snapshot 在同一 manager lock 內產生，不套用每 client 20 筆限制，
 以 `Cache-Control: no-store` 回應，analytics traffic kind 為 polling。
 
-Job 欄位為 `jobId`、`kind`、`status`、`createdAt`、`startedAt`、`queuePosition`、
+Job 欄位為 `jobId`、`targetFolderPath`、`kind`、`status`、`createdAt`、`startedAt`、`queuePosition`、
 `runElapsedSeconds`、`queueElapsedSeconds`、`progress`。Queued 的 run elapsed 為 null；
 其他 active status 的 queue elapsed 為 null。耗時以 monotonic clock 計算。Progress 僅包含
 `stage`、`message`、`current`、`total`、`unit`、`stageStartedAt`、`updatedAt`。
 `message` 僅公開內建 worker 的固定文案與純數字進度模板，例如
 `Imprinting feature 3 of 10.`、`Built layer 3 of 12.`；未知訊息回 null。
 
-此端點不要求 authentication，不回傳 clientId、sourceLabel、paths、meshControl、worker
+`targetFolderPath` 為 API 主機上輸出檔案的 parent directory，沿用已保存的路徑、不解析
+symlink；該資料夾包含 `<jobId>.log`。三種格式與所有 active status 均提供完整資料夾路徑。
+
+此端點不要求 authentication，所有可存取 dashboard 的人皆可看到 target folder。
+除 `targetFolderPath` 外，不回傳其他 paths、clientId、sourceLabel、meshControl、worker
 任意 message/warning 或完整輸入。現有 client-filtered export API 不變。資料限單一 API process，
 restart 清空；這不是歷史、preview 或 analytics dashboard。
 
