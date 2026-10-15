@@ -87,3 +87,23 @@ heights must also fit their host layer spans. Their
 manifests use an inclusive minimum of 0. DRAM package thickness must still
 contain its substrate and occupied die stack; a zero package thickness requires
 all internal thicknesses and die gaps to be zero.
+
+Wafer carrier (`wafer-carrier` v1), panel carrier (`panel-carrier` v1), and frame
+(`frame` v1) are available in the template geometry library and flow input
+pickers. They use the existing catalog categories, entity types, and semantic
+keys, with one root-direct body centered on XYZ:
+
+| Generator | Editable parameters and defaults (um) | Root / body key | Shape / adapter |
+| --- | --- | --- | --- |
+| `wafer-carrier` | `diameter`: 300000, `carrierThickness`: 775, `carrierMaterial`: `Si` | `carrier.wafer` / `carrier` | Cylinder / `rigid@1` |
+| `panel-carrier` | `packageX`: 510000, `packageY`: 515000, `carrierThickness`: 700, `carrierMaterial`: `glass` | `carrier.panel` / `carrier` | Box / `box-rescale@1` |
+| `frame` | `diameter`: 350000, `tapeThickness`: 80, `tapeMaterial`: `tape` | `frame` / `frame` | Cylinder / `rigid@1` |
+
+Diameter and X/Y must be finite and positive; thickness must be finite and
+nonnegative, with zero retaining the body. Numeric strings and booleans are
+invalid. Materials are trimmed and must be nonempty. Frame represents only
+the circular tape; it does not include an outer frame. Preview supplies Top View,
+Cross Section, and computed `packageX`, `packageY`, and `totalThickness`.
+Carrier bond/debond and frame mount/demount consume the generated keys directly.
+Flow bindings save normalized versioned recipes without creating catalog records;
+the existing catalog fixtures remain available.

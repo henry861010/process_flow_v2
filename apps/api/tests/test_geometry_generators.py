@@ -30,6 +30,9 @@ class GeometryGeneratorApiTests(unittest.TestCase):
             "vrm": ["templateGeometryLibrary", "flowInputPicker"],
             "lsi": ["management", "templateGeometryLibrary", "flowInputPicker"],
             "wafer-dmy": ["templateGeometryLibrary", "flowInputPicker"],
+            "wafer-carrier": ["templateGeometryLibrary", "flowInputPicker"],
+            "panel-carrier": ["templateGeometryLibrary", "flowInputPicker"],
+            "frame": ["templateGeometryLibrary", "flowInputPicker"],
         }
         listed = self.client.get("/api/geometry-generators")
         self.assertEqual(listed.status_code, 200, listed.text)
@@ -127,8 +130,11 @@ class GeometryGeneratorApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         definitions = response.json()
-        self.assertEqual([item["id"] for item in definitions], ["hbm", "dram", "soc", "vrm", "lsi", "wafer-dmy"])
-        hbm = definitions[0]
+        self.assertEqual([item["id"] for item in definitions], [
+            "hbm", "dram", "wafer-carrier", "panel-carrier", "lsi", "soc", "wafer-dmy", "vrm", "frame",
+        ])
+        by_id = {item["id"]: item for item in definitions}
+        hbm = by_id["hbm"]
         self.assertEqual(hbm["version"], 2)
         self.assertEqual(hbm["adaptationContract"]["adapterId"], "hbm-package")
         hbm_parameter_ids = [item["id"] for item in hbm["parameterDefinitions"]]
@@ -177,7 +183,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 },
             ],
         )
-        dram = definitions[1]
+        dram = by_id["dram"]
         dram_parameter_ids = [item["id"] for item in dram["parameterDefinitions"]]
         self.assertEqual(dram["version"], 2)
         self.assertIn("dramThickness", dram_parameter_ids)
@@ -244,7 +250,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 [item["id"] for item in definition["parameterDefinitions"]],
             )
         self.assertEqual(hbm["previewViews"], ["top", "cross-section-x"])
-        soc = definitions[2]
+        soc = by_id["soc"]
         self.assertEqual(soc["version"], 1)
         self.assertEqual(soc["entityType"], "die")
         self.assertEqual(soc["category"], "die.soc")
@@ -276,7 +282,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                 self.assertFalse(parameter["validation"]["exclusiveMin"])
         self.assertEqual(soc["previewViews"], ["top", "cross-section-x"])
 
-        vrm = definitions[3]
+        vrm = by_id["vrm"]
         self.assertEqual(vrm["version"], 1)
         self.assertEqual(vrm["entityType"], "die")
         self.assertEqual(vrm["category"], "die.vrm")
@@ -289,7 +295,7 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         self.assertEqual(vrm["parameterGroups"], [])
         self.assertEqual(vrm["previewViews"], soc["previewViews"])
 
-        lsi = definitions[4]
+        lsi = by_id["lsi"]
         self.assertEqual(lsi["version"], 1)
         self.assertEqual(lsi["category"], "die.lsi")
         self.assertEqual(lsi["adaptationContract"]["adapterId"], "box-rescale")

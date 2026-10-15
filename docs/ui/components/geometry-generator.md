@@ -2,7 +2,7 @@
 title: Geometry Generator Framework
 status: normative
 owner: Process Flow UI
-last_verified: 2026-10-13
+last_verified: 2026-10-15
 last_verified_commit: b838db68cf0ec0ed
 audience:
   - frontend
@@ -27,6 +27,9 @@ HBM與DRAM只在Home提供catalog建立入口；flow input從Geometry DB選擇�
 Template Geometry library及兩種flow input選擇器。LSI另在Management提供catalog建立入口。
 Management和Home的catalog入口共用`/geometry-generator?generatorId=<id>`靜態頁。
 
+Template Geometry library與flow input picker沿用後端registry順序：Wafer carrier、Panel carrier、
+LSI、SoC、DMY die、VRM、Frame；套用flow input constraints後保留相對順序。
+
 SoC generator v1由下而上提供Pass2、usg、elk與si四層的厚度及材料參數；VRM generator v1
 提供`thickness`及`material`兩個參數。兩者使用8000 × 10000 um作為預覽基準footprint，
 並以`box-rescale@1`在PnP時配合target region調整XY。兩者僅從flow editor的generator selector
@@ -40,6 +43,28 @@ XYZ置中，root container key為`wafer-dmy`，唯一body key為`wafer-dmy.si`�
 及Flow Template／Instance的geometry input選擇器，Home與Management不提供入口，fixture catalog
 不提供DMY die geometry。wafer邊緣的放置位置、數量與形狀由既有flow／PnP設定；generator
 不自動排列die，也不計算warpage。
+
+Wafer carrier、Panel carrier與Frame generator皆為v1，只在Template Geometry library與
+Flow Template／Instance的geometry input picker提供入口。尺寸與材料層分為Size與
+Carrier／Tape兩個cards；所有尺寸單位為um，預設如下：
+
+| Generator ID | 尺寸參數 | 厚度／材料參數 | Root key／body key |
+| --- | --- | --- | --- |
+| `wafer-carrier` | `diameter`: 300000 | `carrierThickness`: 775；`carrierMaterial`: `Si` | `carrier.wafer`／`carrier` |
+| `panel-carrier` | `packageX`: 510000；`packageY`: 515000 | `carrierThickness`: 700；`carrierMaterial`: `glass` | `carrier.panel`／`carrier` |
+| `frame` | `diameter`: 350000 | `tapeThickness`: 80；`tapeMaterial`: `tape` | `frame`／`frame` |
+
+UI欄位名稱為Diameter、X、Y、Carrier thk、Carrier material、Tape thk與Tape material。
+Category、icon與root key相同；entityType依序為`wafer`、`panel`、`frame`。
+三者只產生一個root-direct body，XYZ置中；wafer與frame使用CylinderGeometry，panel使用
+BoxGeometry。Frame只包含圓形膠帶，不包含外框。直徑與長寬須為有限正數；厚度須為有限
+非負數，0仍保留body；數值欄位拒絕布林與字串。材料trim後不得為空。
+
+三者使用共用Top View／Cross Section預覽，computed parameters提供`packageX`、`packageY`
+與`totalThickness`。Wafer與frame使用`rigid@1`保留設定的圓形尺寸；panel使用`box-rescale@1`。
+Carrier bond／debond及frame mount／demount沿用既有semantic keys；Define保存完整正規化的
+versioned generator binding，重開可編輯，compile時重建geometry，不新增Geometry DB紀錄。
+既有catalog fixtures保留。
 
 LSI generator v1以`generation`參數選擇`gen1`、`gen2`或`gen2-bs-first`
 （選單顯示`gen2 (bs-first)`），使用固定8000 × 10000 um

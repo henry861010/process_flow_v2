@@ -68,7 +68,8 @@ class RegistryTests(unittest.TestCase):
         register_builtin_generators(registry)
         self.assertEqual(
             [(item["id"], item["version"]) for item in registry.definitions()],
-            [("hbm", 2), ("dram", 2), ("soc", 1), ("vrm", 1), ("lsi", 1), ("wafer-dmy", 1)],
+            [("hbm", 2), ("dram", 2), ("wafer-carrier", 1), ("panel-carrier", 1),
+             ("lsi", 1), ("soc", 1), ("wafer-dmy", 1), ("vrm", 1), ("frame", 1)],
         )
         preview = registry.preview("hbm", {}, generator_version=2)
         self.assertTrue(preview["valid"])
