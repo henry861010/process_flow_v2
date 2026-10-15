@@ -6,8 +6,8 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-10-13
-last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
+last_verified: 2026-10-15
+last_verified_commit: bed1b3d9223073ef7cef59b9f54c548813a626dd
 source_of_truth:
   - docs/ui/screens
   - docs/ui/components
@@ -123,6 +123,9 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-EXPORT-002` | running job | cancel | 先顯示 canceling，再顯示 canceled或 server terminal result。 |
 | `UI-EXPORT-008` | ready preview，Export form open | press Escape while idle | 只關閉 Export form，Geometry Preview 保持開啟；submitting 時 Escape 不關閉。 |
 | `UI-CAD-001` | axis view X、imported model | Reset | demo回復且 camera仍為 X view並重新 fit。 |
+| `UI-PARAM-020` | scalar fieldGroupArray、同名或自訂 CSV 表頭 | 選檔並將 pm 對應 Dielectric | 同名自動預填、確認前不改值，確認後以系統 key 一次取代；額外欄位明示忽略。 |
+| `UI-PARAM-023` | 後列值不合法或待確認期間群組改變 | 確認匯入、修正 mapping、手動 edit、disable | 失敗保留原值與 mapping 並指出行號/來源欄位/target key；群組異動取消待處理匯入。 |
+| `UI-PARAM-024` | mapping 區塊 | 檢查 1440×900／390×844 與鍵盤操作 | 對應表不溢出，label/error/focus 與確認/取消可用。 |
 | `UI-PLACE-001` | placement cards | add/remove/reorder | persisted array與execution order一致。 |
 | `UI-PLACE-003` | invalid polygon points/edges/area | edit vertex | inline diagnostics顯示且configuration不算complete。 |
 | `UI-PLACE-004` | GDS rotated/reflected polygon | import | exact local polygon與bottom-left pose取代原placements。 |

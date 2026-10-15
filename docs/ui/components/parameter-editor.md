@@ -7,12 +7,14 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-14
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-10-15
+last_verified_commit: bed1b3d9223073ef7cef59b9f54c548813a626dd
 source_of_truth:
   - apps/viewer/components/process-flow-parameters/parameter-value-editor.tsx
   - apps/viewer/lib/process-flow/parameter-values.ts
   - apps/viewer/lib/process-flow/configuration.ts
+  - apps/viewer/components/process-flow-parameters/repeatable-group-csv-import.tsx
+  - apps/viewer/lib/process-flow/repeatable-group-csv.ts
 ---
 
 # Parameter Editor
@@ -95,8 +97,17 @@ React key MUST 用`itemId`，不可用array index；edit child不得重建item i
 的群組不提供匯入；其 nested repeater 若自身符合條件仍可匯入。判斷只依 definition，
 不依目前值或特定 process program。
 
-區塊列出 parameter ids 作為 CSV 表頭，提示每列產生一個 item、匯入取代目前整份清單、
-optional 欄位可省略。使用瀏覽器內建 `File.text()` 與本機 TypeScript parser，無新增套件、
+區塊列出 target parameter ids。`Import CSV` 選檔後只讀取並檢查 CSV 結構，在區塊內展開
+`Column mapping`，顯示檔名、item count 與依 definition 順序排列的對應表；每列包含
+field name、key、Required/Optional 與 native select。系統 key → CSV 欄名，由下拉選單選擇，
+表頭 trim 後與 key 大小寫完全相同者自動預填。必填未對應時顯示行內提示，
+`Confirm import` 停用；選填可選 `Do not import`，其他欄位已選的 CSV column 在選單內停用。
+未對應的 CSV 欄位列於 `Columns that will be ignored`，匯入時忽略。
+
+`Confirm import` 才驗證欄位值並一次取代整份清單；選檔與調整 mapping 不改值。
+`Cancel` 清除檔案與 mapping，保留目前清單；`Choose another CSV` 選定新檔後重設 mapping，
+取消檔案選擇器則保留既有待確認內容。Mapping 僅保留於本次匯入，不存 localStorage、
+template 或 instance。使用瀏覽器內建 `File.text()` 與本機 TypeScript parser，無新增套件、
 CDN、檔案上傳或外部服務。
 
 RDL 範例（`thk` 使用 definition 的 `um` 單位，不轉換單位）：
@@ -107,9 +118,20 @@ PI-2611,Cu,8,62
 PI-2611,Cu,6,48
 ```
 
+自訂表頭範例：將 `Dielectric` 選為 `pm`，`note` 不對應而忽略；材料內容不轉換。
+
+```csv
+pm,Conductivity,thk,density,note
+PI-2611,Cu,8,62,first layer
+ABF,Cu,6,48,second layer
+```
+
 - UTF-8 CSV 支援 BOM、CRLF/LF、引號內逗號/換行與 doubled quotes；完全空白列忽略。
-- 表頭 trim 後大小寫精確匹配 child `id`，順序不限；重複/未知/空 key、missing required
-  header、欄數不一致、malformed quoting、empty file 或 header-only file 必須拒絕。
+- 表頭 trim 後不可空白或重複，欄位順序不限。欄數不一致、malformed quoting、empty file
+  或 header-only file 必須拒絕。必填未對應、無效來源/目標 key、重複對應不可匯入。
+- `importRepeatableGroupCsv` 第三參數為選填 `Record<string, string | null>`，表示系統 key →
+  CSV 表頭，null/缺省略過該欄；不傳 mapping 的既有呼叫仍要求表頭精確匹配 child id，
+  拒絕 unknown/missing required header。
 - Number cell trim 後完整解析 decimal/scientific notation，不接受單位、partial number、
   hex、NaN 或 Infinity；integer 必須 integral。Boolean 只接受 `true` / `false`。
 - String/materialRef 保留 cell 內容；required 空白值拒絕，optional missing/blank cell
@@ -117,11 +139,14 @@ PI-2611,Cu,6,48
   typed enum 與 repeat min/max 規則。
 - 整份通過才一次取代該群組；每列產生新唯一 `itemId`，`index` 從 `indexBase` 遞增，
   CSV 列序就是執行順序。匯入不觸發 Add 的 heading focus/scroll，其他參數不變。
-- 失敗保留原值，錯誤顯示 physical line 與 key（cell/header error），透過 `role=alert`
+- 失敗保留原值及待確認 mapping，錯誤顯示 physical line、target key 與 CSV column（cell error），透過 `role=alert`
   宣告並聚焦錯誤訊息；成功透過 `role=status` 宣告檔名、item count 與取代結果。
-- Read 期間顯示 `Importing…` 並停用匯入；群組 value/definition 改變、disabled 或卸載
-  使舊讀取失效。手動 edit 不會被舊讀取覆寫；file input 清空以允許重選同一檔案。
-  取消選檔不改值，後續仍可手動編輯或重新匯入。
+- Read 期間顯示 `Reading CSV…` 並停用選檔；群組 value/definition 改變、disabled 或卸載
+  使舊讀取與待確認 mapping 失效。手動 edit 不會被舊匯入覆寫；file input 清空以允許
+  重選同一檔案。讀取後 focus 第一個 mapping select；取消/成功後 focus 匯入按鈕，
+  不使用新增 item 的 heading focus/scroll。錯誤 focus 訊息，修正 mapping 後清除舊錯誤。
+- 對應表在 `sm` 以上為兩欄，窄螢幕 label/control 垂直排列；長 key/檔名可換行，
+  select 不可撐寬容器，按鈕可換行。
 
 ## Disabled 與 read-only
 
@@ -162,7 +187,7 @@ rectangle/polygon placements、one-level repeat、nested repeat、disabled state
 | `UI-PARAM-008` | 在可捲動dialog以mouse或keyboard連續Add | 每次新增後即時捲到新item heading並聚焦；小視窗下heading與focus仍可見。 |
 | `UI-PARAM-009` | nested repeat Add，或載入/edit/Delete | nested Add只定位該層新item；載入/edit不移動focus或編號；Delete只重新編號該層並依指定規則移動focus。 |
 | `UI-PARAM-010` | simple repeat / complex repeat / simple nested repeat | 僅符合 scalar schema 的 repeater 顯示 CSV；nested 獨立判斷。 |
-| `UI-PARAM-011` | 匯入合法 RDL CSV | 一次取代清單，fresh identities、indexBase 與列序正確；可手動 edit，save/reload 後層序不變。 |
+| `UI-PARAM-011` | 選擇合法 RDL CSV 並確認 mapping 匯入 | 一次取代清單，fresh identities、indexBase 與列序正確；可手動 edit，save/reload 後層序不變。 |
 | `UI-PARAM-012` | CSV 格式/表頭/值/項目數錯誤 | 原值不變，顯示列號/key/原因；同檔可重選。 |
 | `UI-PARAM-013` | cancel / disabled / read 期間 edit 或卸載 | cancel 不改值，disabled 不允許匯入，stale read 不覆寫最新值或更新卸載元件。 |
 | `UI-PARAM-014` | 點第一組上方／組間位置後連續Add | 插入位置正確，連續新增順序穩定；Add at end恢復尾端新增。 |
@@ -171,3 +196,8 @@ rectangle/polygon placements、one-level repeat、nested repeat、disabled state
 | `UI-PARAM-017` | 巢狀repeater獨立選取與增刪 | 不影響其他repeater的插入位置、identity或編號。 |
 | `UI-PARAM-018` | 鍵盤選取、新增及刪除 | 選取可用Enter/Space；新增focus新heading，刪除focus下一組／前一組／Add。 |
 | `UI-PARAM-019` | CSV成功匯入或外部替換清單 | 清除插入位置，CSV不觸發新增focus/scroll；失敗匯入保留原值及選取。 |
+| `UI-PARAM-020` | 選擇同名或含 `pm` 的 CSV | 選檔不改值；同名預填，`pm` 可手動對應 `Dielectric`；缺 required 對應停用 Confirm import。 |
+| `UI-PARAM-021` | mapping 含額外欄位或 optional field | 未選 CSV 欄位列出並忽略；optional 可不匯入且不套 default；已選來源不可重複對應。 |
+| `UI-PARAM-022` | 調整 mapping 後 Confirm import／Cancel／Choose another CSV | 確認後一次取代；取消保留原值；選新檔清除舊 mapping；取消選檔保留待確認內容。 |
+| `UI-PARAM-023` | 後列值不合法、待確認期間 edit/disabled/卸載 | 錯誤保留原值與 mapping，顯示行號/CSV 欄名/target key；群組異動使待確認內容失效。 |
+| `UI-PARAM-024` | mapping 區塊在 1440×900 與 390×844，以鍵盤操作 | label/select 關聯、必填錯誤可讀、第一個 select 有 focus，無區塊水平溢出；確認/取消焦點回匯入按鈕。 |

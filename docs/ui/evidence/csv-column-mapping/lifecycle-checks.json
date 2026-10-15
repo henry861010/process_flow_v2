@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-15",
+  "browser": "Codex in-app browser",
+  "harness": "Isolated ParameterValueEditor with RDL fixture, nested repeater, delayed File.text, disabled/definition/mount controls",
+  "passed": [
+    "Missing required mapping blocks confirmation",
+    "Manual edit invalidates pending mapping",
+    "Reading disables file selection",
+    "Stale read cannot reopen mapping or overwrite edited values",
+    "Disabling cancels pending mapping and disables import",
+    "Definition change invalidates pending mapping",
+    "Unmounted read cannot reopen mapping after remount",
+    "Exact headers prefill all required mappings",
+    "Chosen source columns are disabled in other field selectors",
+    "Nested mapping imports independently of outer values",
+    "Failed mapped import preserves all values and mapping",
+    "Correcting mapping recovers without reselecting file",
+    "Choosing another file resets custom mapping and prefills the new header"
+  ]
+}

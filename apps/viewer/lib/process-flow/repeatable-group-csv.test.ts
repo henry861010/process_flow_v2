@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import stepTemplates from "../../../api/src/process_flow_api/fixtures/process-step-templates.json";
 import { isParameterValueComplete } from "./configuration";
-import { canImportRepeatableGroupCsv, convertCsvCell, importRepeatableGroupCsv, parseCsv } from "./repeatable-group-csv";
+import {
+  canImportRepeatableGroupCsv, convertCsvCell, createCsvColumnMapping,
+  importRepeatableGroupCsv, inspectRepeatableGroupCsv, parseCsv, validateCsvColumnMapping,
+  type CsvColumnMapping,
+} from "./repeatable-group-csv";
 import type { ParameterDefinition, ValueType } from "./types";
 
 const rdl = stepTemplates.find((step) => step.id === "step_tpl_rdl")!
@@ -168,5 +172,95 @@ describe("repeatable group CSV import", () => {
     expect(() => importRepeatableGroupCsv(rdl, "Dielectric,Conductivity,thk,density\nPI,Cu,8,62\nPI,Cu,0,48")).toThrow('Line 3, key "thk": Value must be > 0');
     expect(() => importRepeatableGroupCsv(rdl, "Dielectric,Conductivity,thk,density\nPI,Cu,8,101")).toThrow('key "density": Value must be >= 0 and <= 100');
     expect(JSON.stringify(rdl)).toBe(before);
+  });
+});
+
+describe("CSV column mapping", () => {
+  const csv = "note,density, pm ,Conductivity,thk\nfirst,62,PI-2611,Cu,8\nsecond,48,ABF,Cu,6";
+  const mapping = { Dielectric: "pm", Conductivity: "Conductivity", thk: "thk", density: "density" };
+
+  it("inspects custom headers without importing and prefills exact keys only", () => {
+    const inspected = inspectRepeatableGroupCsv(rdl, csv);
+    expect(inspected.headers).toEqual(["note", "density", "pm", "Conductivity", "thk"]);
+    expect(inspected.rows).toHaveLength(2);
+    expect(inspected.headerLine).toBe(1);
+    expect(createCsvColumnMapping(rdl, inspected.headers)).toEqual({ ...mapping, Dielectric: null });
+    expect(createCsvColumnMapping(rdl, ["dielectric", "Thk"])).toEqual({
+      Dielectric: null, Conductivity: null, thk: null, density: null,
+    });
+  });
+
+  it("maps pm to Dielectric, ignores extra columns and preserves order, values and identities", () => {
+    const before = JSON.stringify(rdl);
+    const imported = importRepeatableGroupCsv(rdl, csv, mapping);
+    expect(imported.items.map(({ index, values }) => ({ index, values }))).toEqual([
+      { index: 1, values: { Dielectric: "PI-2611", Conductivity: "Cu", thk: 8, density: 62 } },
+      { index: 2, values: { Dielectric: "ABF", Conductivity: "Cu", thk: 6, density: 48 } },
+    ]);
+    expect(new Set(imported.items.map((item) => item.itemId)).size).toBe(2);
+    expect(importRepeatableGroupCsv(rdl, csv, mapping).items[0].itemId).not.toBe(imported.items[0].itemId);
+    expect(isParameterValueComplete(rdl, JSON.parse(JSON.stringify(imported)))).toBe(true);
+    expect(JSON.stringify(rdl)).toBe(before);
+    expect(() => importRepeatableGroupCsv(rdl, csv)).toThrow("Unknown parameter key");
+  });
+
+  it("omits null, missing and blank optional fields without applying defaults", () => {
+    const definition = group([
+      field("integer"), field("string", { id: "note", required: false, defaultValue: "ignored" }),
+    ]);
+    const mappings: CsvColumnMapping[] = [{ value: "count" }, { value: "count", note: null }, { value: "count", note: "comment" }];
+    for (const columnMapping of mappings) {
+      expect(importRepeatableGroupCsv(definition, "count,comment,unused\n9,,anything", columnMapping).items[0])
+        .toMatchObject({ index: 3, values: { value: 9 } });
+    }
+  });
+
+  it.each([
+    [{ ...mapping, Dielectric: null }, "required field"],
+    [{ Conductivity: "Conductivity", thk: "thk", density: "density" }, "required field"],
+    [{ ...mapping, Dielectric: "missing" }, 'Unknown CSV column "missing"'],
+    [{ ...mapping, Dielectric: "" }, 'Unknown CSV column ""'],
+    [{ ...mapping, Dielectric: "Conductivity" }, "already mapped"],
+    [{ ...mapping, unknown: "note" }, "Unknown target parameter key"],
+  ])("rejects invalid mappings: %j", (columnMapping, message) => {
+    expect(validateCsvColumnMapping(rdl, inspectRepeatableGroupCsv(rdl, csv).headers, columnMapping))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining(message) })]));
+    expect(() => importRepeatableGroupCsv(rdl, csv, columnMapping)).toThrow(message);
+  });
+
+  it.each([
+    ["pm, pm \nPI,PI", "Duplicate header"],
+    ["pm,\nPI,Cu", 'key "(empty)"'],
+    ["pm,note\nPI", "Expected 2 columns; found 1"],
+    ["pm\nPI,extra", "Expected 1 columns; found 2"],
+    ["pm\n", "at least one data row"],
+    ['pm\n"unclosed', "Unclosed quoted cell"],
+    ["", "empty"],
+  ])("rejects malformed files before mapping: %s", (text, message) => {
+    expect(() => inspectRepeatableGroupCsv(rdl, text)).toThrow(message);
+    expect(() => importRepeatableGroupCsv(rdl, text, mapping)).toThrow(message);
+  });
+
+  it("validates later mapped rows with physical line, CSV column and target key", () => {
+    const definition = group([
+      field("string", { id: "name" }), field("float", { validation: { min: 0, exclusiveMin: true } }),
+    ]);
+    const before = JSON.stringify(definition);
+    expect(() => importRepeatableGroupCsv(definition, 'label,height\n"first\nsecond",1\nlast,0', { name: "label", value: "height" }))
+      .toThrow('Line 4, key "value": CSV column "height": Value must be > 0');
+    expect(JSON.stringify(definition)).toBe(before);
+  });
+
+  it("enforces target types, enum and item limits after mapping", () => {
+    const definition = group([
+      field("integer", { optionSource: { type: "static", options: [{ name: "Two", value: 2 }] } }),
+    ], { maxItems: 1 });
+    expect(() => importRepeatableGroupCsv(definition, "count\n2.5", { value: "count" })).toThrow("integer");
+    expect(() => importRepeatableGroupCsv(definition, "count\n3", { value: "count" })).toThrow("Expected one of: 2");
+    expect(() => importRepeatableGroupCsv(definition, "count\n", { value: "count" })).toThrow("at least one data row");
+    expect(() => importRepeatableGroupCsv(definition, "count\n2\n2", { value: "count" })).toThrow("at most 1 items");
+    expect(() => importRepeatableGroupCsv(group([field("integer")], { minItems: 2 }), "count\n2", { value: "count" })).toThrow("at least 2 items");
+    expect(() => importRepeatableGroupCsv(group([field("boolean")]), "flag\nyes", { value: "flag" })).toThrow('Expected "true" or "false"');
+    expect(() => importRepeatableGroupCsv(group([field("string")]), "label,note\n ,kept", { value: "label" })).toThrow("A value is required");
   });
 });
