@@ -166,17 +166,12 @@ function PlacementCard({
   if (disabled) {
     return (
       <section className="overflow-hidden rounded-md border bg-muted/20">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
           <span className="font-medium">Placement {index + 1}</span>
           <span className="min-w-0 break-words text-right font-mono text-xs text-muted-foreground">
             {readOnlyPlacementSummary(placement, unit)}
           </span>
         </div>
-        {placement.targetRegion.type === "polygon" ? (
-          <div className="p-3">
-            <PolygonPreview placement={placement as PolygonPlacement} />
-          </div>
-        ) : null}
       </section>
     );
   }
@@ -334,7 +329,7 @@ function PolygonEditor({
   }
 
   return (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+    <div className="min-w-0">
       <div className="min-w-0 overflow-hidden rounded-md border">
         <div className="grid grid-cols-[42px_minmax(0,1fr)_minmax(0,1fr)_112px] gap-2 border-b bg-muted/30 px-2 py-2 text-xs font-medium text-muted-foreground">
           <span>#</span>
@@ -401,64 +396,7 @@ function PolygonEditor({
           </Button>
         </div>
       </div>
-      <PolygonPreview placement={placement} />
     </div>
-  );
-}
-
-function PolygonPreview({ placement }: { placement: PolygonPlacement }) {
-  const points = numericPoints(placement.targetRegion.points);
-  if (!points || points.length < 2) {
-    return (
-      <div className="flex min-h-40 items-center justify-center rounded-md border border-dashed bg-muted/10 px-3 text-center text-xs text-muted-foreground">
-        Enter finite polygon points to preview the target outline.
-      </div>
-    );
-  }
-  const display = points.map(([x, y]) => [x, -y] as [number, number]);
-  const xs = display.map((point) => point[0]);
-  const ys = display.map((point) => point[1]);
-  const width = Math.max(...xs) - Math.min(...xs);
-  const height = Math.max(...ys) - Math.min(...ys);
-  const padding = Math.max(width, height, 1) * 0.15;
-  const viewBox = [
-    Math.min(...xs) - padding,
-    Math.min(...ys) - padding,
-    Math.max(width, 1) + padding * 2,
-    Math.max(height, 1) + padding * 2,
-  ].join(" ");
-
-  return (
-    <svg
-      role="img"
-      aria-label={`Absolute polygon target preview with ${points.length} points`}
-      className="min-h-40 w-full rounded-md border bg-slate-950"
-      viewBox={viewBox}
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <polygon
-        points={display.map((point) => point.join(",")).join(" ")}
-        fill="rgba(56,189,248,0.2)"
-        stroke="rgb(56,189,248)"
-        strokeWidth={Math.max(width, height, 1) / 120}
-        vectorEffect="non-scaling-stroke"
-      />
-      {display.map((point, index) => (
-        <g key={index}>
-          <circle cx={point[0]} cy={point[1]} r={Math.max(width, height, 1) / 45} fill="white" />
-          <text
-            x={point[0]}
-            y={point[1]}
-            dx={Math.max(width, 1) / 40}
-            dy={-Math.max(height, 1) / 40}
-            fill="white"
-            fontSize={Math.max(width, height, 1) / 18}
-          >
-            {index + 1}
-          </text>
-        </g>
-      ))}
-    </svg>
   );
 }
 
