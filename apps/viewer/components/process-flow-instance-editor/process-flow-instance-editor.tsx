@@ -33,6 +33,7 @@ import {
   geometrySearchText,
 } from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
+import { FlowGdsFileProvider, useFlowGdsFile } from "@/components/process-flow-fields/flow-gds-file-context";
 import { StepTemplateDetails } from "@/components/process-flow-fields/step-template-details";
 import {
   SaveInformationDialog,
@@ -112,12 +113,15 @@ type FlowEdge = Edge<ProcessFlowGraphEdgeData, "dataFlow">;
 export function ProcessFlowInstanceEditor() {
   return (
     <ReactFlowProvider>
-      <ProcessFlowInstanceEditorInner />
+      <FlowGdsFileProvider>
+        <ProcessFlowInstanceEditorInner />
+      </FlowGdsFileProvider>
     </ReactFlowProvider>
   );
 }
 
 function ProcessFlowInstanceEditorInner() {
+  const flowGds = useFlowGdsFile();
   const router = useRouter();
   const [hydrated, setHydrated] = React.useState(false);
   const [selectedTemplate, setSelectedTemplate] = React.useState<ProcessFlowTemplate | null>(null);
@@ -205,6 +209,7 @@ function ProcessFlowInstanceEditorInner() {
         throw new Error("This draft belongs to a different template.");
       }
       const state = structuredClone(draft.state);
+      flowGds?.clearFile();
       setInstanceIdentity(state.metadata); setConfiguration(state.configuration);
       setSelectedSourceId(""); setSelectedNodeId(null); setEditingNodeId(null);
       setPickerFlowInputId(null); setGeneratorEditor(null); setPreview(null); setMessage(null);
@@ -277,6 +282,7 @@ function ProcessFlowInstanceEditorInner() {
     if (!await drafts.confirmReplaceAsync(destination)) return false;
     drafts.detach();
     setConfiguration(nextConfiguration);
+    flowGds?.clearFile();
     setSelectedSourceId(source?.id ?? "");
     setInstanceIdentity(newInstanceIdentity());
     setSelectedNodeId(null);
@@ -511,6 +517,7 @@ function ProcessFlowInstanceEditorInner() {
 
       {editingNode ? (
         <InstanceNodeEditorDialog
+          key={editingNode.id}
           node={editingNode}
           configuration={configuration}
           geometries={resolvedGeometries}

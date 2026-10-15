@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { PlacementValidationSummary } from "@/lib/process-flow/placement-validation";
 import { cn } from "@/lib/utils";
+import { useFlowGdsFile } from "./flow-gds-file-context";
 import type { GdsTargetRegion } from "./gds-coordinate-geometry";
 import {
   duplicateGdsImportCriterionKeys,
@@ -70,7 +71,9 @@ export function GdsPlacementImport({
 }) {
   const [portalReady, setPortalReady] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [gdsFile, setGdsFile] = React.useState<File | null>(null);
+  const flowGds = useFlowGdsFile();
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const gdsFile = selectedFile ?? flowGds?.file ?? null;
   const [criteria, setCriteria] = React.useState<GdsImportCriterionDraft[]>(() => [
     emptyCriterionDraft(0),
   ]);
@@ -84,10 +87,12 @@ export function GdsPlacementImport({
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const dialogRef = React.useRef<HTMLFormElement | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const chooseFileRef = React.useRef<HTMLButtonElement | null>(null);
   const isImportingRef = React.useRef(false);
   const dialogId = React.useId();
   const titleId = React.useId();
   const descriptionId = React.useId();
+  const fileLabelId = React.useId();
 
   isImportingRef.current = isImporting;
 
@@ -100,7 +105,7 @@ export function GdsPlacementImport({
 
     const trigger = triggerRef.current;
     const focusFrame = window.requestAnimationFrame(() => {
-      fileInputRef.current?.focus();
+      chooseFileRef.current?.focus();
     });
     const handleDialogKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -112,7 +117,7 @@ export function GdsPlacementImport({
       if (event.key !== "Tab") return;
 
       const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]), input:not([disabled]):not([hidden]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
       );
       if (!focusable?.length) return;
       const first = focusable[0];
@@ -192,6 +197,7 @@ export function GdsPlacementImport({
     if (!gdsFile || !importCriteria) {
       return;
     }
+    const importedFile = gdsFile;
     workerRef.current?.terminate();
     workerRef.current = null;
     setIsImporting(true);
@@ -200,7 +206,7 @@ export function GdsPlacementImport({
     const requestId = crypto.randomUUID();
     activeRequestIdRef.current = requestId;
     try {
-      const buffer = await gdsFile.arrayBuffer();
+      const buffer = await importedFile.arrayBuffer();
       if (activeRequestIdRef.current !== requestId) return;
       const worker = new Worker(
         new URL("./gds-coordinate-import.worker.ts", import.meta.url),
@@ -222,9 +228,17 @@ export function GdsPlacementImport({
           setError(event.data.message);
           return;
         }
-        const validation = onImport(event.data.regions);
-        setSummary({ ...event.data, validation });
-        setDialogOpen(false);
+        try {
+          const validation = onImport(event.data.regions);
+          if (flowGds) {
+            flowGds.rememberFile(importedFile);
+            setSelectedFile(null);
+          }
+          setSummary({ ...event.data, validation });
+          setDialogOpen(false);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        }
       };
       worker.onerror = (event) => {
         if (activeRequestIdRef.current !== requestId) return;
@@ -365,25 +379,31 @@ export function GdsPlacementImport({
                 </header>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-                  <label className="block min-w-0 text-sm">
-                    <span className="mb-1 block font-medium">GDS file</span>
+                  <div className="min-w-0 text-sm" role="group" aria-labelledby={fileLabelId}>
+                    <span id={fileLabelId} className="mb-1 block font-medium">GDS file</span>
                     <input
                       ref={fileInputRef}
-                      className={cn(
-                        inputClass,
-                        "h-auto file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium",
-                      )}
+                      hidden
+                      aria-label="GDS file"
                       type="file"
                       accept=".gds,.gdsii,.strm,.stream,application/octet-stream"
                       onChange={(event) => {
-                        setGdsFile(event.target.files?.[0] ?? null);
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        setSelectedFile(file);
+                        event.target.value = "";
                         clearFeedback();
                       }}
                     />
-                  </label>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {gdsFile?.name ?? "No file selected"}
-                  </p>
+                    <Button ref={chooseFileRef} type="button" variant="outline" size="sm"
+                      onClick={() => fileInputRef.current?.click()}>
+                      <FileUp aria-hidden="true" />
+                      {gdsFile ? "Choose another file" : "Choose file"}
+                    </Button>
+                    <div aria-live="polite" className="mt-1 space-y-1 text-xs text-muted-foreground">
+                      <p className="select-text whitespace-pre-wrap break-all">{gdsFile?.name ?? "No file selected"}</p>
+                    </div>
+                  </div>
 
                   <div className="mt-4 space-y-2" aria-label="GDS layer and datatype patterns">
                     {criteria.map((criterion, index) => {
@@ -515,7 +535,7 @@ export function GdsPlacementImport({
                 </div>
 
                 <footer className="flex flex-wrap items-center justify-between gap-3 border-t bg-white px-5 py-3">
-                  <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  <span className="min-w-0 max-w-full select-text whitespace-pre-wrap break-all text-xs text-muted-foreground">
                     {gdsFile?.name ?? "No file selected"}
                   </span>
                   <div className="flex items-center gap-2">

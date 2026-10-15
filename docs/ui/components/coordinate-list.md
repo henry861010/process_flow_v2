@@ -15,6 +15,8 @@ source_of_truth:
   - apps/viewer/components/process-flow-fields/placement-preview-geometry.ts
   - apps/viewer/components/process-flow-fields/placement-preview.test.tsx
   - apps/viewer/components/process-flow-fields/gds-placement-import.tsx
+  - apps/viewer/components/process-flow-fields/flow-gds-file-context.tsx
+  - apps/viewer/components/process-flow-fields/gds-placement-import.test.tsx
   - apps/viewer/components/process-flow-fields/gds-import-criteria.ts
   - apps/viewer/components/process-flow-fields/gds-import-criteria.test.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.ts
@@ -86,6 +88,18 @@ GDS不是required input。Editor初始只顯示小型`Import from GDS`button；b
 layer、datatype與optional cell name filter；`Defeature`是default-off且由所有pattern共用。關閉再開啟
 modal時，file、patterns與Defeature在目前editor生命週期內保持不變。
 
+Flow template與flow instance editor在本次編輯期間共用最近成功匯入的GDS `File`。
+新step的modal自動沿用並顯示完整檔名與`Choose another file`，不顯示沿用提示；
+body與footer的檔名可選取且換行，不以ellipsis截斷。瀏覽器選檔只提供檔名，不提供本機absolute path。
+仍須使用者按`Import and replace`才匯入。手動選檔優先於共用檔案，
+只關閉GDS modal會保留尚未匯入的選檔；關閉或切換step editor則捨棄該選檔。
+取消file picker不得清除選檔或共用預設。每次import固定使用啟動當下的檔案，
+成功套用placements後才更新共用預設並清除本視窗的選檔覆寫；失敗或stale response不得更新。
+Patterns、cell filter與Defeature各step獨立，其他step既有placements不自動變更。
+檔案僅保存在memory，不寫入draft、API或storage；成功載入另一份template、instance source、
+draft或空白配置時清除，取消切換則保留。離開editor或reload後須重新選檔。
+共用context外的獨立placement editor仍可自行選檔匯入。
+
 Pattern以exact layer/datatype pair做OR比對，不產生layer與datatype的cross product。同一pair不得
 重複；任一pair incomplete、不是non-negative safe integer或重複時，顯示inline diagnostic並停用
 import。Add pattern新增include、empty cell filter的空白列；remove不得刪除最後一列。Pattern order
@@ -155,3 +169,6 @@ Preview buttons 有 accessible names 與 visible focus ring；card headings 可�
 | `UI-PLACE-022` | 1,000 placements、readonly、390px及desktop | 全數繪製、可zoom/pan/定位，不改值或dirty state、無page-level horizontal overflow。 |
 | `UI-PLACE-023` | 預覽初始畫面，點擊右上角驚嘆號或按Escape | 圖區只保留圖形及控制，不顯示統計/座標/編號定位/footer；說明預設隱藏、可開關且不推動cards。 |
 | `UI-PLACE-024` | zoom/pan後Add placement並填寫遠處座標 | 新增及填寫時自動fit全部形狀；手動操作camera後恢復保持視角，controls浮在圖內右下、無標題列。 |
+| `UI-PLACE-025` | step A成功匯入後關閉，開啟step B的GDS modal | 自動沿用同一檔案，body/footer完整顯示可選取換行的檔名、不顯示沿用提示，可換檔；patterns與Defeature不跨step繼承。 |
+| `UI-PLACE-026` | 換檔後取消picker、關閉modal、匯入失敗或完成 | 取消picker保留選檔；關閉modal保留pending選檔；只有成功套用placements才更新flow預設，且不改其他step的placements；stale response無效。 |
+| `UI-PLACE-027` | 成功載入template/source/draft/空白配置、取消切換或reload | 成功替換或reload清除共用檔案；取消切換保留；不同editor session不共用。 |

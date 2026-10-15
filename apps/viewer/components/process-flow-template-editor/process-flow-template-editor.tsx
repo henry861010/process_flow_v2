@@ -50,6 +50,7 @@ import {
   geometrySearchText,
 } from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
+import { FlowGdsFileProvider, useFlowGdsFile } from "@/components/process-flow-fields/flow-gds-file-context";
 import { StepTemplateDetails } from "@/components/process-flow-fields/step-template-details";
 import { StepTemplateHoverPreview, StepTemplatePreviewProvider } from "@/components/process-flow-fields/step-template-hover-preview";
 import {
@@ -162,12 +163,15 @@ type PreviewAvailability =
 export function ProcessFlowTemplateEditor() {
   return (
     <ReactFlowProvider>
-      <ProcessFlowTemplateEditorInner />
+      <FlowGdsFileProvider>
+        <ProcessFlowTemplateEditorInner />
+      </FlowGdsFileProvider>
     </ReactFlowProvider>
   );
 }
 
 function ProcessFlowTemplateEditorInner() {
+  const flowGds = useFlowGdsFile();
   const router = useRouter();
   const reactFlow = useReactFlow<FlowNode, FlowEdge>();
   const [hydrated, setHydrated] = React.useState(false);
@@ -262,6 +266,7 @@ function ProcessFlowTemplateEditorInner() {
               stepTemplate: stepTemplates.find((step) => step.id === node.stepRef.processStepTemplateId)! } });
       const restoredEdges = state.edges.map<FlowEdge>((edge) => ({ ...edge, type: "dataFlow",
         markerEnd: { type: MarkerType.ArrowClosed }, data: emptyEdgeData() }));
+      flowGds?.clearFile();
       setMetadata(state.metadata);
       setInstanceMetadataOverrides({});
       setSaveDialogMode(null); setSaveDialogError(null);
@@ -507,6 +512,7 @@ function ProcessFlowTemplateEditorInner() {
     if (!await drafts.confirmReplaceAsync(`Use template "${template.name}" to start a new flow?`)) return false;
     drafts.detach();
     setInstanceMetadataOverrides({});
+    flowGds?.clearFile();
     setMetadata({
       name: template.name, version: template.version,
       description: template.description ?? "", owner: template.owner ?? "",
@@ -1133,6 +1139,7 @@ function ProcessFlowTemplateEditorInner() {
 
       {editingNode ? (
         <NodeEditorDialog
+          key={editingNode.id}
           node={editingNode}
           topologyLocked={topologyLocked}
           configuration={configuration}

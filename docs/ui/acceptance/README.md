@@ -148,6 +148,9 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-023` | shared placement layout | inspect initial view; toggle help; Escape | 無統計/座標/編號定位/footer，右上驚嘆號按需顯示操作說明，不推動cards或關閉editor。 |
 
 | `UI-PLACE-024` | placement preview after zoom/pan | Add placement and enter distant coordinates | 自動fit全部形狀；手動操作camera後保持視角；無標題列，controls在圖內右下。 |
+| `UI-PLACE-025` | flow中step A成功匯入GDS | close A; open B GDS modal | 自動沿用檔案，body/footer完整顯示可選取換行的檔名、不顯示沿用提示，可換檔；各step的patterns與Defeature獨立。 |
+| `UI-PLACE-026` | GDS已有共用預設 | choose replacement; cancel picker/modal, fail, or complete import | picker取消保留選檔，modal取消保留pending；僅成功套用才更新預設，不改其他step placements；stale response無效。 |
+| `UI-PLACE-027` | editor記住GDS | load template/source/draft/blank, cancel switch, or reload | 成功替換/reload清除，取消切換保留，獨立editor session不共用。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。
