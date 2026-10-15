@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import tempfile
 import unittest
+from math import asin, pi, sqrt
 from pathlib import Path
 
 import numpy as np
@@ -15,28 +16,40 @@ from process_flow_kernel import ProcessGeometryState
 from process_flow_api.main import create_app
 
 
-def joined_structure(height, density=100):
+def joined_structure(height, density=100, *, x=0, circular=False):
     main = ProcessGeometryState.create()
-    main.initialize_box_layer(material="Si", bottom_left=[0,0,0], top_right=[20,20,0], thickness=100)
+    if circular:
+        main.initialize_cylinder_layer(material="Si", center=[10,10,0], radius=10, thickness=100)
+    else:
+        main.initialize_box_layer(material="Si", bottom_left=[0,0,0], top_right=[20,20,0], thickness=100)
     main.add_bump_above_cursor(material="LowerSolder", density=100, thickness=20, stage="reflowed")
     die = ProcessGeometryState.create()
     die.initialize_box_layer(material="DieSi", bottom_left=[0,0,15], top_right=[10,10,15], thickness=50)
     die.add_bump(material="UpperSolder", density=density, direction="-z", stage="reflowed", geometry={"type":"box", "bottomLeft":[0,0,0], "topRight":[10,10,0], "thickness":15})
-    main.place_geometry_state(die, x=0, y=0, bottom_z=120)
+    y = 5 if circular else 0
+    bottom = main.bump_placement_bottom_z(die, x=x, y=y, anchor="bottomLeft")
+    main.place_geometry_state(die, x=x, y=y, bottom_z=bottom)
     main.join_bumps(joined_height=height)
     return main.to_geometry_structure()
 
 
 class JointConsumerTests(unittest.TestCase):
     def test_step_ownership_preserves_lower_data_without_duplicate_solid_volume(self):
-        for height in (5, 25, 60):
-            with self.subTest(height=height):
-                structure = joined_structure(height)
+        for height, x, circular in ((5,0,False), (25,0,False), (60,0,False),
+                                    (5,15,False), (25,15,False), (25,15,True)):
+            with self.subTest(height=height, x=x, circular=circular):
+                structure = joined_structure(height, x=x, circular=circular)
                 before = copy.deepcopy(structure)
+                bump = structure["root"]["children"][0]["bumps"][0]
+                self.assertEqual(bump["stage"], "joined")
+                self.assertEqual(bump["geometry"]["bottom_left"], [x, 5 if circular else 0, 100])
                 bodies = convert_cad_bodies(structure, include_feature_bodies=True)
                 lower = [body for body in bodies if body.feature_type == "bump" and "LowerSolder" in body.material]
                 upper = [body for body in bodies if body.feature_type == "bump" and "UpperSolder" in body.material]
-                self.assertAlmostEqual(sum(body.shape.Volume() for body in lower), 300 * 20)
+                main_area = 100 * pi if circular else 400
+                # Circle/overhanging rectangle intersection: integrate sqrt(r²-y²)-5 over [-5,5].
+                overlap_area = 25 * sqrt(3) + 100 * asin(0.5) - 50 if circular else (100 if x == 0 else 50)
+                self.assertAlmostEqual(sum(body.shape.Volume() for body in lower), (main_area - overlap_area) * 20)
                 self.assertAlmostEqual(sum(body.shape.Volume() for body in upper), 100 * height)
                 for index, left in enumerate(bodies):
                     for right in bodies[index+1:]:
@@ -46,20 +59,26 @@ class JointConsumerTests(unittest.TestCase):
 
     def test_cdb_child_density_owns_joint_columns_and_source_is_immutable(self):
         control = {"schemaVersion":"1.0.0", "unitSystem":"um", "mesher":"process_flow_2_5d", "globalElementSize":5, "symmetry":"full", "controls":[]}
-        for height, density in ((5,100), (25,100), (25,80), (25,0)):
-            with self.subTest(height=height, density=density):
-                structure = joined_structure(height, density)
+        for height, density, x, circular in ((5,100,0,False), (25,100,0,False), (25,80,0,False), (25,0,0,False),
+                                             (5,100,15,False), (25,100,15,False), (25,80,15,False), (25,0,15,False),
+                                             (25,100,15,True)):
+            with self.subTest(height=height, density=density, x=x, circular=circular):
+                structure = joined_structure(height, density, x=x, circular=circular)
                 before = copy.deepcopy(structure)
                 mesh = build_mesh_from_structure(structure, control)
                 centers = mesh.nodes[mesh.elements[:, :8]].mean(axis=1)
-                inside = (centers[:,0] < 10) & (centers[:,1] < 10) & (centers[:,2] > 100) & (centers[:,2] < 100+height)
+                y = 5 if circular else 0
+                in_columns = (centers[:,0] > x) & (centers[:,0] < x+10) & (centers[:,1] > y) & (centers[:,1] < y+10)
+                inside = in_columns & (centers[:,2] > 100) & (centers[:,2] < 100+height)
                 if density:
                     self.assertGreater(np.count_nonzero(inside), 0)
                     self.assertTrue(np.all(mesh.element_comps[inside] == mesh.comps["UpperSolder"]))
+                    if x == 15:
+                        self.assertGreater(np.count_nonzero(inside & (centers[:,0] > 20)), 0)
                 else:
                     self.assertEqual(np.count_nonzero(inside), 0)
                 lower_elements = mesh.element_comps == mesh.comps["LowerSolder"]
-                self.assertFalse(np.any(lower_elements & (centers[:,0] < 10) & (centers[:,1] < 10)))
+                self.assertFalse(np.any(lower_elements & in_columns))
                 # No two solids occupy the same cell, even where root/child features overlap.
                 self.assertEqual(len({tuple(sorted(row)) for row in mesh.elements.tolist()}), mesh.element_count)
                 with tempfile.TemporaryDirectory() as directory:

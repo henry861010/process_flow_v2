@@ -11,7 +11,6 @@ from ..utils.math_utils import math
 from ..utils.polygon import classify_polygon_loops
 
 
-TOLERANCE = 1e-5
 UNJOINED_STAGES = ("deposited", "reflowed")
 
 
@@ -32,10 +31,10 @@ def placement_bottom_z(main, source, *, main_z, offset_x, offset_y):
             bump for bump in main.bumps()
             if bump.stage() in UNJOINED_STAGES
             and math.f_eq(bump.z_min(), main_z)
-            and footprint_covers(bump.geometry(), geometry)
+            and footprints_overlap(bump.geometry(), geometry)
         ]
         if len(lower) > 1:
-            raise ValueError("PnP: bottom bump has multiple covering main bumps")
+            raise ValueError("PnP: bottom bump has multiple overlapping main bumps")
         heights.append(lower[0].thk() if lower else 0)
     if heights and any(math.f_ne(height, heights[0]) for height in heights[1:]):
         raise ValueError("PnP: source bottom bumps require different placement heights")
@@ -54,7 +53,7 @@ def plan_bump_joint(root, joined_height):
                 lower for lower in root.bumps()
                 if lower.stage() == "reflowed"
                 and math.f_eq(lower.z_max(), upper.z_min())
-                and footprint_covers(lower.geometry(), upper.geometry())
+                and footprints_overlap(lower.geometry(), upper.geometry())
             ]
             if len(lowers) > 1:
                 raise ValueError("Bump Joint: bottom bump has multiple lower matches")
@@ -82,20 +81,22 @@ def plan_bump_joint(root, joined_height):
     return plans
 
 
-def footprint_covers(outer, inner):
-    """Use real XY envelopes (including polygon holes), never just bounds."""
-    if isinstance(outer, (CylinderGeometry, ConeGeometry)):
-        center, radius = _circle(outer)
-        if isinstance(inner, (CylinderGeometry, ConeGeometry)):
-            inner_center, inner_radius = _circle(inner)
-            return hypot(center[0] - inner_center[0], center[1] - inner_center[1]) + inner_radius <= radius + TOLERANCE
-        return all(hypot(x - center[0], y - center[1]) <= radius + TOLERANCE for x, y in _vertices(inner))
-    region = _region(outer)
-    if isinstance(inner, (CylinderGeometry, ConeGeometry)):
-        center, radius = _circle(inner)
-        point = Point(center[:2])
-        return region.covers(point) and region.boundary.distance(point) + TOLERANCE >= radius
-    return region.buffer(TOLERANCE).covers(_region(inner))
+def footprints_overlap(left, right):
+    """Require positive XY overlap area; holes and exact circular bounds matter.
+
+    Do not buffer footprints: touching at a point or edge is not a joint.
+    Cone footprints retain the existing maximum-radius envelope semantics.
+    """
+    circular = (CylinderGeometry, ConeGeometry)
+    if isinstance(left, circular):
+        center, radius = _circle(left)
+        if isinstance(right, circular):
+            other_center, other_radius = _circle(right)
+            return hypot(center[0] - other_center[0], center[1] - other_center[1]) < radius + other_radius
+        return _region(right).distance(Point(center[:2])) < radius
+    if isinstance(right, circular):
+        return footprints_overlap(right, left)
+    return _region(left).intersection(_region(right)).area > 0
 
 
 def _circle(geometry):
@@ -103,15 +104,6 @@ def _circle(geometry):
     if isinstance(geometry, ConeGeometry):
         radius = max(radius, geometry.top_radius())
     return geometry.center(), radius
-
-
-def _vertices(geometry):
-    if isinstance(geometry, BoxGeometry):
-        a, b = geometry.bottom_left(), geometry.top_right()
-        return [(a[0], a[1]), (a[0], b[1]), (b[0], a[1]), (b[0], b[1])]
-    if isinstance(geometry, PolygonGeometry):
-        return [point[:2] for loop in geometry.polygons() for point in loop]
-    raise ValueError("Unsupported bump footprint")
 
 
 def _region(geometry):

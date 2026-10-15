@@ -111,7 +111,7 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
   `pose.x/y/rotationZ`與required `anchor`保存在同一item。Rectangle使用`bottomLeftX/Y`與
   `topRightX/Y`；polygon points也是global XY。Hidden transform固定為zero pose與center anchor，
   無底部 deposited/reflowed bump 時，bottom Z 對齊 current cursor 並忽略 main bump。
-  有底部 deposited/reflowed bump 時，依實際 XY footprint 尋找涵蓋它、底面位於 cursor 的
+  有底部 deposited/reflowed bump 時，依實際 XY footprint 尋找與它具有正重疊面積、底面位於 cursor 的
   main deposited/reflowed bump；整體 envelope bottom 對齊 cursor 加 main bump 厚度，
   因此 die 本體底面為 cursor 加兩側 bump 厚度。Catalog main 沒有 runtime cursor 時，
   僅在 PnP 還原到 root direct-body top，不以 bump 或 children 的最高點定位。
@@ -145,11 +145,14 @@ flowchart LR
 ```
 
 Formation 使用各自 state footprint，不需要單顆 bump 座標。PnP 後 die 本體與 main
-接合表面間距為 35 um；Joint 後為 25 um。下側 envelope 涵蓋上側 footprint 且 Z 面接觸
+接合表面間距為 35 um；Joint 後為 25 um。上下側 envelope 的 XY footprint 有正重疊面積且 Z 面接觸
 即可配對，不要求 material 或 density 相同；joined metadata 沿用 die 側。
+PnP 與 Joint 共用此重疊規則，使用實際圓形邊界與 polygon 孔洞；沒有最低重疊比例，
+僅邊線或單點接觸不算。VRM 跨出 wafer 邊界但部分重疊時，PnP 仍納入下側 bump 厚度，
+Joint 將整片上側 bump（包含 wafer 外的部分）標記為 joined，不裁切或拆分 footprint。
 
 Joint 只處理 root 直屬 children 的最底部 reflowed bumps，略過未配對 children；完全沒有
-配對時失敗。每個上側 envelope 必須有唯一配對，同一 child 的底部 bumps 必須全部配對
+配對時正常完成且不修改 state。每個上側 envelope 必須有唯一配對，同一 child 的底部 bumps 必須全部配對
 且頂面一致。所有配對的下側底面與上下接觸面須同高（1e-5 um tolerance），不同 child
 的上側厚度可以不同。全部驗證成功後，將上側 bump 底面移到下側底面、厚度設定成
 正值 `bump_joined_height`，並整體平移 child，使本體底面到達下側底面加 joined height。

@@ -10,6 +10,8 @@ from process_flow_kernel import (
     FlowCompiler, GeometryArtifact, GeometryKernel, InMemoryGeometryCatalog,
     ProcessGeometryState, ProcessStepContext, normalize_geometry_structure,
 )
+from process_flow_kernel.domain.bump_operations import footprints_overlap
+from process_flow_kernel.domain.geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
 from process_flow_steps.joint.mr_joint import execute as execute_joint
 from process_flow_steps.joint.tcb_joint import execute as execute_tcb_joint
 from process_flow_steps.pnp.pnp import execute as execute_pnp
@@ -207,17 +209,99 @@ class JointTests(unittest.TestCase):
         state.join_bumps(joined_height=25)
         self.assertEqual([child["bumps"][0]["stage"] for child in state.to_geometry_structure()["root"]["children"]], ["joined","joined"])
 
-    def test_real_circle_and_polygon_hole_coverage(self):
+    def test_real_circle_and_polygon_hole_overlap(self):
         state = ProcessGeometryState.create()
         state.initialize_cylinder_layer(material="Si", center=[0,0,0], radius=50, thickness=100)
         state.add_bump_above_cursor(material="Sn", density=40, thickness=20, stage="reflowed")
         self.assertEqual(state.bump_placement_bottom_z(die_state(), x=0, y=0, anchor="bottomLeft"), 120)
-        # Rectangle lies in the circle's bounding box but its corners are outside.
+        # Rectangle lies in the circle's bounding box but outside the circle.
         self.assertEqual(state.bump_placement_bottom_z(die_state(), x=40, y=40, anchor="bottomLeft"), 100)
         state = main_state(None)
         state.add_bump(material="Sn", density=40, direction="+z", stage="reflowed", geometry={"type":"polygon", "polygons":[[[0,0,100],[100,0,100],[100,100,100],[0,100,100]],[[20,20,100],[20,40,100],[40,40,100],[40,20,100]]],"thickness":20})
         self.assertEqual(state.bump_placement_bottom_z(die_state(), x=25, y=25, anchor="bottomLeft"), 100)
         self.assertEqual(state.bump_placement_bottom_z(die_state(), x=0, y=0, anchor="bottomLeft"), 120)
+        self.assertEqual(state.bump_placement_bottom_z(die_state(), x=15, y=25, anchor="bottomLeft"), 120)
+
+    def test_pnp_and_both_joints_accept_wafer_edge_overhang(self):
+        for execute in (execute_joint, execute_tcb_joint):
+            for x in (45, 50 - 1e-6):
+                for polygon in (False, True):
+                    for catalog in (False, True):
+                        with self.subTest(execute=execute.__module__, x=x, polygon=polygon, catalog=catalog):
+                            state = ProcessGeometryState.create()
+                            state.initialize_cylinder_layer(material="Si", center=[0,0,0], radius=50, thickness=100)
+                            state.add_bump_above_cursor(material="Sn", density=40, thickness=20, stage="reflowed")
+                            initial = state.to_geometry_structure()
+                            die = die_state()
+                            source = die.to_geometry_structure()
+                            target = placement(x, -5)
+                            if polygon:
+                                target["targetRegion"] = {"type":"polygon", "points":[[x,-5],[x+10,-5],[x+10,5],[x,5]]}
+                            main_artifact = GeometryArtifact.from_structure(initial)
+                            if catalog:
+                                state = ProcessGeometryState.from_structure(initial)
+                            else:
+                                main_artifact = main_artifact.with_runtime_state(state)
+                            footprint = state.process_footprint()
+                            execute_pnp(context(state, {"placements":[target]}, main_artifact,
+                                                GeometryArtifact.from_structure(source)))
+                            before = state.to_geometry_structure()["root"]
+                            child = before["children"][0]
+                            self.assertEqual(child["bodies"][0]["geometry"]["bottom_left"][2]
+                                             if not polygon else child["bodies"][0]["geometry"]["polys"][0][0][2], 135)
+                            execute(context(state, {"bump_joined_height":25}))
+                            after = state.to_geometry_structure()["root"]
+                            expected = copy.deepcopy(child)
+                            geometry = expected["bumps"][0]["geometry"]
+                            geometry["thk"] = 25
+                            expected["bumps"][0]["stage"] = "joined"
+                            if polygon:
+                                for loop in geometry["polys"]:
+                                    for point in loop:
+                                        point[2] = 100
+                                for loop in expected["bodies"][0]["geometry"]["polys"]:
+                                    for point in loop:
+                                        point[2] = 125
+                            else:
+                                geometry["bottom_left"][2] = geometry["top_right"][2] = 100
+                                expected["bodies"][0]["geometry"]["bottom_left"][2] = 125
+                                expected["bodies"][0]["geometry"]["top_right"][2] = 125
+                            actual = copy.deepcopy(after["children"][0])
+                            # Body IDs derived from payload change when its Z changes.
+                            actual["bodies"][0].pop("id")
+                            expected["bodies"][0].pop("id")
+                            self.assertEqual(actual, expected)
+                            self.assertEqual(after["bumps"], initial["root"]["bumps"])
+                            self.assertEqual(die.to_geometry_structure(), source)
+                            self.assertEqual(state.cursor_z(), 100)
+                            self.assertEqual(state.process_footprint(), footprint)
+                            self.assertEqual(state.clone().to_geometry_structure(), state.to_geometry_structure())
+                            self.assert_joint_noop(state)
+
+    def test_touching_or_disjoint_footprints_do_not_place_above_or_join(self):
+        for circular, x, y in ((True,50,-5), (True,50+1e-6,-5), (True,40,40),
+                                (False,100,0), (False,100,100), (False,100+1e-6,0)):
+            with self.subTest(circular=circular, x=x, y=y):
+                state = main_state()
+                if circular:
+                    state = ProcessGeometryState.create()
+                    state.initialize_cylinder_layer(material="Si", center=[0,0,0], radius=50, thickness=100)
+                    state.add_bump_above_cursor(material="Sn", density=40, thickness=20, stage="reflowed")
+                self.assertEqual(state.bump_placement_bottom_z(die_state(), x=x, y=y, anchor="bottomLeft"), 100)
+                # Force Z contact to verify Joint independently rejects the XY match.
+                state.place_geometry_state(die_state(), x=x, y=y, bottom_z=120)
+                self.assert_joint_noop(state)
+
+    def test_partial_overlap_still_requires_z_contact_and_unique_lower_match(self):
+        state = main_state()
+        state.place_geometry_state(die_state(), x=95, y=0, bottom_z=121)
+        self.assert_joint_noop(state)
+        state = main_state()
+        place(state, die_state())
+        state.place_geometry_state(die_state(), x=95, y=0, bottom_z=120)
+        state.add_bump(material="Sn", density=10, direction="+z", stage="reflowed",
+                       geometry={"type":"box", "bottomLeft":[102,0,100], "topRight":[110,10,100], "thickness":20})
+        self.assert_atomic_failure(state, "multiple lower")
 
     def test_catalog_restores_main_surface_and_runtime_cursor_is_preserved(self):
         original = main_state()
@@ -236,10 +320,10 @@ class JointTests(unittest.TestCase):
 
     def test_pnp_entire_batch_is_atomic_when_later_placement_is_ambiguous(self):
         state = main_state()
-        state.add_bump(material="Sn", density=10, direction="+z", stage="reflowed", geometry={"type":"box", "bottomLeft":[20,0,100], "topRight":[30,10,100], "thickness":20})
+        state.add_bump(material="Sn", density=10, direction="+z", stage="reflowed", geometry={"type":"box", "bottomLeft":[28,0,100], "topRight":[38,10,100], "thickness":20})
         before = state.to_geometry_structure()
         source = GeometryArtifact.from_structure(die_state().to_geometry_structure())
-        with self.assertRaisesRegex(ValueError, "multiple covering"):
+        with self.assertRaisesRegex(ValueError, "multiple overlapping"):
             execute_pnp(context(state, {"placements":[placement(),placement(20)]}, source=source))
         self.assertEqual(state.to_geometry_structure(), before)
 
@@ -311,6 +395,55 @@ class JointTests(unittest.TestCase):
         self.assertEqual(result.step_output("pnp")["root"]["children"][0]["bodies"][0]["geometry"]["bottom_left"][2], base+35)
         self.assertEqual(normalize_geometry_structure(result.geometry()), result.geometry())
         self.assertEqual(geometries, before)
+
+
+class FootprintOverlapTests(unittest.TestCase):
+    def test_positive_area_and_boundary_contact_for_all_primitive_pairs(self):
+        square = BoxGeometry([0,0,0], [10,10,0], 1)
+        circle = CylinderGeometry([0,0,0], 5, 1)
+        # The top radius determines a cone's projected envelope.
+        cone = ConeGeometry([0,0,0], 1, 5, 1)
+        polygon = PolygonGeometry([[[0,0,0],[10,0,0],[0,10,0]]], 1)
+        ring = PolygonGeometry([
+            [[0,0,0],[20,0,0],[20,20,0],[0,20,0]],
+            [[5,5,0],[5,15,0],[15,15,0],[15,5,0]],
+        ], 1)
+        cases = [
+            (square, square, True),
+            (square, BoxGeometry([10-1e-7,0,0], [20,10,0], 1), True),
+            (square, BoxGeometry([10,0,0], [20,10,0], 1), False),
+            (square, BoxGeometry([10,10,0], [20,20,0], 1), False),
+            (square, BoxGeometry([10+1e-7,0,0], [20,10,0], 1), False),
+            (polygon, BoxGeometry([4,4,0], [8,8,0], 1), True),
+            (polygon, BoxGeometry([5,5,0], [8,8,0], 1), False),
+            (polygon, PolygonGeometry([[[4,4,0],[12,4,0],[4,12,0]]], 1), True),
+            (ring, BoxGeometry([6,6,0], [14,14,0], 1), False),
+            (ring, BoxGeometry([4,6,0], [6,14,0], 1), True),
+            (ring, PolygonGeometry([[[6,6,0],[14,6,0],[6,14,0]]], 1), False),
+        ]
+        for round_shape in (circle, cone):
+            cases.extend([
+                (round_shape, square, True),
+                (round_shape, BoxGeometry([5-1e-7,-1,0], [10,1,0], 1), True),
+                (round_shape, BoxGeometry([5,-1,0], [10,1,0], 1), False),
+                (round_shape, BoxGeometry([4,4,0], [5,5,0], 1), False),
+                (round_shape, polygon, True),
+                (round_shape, CylinderGeometry([10-1e-7,0,0], 5, 1), True),
+                (round_shape, CylinderGeometry([10,0,0], 5, 1), False),
+                (round_shape, CylinderGeometry([10+1e-7,0,0], 5, 1), False),
+                (round_shape, CylinderGeometry([4,0,0], 1, 1), True),
+                (round_shape, ConeGeometry([9,0,0], 1, 5, 1), True),
+            ])
+        cases.extend([
+            (ring, CylinderGeometry([10,10,0], 4, 1), False),
+            (ring, CylinderGeometry([10,10,0], 5, 1), False),
+            (ring, CylinderGeometry([10,10,0], 5+1e-7, 1), True),
+            (ring, ConeGeometry([10,10,0], 1, 6, 1), True),
+        ])
+        for left, right, expected in cases:
+            with self.subTest(left=left.json(), right=right.json()):
+                self.assertEqual(footprints_overlap(left, right), expected)
+                self.assertEqual(footprints_overlap(right, left), expected)
 
 
 class JointEntryPointTests(unittest.TestCase):

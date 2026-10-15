@@ -232,7 +232,9 @@ Copy、厚度調整、move、resize、flip、clip 與 PnP MUST 保留 `stage`。
 現有 Micro／C4／BGA formation 統一輸出 `reflowed`，可用於 die、wafer 與 panel。
 獨立 `joint/mr_joint` 或 `joint/tcb_joint` 將配對 child 的上側 bump 更新為 `joined`，其底面為下側 bump
 底面、厚度為完整接合高度。Child 本體及 descendants 隨接合高度平移。下側 envelope
-原始資料保留，不代表接合區仍有第二份 solder；該區域由 child joined feature 取得
+只要與上側 envelope 有正的 XY 重疊面積且 Z 面接觸，即可配對；只有邊線或單點接觸不算。
+配對後整片上側 envelope 皆為 joined，包含超出下側 footprint 的部分，不裁切或拆分。
+下側 envelope 原始資料保留，不代表接合區仍有第二份 solder；該區域由 child joined feature 取得
 ownership。未接合區保留下側 envelope。整批無可配對的 reflowed bumps 時，Joint
 正常完成且不修改 state（包含 geometry、ID、cursor 與 process footprint）；
 `bump_joined_height` 仍須為正有限數值，已有配對的幾何一致性驗證仍適用。

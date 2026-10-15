@@ -53,8 +53,10 @@ Bump 必須有 `stage`，描述整個 feature 的處理階段：`deposited`、`r
 Kernel 以共用驗證拒絕缺少或非法值，不從 geometry、material 或放置關係推論階段。所有
 copy、move、flip、clip 與 PnP 保留 `stage`；現有 bump formation 輸出 `reflowed`。
 
-雙側 formation → PnP → MR joint / TCB joint 使用 envelope footprint 配對，不要求已知單顆 bump
-位置。Joint 將 root 直屬 child 的上側 bump 改成 `joined`，涵蓋完整接合高度，並調整
+雙側 formation → PnP → MR joint / TCB joint 使用 envelope footprint 的正重疊面積配對，
+不要求下側完整涵蓋上側或已知單顆 bump 位置。只在邊線或單點接觸不算，polygon 孔洞
+不算重疊。部分跨出 wafer 的 bump 仍由下側 bump 墊高；Z 接觸後，Joint 將 root 直屬 child
+的整片上側 bump（包含 wafer 外的部分）改成 `joined`，保留完整 XY footprint，涵蓋完整接合高度，並調整
 child subtree 的 Z；main 下側 bump 原始 envelope 保留。Joined feature 在其 footprint
 接管相交 ancestor reflowed bump 的 XY columns，預覽的 3D envelope、detail glyph 與
 2D estimated section 都遮掉被接管的下側表示，保留接合區外的 wafer bump。Stage 也顯示
