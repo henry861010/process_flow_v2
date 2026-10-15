@@ -128,9 +128,9 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PARAM-024` | mapping 區塊 | 檢查 1440×900／390×844 與鍵盤操作 | 對應表不溢出，label/error/focus 與確認/取消可用。 |
 | `UI-PLACE-001` | placement cards | add/remove/reorder | persisted array與execution order一致。 |
 | `UI-PLACE-003` | invalid polygon points/edges/area | edit vertex | inline diagnostics顯示且configuration不算complete。 |
-| `UI-PLACE-004` | GDS rotated/reflected polygon | import | exact local polygon與bottom-left pose取代原placements。 |
+| `UI-PLACE-004` | GDS rotated/reflected polygon | import | exact absolute polygon與fixed zero pose/center anchor取代原placements。 |
 | `UI-PLACE-009` | open placement editor | click optional `Import from GDS` input | placement list不位移，portal modal顯示fields。 |
-| `UI-PLACE-010` | pose help icon | hover與keyboard focus | tooltip解釋Pose X/Y、Rotation Z與Anchor。 |
+| `UI-PLACE-010` | placement editor/readonly | inspect coordinates | absolute target region、fixed zero pose/center anchor，不提供pose/anchor編輯。 |
 | `UI-PLACE-011` | GDS含non-orthogonal polygon | import with Defeature off | exact polygon匯入並顯示non-blocking mesher warning。 |
 | `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | import with Defeature | 局部特徵正交修復、外框保留，摘要顯示repair數。 |
 | `UI-PLACE-013` | GDS含純圓形或無法安全局部修復的polygon | import with Defeature | 以AABB匯入，摘要顯示fallback數且輸出完全正交。 |
@@ -139,6 +139,15 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-016` | 手動新增或修改出不合法placement | inspect placement list | 清單上方紅色摘要即時顯示不合法數量；修正或移除後更新，且step readiness與個別紅框一致。 |
 | `UI-PLACE-017` | GDS匯入結果包含不合法placement | import and replace | 仍整批匯入；完成摘要改為紅色並顯示fail數，提醒使用者向下檢查紅框項目。 |
 | `UI-PLACE-018` | GDS import modal open, idle or import succeeds | tab through controls; close with Cancel/Close/backdrop/Escape, or complete import | focus保持在modal內；idle close只關閉GDS modal並保留draft、focus回trigger；success自動關閉且摘要留在placement list上方。 |
+
+| `UI-PLACE-019` | shared placement layout | edit, zoom/pan, Fit all, import/source replacement | edit保留視角，替換重新fit；一般wheel捲動表單，鍵盤arrows/+/-/Home可用。 |
+| `UI-PLACE-020` | overlapping shapes/cards | select shape、focus card，再add/remove/reorder | 較後shape優先，card heading取得focus並同步高亮；結構改變清除selection。 |
+| `UI-PLACE-021` | incomplete/invalid placements | edit or clear | finite invalid虛線無填色，缺座標不畫，empty不殘留圖。 |
+| `UI-PLACE-022` | 1,000 placements、readonly | inspect desktop/390px and navigate | 全數繪製且可互動；readonly不改值/dirty state，無page-level horizontal overflow。 |
+
+| `UI-PLACE-023` | shared placement layout | inspect initial view; toggle help; Escape | 無統計/座標/編號定位/footer，右上驚嘆號按需顯示操作說明，不推動cards或關閉editor。 |
+
+| `UI-PLACE-024` | placement preview after zoom/pan | Add placement and enter distant coordinates | 自動fit全部形狀；手動操作camera後保持視角；無標題列，controls在圖內右下。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。

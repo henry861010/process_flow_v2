@@ -4,6 +4,7 @@ import * as React from "react";
 import { AlertCircle, ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 import { GdsPlacementImport, type GdsTargetRegion } from "./gds-placement-import";
+import { PlacementPreview } from "./placement-preview";
 import { Button } from "@/components/ui/button";
 import { summarizePlacementValidation } from "@/lib/process-flow/placement-validation";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ export type PlacementDraft = RectanglePlacement | PolygonPlacement;
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-2.5 py-1.5 text-sm tabular-nums shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+const useClientLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
 
 export function PlacementListControl({
   value,
@@ -51,13 +53,55 @@ export function PlacementListControl({
     () => summarizePlacementValidation(placements),
     [placements],
   );
+  const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
+  const [previewResetKey, setPreviewResetKey] = React.useState(0);
+  const expectedValueRef = React.useRef(value);
+  const autoFitPlacementRef = React.useRef<number | null>(null);
+  const headingRefs = React.useRef(new Map<number, HTMLHeadingElement>());
+
+  useClientLayoutEffect(() => {
+    if (value !== expectedValueRef.current) {
+      autoFitPlacementRef.current = null;
+      setSelectedIndex(null);
+      setPreviewResetKey((key) => key + 1);
+    }
+    expectedValueRef.current = value;
+  }, [value]);
+
+  function commit(next: PlacementDraft[], structural = false) {
+    if (structural) {
+      setSelectedIndex(null);
+      autoFitPlacementRef.current = null;
+    }
+    expectedValueRef.current = next;
+    onChange(next);
+  }
+
+  function locatePlacement(index: number) {
+    setSelectedIndex(index);
+    const heading = headingRefs.current.get(index);
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+  }
 
   function updatePlacement(index: number, next: PlacementDraft) {
-    onChange(
+    commit(
       placements.map((placement, placementIndex) =>
         placementIndex === index ? next : placement,
       ),
     );
+    if (autoFitPlacementRef.current === index) setPreviewResetKey((key) => key + 1);
+  }
+
+  function addPlacement() {
+    commit([...placements, emptyRectanglePlacement()], true);
+    autoFitPlacementRef.current = placements.length;
+    setPreviewResetKey((key) => key + 1);
+  }
+
+  function selectCard(index: number) {
+    if (autoFitPlacementRef.current !== index) autoFitPlacementRef.current = null;
+    setSelectedIndex(index);
   }
 
   function movePlacement(index: number, offset: -1 | 1) {
@@ -65,13 +109,14 @@ export function PlacementListControl({
     if (target < 0 || target >= placements.length) return;
     const next = [...placements];
     [next[index], next[target]] = [next[target], next[index]];
-    onChange(next);
+    commit(next, true);
   }
 
   function importGdsRegions(regions: GdsTargetRegion[]) {
     const importedPlacements = regions.map(placementFromGdsRegion);
     const importValidation = summarizePlacementValidation(importedPlacements);
-    onChange(importedPlacements);
+    commit(importedPlacements, true);
+    setPreviewResetKey((key) => key + 1);
     return importValidation;
   }
 
@@ -94,29 +139,46 @@ export function PlacementListControl({
         </div>
       ) : null}
 
+      <PlacementPreview
+        placements={placements}
+        validation={validation}
+        unit={unit}
+        selectedIndex={selectedIndex}
+        resetKey={previewResetKey}
+        onSelect={locatePlacement}
+        onViewChange={() => { autoFitPlacementRef.current = null; }}
+      />
+
       <div className="space-y-3">
-        {placements.length === 0 ? (
-          <div className="rounded-md border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">
-            No placements
-          </div>
-        ) : null}
         {placements.map((placement, index) => (
-          <PlacementCard
+          <div
             key={index}
-            index={index}
-            placement={placement}
-            diagnostic={validation.diagnostics[index]}
-            unit={unit}
-            disabled={disabled}
-            canMoveUp={index > 0}
-            canMoveDown={index < placements.length - 1}
-            onChange={(next) => updatePlacement(index, next)}
-            onMoveUp={() => movePlacement(index, -1)}
-            onMoveDown={() => movePlacement(index, 1)}
-            onRemove={() =>
-              onChange(placements.filter((_, placementIndex) => placementIndex !== index))
-            }
-          />
+            data-placement-card={index}
+            data-selected={selectedIndex === index ? "true" : "false"}
+            className={cn("min-w-0 rounded-md", selectedIndex === index && "ring-2 ring-ring ring-offset-2")}
+            onFocusCapture={() => selectCard(index)}
+            onPointerDownCapture={() => selectCard(index)}
+          >
+            <PlacementCard
+              index={index}
+              headingRef={(heading) => {
+                if (heading) headingRefs.current.set(index, heading);
+                else headingRefs.current.delete(index);
+              }}
+              placement={placement}
+              diagnostic={validation.diagnostics[index]}
+              unit={unit}
+              disabled={disabled}
+              canMoveUp={index > 0}
+              canMoveDown={index < placements.length - 1}
+              onChange={(next) => updatePlacement(index, next)}
+              onMoveUp={() => movePlacement(index, -1)}
+              onMoveDown={() => movePlacement(index, 1)}
+              onRemove={() =>
+                commit(placements.filter((_, placementIndex) => placementIndex !== index), true)
+              }
+            />
+          </div>
         ))}
       </div>
 
@@ -125,7 +187,7 @@ export function PlacementListControl({
           <Button
             type="button"
             size="sm"
-            onClick={() => onChange([...placements, emptyRectanglePlacement()])}
+            onClick={addPlacement}
           >
             <Plus />
             Add placement
@@ -138,6 +200,7 @@ export function PlacementListControl({
 
 function PlacementCard({
   index,
+  headingRef,
   placement,
   diagnostic,
   unit,
@@ -150,6 +213,7 @@ function PlacementCard({
   onRemove,
 }: {
   index: number;
+  headingRef: React.Ref<HTMLHeadingElement>;
   placement: PlacementDraft;
   diagnostic: string | null;
   unit?: string | null;
@@ -167,11 +231,12 @@ function PlacementCard({
     return (
       <section className="overflow-hidden rounded-md border bg-muted/20">
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-          <span className="font-medium">Placement {index + 1}</span>
+          <h3 ref={headingRef} tabIndex={-1} className="font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">Placement {index + 1}</h3>
           <span className="min-w-0 break-words text-right font-mono text-xs text-muted-foreground">
             {readOnlyPlacementSummary(placement, unit)}
           </span>
         </div>
+        {diagnostic ? <p className="px-3 pb-2 text-xs text-destructive">{diagnostic}</p> : null}
       </section>
     );
   }
@@ -179,9 +244,9 @@ function PlacementCard({
   return (
     <section className={cn("rounded-md border bg-white", diagnostic && "border-destructive/40")}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
-        <div>
-          <span className="font-medium">Placement {index + 1}</span>
-          <span className="ml-2 font-mono text-xs text-muted-foreground">
+        <div className="min-w-0">
+          <h3 ref={headingRef} tabIndex={-1} className="inline font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">Placement {index + 1}</h3>
+          <span className="ml-2 break-words font-mono text-xs text-muted-foreground">
             {placementSummary(placement, unit)}
           </span>
         </div>
