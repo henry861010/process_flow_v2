@@ -85,7 +85,7 @@ class MeshControlSetApiTests(unittest.TestCase):
                         "bodies": [
                             {
                                 "id": "body:soc",
-                                "key": "envelope",
+                                "key": "soc.si",
                                 "material": "Si",
                                 "geometry": {
                                     "type": "BoxGeometry",
@@ -93,7 +93,29 @@ class MeshControlSetApiTests(unittest.TestCase):
                                     "top_right": [100, 100, 0],
                                     "thk": 300,
                                 },
-                            }
+                            },
+                            {
+                                "id": "body:pass2",
+                                "key": "soc.pass2",
+                                "material": "Passivation",
+                                "geometry": {
+                                    "type": "BoxGeometry",
+                                    "bottom_left": [0, 0, -20],
+                                    "top_right": [100, 100, -20],
+                                    "thk": 20,
+                                },
+                            },
+                            {
+                                "id": "body:usg",
+                                "key": "soc.usg",
+                                "material": "USG",
+                                "geometry": {
+                                    "type": "BoxGeometry",
+                                    "bottom_left": [0, 0, 300],
+                                    "top_right": [100, 100, 300],
+                                    "thk": 20,
+                                },
+                            },
                         ],
                         "vias": [],
                         "circuits": [],
@@ -116,6 +138,17 @@ class MeshControlSetApiTests(unittest.TestCase):
                 self.assertEqual(payload["setId"], set_id)
                 self.assertEqual(payload["setVersion"], "1")
                 validate_mesh_control(payload["meshControl"])
+                uf_controls = payload["meshControl"]["controls"][2:]
+                self.assertEqual(
+                    [(item["startZ"]["value"], item["endZ"]["value"]) for item in uf_controls],
+                    [(250, 300), (190, 250), (110, 190), (50, 110), (0, 50)],
+                )
+                for item in uf_controls:
+                    self.assertEqual(item["reference"], {"kind": "body", "id": "body:soc"})
+                self.assertEqual(
+                    [item["sourceIds"] for item in payload["details"][2:]],
+                    [["body:soc"]] * 5,
+                )
                 self.assertEqual(
                     [item["label"] for item in payload["meshControl"]["controls"]],
                     [

@@ -81,7 +81,7 @@ def soc_container(*, thickness: float, include_bump: bool = False) -> dict:
     return container(
         "container:soc",
         key="soc",
-        bodies=[body("body:soc", 0, thickness, "Si", "envelope")],
+        bodies=[body("body:soc", 0, thickness, "Si", "soc.si")],
         bumps=[bump("bump:soc", 10, 5)] if include_bump else [],
     )
 
@@ -90,10 +90,10 @@ class MeshModel2Tests(unittest.TestCase):
     def setUp(self):
         self.registry = MeshControlSetRegistry()
 
-    def apply(self, geometry: dict):
+    def apply(self, geometry: dict, set_id: str = "meshModel2"):
         state = ProcessGeometryState.from_structure(geometry)
         before = state.to_geometry_structure()
-        definition, result = self.registry.apply("meshModel2", state)
+        definition, result = self.registry.apply(set_id, state)
         self.assertEqual(state.to_geometry_structure(), before)
         self.assertEqual(definition["version"], "1")
         return result
@@ -346,6 +346,89 @@ class MeshModel2Tests(unittest.TestCase):
             [(250, 300), (190, 250), (110, 190), (50, 110), (0, 50)],
         )
 
+    def test_all_models_soc_uf_uses_only_si_bounds_and_body_reference(self):
+        geometry = structure(
+            container(
+                "container:soc",
+                key="soc",
+                bodies=[
+                    body("body:pass2", 15, 25, "Passivation", "soc.pass2"),
+                    body("body:si", 40, 300, "Si", "soc.si"),
+                    body("body:usg", 340, 25, "USG", "soc.usg"),
+                ],
+                bumps=[bump("bump:soc", -10, 20)],
+            )
+        )
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            with self.subTest(set_id=set_id):
+                result = self.apply(geometry, set_id)
+                controls = result.mesh_control["controls"]
+                self.assertEqual(controls[0]["label"], "TD_uBump")
+                self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:soc"})
+                self.assertEqual(
+                    [item["label"] for item in controls[1:]],
+                    [
+                        "TD_UF, noHBM Zone1 bot",
+                        "TD_UF, noHBM Zone2 bot",
+                        "TD_UF, noHBM Zone3",
+                        "TD_UF, noHBM Zone2 top",
+                        "TD_UF, noHBM Zone1 top",
+                    ],
+                )
+                expected_ranges = [(290, 340), (230, 290), (150, 230), (90, 150), (40, 90)]
+                self.assertEqual(
+                    [(item["startZ"]["value"], item["endZ"]["value"]) for item in controls[1:]],
+                    expected_ranges,
+                )
+                self.assertEqual([item["elementSize"] for item in controls[1:]], [5, 60, 120, 60, 5])
+                for item in controls[1:]:
+                    self.assertEqual(item["reference"], {"kind": "body", "id": "body:si"})
+                self.assertEqual(
+                    [(item["startZ"], item["endZ"]) for item in result.details[1:]],
+                    expected_ranges,
+                )
+                self.assertEqual([item["sourceIds"] for item in result.details[1:]], [["body:si"]] * 5)
+
+    def test_all_models_missing_soc_si_skips_uf_and_keeps_other_controls(self):
+        soc = soc_container(thickness=300, include_bump=True)
+        soc["bodies"][0]["key"] = "envelope"
+        soc["bodies"].extend([
+            body("body:pass2", -20, 20, "Passivation", "soc.pass2"),
+            body("body:usg", 300, 20, "USG", "soc.usg"),
+            body("body:unkeyed-si", 0, 300, "Si"),
+        ])
+        geometry = structure(container(
+            "container:root",
+            bodies=[body("body:adh", 0, 5, "Adhesive", "adh")],
+            children=[soc],
+        ))
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            with self.subTest(set_id=set_id):
+                result = self.apply(geometry, set_id)
+                self.assertEqual([item["label"] for item in result.mesh_control["controls"]], ["adh", "TD_uBump"])
+                self.assertEqual([item["sourceIds"] for item in result.details], [["body:adh"], ["bump:soc"]])
+
+    def test_all_models_select_first_soc_si_in_dfs_order_without_soc_container(self):
+        geometry = structure(container(
+            "container:root",
+            children=[
+                container("container:outer", children=[container(
+                    "container:nested",
+                    bodies=[body("body:first-si", 40, 300, "Si", "soc.si")],
+                )]),
+                container("container:later", bodies=[body("body:later-si", 1000, 400, "Si", "soc.si")]),
+            ],
+        ))
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            with self.subTest(set_id=set_id):
+                result = self.apply(geometry, set_id)
+                controls = result.mesh_control["controls"]
+                self.assertEqual(len(controls), 5)
+                for item in controls:
+                    self.assertEqual(item["reference"], {"kind": "body", "id": "body:first-si"})
+                self.assertEqual(controls[0]["startZ"]["value"], 290)
+                self.assertEqual(controls[-1]["startZ"]["value"], 40)
+
     def test_hbm_partial_output_blocks_soc_uf_but_bump_falls_back_to_soc(self):
         hbm = container(
             "container:hbm",
@@ -367,18 +450,20 @@ class MeshModel2Tests(unittest.TestCase):
             )
         )
 
-        controls = self.apply(geometry).mesh_control["controls"]
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            with self.subTest(set_id=set_id):
+                controls = self.apply(geometry, set_id).mesh_control["controls"]
 
-        self.assertEqual(
-            [item["label"] for item in controls],
-            ["TD_uBump", "TD_UF, HBM top die"],
-        )
-        self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:soc"})
-        self.assertEqual(controls[1]["elementSize"], 10)
-        self.assertEqual(controls[1]["method"], "Z_SECTION_AVG")
-        self.assertEqual(
-            controls[1]["reference"], {"kind": "container", "id": "container:hbm"}
-        )
+                self.assertEqual(
+                    [item["label"] for item in controls],
+                    ["TD_uBump", "TD_UF, HBM top die"],
+                )
+                self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:soc"})
+                self.assertEqual(controls[1]["elementSize"], 10)
+                self.assertEqual(controls[1]["method"], "Z_SECTION_AVG")
+                self.assertEqual(
+                    controls[1]["reference"], {"kind": "container", "id": "container:hbm"}
+                )
 
     def test_zero_hbm_gap_is_reported_and_omitted(self):
         hbm = container(
@@ -415,38 +500,45 @@ class MeshModel2Tests(unittest.TestCase):
         )
 
     def test_soc_thin_and_zero_middle_sections(self):
-        zero_middle = self.apply(structure(soc_container(thickness=220)))
-        self.assertEqual(
-            [item["label"] for item in zero_middle.mesh_control["controls"]],
-            [
-                "TD_UF, noHBM Zone1 bot",
-                "TD_UF, noHBM Zone2 bot",
-                "TD_UF, noHBM Zone2 top",
-                "TD_UF, noHBM Zone1 top",
-            ],
-        )
-        self.assertEqual(
-            [item["label"] for item in zero_middle.details if item["status"] == "omitted"],
-            ["TD_UF, noHBM Zone3"],
-        )
+        for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+            with self.subTest(set_id=set_id):
+                zero_middle = self.apply(structure(soc_container(thickness=220)), set_id)
+                self.assertEqual(
+                    [item["label"] for item in zero_middle.mesh_control["controls"]],
+                    [
+                        "TD_UF, noHBM Zone1 bot",
+                        "TD_UF, noHBM Zone2 bot",
+                        "TD_UF, noHBM Zone2 top",
+                        "TD_UF, noHBM Zone1 top",
+                    ],
+                )
+                self.assertEqual(
+                    [item["label"] for item in zero_middle.details if item["status"] == "omitted"],
+                    ["TD_UF, noHBM Zone3"],
+                )
 
-        overlapping = self.apply(structure(soc_container(thickness=150)))
-        self.assertEqual(
-            [item["label"] for item in overlapping.mesh_control["controls"]],
-            [
-                "TD_UF, noHBM Zone1 bot",
-                "TD_UF, noHBM Zone2 bot",
-                "TD_UF, noHBM Zone2 top",
-                "TD_UF, noHBM Zone1 top",
-            ],
-        )
-        self.assertNotIn(
-            "TD_UF, noHBM Zone3",
-            [item["label"] for item in overlapping.details],
-        )
+                overlapping = self.apply(structure(soc_container(thickness=150)), set_id)
+                self.assertEqual(
+                    [item["label"] for item in overlapping.mesh_control["controls"]],
+                    [
+                        "TD_UF, noHBM Zone1 bot",
+                        "TD_UF, noHBM Zone2 bot",
+                        "TD_UF, noHBM Zone2 top",
+                        "TD_UF, noHBM Zone1 top",
+                    ],
+                )
+                self.assertNotIn(
+                    "TD_UF, noHBM Zone3",
+                    [item["label"] for item in overlapping.details],
+                )
 
-        with self.assertRaisesRegex(MeshControlSetNotApplicable, "at least 110 um"):
-            self.apply(structure(soc_container(thickness=109)))
+                thin_soc = soc_container(thickness=109)
+                thin_soc["bodies"].append(body("body:pass2", -100, 100, "Passivation", "soc.pass2"))
+                with self.assertRaisesRegex(MeshControlSetNotApplicable, r"soc\.si thickness of at least 110 um"):
+                    self.apply(structure(thin_soc), set_id)
+
+                minimum = self.apply(structure(soc_container(thickness=110)), set_id)
+                self.assertEqual(len(minimum.mesh_control["controls"]), 4)
 
     def test_missing_all_optional_targets_returns_no_local_controls(self):
         geometry = structure(

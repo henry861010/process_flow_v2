@@ -55,6 +55,7 @@ class MeshModel1Set:
 
         first_hbm = _first_container(containers, "hbm")
         first_soc = _first_container(containers, "soc")
+        first_soc_si = next((body for body in bodies if body["key"] == "soc.si"), None)
         containers_by_id = {node["id"]: node for node in containers}
 
         bump = _first_subtree_node(nodes, containers_by_id, first_hbm, "bump")
@@ -77,8 +78,8 @@ class MeshModel1Set:
                 containers_by_id,
                 first_hbm,
             )
-        elif first_soc is not None:
-            _append_soc_uf_controls(controls, details, first_soc)
+        elif first_soc_si is not None:
+            _append_soc_uf_controls(controls, details, first_soc_si)
 
         _append_bottom_carrier_points(controls, details, nodes)
 
@@ -303,15 +304,15 @@ def _append_hbm_uf_controls(
 
 
 def _append_soc_uf_controls(
-    controls: list[dict], details: list[dict], soc: dict
+    controls: list[dict], details: list[dict], soc_si: dict
 ) -> None:
-    bottom = soc["zMin"]
-    top = soc["zMax"]
+    bottom = soc_si["zMin"]
+    top = soc_si["zMax"]
     if top - bottom < 110 - _ZERO_TOLERANCE:
         raise MeshControlSetNotApplicable(
-            "meshModel1 SoC UF controls require a SoC thickness of at least 110 um."
+            "meshModel1 SoC UF controls require a soc.si thickness of at least 110 um."
         )
-    reference = {"kind": "container", "id": soc["id"]}
+    reference = {"kind": "body", "id": soc_si["id"]}
     candidates = (
         ("TD_UF, noHBM Zone1 bot", 5, top - 50, top),
         ("TD_UF, noHBM Zone2 bot", 60, top - 110, top - 50),
@@ -329,7 +330,7 @@ def _append_soc_uf_controls(
             element_size=element_size,
             start_z=start,
             end_z=end,
-            source_ids=[soc["id"]],
+            source_ids=[soc_si["id"]],
             label=label,
             reference=reference,
         )
