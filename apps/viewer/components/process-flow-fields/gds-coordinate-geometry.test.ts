@@ -5,9 +5,15 @@ import {
   createGdsRegionAccumulator,
   regionHasNonOrthogonalEdges,
   repairGdsRegion,
+  referenceTransform,
+  transformedPoints,
   unitScale,
   type GdsTargetRegion,
 } from "./gds-coordinate-geometry";
+import {
+  steppedNotches, rectangularSteppedNotches, verticalNotch, rectangularVerticalNotch,
+  sameOutline, insideOutline,
+} from "./gds-test-fixtures";
 
 function polygon(points: CoordinatePair[]): GdsTargetRegion {
   return { type: "polygon", points };
@@ -44,12 +50,11 @@ describe("GDS defeature geometry", () => {
         [4, 10],
         [0, 10],
       ]),
-      repaired: true,
-      usedBoundingBoxFallback: false,
+      status: "repaired",
     });
   });
 
-  it("fills a round notch between collinear edges without deleting its polygon", () => {
+  it("keeps a round notch as a rectangular recess", () => {
     const notchedOutline = polygon([
       [0, 0],
       [10, 0],
@@ -63,9 +68,8 @@ describe("GDS defeature geometry", () => {
     ]);
 
     expect(repairGdsRegion(notchedOutline)).toEqual({
-      region: { type: "rectangle", bounds: [[0, 0], [10, 10]] },
-      repaired: true,
-      usedBoundingBoxFallback: false,
+      region: polygon([[7, 10], [7, 7], [3, 7], [3, 10], [0, 10], [0, 0], [10, 0], [10, 10]]),
+      status: "repaired",
     });
   });
 
@@ -84,8 +88,7 @@ describe("GDS defeature geometry", () => {
 
     expect(repairGdsRegion(protrudingOutline)).toEqual({
       region: { type: "rectangle", bounds: [[0, 0], [10, 10]] },
-      repaired: true,
-      usedBoundingBoxFallback: false,
+      status: "repaired",
     });
   });
 
@@ -109,12 +112,11 @@ describe("GDS defeature geometry", () => {
 
     expect(repairGdsRegion(twoFeatures)).toEqual({
       region: { type: "rectangle", bounds: [[0, 0], [10, 10]] },
-      repaired: true,
-      usedBoundingBoxFallback: false,
+      status: "repaired",
     });
   });
 
-  it("uses a bounding box for a fully non-orthogonal polygon regardless of size", () => {
+  it("preserves a fully non-orthogonal polygon instead of using its bounding box", () => {
     const largeDiamond = polygon([
       [-60, 0],
       [0, 40],
@@ -123,13 +125,13 @@ describe("GDS defeature geometry", () => {
     ]);
 
     expect(repairGdsRegion(largeDiamond)).toEqual({
-      region: { type: "rectangle", bounds: [[-60, -40], [60, 40]] },
-      repaired: true,
-      usedBoundingBoxFallback: true,
+      region: largeDiamond,
+      status: "preserved",
+      reason: "unrecognized-outline",
     });
   });
 
-  it("uses a bounding box when parallel anchor edges are not collinear", () => {
+  it("preserves an ambiguous outline with offset parallel anchors", () => {
     const offsetParallelEdges = polygon([
       [0, 0],
       [10, 0],
@@ -140,13 +142,13 @@ describe("GDS defeature geometry", () => {
     ]);
 
     expect(repairGdsRegion(offsetParallelEdges)).toEqual({
-      region: { type: "rectangle", bounds: [[0, 0], [10, 8]] },
-      repaired: true,
-      usedBoundingBoxFallback: true,
+      region: offsetParallelEdges,
+      status: "preserved",
+      reason: "unrecognized-outline",
     });
   });
 
-  it("uses a bounding box when the locally repaired polygon collapses", () => {
+  it("preserves an invalid source outline", () => {
     const collapsingOutline = polygon([
       [2, 1],
       [7, 1],
@@ -157,9 +159,9 @@ describe("GDS defeature geometry", () => {
     ]);
 
     expect(repairGdsRegion(collapsingOutline)).toEqual({
-      region: { type: "rectangle", bounds: [[0, 0], [7, 3]] },
-      repaired: true,
-      usedBoundingBoxFallback: true,
+      region: collapsingOutline,
+      status: "preserved",
+      reason: "invalid-outline",
     });
   });
 
@@ -179,13 +181,11 @@ describe("GDS defeature geometry", () => {
 
     expect(repairGdsRegion(rectangle)).toEqual({
       region: rectangle,
-      repaired: false,
-      usedBoundingBoxFallback: false,
+      status: "unchanged",
     });
     expect(repairGdsRegion(manhattanPolygon)).toEqual({
       region: manhattanPolygon,
-      repaired: false,
-      usedBoundingBoxFallback: false,
+      status: "unchanged",
     });
   });
 
@@ -198,10 +198,10 @@ describe("GDS defeature geometry", () => {
     ]);
 
     expect(regionHasNonOrthogonalEdges(nearlyAxisAligned)).toBe(false);
-    expect(repairGdsRegion(nearlyAxisAligned).repaired).toBe(false);
+    expect(repairGdsRegion(nearlyAxisAligned).status).toBe("unchanged");
   });
 
-  it("repairs before deduplication and counts every repaired input element", () => {
+  it("counts preserved input elements and diagnoses unique output regions", () => {
     const accumulator = createGdsRegionAccumulator(true);
     const smallCircle = circle(4);
 
@@ -209,11 +209,12 @@ describe("GDS defeature geometry", () => {
     accumulator.add(smallCircle);
 
     expect(accumulator.result()).toEqual({
-      regions: [{ type: "rectangle", bounds: [[-4, -4], [4, 4]] }],
+      regions: [smallCircle],
       duplicatesRemoved: 1,
-      repairedElements: 2,
-      boundingBoxFallbacks: 2,
-      nonOrthogonalRegions: 0,
+      repairedElements: 0,
+      unrepairedElements: 2,
+      repairDiagnostics: [{ regionIndex: 0, reason: "unrecognized-outline" }],
+      nonOrthogonalRegions: 1,
     });
   });
 
@@ -228,7 +229,8 @@ describe("GDS defeature geometry", () => {
       regions: [smallCircle],
       duplicatesRemoved: 1,
       repairedElements: 0,
-      boundingBoxFallbacks: 0,
+      unrepairedElements: 0,
+      repairDiagnostics: [],
       nonOrthogonalRegions: 1,
     });
   });
@@ -237,5 +239,125 @@ describe("GDS defeature geometry", () => {
     expect(unitScale(1e-9, "um")).toBeCloseTo(0.001);
     expect(unitScale(1e-9, "mm")).toBeCloseTo(0.000001);
     expect(unitScale(1e-9, "nm")).toBeCloseTo(1);
+  });
+});
+
+describe("GDS boundary-notch regressions", () => {
+  it("keeps the stepped body and multiple recesses, including a flat-bottom arc", () => {
+    const repair = repairGdsRegion(polygon(steppedNotches));
+    expect(repair.status).toBe("repaired");
+    expect(repair.region.type).toBe("polygon");
+    if (repair.region.type !== "polygon") return;
+    expect(sameOutline(repair.region.points, rectangularSteppedNotches)).toBe(true);
+    expect(insideOutline(repair.region.points, [17, 15])).toBe(false); // Neighbor's space.
+    expect(insideOutline(repair.region.points, [6.5, 18])).toBe(false); // Deep top notch.
+    expect(insideOutline(repair.region.points, [16, 8])).toBe(false); // Lower notch.
+    // Rectangular recesses remove material; they must never fill the old void.
+    for (let x = 0.25; x < 20; x += 0.5) {
+      for (let y = 0.25; y < 20; y += 0.5) {
+        if (insideOutline(repair.region.points, [x, y])) expect(insideOutline(steppedNotches, [x, y])).toBe(true);
+      }
+    }
+  });
+
+  it("groups collinear arc subdivisions into the same notch", () => {
+    const subdivided = steppedNotches.flatMap((point, index): CoordinatePair[] => {
+      const next = steppedNotches[(index + 1) % steppedNotches.length];
+      return [point, [(point[0] + next[0]) / 2, (point[1] + next[1]) / 2]];
+    });
+    for (const order of [subdivided, [...subdivided].reverse()]) {
+      const result = repairGdsRegion(polygon(order));
+      expect(result.status).toBe("repaired");
+      expect(result.region.type === "polygon" && sameOutline(result.region.points, rectangularSteppedNotches)).toBe(true);
+    }
+  });
+
+  it("widens an undercut to its full envelope without filling removed material", () => {
+    const points: CoordinatePair[] = [
+      [0, 0], [10, 0], [10, 10], [6, 10], [7, 9], [7, 8],
+      [6, 7], [4, 7], [3, 8], [3, 9], [4, 10], [0, 10],
+    ];
+    const result = repairGdsRegion(polygon(points));
+    expect(result.status).toBe("repaired");
+    expect(result.region.type === "polygon" && sameOutline(result.region.points, [
+      [0, 0], [10, 0], [10, 10], [7, 10], [7, 7], [3, 7], [3, 10], [0, 10],
+    ])).toBe(true);
+  });
+
+  it.each([3, 4, 8, 15, 32, 64])("preserves sampled notch width and depth with %i arc segments", (segments) => {
+    const arc = Array.from({ length: segments + 1 }, (_, index): CoordinatePair => [
+      10 + 4 * Math.cos(index * Math.PI / segments),
+      index === 0 || index === segments ? 20 : 20 - 4 * Math.sin(index * Math.PI / segments),
+    ]);
+    const points: CoordinatePair[] = [[0, 0], [20, 0], [20, 20], ...arc, [0, 20]];
+    const depth = Math.min(...arc.map((point) => point[1]));
+    const result = repairGdsRegion(polygon(points));
+    expect(result.status).toBe("repaired");
+    expect(result.region.type === "polygon" && sameOutline(result.region.points, [
+      [0, 0], [20, 0], [20, 20], [14, 20], [14, depth], [6, depth], [6, 20], [0, 20],
+    ])).toBe(true);
+  });
+
+  it.each([0, 90, 180, 270])("commutes with reflection, scaling and %i-degree rotation for all vertex orders", (angle) => {
+    for (const [points, expected] of [[steppedNotches, rectangularSteppedNotches], [verticalNotch, rectangularVerticalNotch]]) {
+      for (const reflected of [false, true]) {
+        const transform = referenceTransform({ angle, strans: reflected ? 0x8000 : 0, mag: 0.5 }, [-30.5, 40.5]);
+        const expectedPoints = transformedPoints(expected, transform);
+        for (let start = 0; start < points.length; start += 1) {
+          const shifted = [...points.slice(start), ...points.slice(0, start)];
+          for (const order of [shifted, [...shifted].reverse()]) {
+            const result = repairGdsRegion(polygon(transformedPoints(order, transform)));
+            expect(result.status).toBe("repaired");
+            expect(result.region.type === "polygon" && sameOutline(result.region.points, expectedPoints)).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps exact quarter-turn transforms and fractional coordinates", () => {
+    const transformed = transformedPoints([[1, 7], [-1, -7]], referenceTransform({ angle: -270, mag: 0.5 }, [0, 0]));
+    expect(transformed).toEqual([[-3.5, 0.5], [3.5, -0.5]]);
+    const accumulator = createGdsRegionAccumulator();
+    // Half-grid regions on opposite sides must remain distinct and symmetric.
+    accumulator.add({ type: "rectangle", bounds: [[0.5e-6, 0], [1.5e-6, 1]] });
+    accumulator.add({ type: "rectangle", bounds: [[-0.5e-6, 0], [0.5e-6, 1]] });
+    expect(accumulator.result().regions).toHaveLength(2);
+  });
+
+  it("preserves the complete original element when any local feature is ambiguous", () => {
+    const points: CoordinatePair[] = [
+      [0, 0], [20, 0], [18, 2], [16, 2], [16, 20],
+      [9, 20], [8, 18], [6.5, 17], [5, 18], [4, 20], [0, 20],
+    ];
+    const source = polygon(points);
+    const snapshot = structuredClone(source);
+    expect(repairGdsRegion(source)).toEqual({ region: source, status: "preserved", reason: "unrecognized-outline" });
+    expect(source).toEqual(snapshot);
+  });
+
+  it("counts repaired inputs before deduplication without changing source vertices", () => {
+    const source = polygon(steppedNotches);
+    const snapshot = structuredClone(source);
+    const accumulator = createGdsRegionAccumulator(true);
+    accumulator.add(source);
+    accumulator.add(polygon([...steppedNotches].reverse()));
+    expect(accumulator.result()).toMatchObject({
+      duplicatesRemoved: 1, repairedElements: 2, unrepairedElements: 0, repairDiagnostics: [],
+    });
+    expect(accumulator.result().regions).toHaveLength(1);
+    expect(source).toEqual(snapshot);
+  });
+
+  it("retains a preserved-input diagnostic when another hierarchy scale already emitted the same region", () => {
+    const region = polygon([[0, 0], [5, 0.5e-6], [5, 5], [0, 5]]);
+    const accumulator = createGdsRegionAccumulator(true);
+    accumulator.add(region, 1e-6);
+    accumulator.add(region, 1e-9);
+    expect(accumulator.result()).toMatchObject({
+      duplicatesRemoved: 1, unrepairedElements: 1, nonOrthogonalRegions: 1,
+      repairDiagnostics: [{ regionIndex: 0, reason: "unrecognized-outline" }],
+    });
+    expect(accumulator.result().regions).toEqual([region]);
   });
 });

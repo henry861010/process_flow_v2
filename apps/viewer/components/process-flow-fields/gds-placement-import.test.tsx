@@ -127,12 +127,12 @@ class FakeWorker {
   terminate = vi.fn();
   constructor() { workers.push(this); }
   postMessage(request: FakeWorker["request"]) { this.request = request; }
-  respond(type = "success") {
+  respond(type = "success", overrides: Record<string, unknown> = {}) {
     this.onmessage?.({ data: {
       type, requestId: this.request?.requestId, message: "Invalid GDS",
       regions: [], matchedElements: 0, duplicatesRemoved: 0, repairedElements: 0,
-      boundingBoxFallbacks: 0, nonOrthogonalRegions: 0, topCellNames: [],
-      unsupportedElements: {}, unresolvedReferences: 0, cyclicReferences: 0,
+      unrepairedElements: 0, repairDiagnostics: [], nonOrthogonalRegions: 0, topCellNames: [],
+      unsupportedElements: {}, unresolvedReferences: 0, cyclicReferences: 0, ...overrides,
     } });
   }
 }
@@ -294,7 +294,7 @@ describe("flow GDS session", () => {
     attach(find(view, (element) => element.props.type === "file"), { click: inputClick });
     const first = { focus: vi.fn() };
     const last = { focus: vi.fn() };
-    const querySelectorAll = vi.fn(() => [first, last]);
+    const querySelectorAll = vi.fn((_selector: string) => [first, last]);
     attach(find(view, (element) => element.type === "form"), { querySelectorAll });
     a.open();
     expect(chooseFocus).toHaveBeenCalledOnce();
@@ -310,6 +310,26 @@ describe("flow GDS session", () => {
     keydown?.({ key: "Escape", preventDefault() {}, stopPropagation() {} });
     a.render();
     expect(triggerFocus).toHaveBeenCalledOnce();
+  });
+
+  it("identifies preserved outlines by placement and shows a compatibility warning", async () => {
+    const a = step();
+    a.open(); a.choose(file("notches.gds")); a.criterion();
+    expect(text(a.render())).toContain("rectangular recesses");
+    const worker = await a.submit();
+    worker.respond("success", {
+      regions: [{ type: "polygon", points: [[0, 0], [2, 1], [0, 2]] }],
+      matchedElements: 2, duplicatesRemoved: 1, unrepairedElements: 2,
+      repairDiagnostics: [{ regionIndex: 0, reason: "unrecognized-outline" }],
+      nonOrthogonalRegions: 1,
+    });
+    const view = a.render();
+    expect(a.onImport).toHaveBeenCalledOnce();
+    expect(text(view)).toContain("2 elements kept the original outline");
+    expect(text(view)).toContain("Placement 1: a safe local orthogonal repair could not be identified");
+    expect(text(view)).toContain("may not be supported by the mesher");
+    expect(text(view)).not.toContain("bounding-box fallback");
+    expect(find(view, (element) => element.props.role === "status" && text(element).includes("Imported")).props.className).toContain("amber");
   });
 
   it("does not promote files after read, worker, or placement-application errors", async () => {

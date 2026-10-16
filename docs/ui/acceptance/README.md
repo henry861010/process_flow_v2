@@ -6,8 +6,8 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-10-15
-last_verified_commit: bed1b3d9223073ef7cef59b9f54c548813a626dd
+last_verified: 2026-10-16
+last_verified_commit: 5e9dd07d
 source_of_truth:
   - docs/ui/screens
   - docs/ui/components
@@ -132,8 +132,10 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-009` | open placement editor | click optional `Import from GDS` input | placement list不位移，portal modal顯示fields。 |
 | `UI-PLACE-010` | placement editor/readonly | inspect coordinates | absolute target region、fixed zero pose/center anchor，不提供pose/anchor編輯。 |
 | `UI-PLACE-011` | GDS含non-orthogonal polygon | import with Defeature off | exact polygon匯入並顯示non-blocking mesher warning。 |
-| `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | import with Defeature | 局部特徵正交修復、外框保留，摘要顯示repair數。 |
-| `UI-PLACE-013` | GDS含純圓形或無法安全局部修復的polygon | import with Defeature | 以AABB匯入，摘要顯示fallback數且輸出完全正交。 |
+| `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | import with Defeature | 凹口保留為矩形凹口，階梯外框與元件間隔保留，摘要顯示repair數。 |
+| `UI-PLACE-013` | GDS含純圓形或無法安全局部修復的polygon | import with Defeature | 保留原形，amber摘要顯示未修復數、placement編號與原因，並顯示mesher warning。 |
+| `UI-PLACE-028` | 四象限鏡射、SREF/AREF與巢狀旋轉縮放GDS含平底圓弧凹口 | import with Defeature | 修復與鏡射交換後得到相同輪廓，階梯與凹口深度保留，不新增鄰近元件重疊。 |
+| `UI-PLACE-029` | 負座標、半格座標與nm／µm／mm | import in each unit | 換算後對應同一物理輪廓，小數頂點不被固定單位量化抹除。 |
 | `UI-PLACE-014` | GDS patterns含多組layer/datatype與不同cell filter | import | exact pair以OR合併，共用Defeature並整批取代placements。 |
 | `UI-PLACE-015` | GDS pattern incomplete、invalid或pair重複 | inspect import action | 列級diagnostic顯示且Import and replace停用。 |
 | `UI-PLACE-016` | 手動新增或修改出不合法placement | inspect placement list | 清單上方紅色摘要即時顯示不合法數量；修正或移除後更新，且step readiness與個別紅框一致。 |

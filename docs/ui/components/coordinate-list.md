@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-15
-last_verified_commit: 5f262e1a
+last_verified: 2026-10-16
+last_verified_commit: 5e9dd07d
 source_of_truth:
   - apps/viewer/components/process-flow-fields/placement-list-control.tsx
   - apps/viewer/components/process-flow-fields/placement-preview.tsx
@@ -22,6 +22,8 @@ source_of_truth:
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.test.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-import.worker.ts
+  - apps/viewer/components/process-flow-fields/gds-coordinate-import.worker.test.ts
+  - apps/viewer/components/process-flow-fields/gds-test-fixtures.ts
 ---
 
 # Placement List
@@ -118,21 +120,34 @@ structure的`STRNAME`，比對不區分大小寫，並支援include/exclude subs
 - 所有pattern結果使用同一accumulator，Shape signature duplicate跨pattern移除，摘要統計彙總。
 - Success整批取代placements；error保留原值。
 
-Success先整批取代placements，再自動關閉modal並將success、repair、fallback、non-orthogonal與
+Success先整批取代placements，再自動關閉modal並將success、repair、preserved-outline、non-orthogonal與
 placement validation摘要顯示在placement list上方。Error留在modal內且不得關閉或修改placements。
 Close、Cancel、backdrop與Escape在idle時只關閉GDS modal、把focus還給trigger，不得連帶關閉外層
 Node Editor；modal開啟期間Tab focus必須留在modal內。修改任何GDS import設定會清除上一筆摘要。
 
-Defeature是無尺寸參數的import-time-only設定，不寫入placement payload。Worker在unit scaling後、
-duplicate removal前修復每個含非X/Y軸向edge的polygon。連續非正交edge兩側若為互相垂直的
-水平／垂直edge，會將兩側直線延伸到交點；若兩側平行且共線，則直接連接以填平凹洞或削除凸起。
-修復後會移除重複與共線點，並驗證輪廓必須為finite、non-zero area、non-self-intersecting及完全正交。
-無足夠正交edge、兩側平行但不共線或修復後無效時，該polygon改用axis-aligned bounding box。
-既有rectangle與Manhattan polygon保持不變。成功摘要顯示repaired matching element數量與其中使用
-bounding-box fallback的數量，duplicate signature以修復後的region計算。
+Defeature是default-off、無尺寸參數的import-time-only設定，不寫入placement payload。
+本次只支援與外邊界相連的凹口，不新增完全封閉內孔或多loop資料格式。Worker先在套用hierarchy
+transform的GDS database座標內修復、去重，最後才轉換成placement unit；不以固定使用者單位的
+`1e-6`回寫或捨入頂點。Axis alignment容差以`1e-6` database units乘上累積magnification，
+並以座標量級的floating-point誤差作下限；90度倍數使用精確rotation coefficients。
 
-Defeature關閉時保留exact transformed polygon；若最終unique regions仍有非正交edge，UI顯示
-non-blocking mesher compatibility warning。Axis alignment共用`1e-6` coordinate tolerance。
+凹口依winding與連續凹轉向辨識，整段包含圓弧內的短水平／垂直邊與共線取樣點。兩端連回同一條
+水平／垂直外邊界時，以涵蓋原凹口、保留最深位置的矩形凹口取代；不得填回原本挖除的材料。
+凹口範圍不得超出原本兩側shoulder segments，主體階梯與其他結構邊保留。可辨識的共線凸起
+局部削除；圓角兩側互相垂直時，只允許在該局部chain範圍內延伸至交點。
+既有rectangle與Manhattan polygon保持不變，只有真正四角矩形的修復結果才canonicalize為rectangle。
+
+修復後移除重複與共線點，驗證finite、non-zero area、non-self-intersecting與正交性。
+無法辨識、存在歧義或驗證失敗時，回復該元素完整原形，其他元素照常匯入；不得以整個polygon的
+AABB代替。成功摘要分別顯示`repairedElements`與`unrepairedElements`，均計算去重前matching
+input elements；`repairDiagnostics`以去重後的zero-based `regionIndex`及reason記錄unique
+未修復輪廓，不寫入placement payload。UI以amber摘要與可鍵盤展開的清單顯示1-based placement
+編號、保留原形原因；placement validation失敗仍優先顯示紅色摘要。
+
+Duplicate signature在database座標內以正負對稱量化計算，幾何頂點不使用signature值。
+Defeature關閉時保留exact transformed polygon；不論Defeature是否開啟，只要最終unique regions
+仍有非正交edge，UI顯示non-blocking mesher compatibility warning。
+已匯入的舊placements不自動重算，需重新匯入GDS才套用新行為。
 
 ## Validation與accessibility
 
@@ -158,8 +173,10 @@ Preview buttons 有 accessible names 與 visible focus ring；card headings 可�
 | `UI-PLACE-009` | editor初次開啟並點擊`Import from GDS` | placement list不位移；portal modal顯示GDS fields且不暗示required。 |
 | `UI-PLACE-010` | placement editor或readonly summary | pose固定zero、anchor固定center，不提供pose/anchor編輯或舊版help control。 |
 | `UI-PLACE-011` | Defeature關閉且GDS含非正交polygon | exact polygon匯入並顯示mesher compatibility warning。 |
-| `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | 只修復局部特徵，外框保留且success摘要顯示repair數。 |
-| `UI-PLACE-013` | 純圓形或無法安全局部修復的polygon | 以AABB匯入，摘要顯示bounding-box fallback數且輸出完全正交。 |
+| `UI-PLACE-012` | 大型外框含圓角、圓形凹槽或凸起 | 凹口保留為矩形凹口，主體階梯與鄰近元件間隔保留，摘要顯示repair數。 |
+| `UI-PLACE-013` | 純圓形或無法安全局部修復的polygon | 保留原形，amber摘要顯示未修復數、placement編號與原因，並顯示mesher warning。 |
+| `UI-PLACE-028` | 四象限鏡射、SREF/AREF與巢狀旋轉縮放GDS含平底圓弧凹口 | 修復與鏡射交換後得到相同輪廓；保留階梯、凹口深度且不新增鄰近元件重疊。 |
+| `UI-PLACE-029` | 負座標、半格座標及nm／µm／mm匯入 | 單位換算對應同一物理輪廓；小數頂點不被固定單位量化抹除。 |
 | `UI-PLACE-014` | 新增多組GDS pattern並匯入 | exact pair以OR合併、各組cell filter獨立、Defeature共用且結果整批取代placements。 |
 | `UI-PLACE-015` | GDS pattern incomplete、invalid或pair重複 | 對應列顯示diagnostic且Import and replace停用。 |
 | `UI-PLACE-018` | GDS modal開啟或idle時以Cancel、Close、backdrop、Escape關閉 | Tab focus保持在modal內；關閉只影響GDS modal、focus回到trigger且再次開啟仍保留draft；成功import則自動關閉並在placement list上方顯示摘要。 |

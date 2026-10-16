@@ -14,6 +14,7 @@ import {
   transformedPoints,
   unitScale,
   type GdsTargetRegion,
+  type GdsRegionCollection,
   type Matrix,
 } from "./gds-coordinate-geometry";
 import {
@@ -23,7 +24,7 @@ import {
   type NormalizedGdsImportCriterion,
 } from "./gds-import-criteria";
 
-type GdsImportRequest = {
+export type GdsImportRequest = {
   requestId: string;
   buffer: ArrayBuffer;
   criteria: GdsImportCriterion[];
@@ -31,15 +32,10 @@ type GdsImportRequest = {
   defeature?: boolean;
 };
 
-type GdsImportSuccess = {
+type GdsImportSuccess = GdsRegionCollection & {
   type: "success";
   requestId: string;
-  regions: GdsTargetRegion[];
   matchedElements: number;
-  duplicatesRemoved: number;
-  repairedElements: number;
-  boundingBoxFallbacks: number;
-  nonOrthogonalRegions: number;
   topCellNames: string[];
   unsupportedElements: Record<string, number>;
   unresolvedReferences: number;
@@ -51,6 +47,8 @@ type GdsImportFailure = {
   requestId: string;
   message: string;
 };
+
+export type GdsImportResponse = GdsImportSuccess | GdsImportFailure;
 
 type GdsElementKind =
   | "BOUNDARY"
@@ -140,23 +138,17 @@ function importCoordinates(request: GdsImportRequest) {
           return;
         }
         matchedElements += 1;
-        const scaledBounds: CoordinateBounds = [
-          [
-            scaledCoordinate(bounds[0][0], coordinateScale),
-            scaledCoordinate(bounds[0][1], coordinateScale),
-          ],
-          [
-            scaledCoordinate(bounds[1][0], coordinateScale),
-            scaledCoordinate(bounds[1][1], coordinateScale),
-          ],
-        ];
-        const points = transformedPoints(sourcePoints, transform).map(
-          (point): CoordinatePair => [
-            scaledCoordinate(point[0], coordinateScale),
-            scaledCoordinate(point[1], coordinateScale),
-          ],
+        const points = transformedPoints(sourcePoints, transform);
+        // Repair in DB coordinates. UI-unit rounding can erase small notches
+        // and treats negative half-grid coordinates differently from positive.
+        const magnification = Math.hypot(transform[0], transform[1]);
+        const coordinateMagnitude = points.reduce((value, point) => Math.max(value, Math.abs(point[0]), Math.abs(point[1])), 0);
+        const tolerance = Math.max(
+          COORDINATE_DUPLICATE_TOLERANCE * magnification,
+          Number.EPSILON * coordinateMagnitude * 16,
+          Number.MIN_VALUE,
         );
-        regionAccumulator.add(targetRegion(element.kind, points, scaledBounds));
+        regionAccumulator.add(targetRegion(points, bounds, tolerance), tolerance);
         return;
       }
 
@@ -222,6 +214,7 @@ function importCoordinates(request: GdsImportRequest) {
 
   return {
     ...regionCollection,
+    regions: regionCollection.regions.map((region) => scaleRegion(region, coordinateScale)),
     matchedElements,
     topCellNames,
     unsupportedElements,
@@ -231,11 +224,11 @@ function importCoordinates(request: GdsImportRequest) {
 }
 
 function targetRegion(
-  _kind: "BOUNDARY" | "BOX",
   rawPoints: CoordinatePair[],
   bounds: CoordinateBounds,
+  tolerance: number,
 ): GdsTargetRegion {
-  const points = withoutClosingPoint(rawPoints);
+  const points = withoutClosingPoint(rawPoints, tolerance);
   if (isAxisAlignedRectangle(points, bounds)) {
     return { type: "rectangle", bounds };
   }
@@ -245,10 +238,10 @@ function targetRegion(
   return { type: "polygon", points };
 }
 
-function withoutClosingPoint(points: CoordinatePair[]) {
+function withoutClosingPoint(points: CoordinatePair[], tolerance: number) {
   if (
     points.length > 1 &&
-    pointsEqual(points[0], points[points.length - 1])
+    pointsEqual(points[0], points[points.length - 1], tolerance)
   ) {
     return points.slice(0, -1);
   }
@@ -266,22 +259,22 @@ function isAxisAlignedRectangle(
     `${bounds[1][0]}:${bounds[1][1]}`,
     `${bounds[0][0]}:${bounds[1][1]}`,
   ]);
-  return points.every((point) => corners.has(`${point[0]}:${point[1]}`));
+  return new Set(points.map((point) => `${point[0]}:${point[1]}`)).size === 4 &&
+    points.every((point, index) => {
+      const next = points[(index + 1) % points.length];
+      return corners.has(`${point[0]}:${point[1]}`) && (point[0] === next[0] || point[1] === next[1]);
+    });
 }
 
-function quantized(value: number) {
-  return Math.round(value / COORDINATE_DUPLICATE_TOLERANCE);
+function scaleRegion(region: GdsTargetRegion, scale: number): GdsTargetRegion {
+  const scalePoint = ([x, y]: CoordinatePair): CoordinatePair => [x * scale, y * scale];
+  return region.type === "rectangle"
+    ? { type: "rectangle", bounds: [scalePoint(region.bounds[0]), scalePoint(region.bounds[1])] }
+    : { type: "polygon", points: region.points.map(scalePoint) };
 }
 
-function scaledCoordinate(value: number, scale: number) {
-  return quantized(value * scale) * COORDINATE_DUPLICATE_TOLERANCE;
-}
-
-function pointsEqual(left: CoordinatePair, right: CoordinatePair) {
-  return (
-    Math.abs(left[0] - right[0]) <= COORDINATE_DUPLICATE_TOLERANCE &&
-    Math.abs(left[1] - right[1]) <= COORDINATE_DUPLICATE_TOLERANCE
-  );
+function pointsEqual(left: CoordinatePair, right: CoordinatePair, tolerance: number) {
+  return Math.abs(left[0] - right[0]) <= tolerance && Math.abs(left[1] - right[1]) <= tolerance;
 }
 
 function parseLayout(buffer: ArrayBuffer) {

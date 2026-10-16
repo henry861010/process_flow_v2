@@ -105,11 +105,12 @@ describe("GDS import criteria", () => {
     });
 
     expect(accumulator.result()).toEqual({
-      regions: [{ type: "rectangle", bounds: [[-4, -4], [4, 4]] }],
+      regions: [diamond],
       duplicatesRemoved: 1,
-      repairedElements: 2,
-      boundingBoxFallbacks: 2,
-      nonOrthogonalRegions: 0,
+      repairedElements: 0,
+      unrepairedElements: 2,
+      repairDiagnostics: [{ regionIndex: 0, reason: "unrecognized-outline" }],
+      nonOrthogonalRegions: 1,
     });
   });
 

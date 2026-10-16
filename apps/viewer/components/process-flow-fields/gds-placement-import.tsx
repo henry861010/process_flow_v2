@@ -18,6 +18,7 @@ import type { PlacementValidationSummary } from "@/lib/process-flow/placement-va
 import { cn } from "@/lib/utils";
 import { useFlowGdsFile } from "./flow-gds-file-context";
 import type { GdsTargetRegion } from "./gds-coordinate-geometry";
+import type { GdsImportResponse } from "./gds-coordinate-import.worker";
 import {
   duplicateGdsImportCriterionKeys,
   gdsImportCriterionKey,
@@ -29,23 +30,6 @@ import {
 export type CoordinatePair = [number, number];
 export type CoordinateBounds = [CoordinatePair, CoordinatePair];
 export type { GdsTargetRegion } from "./gds-coordinate-geometry";
-
-type GdsImportResponse =
-  | {
-      type: "success";
-      requestId: string;
-      regions: GdsTargetRegion[];
-      matchedElements: number;
-      duplicatesRemoved: number;
-      repairedElements: number;
-      boundingBoxFallbacks: number;
-      nonOrthogonalRegions: number;
-      topCellNames: string[];
-      unsupportedElements: Record<string, number>;
-      unresolvedReferences: number;
-      cyclicReferences: number;
-    }
-  | { type: "error"; requestId: string; message: string };
 
 type ImportSummary = Extract<GdsImportResponse, { type: "success" }> & {
   validation: PlacementValidationSummary;
@@ -292,15 +276,19 @@ export function GdsPlacementImport({
             "flex gap-2 rounded-md border p-2 text-xs",
             summary.validation.invalidPlacements > 0
               ? "border-destructive/30 bg-destructive/5 text-destructive"
-              : "border-emerald-200 bg-emerald-50 text-emerald-800",
+              : summary.unrepairedElements > 0
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800",
           )}
         >
           {summary.validation.invalidPlacements > 0 ? (
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          ) : summary.unrepairedElements > 0 ? (
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           ) : (
             <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
           )}
-          <span>
+          <div className="min-w-0">
             Imported {summary.regions.length} target regions from {summary.matchedElements} matching elements.
             {summary.duplicatesRemoved > 0
               ? ` ${summary.duplicatesRemoved} duplicates removed.`
@@ -308,13 +296,27 @@ export function GdsPlacementImport({
             {summary.repairedElements > 0
               ? ` ${summary.repairedElements} non-axis-aligned elements repaired.`
               : ""}
-            {summary.boundingBoxFallbacks > 0
-              ? ` ${summary.boundingBoxFallbacks} ${summary.boundingBoxFallbacks === 1 ? "element" : "elements"} used bounding-box fallback.`
+            {summary.unrepairedElements > 0
+              ? ` ${summary.unrepairedElements} ${summary.unrepairedElements === 1 ? "element" : "elements"} kept the original outline because safe defeaturing was not possible.`
               : ""}
             {summary.validation.invalidPlacements > 0
               ? ` ${summary.validation.invalidPlacements} of ${summary.validation.totalPlacements} imported ${summary.validation.totalPlacements === 1 ? "placement does" : "placements do"} not meet placement rules. Review the highlighted ${summary.validation.invalidPlacements === 1 ? "placement" : "placements"} below.`
               : ""}
-          </span>
+            {summary.repairDiagnostics.length > 0 ? (
+              <details className="mt-1">
+                <summary className="cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Review preserved outlines</summary>
+                <ul className="mt-1 list-disc space-y-1 break-words pl-4">
+                  {summary.repairDiagnostics.map(({ regionIndex, reason }) => (
+                    <li key={regionIndex}>
+                      Placement {regionIndex + 1}: {reason === "invalid-outline"
+                        ? "the outline or repair failed geometry validation; original outline preserved."
+                        : "a safe local orthogonal repair could not be identified; original outline preserved."}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
         </div>
       ) : null}
       {summary && summary.nonOrthogonalRegions > 0 ? (
@@ -520,7 +522,7 @@ export function GdsPlacementImport({
                       <span>
                         <span className="block font-medium">Defeature</span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          Repair non-axis-aligned boundaries into orthogonal placement outlines.
+                          Convert curved boundary notches into rectangular recesses while preserving the main outline. Outlines that cannot be safely repaired are kept with a warning.
                         </span>
                       </span>
                     </label>
