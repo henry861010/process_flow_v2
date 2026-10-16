@@ -11,7 +11,14 @@ from .sets.mesh_model_3 import MeshModel3Set
 
 
 class MeshControlSetRegistry:
+    """Register uniquely identified sets and apply them without state mutation."""
+
     def __init__(self, sets: tuple[MeshControlSet, ...] | None = None):
+        """Register the supplied tuple, or all built-ins when sets is None.
+
+        Raises ValueError for duplicate IDs or missing public metadata fields.
+        An explicit tuple replaces the defaults, including an empty tuple.
+        """
         registered = sets if sets is not None else (
             MeshModel1Set(),
             MeshModel2Set(),
@@ -31,12 +38,20 @@ class MeshControlSetRegistry:
             self._sets[set_id] = control_set
 
     def definitions(self) -> list[dict]:
+        """Return detached public metadata for all sets in registration order."""
         return [_public_definition(item.definition()) for item in self._sets.values()]
 
     def definition(self, set_id: str) -> dict:
+        """Return detached set metadata; raise KeyError for an unknown ID."""
         return _public_definition(self._sets[set_id].definition())
 
     def apply(self, set_id: str, state: ProcessGeometryState) -> tuple[dict, MeshControlSetResult]:
+        """Return metadata and built controls/details for a geometry state.
+
+        Raises KeyError for an unknown set, propagates the set's build errors,
+        and raises ValueError if the set changed geometry or inspection state.
+        Mesher contract validation is performed separately by the API.
+        """
         control_set = self._sets[set_id]
         before = state.to_geometry_structure()
         before_inspection = state.inspect()

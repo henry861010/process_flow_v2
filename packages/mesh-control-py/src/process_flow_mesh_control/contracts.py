@@ -14,11 +14,22 @@ class MeshControlSetNotApplicable(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class MeshControlSetResult:
+    """Canonical mesh-control JSON and resolved rule details, with distances in um."""
+
     mesh_control: JsonObject
     details: list[JsonObject]
 
 
 class MeshControlSet(Protocol):
-    def definition(self) -> JsonObject: ...
+    """Interface for independently authored, read-only geometry rule sets."""
 
-    def build(self, state: ProcessGeometryState) -> MeshControlSetResult: ...
+    def definition(self) -> JsonObject:
+        """Return nonempty id, version, label and description strings."""
+        ...
+
+    def build(self, state: ProcessGeometryState) -> MeshControlSetResult:
+        """Return controls/details in um without modifying geometry/process state.
+
+        Raise MeshControlSetNotApplicable when required geometry is unsuitable.
+        """
+        ...

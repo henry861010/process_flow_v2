@@ -408,7 +408,7 @@ class MeshModel2Tests(unittest.TestCase):
                 self.assertEqual([item["label"] for item in result.mesh_control["controls"]], ["adh", "TD_uBump"])
                 self.assertEqual([item["sourceIds"] for item in result.details], [["body:adh"], ["bump:soc"]])
 
-    def test_all_models_select_first_soc_si_in_dfs_order_without_soc_container(self):
+    def test_all_models_keep_first_soc_si_when_xy_centers_tie_without_soc_container(self):
         geometry = structure(container(
             "container:root",
             children=[

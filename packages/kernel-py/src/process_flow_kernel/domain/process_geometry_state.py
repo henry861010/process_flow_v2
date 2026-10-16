@@ -78,7 +78,9 @@ class ProcessGeometryState:
         """Return detached summaries of serialized containers and features.
 
         IDs here are structure IDs, unlike the runtime IDs returned by
-        ``find_scopes``. Results cannot mutate this state.
+        ``find_scopes``. Results cannot mutate this state. Bounds are in um;
+        container XY bounds include all descendant features and are None for
+        empty subtrees. Results retain depth-first traversal order.
         """
         kinds = {"container", "body", "via", "circuit", "bump"}
         if kind is not None and kind not in kinds:
@@ -1102,15 +1104,21 @@ def _geometry_node_summaries(root):
             "material": None,
             "parentId": parent_id,
             "containerId": parent_id,
+            "xMin": None,
+            "xMax": None,
+            "yMin": None,
+            "yMax": None,
             "zMin": 0,
             "zMax": 0,
         }
         nodes.append(summary)
         bounds = []
+        xy_bounds = []
         for field, kind in (("bodies", "body"), ("vias", "via"),
                             ("circuits", "circuit"), ("bumps", "bump")):
             for feature in container.get(field, []):
                 geometry = _geometry_from_payload(feature["geometry"])
+                feature_bounds = _geometry_bounds(geometry)
                 node = {
                     "kind": kind,
                     "id": feature["id"],
@@ -1118,17 +1126,24 @@ def _geometry_node_summaries(root):
                     "material": feature["material"],
                     "parentId": container_id,
                     "containerId": container_id,
-                    "zMin": geometry.z_min(),
-                    "zMax": geometry.z_max(),
+                    **feature_bounds,
                 }
                 nodes.append(node)
                 bounds.append((node["zMin"], node["zMax"]))
+                xy_bounds.append(node)
         for child in container.get("children", []):
-            bounds.append(visit(child, container_id))
+            child_summary = visit(child, container_id)
+            bounds.append((child_summary["zMin"], child_summary["zMax"]))
+            if child_summary["xMin"] is not None:
+                xy_bounds.append(child_summary)
         if bounds:
             summary["zMin"] = min(item[0] for item in bounds)
             summary["zMax"] = max(item[1] for item in bounds)
-        return summary["zMin"], summary["zMax"]
+        if xy_bounds:
+            for axis in ("x", "y"):
+                summary[f"{axis}Min"] = min(item[f"{axis}Min"] for item in xy_bounds)
+                summary[f"{axis}Max"] = max(item[f"{axis}Max"] for item in xy_bounds)
+        return summary
 
     visit(root)
     return nodes

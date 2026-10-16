@@ -1,13 +1,58 @@
 from __future__ import annotations
 
+import copy
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import numpy as np
 from fastapi.testclient import TestClient
 from mesher.contracts.process_flow_2_5d import validate_mesh_control
+from mesher.process_flow.pipeline import build_mesh_from_structure
+from mesher.process_flow.translation.standard_v1 import StandardV1Translator
+from process_flow_kernel import normalize_geometry_structure
 
 from process_flow_api.main import create_app
+
+
+def spatial_structure(*, with_hbm):
+    def body(body_id, x, y, z, thickness, *, key=None, width=40):
+        result = {
+            "id": body_id, "material": "Si",
+            "geometry": {"type": "BoxGeometry", "bottom_left": [x, y, z],
+                         "top_right": [x + width, y + width, z], "thk": thickness},
+        }
+        if key is not None:
+            result["key"] = key
+        return result
+
+    children = []
+    for name, x, y in (("lower-left", -150, -150), ("upper-left", -150, 50),
+                       ("lower-right", 50, -150), ("upper-right", 50, 50)):
+        bump = {**body(f"bump:{name}", x, y, 10, 10, width=10), "material": "Sn",
+                "density": 50, "direction": "+z", "koz": 0, "stage": "reflowed"}
+        if with_hbm:
+            children.append({
+                "id": f"hbm:{name}", "key": "hbm", "bumps": [bump],
+                "children": [
+                    {"id": f"base:{name}", "bodies": [body(
+                        f"die:base:{name}", x, y, 20, 40, key="hbm.base_die",
+                    )]},
+                    {"id": f"top:{name}", "bodies": [body(
+                        f"die:top:{name}", x, y, 80, 40, key="hbm.top_die",
+                    )]},
+                ],
+            })
+        else:
+            children.append({
+                "id": f"soc:{name}", "key": "soc", "bumps": [bump],
+                "bodies": [body(f"si:{name}", x, y, 20, 300, key="soc.si")],
+            })
+    return normalize_geometry_structure({
+        "id": "root", "bodies": [body("base", -200, -200, 0, 10, width=400)],
+        "children": children,
+    })
 
 
 class MeshControlSetApiTests(unittest.TestCase):
@@ -221,6 +266,59 @@ class MeshControlSetApiTests(unittest.TestCase):
                 )
                 self.assertEqual(payload["details"][0]["startZ"], -90)
                 self.assertEqual(payload["details"][0]["endZ"], -90)
+
+    def test_all_models_keep_selected_references_and_z_refinement_after_symmetry(self):
+        original_pattern = StandardV1Translator.get_3D_pattern
+        for with_hbm in (True, False):
+            structure = spatial_structure(with_hbm=with_hbm)
+            snapshot = copy.deepcopy(structure)
+            for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+                response = self.client.post(
+                    f"/api/mesh-control-sets/{set_id}/apply", json={"geometryStructure": structure},
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                payload = response.json()
+                self.assertTrue(all(source.endswith(":upper-right")
+                                    for detail in payload["details"] for source in detail["sourceIds"]))
+                for symmetry in ("full", "upper_half", "right_half", "upper_right_quarter"):
+                    with self.subTest(set_id=set_id, with_hbm=with_hbm, symmetry=symmetry):
+                        mesh_control = copy.deepcopy(payload["meshControl"])
+                        mesh_control["symmetry"] = symmetry
+                        validate_mesh_control(mesh_control)
+                        captured = {}
+
+                        def capture_pattern(translator, container, settings):
+                            captured["container"] = copy.deepcopy(container)
+                            return original_pattern(translator, container, settings)
+
+                        with patch.object(StandardV1Translator, "get_3D_pattern", new=capture_pattern):
+                            mesh = build_mesh_from_structure(structure, mesh_control)
+                        self.assertGreater(mesh.element_count, 0)
+                        target_z = 40 if with_hbm else 275
+                        self.assertTrue(np.any(np.isclose(mesh.nodes[:, 2], target_z)))
+
+                        def all_ids(container):
+                            yield container["id"]
+                            for field in ("bodies", "vias", "circuits", "bumps"):
+                                yield from (item["id"] for item in container[field])
+                            for child in container["children"]:
+                                yield from all_ids(child)
+
+                        retained_ids = set(all_ids(captured["container"]))
+                        for control in mesh_control["controls"]:
+                            self.assertIn(control["reference"]["id"], retained_ids)
+                        if symmetry != "full":
+                            self.assertNotIn("bump:lower-left", retained_ids)
+                        if symmetry in ("right_half", "upper_right_quarter"):
+                            self.assertTrue(np.all(mesh.nodes[:, 0] >= 0))
+                        if symmetry in ("upper_half", "upper_right_quarter"):
+                            self.assertTrue(np.all(mesh.nodes[:, 1] >= 0))
+
+                        # The asserted Z plane must come from controls, not a geometry boundary.
+                        if set_id == "meshModel1":
+                            uncontrolled = build_mesh_from_structure(structure, {**mesh_control, "controls": []})
+                            self.assertFalse(np.any(np.isclose(uncontrolled.nodes[:, 2], target_z)))
+                        self.assertEqual(structure, snapshot)
 
 
 if __name__ == "__main__":
