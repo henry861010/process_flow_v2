@@ -572,12 +572,27 @@ class MeshControlSetApplyRequest(StrictModel):
     geometryStructure: JsonObject
 
 
+class MeshControlRegionBounds(StrictModel):
+    xMin: float
+    xMax: float
+    yMin: float
+    yMax: float
+    zMin: float
+    zMax: float
+
+
+class ResolvedMeshControlRegion(StrictModel):
+    sourceId: str | None = None
+    bounds: MeshControlRegionBounds
+
+
 class MeshControlSetRuleDetail(StrictModel):
     label: str
     status: Literal["applied", "omitted"]
     startZ: float
     endZ: float
     sourceIds: list[str]
+    resolvedRegions: list[ResolvedMeshControlRegion] | None = None
 
 
 class MeshControlSetApplyResponse(StrictModel):

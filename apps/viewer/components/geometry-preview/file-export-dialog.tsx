@@ -21,6 +21,7 @@ import {
   createFileExportJob,
   getFileExportClientId,
   listMeshControlSets,
+  type CoordinateMode,
   type FileExportJob,
   type FileExportKind,
   type MeshControlSetDefinition,
@@ -29,6 +30,7 @@ import {
 } from "@/components/geometry-preview/file-export-client";
 import {
   buildMeshControlConfiguration,
+  changeCoordinateMode,
   collectKeyedGeometryReferences,
   draftsFromMeshControlConfiguration,
   filterKeyedGeometryReferences,
@@ -42,6 +44,7 @@ import {
   type ZLocationDraft,
 } from "@/components/geometry-preview/file-export-mesh-control";
 import { Button } from "@/components/ui/button";
+import { MeshRegionEditor } from "./mesh-region-editor";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
@@ -150,6 +153,15 @@ export function FileExportDialog({
         preventScroll: true,
       });
     }
+    if (!focusLabel && error) {
+      const card = document.getElementById(`${meshControlsPanelId}-${clientId}`);
+      const fieldError = error.replace("element size", "elementSize");
+      const fields = Array.from(card?.querySelectorAll<HTMLInputElement>("[data-region-field]") ?? []);
+      const field = fields.find(input => fieldError.includes(input.dataset.regionField ?? "\0"))
+        ?? (error.includes("region.loops") ? fields.find(input => input.dataset.regionField?.startsWith("region.loops")) : undefined);
+      field?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      field?.focus({ preventScroll: true });
+    }
     pendingControlNavigationRef.current = null;
   }, [controls, error, expandedControlIds, meshControlsPanelId]);
 
@@ -252,11 +264,14 @@ export function FileExportDialog({
       onJobCreated(job);
       onClose();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : `Unable to create ${config.label} export job.`,
-      );
+      const message = requestError instanceof Error ? requestError.message : `Unable to create ${config.label} export job.`;
+      const invalidIndex = Number(/Control (\d+)/.exec(message)?.[1]) - 1;
+      if (controls[invalidIndex]) {
+        const clientId = controls[invalidIndex].clientId;
+        pendingControlNavigationRef.current = { clientId, focusLabel: false };
+        setExpandedControlIds(ids => [...new Set([...ids, clientId])]);
+      }
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -409,7 +424,7 @@ export function FileExportDialog({
                         Mesh controls
                         <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px] text-secondary-foreground">{controls.length}</span>
                       </h4>
-                      <p className="mt-1 text-xs text-muted-foreground">Refine the mesh at selected Z locations.</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Refine the mesh at selected Z locations or within 3D regions.</p>
                     </div>
                   </div>
 
@@ -421,6 +436,12 @@ export function FileExportDialog({
                           {setDetails.map((detail, index) => (
                             <li key={`${detail.label}-${index}`}>
                               {detail.label}: {detail.startZ} → {detail.endZ} µm
+                              {detail.resolvedRegions?.map((region, regionIndex) => (
+                                <span key={regionIndex} className="mt-1 block pl-2 font-mono text-[10px]">
+                                  {region.sourceId ? `${region.sourceId}: ` : ""}
+                                  X [{region.bounds.xMin}, {region.bounds.xMax}], Y [{region.bounds.yMin}, {region.bounds.yMax}], Z [{region.bounds.zMin}, {region.bounds.zMax}] µm
+                                </span>
+                              ))}
                               {detail.status === "omitted" ? " (zero thickness, omitted)" : ""}
                             </li>
                           ))}
@@ -438,6 +459,7 @@ export function FileExportDialog({
                               index={index}
                               control={control}
                               expanded={expandedControlIds.includes(control.clientId)}
+                              controlError={Number(/Control (\d+)/.exec(error ?? "")?.[1]) === index + 1 ? error ?? undefined : undefined}
                               labelInvalid={error === `Control ${index + 1} label is required.`}
                               keyedGeometryReferences={keyedGeometryReferences}
                               disabled={submitting || applyingSet}
@@ -547,6 +569,7 @@ function MeshControlEditor({
   control,
   expanded,
   labelInvalid,
+  controlError,
   keyedGeometryReferences,
   disabled,
   onToggle,
@@ -558,6 +581,7 @@ function MeshControlEditor({
   control: MeshControlDraft;
   expanded: boolean;
   labelInvalid: boolean;
+  controlError?: string;
   keyedGeometryReferences: KeyedGeometryReference[];
   disabled: boolean;
   onToggle: () => void;
@@ -565,6 +589,7 @@ function MeshControlEditor({
   onRemove: () => void;
 }) {
   const isPoint = control.method === "Z_POINT";
+  const isRegion = control.method === "3D_REGION";
   const [referenceGuideOpen, setReferenceGuideOpen] = React.useState(false);
   const [referenceSearch, setReferenceSearch] = React.useState("");
   const referenceGuideId = React.useId();
@@ -685,10 +710,12 @@ function MeshControlEditor({
                 <input
                   className={`${compactInputClass} pr-9`}
                   inputMode="decimal"
-                  value={control.elementSize}
+                  value={isRegion ? control.region.elementSize : control.elementSize}
+                  data-region-field="elementSize"
+                  aria-invalid={!!controlError && /elementSize|element size/.test(controlError)}
                   disabled={disabled}
                   onChange={(event) =>
-                    onChange({ ...control, elementSize: event.target.value })
+                    onChange(isRegion ? { ...control, region: { ...control.region, elementSize: event.target.value } } : { ...control, elementSize: event.target.value })
                   }
                 />
                 <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-muted-foreground">µm</span>
@@ -697,7 +724,15 @@ function MeshControlEditor({
           ) : null}
         </div>
 
-        <section className="min-w-0 space-y-2">
+        <label className="block max-w-xs space-y-1.5 text-xs font-medium">Coordinate mode
+          <select className={compactInputClass} aria-label={`Control ${index + 1} coordinate mode`}
+            value={control.coordinateMode} disabled={disabled}
+            onChange={event => onChange(changeCoordinateMode(control, event.target.value as CoordinateMode))}>
+            <option value="reference">Reference</option><option value="absolute">Absolute</option>
+          </select>
+        </label>
+
+        {control.coordinateMode === "reference" && <section className="min-w-0 space-y-2">
           <div
             ref={referenceGuideRef}
             className="relative flex items-center gap-1.5"
@@ -821,12 +856,16 @@ function MeshControlEditor({
               />
             </label>
           </div>
-        </section>
+        </section>}
 
-        {isPoint ? (
+        {isRegion ? (
+          <MeshRegionEditor mode={control.coordinateMode} value={control.region} disabled={disabled} error={controlError}
+            onChange={region => onChange({ ...control, region })} />
+        ) : isPoint ? (
           <section className="space-y-2 border-t pt-3">
             <h6 className="text-xs font-medium text-foreground">Z location</h6>
             <ZLocationEditor
+              mode={control.coordinateMode}
               label="Z"
               hideLabel
               value={control.z}
@@ -843,6 +882,7 @@ function MeshControlEditor({
               <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] sm:items-center">
                 <div className="rounded-md border bg-muted/15 p-2.5">
                   <ZLocationEditor
+                    mode={control.coordinateMode}
                     label="Start"
                     value={control.startZ}
                     disabled={disabled}
@@ -855,6 +895,7 @@ function MeshControlEditor({
                 />
                 <div className="rounded-md border bg-muted/15 p-2.5">
                   <ZLocationEditor
+                    mode={control.coordinateMode}
                     label="End"
                     value={control.endZ}
                     disabled={disabled}
@@ -871,6 +912,7 @@ function MeshControlEditor({
 }
 
 function ZLocationEditor({
+  mode,
   label,
   hideLabel = false,
   value,
@@ -880,6 +922,7 @@ function ZLocationEditor({
   label: string;
   hideLabel?: boolean;
   value: ZLocationDraft;
+  mode: CoordinateMode;
   disabled: boolean;
   onChange: (value: ZLocationDraft) => void;
 }) {
@@ -895,34 +938,15 @@ function ZLocationEditor({
         {label}
       </legend>
       <div className="grid min-w-0 grid-cols-2 gap-2">
-        <label className="block min-w-0 space-y-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            Mode
-          </span>
-          <select
-            className={compactInputClass}
-            aria-label={`${label} mode`}
-            value={value.mode}
-            onChange={(event) =>
-              onChange({
-                ...value,
-                mode: event.target.value as ZLocationDraft["mode"],
-              })
-            }
-          >
-            <option value="relative">relative</option>
-            <option value="absolute">absolute</option>
-          </select>
-        </label>
-        <label className="block min-w-0 space-y-1">
+        {mode === "reference" && <label className="col-span-2 block min-w-0 space-y-1">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Anchor
           </span>
           <select
             className={compactInputClass}
             aria-label={`${label} anchor`}
-            value={value.mode === "relative" ? value.anchor : ""}
-            disabled={disabled || value.mode === "absolute"}
+            value={value.anchor}
+            disabled={disabled}
             onChange={(event) =>
               onChange({
                 ...value,
@@ -930,25 +954,25 @@ function ZLocationEditor({
               })
             }
           >
-            {value.mode === "absolute" ? <option value="">—</option> : null}
             <option value="z_min">z_min</option>
             <option value="z_max">z_max</option>
           </select>
-        </label>
+        </label>}
         <label className="col-span-2 block min-w-0 space-y-1">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            {value.mode === "relative" ? "Offset" : "Global Z"}
+            {mode === "reference" ? "Offset" : "Global Z"}
           </span>
           <span className="relative block">
             <input
               className={`${compactInputClass} pr-9`}
               inputMode="decimal"
               aria-label={
-                value.mode === "relative"
+                mode === "reference"
                   ? `${label} offset`
                   : `${label} absolute value`
               }
-              placeholder={value.mode === "relative" ? "Offset" : "Global Z"}
+              data-region-field={label === "Start" ? "startZ" : label === "End" ? "endZ" : "z"}
+              placeholder={mode === "reference" ? "Offset" : "Global Z"}
               value={value.value}
               onChange={(event) =>
                 onChange({ ...value, value: event.target.value })

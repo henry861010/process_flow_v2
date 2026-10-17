@@ -1,8 +1,8 @@
 """Canonical mesh-control builders; all sizes and Z coordinates are in um.
 
 Append helpers modify only the supplied output lists. Geometry summaries and
-reference dictionaries remain unchanged. Schema validation belongs to the
-mesher contract and is performed by the API when a set is applied.
+reference dictionaries remain unchanged. Schema validation is performed by the API when a set is applied; all controls
+use the local uniform-coordinate contract.
 """
 
 from __future__ import annotations
@@ -33,15 +33,16 @@ def append_full_feature_control(
         element_size: Requested Z element size in um.
 
     Returns None. Only the output lists are modified. Missing feature fields
-    raise KeyError. Positive size validation is left to the mesher contract.
+    raise KeyError. Positive size validation is performed by the local contract.
     """
     controls.append({
         "method": "Z_SECTION_AVG",
+        "coordinateMode": "reference",
         "label": label,
         "reference": {"kind": feature["kind"], "id": feature["id"]},
         "elementSize": element_size,
-        "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
-        "endZ": {"mode": "relative", "anchor": "z_max", "offset": 0},
+        "startZ": {"anchor": "z_min", "offset": 0},
+        "endZ": {"anchor": "z_max", "offset": 0},
     })
     details.append({
         "label": label,
@@ -62,7 +63,6 @@ def append_absolute_section(
     end_z: float,
     source_ids: list[str],
     label: str,
-    reference: JsonObject,
 ) -> None:
     """Append an absolute Z section and matching applied/omitted details.
 
@@ -75,21 +75,20 @@ def append_absolute_section(
         end_z: Absolute upper Z coordinate in um.
         source_ids: Structure IDs used to derive the range.
         label: Human-readable control label.
-        reference: Canonical target reference, copied into the control.
 
     Returns None. A range at most ZERO_TOLERANCE long receives only an omitted
     detail, including inverted ranges. Only output lists are modified; contract
-    validation of methods, references and positive sizes is left to the caller.
+    validation of methods and positive sizes is left to the caller.
     """
     omitted = end_z - start_z <= ZERO_TOLERANCE
     if not omitted:
         controls.append({
             "method": method,
+            "coordinateMode": "absolute",
             "label": label,
-            "reference": copy.deepcopy(reference),
             "elementSize": element_size,
-            "startZ": {"mode": "absolute", "value": start_z},
-            "endZ": {"mode": "absolute", "value": end_z},
+            "startZ": start_z,
+            "endZ": end_z,
         })
     details.append({
         "label": label,
@@ -127,9 +126,10 @@ def append_relative_z_point(
     point_z = feature["zMin" if anchor == "z_min" else "zMax"] + offset
     controls.append({
         "method": "Z_POINT",
+        "coordinateMode": "reference",
         "label": label,
         "reference": {"kind": feature["kind"], "id": feature["id"]},
-        "z": {"mode": "relative", "anchor": anchor, "offset": offset},
+        "z": {"anchor": anchor, "offset": offset},
     })
     details.append({
         "label": label,
@@ -154,7 +154,7 @@ def build_mesh_control(
         symmetry: "full", "upper_half", "right_half" or "upper_right_quarter".
 
     Returns a new schema 1.0.0 document using um. Inputs are not modified.
-    Validation is intentionally delegated to the installed mesher contract.
+    Validation is delegated to the API using the relevant per-method contract.
     """
     return {
         "schemaVersion": "1.0.0",

@@ -10,13 +10,12 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from mesher.contracts.process_flow_2_5d import validate_mesh_control
 from process_flow_geometry_generators import (
     GeometryGeneratorRegistry,
     register_builtin_generators,
 )
 from process_flow_kernel import ProcessGeometryState
-from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry
+from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry, validate_mesh_control
 
 from .file_export_jobs import FileExportJobManager
 from .analytics import AnalyticsRecorder
@@ -478,7 +477,7 @@ def create_app(
         try:
             state = ProcessGeometryState.from_structure(body.geometryStructure)
             definition, result = app.state.mesh_control_sets.apply(set_id, state)
-            _validate_mesh_control(result.mesh_control)
+            _validate_mesh_control(result.mesh_control, state=state)
         except (MeshControlSetNotApplicable, ValueError, KeyError, TypeError, AttributeError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return {
@@ -491,7 +490,7 @@ def create_app(
 
     @app.post("/api/geometry-preview/cdb-jobs", response_model=FileExportJobResponse)
     async def create_geometry_preview_cdb_file_export(body: CdbFileExportCreateRequest):
-        mesh_control = _validated_mesh_control(body.meshControl)
+        mesh_control = _validated_mesh_control(body.meshControl, body.geometryStructure)
         job = await app.state.file_export_jobs.create_cdb_file_export(
             client_id=body.clientId,
             geometry_structure=body.geometryStructure,
@@ -504,7 +503,7 @@ def create_app(
     @app.post("/api/geometry-preview/export-jobs", response_model=FileExportJobResponse)
     async def create_geometry_preview_file_export(body: FileExportCreateRequest):
         mesh_control = (
-            _validated_mesh_control(body.meshControl)
+            _validated_mesh_control(body.meshControl, body.geometryStructure)
             if body.kind == "cdb" and body.meshControl is not None
             else None
         )
@@ -546,18 +545,19 @@ def create_app(
     return app
 
 
-def _validate_mesh_control(mesh_control: dict[str, Any]) -> None:
-    validate_mesh_control(mesh_control)
-    for index, control in enumerate(mesh_control["controls"], start=1):
-        label = control.get("label")
-        if not isinstance(label, str) or not label.strip():
-            raise ValueError(f"Control {index} label is required and must be a non-empty string.")
+def _validate_mesh_control(mesh_control: dict[str, Any], *, state=None) -> None:
+    validate_mesh_control(mesh_control, state=state)
 
 
-def _validated_mesh_control(mesh_control: dict[str, Any]) -> dict[str, Any]:
+def _validated_mesh_control(mesh_control: dict[str, Any], geometry_structure=None) -> dict[str, Any]:
     try:
-        _validate_mesh_control(mesh_control)
-    except ValueError as error:
+        has_regions = isinstance(mesh_control, dict) and isinstance(mesh_control.get("controls"), list) and any(
+            isinstance(control, dict) and control.get("method") == "3D_REGION"
+            for control in mesh_control["controls"]
+        )
+        state = ProcessGeometryState.from_structure(geometry_structure) if has_regions else None
+        _validate_mesh_control(mesh_control, state=state)
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
         raise HTTPException(
             status_code=422,
             detail=f"Invalid meshControl: {error}",

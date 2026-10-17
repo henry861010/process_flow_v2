@@ -150,17 +150,19 @@ class MeshModel2Tests(unittest.TestCase):
                         [
                             {
                                 "method": "Z_SECTION_AVG",
+                                "coordinateMode": "reference",
                                 "label": "Tim",
                                 "reference": {"kind": "body", "id": "body:tim"},
                                 "elementSize": 50,
-                                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
-                                "endZ": {"mode": "relative", "anchor": "z_max", "offset": 0},
+                                "startZ": {"anchor": "z_min", "offset": 0},
+                                "endZ": {"anchor": "z_max", "offset": 0},
                             },
                             {
                                 "method": "Z_POINT",
+                                "coordinateMode": "reference",
                                 "label": "Carrier bottom +10",
                                 "reference": {"kind": "body", "id": "body:carrier"},
-                                "z": {"mode": "relative", "anchor": "z_min", "offset": 10},
+                                "z": {"anchor": "z_min", "offset": 10},
                             },
                         ],
                     )
@@ -297,13 +299,13 @@ class MeshModel2Tests(unittest.TestCase):
         self.assertEqual(controls[5]["method"], "Z_SECTION_CENTER")
         self.assertTrue(
             all(
-                item["reference"] == {"kind": "container", "id": "container:hbm"}
+                item["coordinateMode"] == "absolute" and "reference" not in item
                 for item in controls[5:]
             )
         )
         self.assertEqual(
             [
-                (item["startZ"]["value"], item["endZ"]["value"])
+                (item["startZ"], item["endZ"])
                 for item in controls[5:]
             ],
             [(0, 100), (100, 120), (120, 170), (170, 190), (190, 240), (240, 260), (260, 300)],
@@ -340,7 +342,7 @@ class MeshModel2Tests(unittest.TestCase):
         self.assertEqual(controls[1]["reference"], {"kind": "bump", "id": "bump:soc"})
         self.assertEqual(
             [
-                (item["startZ"]["value"], item["endZ"]["value"])
+                (item["startZ"], item["endZ"])
                 for item in controls[2:]
             ],
             [(250, 300), (190, 250), (110, 190), (50, 110), (0, 50)],
@@ -377,12 +379,13 @@ class MeshModel2Tests(unittest.TestCase):
                 )
                 expected_ranges = [(290, 340), (230, 290), (150, 230), (90, 150), (40, 90)]
                 self.assertEqual(
-                    [(item["startZ"]["value"], item["endZ"]["value"]) for item in controls[1:]],
+                    [(item["startZ"], item["endZ"]) for item in controls[1:]],
                     expected_ranges,
                 )
                 self.assertEqual([item["elementSize"] for item in controls[1:]], [5, 60, 120, 60, 5])
                 for item in controls[1:]:
-                    self.assertEqual(item["reference"], {"kind": "body", "id": "body:si"})
+                    self.assertNotIn("reference", item)
+                    self.assertEqual(result.details[controls.index(item)]["sourceIds"], ["body:si"])
                 self.assertEqual(
                     [(item["startZ"], item["endZ"]) for item in result.details[1:]],
                     expected_ranges,
@@ -425,9 +428,10 @@ class MeshModel2Tests(unittest.TestCase):
                 controls = result.mesh_control["controls"]
                 self.assertEqual(len(controls), 5)
                 for item in controls:
-                    self.assertEqual(item["reference"], {"kind": "body", "id": "body:first-si"})
-                self.assertEqual(controls[0]["startZ"]["value"], 290)
-                self.assertEqual(controls[-1]["startZ"]["value"], 40)
+                    self.assertNotIn("reference", item)
+                    self.assertEqual(result.details[controls.index(item)]["sourceIds"], ["body:first-si"])
+                self.assertEqual(controls[0]["startZ"], 290)
+                self.assertEqual(controls[-1]["startZ"], 40)
 
     def test_hbm_partial_output_blocks_soc_uf_but_bump_falls_back_to_soc(self):
         hbm = container(
@@ -462,7 +466,7 @@ class MeshModel2Tests(unittest.TestCase):
                 self.assertEqual(controls[1]["elementSize"], 10)
                 self.assertEqual(controls[1]["method"], "Z_SECTION_AVG")
                 self.assertEqual(
-                    controls[1]["reference"], {"kind": "container", "id": "container:hbm"}
+                    controls[1]["coordinateMode"], "absolute"
                 )
 
     def test_zero_hbm_gap_is_reported_and_omitted(self):

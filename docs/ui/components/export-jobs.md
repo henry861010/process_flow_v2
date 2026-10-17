@@ -46,20 +46,24 @@ Symmetry依序顯示`Full`、`Upper Half`、`Right Half`、`Upper-right Quarter`
 上方 `Mesh control set` 下拉預設為 `Manual / custom`，文案明示set會同時填入基本mesh設定與local controls；選擇已登錄 set 會將目前 preview structure 送到
 `POST /api/mesh-control-sets/{id}/apply`，把回傳的 global size、symmetry 與 controls 展開為可編輯欄位，
 並顯示每條規則的解析區間。修改展開結果後標示 `Customized after applying`；套用失敗保留原草稿。
-Built-in set 只提供 `meshModel1`、`meshModel2` 與 `meshModel3`；三者目前以相同的
+Built-in set 提供 `meshModel1`、`meshModel2`、`meshModel3` 與 `meshControl3dTest`；前三者目前以相同的
 Tim、adhesive、uBump 與 UF rules 為初始值，但各自保留獨立實作與 control sizes。
 `Local controls`區塊預設收合，整列可點擊並顯示控制數量；收合不得清空draft。
 `Add control` 位於右側標題旁，新增時自動展開並捲到新卡片；已有控制時展開清單底部也提供新增按鈕。
 Controls初始為空，可新增/刪除；展開後顯示resolved rules、empty state或control cards。
-每筆control可填選填的`Label`來描述用途；卡片標題顯示label，未命名則顯示`Control N`。
+每筆control必填`Label`來描述用途；卡片標題顯示label，尚未命名的草稿顯示`Control N`。
 收合時在數量下顯示前3筆名稱或編號，超過3筆另顯示剩餘筆數；完整名稱可從摘要hover title查看。
-匯出時label會trim，空白值不寫入`meshControl.controls[]`；套用set後仍可編輯label。
+匯出時label會trim，空白值會阻擋提交；套用set後仍可編輯label。
 Method下拉直接使用`Z_SECTION_AVG`、`Z_SECTION_TOP`、
-`Z_SECTION_BOT`、`Z_SECTION_CENTER`、`Z_POINT`；reference的kind、key、id皆為互相獨立的text input，
+`Z_SECTION_BOT`、`Z_SECTION_CENTER`、`Z_POINT`、`3D_REGION`；reference的kind、key、id皆為互相獨立的text input，
 不因kind清空、停用或篩選其他欄位，也不提供geometry picker。每個control是獨立bordered card：header顯示
-1-based編號、名稱、constraint type與delete；body先顯示Label，接著在`sm`以上並排Method與140px Element size，後續是Geometry reference
-(kind/key/id)與Z range；`Z_POINT`沒有Element size，Method維持單欄。Start與End各自使用sub-card並以arrow連接。Relative location依序顯示mode、
-`z_min|z_max` anchor與offset；Z location以mode/anchor兩欄、value橫跨下一列，避免窄欄位擠壓。Absolute location的anchor位置顯示停用的`—`，value為全域Z。尺寸與位置輸入旁顯示µm。
+1-based編號、名稱、constraint type與delete；body先顯示Label，接著在`sm`以上並排Method與140px Element size，
+其下每筆control只有一個`Coordinate mode`選擇（Reference／Absolute）。`Z_POINT`沒有Element size，Method維持單欄。
+Reference模式顯示Geometry reference（kind/key/id），所有座標只顯示對應軸anchor與offset。
+Absolute模式隱藏Geometry reference與所有anchor，座標只輸入全域數值。Start與End各自使用sub-card並以arrow連接。
+座標欄位內不提供mode選擇；同一control不可混用模式。尺寸與位置輸入旁顯示µm。
+兩種模式各自保留草稿；切換不換算、不把offset直接當global coordinate。新Absolute草稿座標留空，
+Reference預設root與邊界anchor、offset=0。切換mode保留目前method、shape與element size。
 `Z_SECTION_*`顯示local element size、startZ與endZ；`Z_POINT`只顯示z。Geometry reference label旁顯示
 info control；展開後以floating block從當前preview
 structure遞迴列出所有有non-empty key的container/body kind + key組合，以trim後的kind/key去重並依
@@ -67,7 +71,7 @@ kind、key排序。每列一筆，清單有固定max-height與vertical scrollbar
 case-insensitive contains search；點外部或按Escape關閉。清單只供查閱，不會修改draft。
 
 Client只做基本輸入檢查：global/local size必須finite且`>0`、location數值必須finite。Reference、
-method欄位組合及其他mesh-control contract規則由mesher validator負責；frontend不複製這些規則，也
+method欄位組合及完整mesh-control contract由package的本地validator負責；3D_REGION另由API解析幾何。Frontend不複製幾何規則，也
 不檢查reference是否存在、resolved Z、bounds、start/end順序或overlap。接著檢查path required、path以
 `/`開頭、extension case-insensitive符合`.json/.step/.cdb`。錯誤顯示在固定footer；local control輸入錯誤時自動展開並捲到該卡片，編輯後清除舊錯誤。
 
@@ -76,6 +80,28 @@ drawer、自動expand、關form；失敗保留form/value。
 
 Hard-coded user-specific placeholders是現行copy；portable產品化時應改environment-neutral example並
 更新references，重建agent不得自行改字。
+
+## 3D_REGION 區域控制
+
+`3D_REGION` 另顯示 Shape（Box／Polygon）與三方向共用的 Element size。
+新區域草稿預設 size=5 µm、reference=root；Box min/max 分別追蹤各軸邊界、offset=0。
+Polygon 預設為 root XY 邊界上的三角形，Z range 追蹤 root 的 z_min/z_max。
+Box 以 Min／Max XYZ 輸入；Polygon 使用可新增／刪除 loop 與頂點的座標群組，加上共用 startZ/endZ。
+整個區域共用control的Reference／Absolute模式，包含全部loops、頂點與Z range；Reference的anchor限定對應軸min/max。
+每個Polygon頂點是一個具共用標題、外框與背景的fieldset；X/Y在同一組內並排，只以細分隔線分欄，不各自加框。刪除頂點位於群組標題右側。
+Box的Minimum point與Maximum point各自將XYZ包在一個群組，窄視窗改為群組內垂直排列。
+Polygon的Z range也將Start/End包在同一組。座標各有獨立可讀label與錯誤定位，窄視窗不再依賴寬表格水平捲動。
+切換 method／shape 保留各自草稿，只輸出當前選項。
+Reference 僅供定位，不限制作用物件；key 多筆匹配逐筆解析，key+id 採交集。
+Absolute模式不得包含reference，座標為純數字；Reference模式必填reference，座標為anchor＋offset。區域無匹配或任一解析結果無效回傳422。
+Polygon 延用既有多loop／孔洞語意；前端檢查數值、必填與基本點數，後端驗證解析後幾何。
+錯誤會展開並捲到對應control，座標錯誤標示並聚焦對應欄位。
+Set details 可包含 `resolvedRegions`，顯示每筆來源與XYZ bounds；手動修改後仍顯示原始解析摘要。
+`meshControl3dTest` 回傳 Reference Box 與 Absolute Polygon，均為size=5、global=500、full symmetry。
+本次不加入3D區域疊圖或即時解析API。
+
+既有mesh-control schema marker維持1.0.0。每筆control必填coordinateMode，不接受舊逐點mode/value格式或混用座標。API將完整的原始座標描述寫入JSON sidecar，再照常啟動mesher。
+目前mesher尚未支援新版coordinateMode，包含只有Z controls的job也可能failed；JSON sidecar仍保留，不移除或忽略新controls。
 
 ## 六種 job 狀態
 

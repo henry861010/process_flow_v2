@@ -2855,17 +2855,17 @@ class ProcessFlowApiTests(unittest.TestCase):
             element_counts["full"],
         )
 
-    def test_cdb_export_applies_controls_without_a_compatibility_warning(self):
+    def test_cdb_export_passes_new_z_format_unchanged_and_keeps_sidecar_on_mesher_failure(self):
         geometry_structure = simple_structure()
         geometry_structure["root"]["key"] = "hbm"
         controls = [
             {
                 "method": "Z_SECTION_AVG",
                 "label": "  Refine die interface  ",
-                "reference": {"kind": "container", "key": "hbm"},
+                "coordinateMode": "absolute",
                 "elementSize": 0.25,
-                "startZ": {"mode": "absolute", "value": 0},
-                "endZ": {"mode": "absolute", "value": 1},
+                "startZ": 0,
+                "endZ": 1,
             }
         ]
         output_path = Path(self.tmp.name) / "controls.cdb"
@@ -2888,7 +2888,8 @@ class ProcessFlowApiTests(unittest.TestCase):
             response.json()["job"]["jobId"],
             "client-controls",
         )
-        self.assertEqual(job["status"], "success", job)
+        self.assertEqual(job["status"], "failed", job)
+        self.assertIn("coordinateMode", job["message"])
         self.assertEqual(job["meshControl"]["controls"], controls)
         mesh_control_output_path = output_path.with_suffix(".mesh-control.json")
         self.assertEqual(
@@ -2896,51 +2897,23 @@ class ProcessFlowApiTests(unittest.TestCase):
             controls,
         )
         self.assertIsNone(job["warning"])
-        self.assertTrue(output_path.exists())
+        self.assertFalse(output_path.exists())
 
     def test_cdb_export_validates_mesh_control_union_shapes(self):
         geometry_structure = simple_structure()
         geometry_structure["root"]["key"] = "hbm"
         reference = {"kind": "container", "key": "hbm"}
         valid_controls = [
-            {
-                "method": "Z_SECTION_AVG",
-                "reference": reference,
-                "elementSize": 0.25,
-                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
-                "endZ": {"mode": "relative", "anchor": "z_min", "offset": 1},
-            },
-            {
-                "method": "Z_SECTION_TOP",
-                "reference": reference,
-                "elementSize": 0.25,
-                "startZ": {"mode": "relative", "anchor": "z_min", "offset": 0},
-                "endZ": {"mode": "absolute", "value": 1},
-            },
-            {
-                "method": "Z_SECTION_BOT",
-                "reference": reference,
-                "elementSize": 0.25,
-                "startZ": {"mode": "absolute", "value": 0},
-                "endZ": {"mode": "absolute", "value": 1},
-            },
-            {
-                "method": "Z_SECTION_CENTER",
-                "reference": reference,
-                "elementSize": 0.25,
-                "startZ": {"mode": "absolute", "value": 0},
-                "endZ": {"mode": "absolute", "value": 1},
-            },
-            {
-                "method": "Z_POINT",
-                "reference": reference,
-                "z": {"mode": "absolute", "value": 0.5},
-            },
-            {
-                "method": "Z_POINT",
-                "reference": reference,
-                "z": {"mode": "relative", "anchor": "z_max", "offset": -0.25},
-            },
+            {"method": method, "coordinateMode": mode, "label": "Union control", "elementSize": 0.25,
+             **({"reference": reference} if mode == "reference" else {}),
+             "startZ": {"anchor": "z_min", "offset": 0} if mode == "reference" else 0,
+             "endZ": {"anchor": "z_max", "offset": 0} if mode == "reference" else 1}
+            for method in ("Z_SECTION_AVG", "Z_SECTION_TOP", "Z_SECTION_BOT", "Z_SECTION_CENTER")
+            for mode in ("reference", "absolute")
+        ] + [
+            {"method": "Z_POINT", "coordinateMode": "absolute", "label": "Point", "z": 0.5},
+            {"method": "Z_POINT", "coordinateMode": "reference", "label": "Point", "reference": reference,
+             "z": {"anchor": "z_max", "offset": -0.25}},
         ]
         output_path = Path(self.tmp.name) / "valid-control-union.cdb"
 
@@ -2961,7 +2934,8 @@ class ProcessFlowApiTests(unittest.TestCase):
             response.json()["job"]["jobId"],
             "client-control-union",
         )
-        self.assertEqual(job["status"], "success", job)
+        self.assertEqual(job["status"], "failed", job)
+        self.assertIn("coordinateMode", job["message"])
 
         invalid_controls = (
             {
@@ -2998,6 +2972,8 @@ class ProcessFlowApiTests(unittest.TestCase):
             },
         )
         for index, control in enumerate(invalid_controls):
+            control["label"] = "Invalid union control"
+            control["coordinateMode"] = "reference" if "reference" in control else "absolute"
             with self.subTest(index=index):
                 invalid = self.client.post(
                     "/api/geometry-preview/export-jobs",

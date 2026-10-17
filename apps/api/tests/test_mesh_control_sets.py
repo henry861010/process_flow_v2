@@ -4,13 +4,10 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
-import numpy as np
 from fastapi.testclient import TestClient
-from mesher.contracts.process_flow_2_5d import validate_mesh_control
-from mesher.process_flow.pipeline import build_mesh_from_structure
-from mesher.process_flow.translation.standard_v1 import StandardV1Translator
+from mesher.contracts.process_flow_2_5d import validate_mesh_control as validate_legacy_mesh_control
+from process_flow_mesh_control import validate_mesh_control
 from process_flow_kernel import normalize_geometry_structure
 
 from process_flow_api.main import create_app
@@ -67,12 +64,12 @@ class MeshControlSetApiTests(unittest.TestCase):
         self.app.state.store.close()
         self.tmp.cleanup()
 
-    def test_lists_only_numbered_mesh_model_sets(self):
+    def test_lists_builtin_mesh_control_sets(self):
         listed = self.client.get("/api/mesh-control-sets")
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(
             [definition["id"] for definition in listed.json()],
-            ["meshModel1", "meshModel2", "meshModel3"],
+            ["meshModel1", "meshModel2", "meshModel3", "meshControl3dTest"],
         )
 
     def test_unknown_set_and_empty_geometry(self):
@@ -185,11 +182,12 @@ class MeshControlSetApiTests(unittest.TestCase):
                 validate_mesh_control(payload["meshControl"])
                 uf_controls = payload["meshControl"]["controls"][2:]
                 self.assertEqual(
-                    [(item["startZ"]["value"], item["endZ"]["value"]) for item in uf_controls],
+                    [(item["startZ"], item["endZ"]) for item in uf_controls],
                     [(250, 300), (190, 250), (110, 190), (50, 110), (0, 50)],
                 )
                 for item in uf_controls:
-                    self.assertEqual(item["reference"], {"kind": "body", "id": "body:soc"})
+                    self.assertNotIn("reference", item)
+                    self.assertEqual(item["coordinateMode"], "absolute")
                 self.assertEqual(
                     [item["sourceIds"] for item in payload["details"][2:]],
                     [["body:soc"]] * 5,
@@ -258,17 +256,17 @@ class MeshControlSetApiTests(unittest.TestCase):
                     [
                         {
                             "method": "Z_POINT",
+                            "coordinateMode": "reference",
                             "label": "Carrier bottom +10",
                             "reference": {"kind": "body", "id": "body:carrier"},
-                            "z": {"mode": "relative", "anchor": "z_min", "offset": 10},
+                            "z": {"anchor": "z_min", "offset": 10},
                         }
                     ],
                 )
                 self.assertEqual(payload["details"][0]["startZ"], -90)
                 self.assertEqual(payload["details"][0]["endZ"], -90)
 
-    def test_all_models_keep_selected_references_and_z_refinement_after_symmetry(self):
-        original_pattern = StandardV1Translator.get_3D_pattern
+    def test_all_models_preserve_selected_sources_and_uniform_modes_for_each_symmetry(self):
         for with_hbm in (True, False):
             structure = spatial_structure(with_hbm=with_hbm)
             snapshot = copy.deepcopy(structure)
@@ -282,42 +280,14 @@ class MeshControlSetApiTests(unittest.TestCase):
                                     for detail in payload["details"] for source in detail["sourceIds"]))
                 for symmetry in ("full", "upper_half", "right_half", "upper_right_quarter"):
                     with self.subTest(set_id=set_id, with_hbm=with_hbm, symmetry=symmetry):
-                        mesh_control = copy.deepcopy(payload["meshControl"])
-                        mesh_control["symmetry"] = symmetry
-                        validate_mesh_control(mesh_control)
-                        captured = {}
-
-                        def capture_pattern(translator, container, settings):
-                            captured["container"] = copy.deepcopy(container)
-                            return original_pattern(translator, container, settings)
-
-                        with patch.object(StandardV1Translator, "get_3D_pattern", new=capture_pattern):
-                            mesh = build_mesh_from_structure(structure, mesh_control)
-                        self.assertGreater(mesh.element_count, 0)
-                        target_z = 40 if with_hbm else 275
-                        self.assertTrue(np.any(np.isclose(mesh.nodes[:, 2], target_z)))
-
-                        def all_ids(container):
-                            yield container["id"]
-                            for field in ("bodies", "vias", "circuits", "bumps"):
-                                yield from (item["id"] for item in container[field])
-                            for child in container["children"]:
-                                yield from all_ids(child)
-
-                        retained_ids = set(all_ids(captured["container"]))
-                        for control in mesh_control["controls"]:
-                            self.assertIn(control["reference"]["id"], retained_ids)
-                        if symmetry != "full":
-                            self.assertNotIn("bump:lower-left", retained_ids)
-                        if symmetry in ("right_half", "upper_right_quarter"):
-                            self.assertTrue(np.all(mesh.nodes[:, 0] >= 0))
-                        if symmetry in ("upper_half", "upper_right_quarter"):
-                            self.assertTrue(np.all(mesh.nodes[:, 1] >= 0))
-
-                        # The asserted Z plane must come from controls, not a geometry boundary.
-                        if set_id == "meshModel1":
-                            uncontrolled = build_mesh_from_structure(structure, {**mesh_control, "controls": []})
-                            self.assertFalse(np.any(np.isclose(uncontrolled.nodes[:, 2], target_z)))
+                        document = copy.deepcopy(payload["meshControl"])
+                        document["symmetry"] = symmetry
+                        validate_mesh_control(document)
+                        self.assertEqual(document["controls"][0]["coordinateMode"], "reference")
+                        self.assertTrue(all(c["coordinateMode"] == "absolute" and "reference" not in c for c in document["controls"][1:]))
+                        # The new contract is deliberately sent unchanged; mesher support comes later.
+                        with self.assertRaisesRegex(ValueError, "coordinateMode"):
+                            validate_legacy_mesh_control(document)
                         self.assertEqual(structure, snapshot)
 
 

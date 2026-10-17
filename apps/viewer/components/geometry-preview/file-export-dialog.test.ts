@@ -13,16 +13,17 @@ import {
 
 function control(overrides: Partial<MeshControlDraft> = {}): MeshControlDraft {
   return {
+    ...newMeshControlDraft(),
     clientId: "control-1",
-    label: "",
+    label: "Focus",
     method: "Z_SECTION_AVG",
     referenceKind: "container",
     referenceKey: " hbm ",
     referenceId: " ",
     elementSize: "10",
-    startZ: { mode: "relative", anchor: "z_min", value: "10" },
-    endZ: { mode: "absolute", anchor: "z_max", value: "200" },
-    z: { mode: "relative", anchor: "z_max", value: "-10" },
+    startZ: { anchor: "z_min", value: "10" },
+    endZ: { anchor: "z_max", value: "200" },
+    z: { anchor: "z_max", value: "-10" },
     ...overrides,
   };
 }
@@ -35,8 +36,8 @@ describe("CDB mesh-control form", () => {
         referenceKind: "container",
         referenceKey: "",
         referenceId: "container:hbm-root",
-        startZ: { mode: "absolute", anchor: "z_min", value: "100" },
-        endZ: { mode: "absolute", anchor: "z_max", value: "120" },
+        startZ: { anchor: "z_min", value: "100" },
+        endZ: { anchor: "z_max", value: "120" },
       }),
     ]);
     const drafts = draftsFromMeshControlConfiguration(generated);
@@ -127,36 +128,39 @@ describe("CDB mesh-control form", () => {
       controls: [
         {
           method: "Z_SECTION_AVG",
+          coordinateMode: "reference",
+          label: "Focus",
           reference: { kind: "container", key: "hbm" },
           elementSize: 10,
-          startZ: { mode: "relative", anchor: "z_min", offset: 10 },
-          endZ: { mode: "absolute", value: 200 },
+          startZ: { anchor: "z_min", offset: 10 },
+          endZ: { anchor: "z_max", offset: 200 },
         },
         {
           method: "Z_POINT",
+          coordinateMode: "reference",
           label: "Interface plane",
           reference: { kind: "root" },
-          z: { mode: "relative", anchor: "z_max", offset: -10 },
+          z: { anchor: "z_max", offset: -10 },
         },
       ],
     });
   });
 
-  it("trims optional labels and omits blank labels", () => {
+  it("trims labels and requires non-blank labels", () => {
     const payload = buildMeshControlConfiguration("200", "full", [
       control({ label: "  Base die  " }),
-      control({ method: "Z_POINT", label: "  ", z: { mode: "absolute", anchor: "z_min", value: "100" } }),
+      control({ method: "Z_POINT", label: "  ", z: { anchor: "z_min", value: "100" } }),
     ]);
 
     expect(payload.controls[0].label).toBe("Base die");
-    expect(payload.controls[1]).not.toHaveProperty("label");
+    expect(validateMeshControlDraft("200", [control({ label: "  " })])).toBe("Control 1 label is required.");
     expect(draftsFromMeshControlConfiguration(payload).map((draft) => draft.label)).toEqual([
       "Base die",
       "",
     ]);
     expect(newMeshControlDraft().label).toBe("");
     expect(meshControlDisplayLabel(control({ label: "  Base die  " }), 0)).toBe("Base die");
-    expect(meshControlDisplayLabel(control(), 1)).toBe("Control 2");
+    expect(meshControlDisplayLabel(control({ label: "" }), 1)).toBe("Control 2");
   });
 
   it("validates only basic numeric inputs", () => {
@@ -168,7 +172,7 @@ describe("CDB mesh-control form", () => {
     ).toBe("Control 1 element size must be greater than 0.");
   });
 
-  it("leaves mesher-specific reference rules to the backend", () => {
+  it("leaves detailed reference rules to the backend", () => {
     expect(
       validateMeshControlDraft("200", [
         control({ referenceKind: "custom-kind", referenceKey: "hbm", referenceId: "" }),

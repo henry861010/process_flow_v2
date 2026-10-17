@@ -8,6 +8,7 @@ from .contracts import MeshControlSet, MeshControlSetResult
 from .sets.mesh_model_1 import MeshModel1Set
 from .sets.mesh_model_2 import MeshModel2Set
 from .sets.mesh_model_3 import MeshModel3Set
+from .sets.region_test import MeshControl3dTestSet
 
 
 class MeshControlSetRegistry:
@@ -23,6 +24,7 @@ class MeshControlSetRegistry:
             MeshModel1Set(),
             MeshModel2Set(),
             MeshModel3Set(),
+            MeshControl3dTestSet(),
         )
         self._sets: dict[str, MeshControlSet] = {}
         for control_set in registered:
@@ -50,7 +52,7 @@ class MeshControlSetRegistry:
 
         Raises KeyError for an unknown set, propagates the set's build errors,
         and raises ValueError if the set changed geometry or inspection state.
-        Mesher contract validation is performed separately by the API.
+        Local contract validation is performed separately by the API.
         """
         control_set = self._sets[set_id]
         before = state.to_geometry_structure()

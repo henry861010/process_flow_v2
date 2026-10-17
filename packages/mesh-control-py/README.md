@@ -8,7 +8,8 @@ To add a set, create a module under `process_flow_mesh_control/sets` with a clas
 implementing `definition()` and `build(state)`, then register one instance in
 `MeshControlSetRegistry`. Definitions need unique `id` and non-empty `version`.
 The result is `MeshControlSetResult(mesh_control=..., details=...)`. The API
-validates `mesh_control` with the installed mesher contract before returning it.
+validates the complete document with the local uniform-coordinate contract
+before returning it. Region controls are also resolved against the supplied geometry.
 
 `MeshModel1Set`, `MeshModel2Set`, and `MeshModel3Set` each compose shared rules
 in their own `build()` method. Their settings remain local to each model:
@@ -141,7 +142,7 @@ registry = MeshControlSetRegistry(sets=(CustomSiSet(),))
 To expose the set alongside the built-ins, add a `CustomSiSet()` instance to
 the registry's default tuple. `MeshControlSetRegistry.apply()` verifies that
 neither geometry nor process inspection state was changed. The existing API
-validates the canonical output with the mesher contract before returning it.
+validates the canonical output with the per-method contracts described below before returning it.
 
 For subtree rules, index containers by ID once, then compose queries:
 
@@ -159,6 +160,94 @@ bump = select_upper_right(subtree_nodes(nodes, containers, hbm, kind="bump"))
 Run `venv/bin/python -m unittest discover -s packages/mesh-control-py/tests` from
 the repository root for helper, model and custom-set tests. Kernel XY query
 tests live in `packages/kernel-py/tests/test_mesh_control_geometry_query.py`.
-API integration tests in `apps/api/tests/test_mesh_control_sets.py` also build
-actual meshes for all three sets, HBM/noHBM layouts, and all four symmetry modes,
-checking retained references and Z refinement against meshes without controls.
+API integration tests in `apps/api/tests/test_mesh_control_sets.py` validate
+all three sets, HBM/noHBM layouts, and all four symmetry settings, preserving
+selected sources and resolved Z ranges. Export integration tests verify raw
+JSON delivery and sidecar retention when the worker rejects the new format.
+
+## Uniform coordinate contract
+
+Every `Z_SECTION_*`, `Z_POINT`, and `3D_REGION` control requires one
+`coordinateMode: "reference" | "absolute"` covering all of its coordinates.
+The envelope remains schema `1.0.0`, unit `um`, mesher `process_flow_2_5d`.
+The local `validate_mesh_control(document, state=...)` validates the entire
+contract; the installed mesher validator is not used by the API.
+
+- Reference mode requires `reference`. Every coordinate is `{anchor, offset}`;
+  the anchor must be the matching axis's `<axis>_min` or `<axis>_max`.
+- Absolute mode forbids `reference`. Every coordinate is a finite JSON number.
+- Old per-coordinate `mode`/`value` wrappers, mixed numeric/reference locations,
+  missing coordinateMode and unsupported fields are rejected. There is no
+  legacy-format migration or worker adapter.
+- Z_POINT has `z` and no elementSize. Sections have startZ/endZ and elementSize.
+  All controls require a non-blank label; element sizes must be positive.
+
+```json
+{
+  "method": "Z_SECTION_AVG",
+  "coordinateMode": "absolute",
+  "label": "Focused Z range",
+  "elementSize": 5,
+  "startZ": 100,
+  "endZ": 200
+}
+```
+
+## 3D region controls
+
+`3D_REGION` specifies an isotropic target element size inside a Box or
+Z-extruded Polygon. For example:
+
+```json
+{
+  "method": "3D_REGION",
+  "coordinateMode": "reference",
+  "label": "Focused silicon volume",
+  "elementSize": 5,
+  "reference": {"kind": "body", "key": "soc.si"},
+  "region": {
+    "type": "box",
+    "min": {
+      "x": {"anchor": "x_min", "offset": 0},
+      "y": {"anchor": "y_min", "offset": 0},
+      "z": {"anchor": "z_min", "offset": 0}
+    },
+    "max": {
+      "x": {"anchor": "x_max", "offset": 0},
+      "y": {"anchor": "y_max", "offset": 0},
+      "z": {"anchor": "z_max", "offset": 0}
+    }
+  }
+}
+```
+
+References use `root`, `container`, `body`, `via`, `circuit`, or `bump` kinds;
+keys are allowed only for containers/bodies. Key and id filters are intersected.
+Each matched region reference resolves independently. Container bounds include
+physical features in descendants, ignoring empty containers. References supply
+coordinates only: regions are not clipped to the reference or its material.
+Absolute regions resolve once and do not look up a reference.
+
+Polygon regions use `type: "polygon"`, `loops: [[{x: location, y: location}, ...]]`,
+`startZ: location`, and `endZ: location`. Their entire XY/Z description follows
+the control's selected coordinateMode. Loops follow the existing geometry
+nesting/hole rules. Invalid bounds, degenerate polygons, crossing/touching loops,
+and missing or empty region references are errors rather than omitted controls.
+
+`validate_region_control()` validates syntax; `resolve_region_control()` returns
+one canonical primitive and XYZ bounds per match without modifying its input.
+`append_region_control(..., coordinate_mode=..., reference=...)` appends detached
+authoring data and detail summaries. Omit reference in Absolute mode. Details
+retain their Z fields and optionally add
+`resolvedRegions: [{sourceId?, bounds: {xMin, xMax, yMin, yMax, zMin, zMax}}]`.
+Absolute set rules retain their source IDs in details, not as control references.
+
+The built-in `meshControl3dTest` set (version `1.0.0`, label `3D region test`)
+returns a Reference Box and an Absolute triangle covering the root's Z range,
+both at size 5, with global size 500 and full symmetry. It requires non-empty XYZ
+bounds and does not depend on domain-specific semantic keys.
+
+CDB jobs write the original new-format JSON sidecars, then pass the complete
+unmodified input to the worker. The installed mesher currently rejects the new
+coordinateMode contract, including Z-only controls. These jobs may fail; both
+JSON sidecars are retained. Mesher support is a separate follow-up.

@@ -17,29 +17,39 @@ export type MeshControlReference = {
   id?: string;
 };
 
-export type MeshControlZLocation =
-  | { mode: "relative"; anchor: "z_min" | "z_max"; offset: number }
-  | { mode: "absolute"; value: number };
-
-export type MeshControlEntry =
+export type CoordinateMode = "reference" | "absolute";
+export type ReferenceLocation<A extends "x" | "y" | "z"> = {
+  anchor: `${A}_min` | `${A}_max`;
+  offset: number;
+};
+export type MeshControlLocation<A extends "x" | "y" | "z", M extends CoordinateMode = CoordinateMode> =
+  M extends "reference" ? ReferenceLocation<A> : number;
+export type MeshControlZLocation = MeshControlLocation<"z">;
+export type BoxRegion<M extends CoordinateMode = CoordinateMode> = {
+  type: "box";
+  min: { x: MeshControlLocation<"x", M>; y: MeshControlLocation<"y", M>; z: MeshControlLocation<"z", M> };
+  max: { x: MeshControlLocation<"x", M>; y: MeshControlLocation<"y", M>; z: MeshControlLocation<"z", M> };
+};
+export type PolygonRegion<M extends CoordinateMode = CoordinateMode> = {
+  type: "polygon";
+  loops: Array<Array<{ x: MeshControlLocation<"x", M>; y: MeshControlLocation<"y", M> }>>;
+  startZ: MeshControlLocation<"z", M>;
+  endZ: MeshControlLocation<"z", M>;
+};
+export type MeshControlRegion<M extends CoordinateMode = CoordinateMode> = BoxRegion<M> | PolygonRegion<M>;
+export type MeshControlPayload<M extends CoordinateMode> =
+  | { method: "3D_REGION"; label: string; elementSize: number; region: MeshControlRegion<M> }
   | {
-      method:
-        | "Z_SECTION_AVG"
-        | "Z_SECTION_TOP"
-        | "Z_SECTION_BOT"
-        | "Z_SECTION_CENTER";
+      method: "Z_SECTION_AVG" | "Z_SECTION_TOP" | "Z_SECTION_BOT" | "Z_SECTION_CENTER";
       label: string;
-      reference?: MeshControlReference;
       elementSize: number;
-      startZ: MeshControlZLocation;
-      endZ: MeshControlZLocation;
+      startZ: MeshControlLocation<"z", M>;
+      endZ: MeshControlLocation<"z", M>;
     }
-  | {
-      method: "Z_POINT";
-      label: string;
-      reference?: MeshControlReference;
-      z: MeshControlZLocation;
-    };
+  | { method: "Z_POINT"; label: string; z: MeshControlLocation<"z", M> };
+export type MeshControlEntry =
+  | ({ coordinateMode: "reference"; reference: MeshControlReference } & MeshControlPayload<"reference">)
+  | ({ coordinateMode: "absolute"; reference?: never } & MeshControlPayload<"absolute">);
 
 export type MeshControlConfiguration = {
   schemaVersion: "1.0.0";
@@ -63,6 +73,10 @@ export type MeshControlSetRuleDetail = {
   startZ: number;
   endZ: number;
   sourceIds: string[];
+  resolvedRegions?: Array<{
+    sourceId?: string | null;
+    bounds: { xMin: number; xMax: number; yMin: number; yMax: number; zMin: number; zMax: number };
+  }> | null;
 };
 
 export type MeshControlSetApplyResponse = {

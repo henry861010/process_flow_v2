@@ -50,25 +50,23 @@ class SharedHelperTests(unittest.TestCase):
         self.assertEqual([item.get("elementSize") for item in result.mesh_control["controls"]], [2, 10, 40, 10, 2, None])
         self.assertEqual([(item["startZ"], item["endZ"]) for item in result.details],
                          [(300, 320), (270, 300), (70, 270), (40, 70), (20, 40), (317, 317)])
-        self.assertTrue(all(item["reference"]["id"] == "si:right" for item in result.mesh_control["controls"]))
+        self.assertTrue(all(detail["sourceIds"] == ["si:right"] for detail in result.details))
         self.assertEqual((state.to_geometry_structure(), state.inspect()), before)
 
     def test_absolute_sections_report_zero_length_without_aliasing_inputs(self):
         controls, details = [], []
-        reference = {"kind": "body", "id": "body:test"}
         sources = ["body:test"]
         for start, end in ((10, 20), (20, 20)):
             append_absolute_section(controls, details, method="Z_SECTION_AVG", element_size=5,
-                                    start_z=start, end_z=end, source_ids=sources, label="Test", reference=reference)
+                                    start_z=start, end_z=end, source_ids=sources, label="Test")
         self.assertEqual(len(controls), 1)
         self.assertEqual([item["status"] for item in details], ["applied", "omitted"])
         sources.append("later")
-        reference["id"] = "later"
-        self.assertEqual(controls[0]["reference"]["id"], "body:test")
+        self.assertNotIn("reference", controls[0])
         self.assertEqual(details[0]["sourceIds"], ["body:test"])
         document = build_mesh_control(controls)
-        document["controls"][0]["reference"]["id"] = "detached"
-        self.assertEqual(controls[0]["reference"]["id"], "body:test")
+        document["controls"][0]["startZ"] = -100
+        self.assertEqual(controls[0]["startZ"], 10)
 
     def test_full_feature_and_relative_point_preserve_feature_and_reject_unknown_anchor(self):
         controls, details = [], []
@@ -77,7 +75,7 @@ class SharedHelperTests(unittest.TestCase):
         append_full_feature_control(controls, details, summary, label="Body", element_size=4)
         append_relative_z_point(controls, details, summary, label="Point", anchor="z_max", offset=-2)
         self.assertEqual(details[1]["startZ"], 18)
-        self.assertEqual(controls[0]["endZ"], {"mode": "relative", "anchor": "z_max", "offset": 0})
+        self.assertEqual(controls[0]["endZ"], {"anchor": "z_max", "offset": 0})
         with self.assertRaisesRegex(ValueError, "Unknown Z anchor"):
             append_relative_z_point(controls, details, summary, label="Invalid", anchor="middle", offset=0)
         self.assertEqual(len(controls), 2)

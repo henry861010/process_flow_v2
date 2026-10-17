@@ -34,10 +34,10 @@ class MeshModelSelectionTests(unittest.TestCase):
                 controls = result.mesh_control["controls"]
                 self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:upper-right"})
                 self.assertEqual(result.details[0]["sourceIds"], ["bump:upper-right"])
-                self.assertTrue(all(control["reference"] == {"kind": "container", "id": "hbm:upper-right"}
+                self.assertTrue(all(control["coordinateMode"] == "absolute" and "reference" not in control
                                     for control in controls[1:]))
                 self.assertEqual(
-                    [(item["startZ"]["value"], item["endZ"]["value"]) for item in controls[1:]],
+                    [(item["startZ"], item["endZ"]) for item in controls[1:]],
                     [(20, 60), (60, 80), (80, 110), (110, 130), (130, 160), (160, 180), (180, 220)],
                 )
                 self.assertTrue(all(source.endswith(":upper-right")
@@ -53,7 +53,7 @@ class MeshModelSelectionTests(unittest.TestCase):
             controls = result.mesh_control["controls"]
             self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:selected"})
             for item in controls[1:]:
-                self.assertEqual(item["reference"], {"kind": "body", "id": "si:upper-right"})
+                self.assertNotIn("reference", item)
             self.assertEqual([detail["sourceIds"] for detail in result.details[1:]], [["si:upper-right"]] * 5)
 
     def test_selected_hbm_without_bumps_falls_back_to_selected_soc(self):
@@ -62,7 +62,7 @@ class MeshModelSelectionTests(unittest.TestCase):
         for result in self.apply_all(layout(children)):
             controls = result.mesh_control["controls"]
             self.assertEqual(controls[0]["reference"]["id"], "bump:right-soc")
-            self.assertTrue(all(item["reference"]["id"] == "hbm:right-hbm" for item in controls[1:]))
+            self.assertTrue(all(source.endswith(":right-hbm") for detail in result.details[1:] for source in detail["sourceIds"]))
             self.assertFalse(any("noHBM" in item["label"] for item in controls))
 
     def test_global_soc_si_without_soc_container_and_empty_hbm(self):
@@ -75,7 +75,7 @@ class MeshModelSelectionTests(unittest.TestCase):
         ])
         for result in self.apply_all(geometry):
             self.assertEqual(len(result.mesh_control["controls"]), 5)
-            self.assertTrue(all(item["reference"]["id"] == "si:right" for item in result.mesh_control["controls"]))
+            self.assertTrue(all(detail["sourceIds"] == ["si:right"] for detail in result.details))
 
     def test_hbm_base_top_and_bump_representatives_use_xy_selection(self):
         selected = hbm("selected", 50, 50)

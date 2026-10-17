@@ -1,7 +1,9 @@
+import { buildLocation, buildRegion, draftLocation, newRegionDraft, regionDraftFromEntry, validateRegionDraft, type RegionDraft } from "./file-export-regions";
 import type {
   MeshControlConfiguration,
   MeshControlEntry,
-  MeshControlZLocation,
+  CoordinateMode,
+  MeshControlPayload,
   SymmetryMode,
 } from "./file-export-client";
 
@@ -11,21 +13,25 @@ export type KeyedGeometryReference = {
   key: string;
 };
 export type ZLocationDraft = {
-  mode: "relative" | "absolute";
   anchor: "z_min" | "z_max";
   value: string;
 };
-export type MeshControlDraft = {
+export type CoordinatesDraft = {
+  region: RegionDraft;
+  startZ: ZLocationDraft;
+  endZ: ZLocationDraft;
+  z: ZLocationDraft;
+};
+export type MeshControlDraft = CoordinatesDraft & {
   clientId: string;
+  coordinateMode: CoordinateMode;
+  inactiveCoordinates: CoordinatesDraft;
   label: string;
   method: MeshControlMethod;
   referenceKind: string;
   referenceKey: string;
   referenceId: string;
   elementSize: string;
-  startZ: ZLocationDraft;
-  endZ: ZLocationDraft;
-  z: ZLocationDraft;
 };
 
 export const MESH_CONTROL_METHODS: MeshControlMethod[] = [
@@ -34,6 +40,7 @@ export const MESH_CONTROL_METHODS: MeshControlMethod[] = [
   "Z_SECTION_BOT",
   "Z_SECTION_CENTER",
   "Z_POINT",
+  "3D_REGION",
 ];
 
 export function collectKeyedGeometryReferences(
@@ -98,15 +105,30 @@ export function newMeshControlDraft(): MeshControlDraft {
       .toString(36)
       .slice(2, 8)}`,
     label: "",
+    coordinateMode: "reference",
+    ...newCoordinatesDraft("reference"),
+    inactiveCoordinates: newCoordinatesDraft("absolute"),
     method: "Z_SECTION_AVG",
     referenceKind: "root",
     referenceKey: "",
     referenceId: "",
     elementSize: "10",
-    startZ: { mode: "relative", anchor: "z_min", value: "0" },
-    endZ: { mode: "relative", anchor: "z_max", value: "0" },
-    z: { mode: "relative", anchor: "z_min", value: "0" },
   };
+}
+
+function newCoordinatesDraft(mode: CoordinateMode): CoordinatesDraft {
+  const value = mode === "reference" ? "0" : "";
+  return { region: newRegionDraft(mode), startZ: { anchor: "z_min", value },
+    endZ: { anchor: "z_max", value }, z: { anchor: "z_min", value } };
+}
+
+export function changeCoordinateMode(control: MeshControlDraft, mode: CoordinateMode): MeshControlDraft {
+  if (mode === control.coordinateMode) return control;
+  // Both coordinate banks belong to the same control; switching never converts units or positions.
+  const { region, startZ, endZ, z } = control;
+  return { ...control, ...control.inactiveCoordinates, coordinateMode: mode,
+    region: { ...control.inactiveCoordinates.region, shape: region.shape, elementSize: region.elementSize },
+    inactiveCoordinates: { region, startZ, endZ, z } };
 }
 
 export function buildMeshControlConfiguration(
@@ -129,52 +151,44 @@ export function draftsFromMeshControlConfiguration(
 ): MeshControlDraft[] {
   return configuration.controls.map((entry) => {
     const reference = entry.reference;
-    const draft = newMeshControlDraft();
+    const draft = changeCoordinateMode(newMeshControlDraft(), entry.coordinateMode);
     draft.label = entry.label ?? "";
     draft.method = entry.method;
-    draft.referenceKind = reference?.kind ?? "";
+    draft.referenceKind = reference?.kind ?? "root";
     draft.referenceKey = reference?.key ?? "";
     draft.referenceId = reference?.id ?? "";
-    if (entry.method === "Z_POINT") {
-      draft.z = draftFromZLocation(entry.z);
+    if (entry.method === "3D_REGION") {
+      draft.region = regionDraftFromEntry(entry.region, entry.elementSize, entry.coordinateMode);
+    } else if (entry.method === "Z_POINT") {
+      draft.z = draftLocation(entry.z, "z");
     } else {
       draft.elementSize = String(entry.elementSize);
-      draft.startZ = draftFromZLocation(entry.startZ);
-      draft.endZ = draftFromZLocation(entry.endZ);
+      draft.startZ = draftLocation(entry.startZ, "z");
+      draft.endZ = draftLocation(entry.endZ, "z");
     }
     return draft;
   });
 }
 
-function draftFromZLocation(location: MeshControlZLocation): ZLocationDraft {
-  return location.mode === "absolute"
-    ? { mode: "absolute", anchor: "z_min", value: String(location.value) }
-    : {
-        mode: "relative",
-        anchor: location.anchor,
-        value: String(location.offset),
-      };
+function buildPayload<M extends CoordinateMode>(control: MeshControlDraft, mode: M): MeshControlPayload<M> {
+  const label = control.label.trim();
+  if (control.method === "3D_REGION") {
+    return { method: "3D_REGION", label, elementSize: Number(control.region.elementSize), region: buildRegion(control.region, mode) };
+  }
+  if (control.method === "Z_POINT") {
+    return { method: "Z_POINT", label, z: buildLocation(control.z, mode) };
+  }
+  return { method: control.method, label, elementSize: Number(control.elementSize),
+    startZ: buildLocation(control.startZ, mode), endZ: buildLocation(control.endZ, mode) };
 }
 
 function buildMeshControlEntry(control: MeshControlDraft): MeshControlEntry {
-  const reference = buildMeshControlReference(control);
-  const label = control.label.trim();
-  if (control.method === "Z_POINT") {
-    return {
-      method: control.method,
-      label,
-      ...(reference ? { reference } : {}),
-      z: buildZLocation(control.z),
-    };
+  if (control.coordinateMode === "absolute") {
+    return { ...buildPayload(control, "absolute"), coordinateMode: "absolute" };
   }
-  return {
-    method: control.method,
-    label,
-    ...(reference ? { reference } : {}),
-    elementSize: Number(control.elementSize),
-    startZ: buildZLocation(control.startZ),
-    endZ: buildZLocation(control.endZ),
-  };
+  const reference = buildMeshControlReference(control);
+  if (!reference) throw new Error("Reference is required in Reference mode.");
+  return { ...buildPayload(control, "reference"), coordinateMode: "reference", reference };
 }
 
 export function meshControlDisplayLabel(control: MeshControlDraft, index: number): string {
@@ -193,15 +207,6 @@ function buildMeshControlReference(control: MeshControlDraft) {
   };
 }
 
-function buildZLocation(location: ZLocationDraft): MeshControlZLocation {
-  return location.mode === "relative"
-    ? {
-        mode: "relative",
-        anchor: location.anchor,
-        offset: Number(location.value),
-      }
-    : { mode: "absolute", value: Number(location.value) };
-}
 
 export function validateMeshControlDraft(
   globalElementSize: string,
@@ -214,6 +219,14 @@ export function validateMeshControlDraft(
     const label = `Control ${index + 1}`;
     if (!control.label.trim()) {
       return `${label} label is required.`;
+    }
+    if (control.coordinateMode === "reference" && !control.referenceKind.trim()) {
+      return `${label} reference kind is required.`;
+    }
+    if (control.method === "3D_REGION") {
+      const error = validateRegionDraft(control.region);
+      if (error) return `${label} ${error}`;
+      continue;
     }
     if (control.method === "Z_POINT") {
       if (!isFiniteInput(control.z.value)) {

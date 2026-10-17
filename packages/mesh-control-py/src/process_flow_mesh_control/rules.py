@@ -164,7 +164,7 @@ def append_hbm_uf_controls(
         if candidate["end_z"] >= candidate["start_z"] - ZERO_TOLERANCE:
             append_absolute_section(
                 controls, details,
-                reference={"kind": "container", "id": hbm["id"]}, **candidate,
+                **candidate,
             )
 
 
@@ -219,7 +219,6 @@ def append_soc_uf_controls(
             append_absolute_section(
                 controls, details, method="Z_SECTION_AVG", element_size=element_size,
                 start_z=start, end_z=end, source_ids=[soc_si["id"]], label=label,
-                reference={"kind": "body", "id": soc_si["id"]},
             )
 
 
