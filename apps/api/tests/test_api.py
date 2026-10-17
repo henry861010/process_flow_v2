@@ -2889,7 +2889,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             "client-controls",
         )
         self.assertEqual(job["status"], "failed", job)
-        self.assertIn("coordinateMode", job["message"])
+        self.assertIn("CDB export failed", job["message"])
         self.assertEqual(job["meshControl"]["controls"], controls)
         mesh_control_output_path = output_path.with_suffix(".mesh-control.json")
         self.assertEqual(
@@ -2935,7 +2935,7 @@ class ProcessFlowApiTests(unittest.TestCase):
             "client-control-union",
         )
         self.assertEqual(job["status"], "failed", job)
-        self.assertIn("coordinateMode", job["message"])
+        self.assertIn("CDB export failed", job["message"])
 
         invalid_controls = (
             {

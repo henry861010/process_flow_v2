@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from mesher.contracts.process_flow_2_5d import validate_mesh_control as validate_legacy_mesh_control
+from mesher.contracts.process_flow_2_5d import validate_mesh_control as validate_mesher_mesh_control
 from process_flow_mesh_control import validate_mesh_control
 from process_flow_kernel import normalize_geometry_structure
 
@@ -285,9 +285,8 @@ class MeshControlSetApiTests(unittest.TestCase):
                         validate_mesh_control(document)
                         self.assertEqual(document["controls"][0]["coordinateMode"], "reference")
                         self.assertTrue(all(c["coordinateMode"] == "absolute" and "reference" not in c for c in document["controls"][1:]))
-                        # The new contract is deliberately sent unchanged; mesher support comes later.
-                        with self.assertRaisesRegex(ValueError, "coordinateMode"):
-                            validate_legacy_mesh_control(document)
+                        # Producer and mesher agree on the raw uniform-coordinate document.
+                        validate_mesher_mesh_control(document)
                         self.assertEqual(structure, snapshot)
 
 
