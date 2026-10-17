@@ -105,9 +105,9 @@ export function newMeshControlDraft(): MeshControlDraft {
       .toString(36)
       .slice(2, 8)}`,
     label: "",
-    coordinateMode: "reference",
-    ...newCoordinatesDraft("reference"),
-    inactiveCoordinates: newCoordinatesDraft("absolute"),
+    coordinateMode: "absolute",
+    ...newCoordinatesDraft("absolute"),
+    inactiveCoordinates: newCoordinatesDraft("reference"),
     method: "Z_SECTION_AVG",
     referenceKind: "root",
     referenceKey: "",

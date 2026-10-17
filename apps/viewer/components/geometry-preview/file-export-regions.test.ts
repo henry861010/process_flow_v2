@@ -7,17 +7,26 @@ function regionControl() {
 }
 
 describe("uniform mesh-control coordinate modes", () => {
-  it("defaults to a reference root Box at size 5 with no per-coordinate mode", () => {
+  it("defaults to an absolute Box at size 5 with blank coordinates and no reference", () => {
     const draft = regionControl();
+    expect(draft.coordinateMode).toBe("absolute");
+    expect(validateMeshControlDraft("500", [draft])).toContain("finite number");
+    for (const bound of ["min", "max"] as const) {
+      for (const axis of ["x", "y", "z"] as const) {
+        expect(draft.region.box[bound][axis].value).toBe("");
+        draft.region.box[bound][axis].value = bound === "min" ? "0" : "10";
+      }
+    }
     expect(validateMeshControlDraft("500", [draft])).toBeNull();
     const entry = buildMeshControlConfiguration("500", "full", [draft]).controls[0];
-    expect(entry).toMatchObject({ coordinateMode: "reference", elementSize: 5, reference: { kind: "root" },
-      region: { type: "box", min: { x: { anchor: "x_min", offset: 0 } }, max: { z: { anchor: "z_max", offset: 0 } } } });
+    expect(entry).toMatchObject({ coordinateMode: "absolute", elementSize: 5,
+      region: { type: "box", min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 10, z: 10 } } });
+    expect(entry).not.toHaveProperty("reference");
     expect(JSON.stringify(entry)).not.toContain('"mode"');
   });
 
   it("roundtrips Reference Box and Absolute Polygon without losing values", () => {
-    const box = regionControl();
+    const box = changeCoordinateMode(regionControl(), "reference");
     box.region.box.min.x.value = "-100";
     box.region.box.max.z.value = "20";
     box.referenceKind = "body";
@@ -41,7 +50,7 @@ describe("uniform mesh-control coordinate modes", () => {
   });
 
   it("preserves independent mode drafts, current shape and element size without conversion", () => {
-    let draft = regionControl();
+    let draft = changeCoordinateMode(regionControl(), "reference");
     draft.region.shape = "polygon";
     draft.region.elementSize = "2";
     draft.region.polygon.loops[0][0].x.value = "7";
@@ -61,6 +70,9 @@ describe("uniform mesh-control coordinate modes", () => {
 
   it.each(["Z_SECTION_AVG", "Z_SECTION_TOP", "Z_SECTION_BOT", "Z_SECTION_CENTER", "Z_POINT"] as const)("applies one mode to %s and preserves both coordinate banks", method => {
     let draft = { ...newMeshControlDraft(), label: "Z control", method };
+    expect(draft.coordinateMode).toBe("absolute");
+    expect([draft.startZ.value, draft.endZ.value, draft.z.value]).toEqual(["", "", ""]);
+    draft = changeCoordinateMode(draft, "reference");
     draft.startZ.value = "7";
     draft.endZ.value = "9";
     draft.z.value = "8";

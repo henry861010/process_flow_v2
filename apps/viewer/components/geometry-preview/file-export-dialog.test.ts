@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildMeshControlConfiguration,
+  changeCoordinateMode,
   collectKeyedGeometryReferences,
   draftsFromMeshControlConfiguration,
   filterKeyedGeometryReferences,
@@ -13,7 +14,7 @@ import {
 
 function control(overrides: Partial<MeshControlDraft> = {}): MeshControlDraft {
   return {
-    ...newMeshControlDraft(),
+    ...changeCoordinateMode(newMeshControlDraft(), "reference"),
     clientId: "control-1",
     label: "Focus",
     method: "Z_SECTION_AVG",
