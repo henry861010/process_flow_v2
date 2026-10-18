@@ -588,6 +588,8 @@ class ResolvedMeshControlRegion(StrictModel):
 
 class MeshControlSetRuleDetail(StrictModel):
     label: str
+    method: Literal["Z_SECTION_AVG", "Z_SECTION_TOP", "Z_SECTION_BOT", "Z_SECTION_CENTER", "Z_POINT", "3D_REGION"]
+    elementSize: float | None
     status: Literal["applied", "omitted"]
     startZ: float
     endZ: float

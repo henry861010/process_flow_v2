@@ -184,7 +184,7 @@ def append_region_control(controls, details, state, *, label, element_size, coor
                "region": copy.deepcopy(region), **({"reference": copy.deepcopy(reference)} if reference is not None else {})}
     resolved = resolve_region_control(control, state)
     controls.append(control)
-    details.append({"label": label, "status": "applied",
+    details.append({"label": label, "method": "3D_REGION", "elementSize": element_size, "status": "applied",
                     "startZ": min(r["bounds"]["zMin"] for r in resolved),
                     "endZ": max(r["bounds"]["zMax"] for r in resolved),
                     "sourceIds": [r["sourceId"] for r in resolved if "sourceId" in r],

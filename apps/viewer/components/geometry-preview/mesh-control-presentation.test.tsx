@@ -17,6 +17,7 @@ const geometry = { root: { id: "root", children: [
 const instances = collectMeshInstanceNames(geometry);
 const generatedLabel = (id = socId, anchors = "x_min/y_min", key = "soc") => `${key} ${id} top corner ${anchors}`;
 const regionDetail: MeshControlSetRuleDetail = {
+  method: "3D_REGION", elementSize: 5,
   label: generatedLabel(), status: "applied", startZ: 862.333333333, endZ: 912.333333333,
   sourceIds: [socId], resolvedRegions: [{ sourceId: socId,
     bounds: { xMin: 975, xMax: 1025, yMin: 975, yMax: 1025, zMin: 862.333333333, zMax: 912.333333333 } }],
@@ -66,16 +67,16 @@ describe("mesh-control display names", () => {
 });
 
 describe("resolved mesh rules", () => {
-  it("renders one rule with three axis rows and no ID or duplicate Z summary", () => {
+  it("renders a compact 3D rule with method, size and XYZ bounds", () => {
     const html = render([regionDetail]);
     expect(html).toContain("soc-1 bottom-left");
     expect(html).not.toContain(socId);
     expect(html).not.toContain("top corner");
     expect(html.match(/<li\b/g)).toHaveLength(1);
-    expect(html.match(/<dt>/g)).toHaveLength(3);
-    expect(html).toContain("<dt>X</dt>");
-    expect(html).toContain("<dt>Y</dt>");
-    expect(html).toContain("<dt>Z</dt>");
+    expect(html).toContain(": 3D_REGION, 5 µm, ");
+    expect(html).toContain("[975,975,862.333] ~ [1025,1025,912.333] µm");
+    expect(html).not.toContain("<dt>");
+    expect(html).toContain("[overflow-wrap:anywhere]");
     expect(html.match(/862\.333/g)).toHaveLength(1);
     expect(html.match(/912\.333/g)).toHaveLength(1);
     expect(html).not.toContain("font-mono");
@@ -87,24 +88,35 @@ describe("resolved mesh rules", () => {
     const html = render([{ ...regionDetail, resolvedRegions: [...regionDetail.resolvedRegions!, secondRegion] }], true);
     expect(html).toContain("Original resolved rules");
     expect(html.match(/<li\b/g)).toHaveLength(1);
-    expect(html.match(/<dl\b/g)).toHaveLength(2);
-    expect(html.match(/<dt>/g)).toHaveLength(6);
-    expect(html).toContain("-200");
+    expect(html.match(/aria-label="soc-1 bottom-left region/g)).toHaveLength(2);
+    expect(html).toContain('class="block">[-200,10,100] ~ [-150,60,150] µm</span>');
     expect(html).not.toContain(otherSocId);
   });
 
   it("keeps omitted rules and ordinary Z ranges without shifting source associations", () => {
     const html = render([
-      { label: "lsi_si", status: "omitted", startZ: 100, endZ: 100, sourceIds: ["lsi"] },
-      { label: "TD_uBump", status: "applied", startZ: 627.5, endZ: 727.5, sourceIds: ["bump"] },
+      { label: "lsi_si", method: "Z_SECTION_AVG", elementSize: 0, status: "omitted", startZ: 100, endZ: 100, sourceIds: ["lsi"] },
+      { label: "TD_uBump", method: "Z_SECTION_AVG", elementSize: 10, status: "applied", startZ: 627.5, endZ: 727.5, sourceIds: ["bump"] },
       regionDetail,
     ]);
     expect(html).toContain("LSI Si");
     expect(html).not.toContain("lsi_si");
     expect(html).toContain("zero thickness, omitted");
-    expect(html).toContain("627.5 → 727.5 µm");
+    expect(html).toContain("Z_SECTION_AVG, 10 µm, 627.5 ~ 727.5 µm");
+    expect(html).toContain("Z_SECTION_AVG, 0 µm, 100 ~ 100 µm");
     expect(html).toContain("soc-1 bottom-left");
     expect(html.match(/<li\b/g)).toHaveLength(3);
+  });
+
+  it("renders Z_POINT with an empty size and equal negative bounds", () => {
+    const html = render([{ label: "Carrier bottom +10", method: "Z_POINT", elementSize: null,
+      status: "applied", startZ: -377.5, endZ: -377.5, sourceIds: [] }]);
+    expect(html).toContain("Z_POINT, —, -377.5 ~ -377.5 µm");
+  });
+
+  it("renders placeholders for metadata missing from legacy drafts", () => {
+    const html = render([{ label: "Legacy", status: "applied", startZ: 0, endZ: 10, sourceIds: [] }]);
+    expect(html).toContain("—, —, 0 ~ 10 µm");
   });
 
   it("leaves stored drafts and exported labels, references and coordinates intact", () => {

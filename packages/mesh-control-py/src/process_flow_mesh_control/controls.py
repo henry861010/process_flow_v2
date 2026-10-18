@@ -46,6 +46,8 @@ def append_full_feature_control(
     })
     details.append({
         "label": label,
+        "method": "Z_SECTION_AVG",
+        "elementSize": element_size,
         "status": "applied",
         "startZ": feature["zMin"],
         "endZ": feature["zMax"],
@@ -92,6 +94,8 @@ def append_absolute_section(
         })
     details.append({
         "label": label,
+        "method": method,
+        "elementSize": element_size,
         "status": "omitted" if omitted else "applied",
         "startZ": start_z,
         "endZ": end_z,
@@ -133,6 +137,8 @@ def append_relative_z_point(
     })
     details.append({
         "label": label,
+        "method": "Z_POINT",
+        "elementSize": None,
         "status": "applied",
         "startZ": point_z,
         "endZ": point_z,

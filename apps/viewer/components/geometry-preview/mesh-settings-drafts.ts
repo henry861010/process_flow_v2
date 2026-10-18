@@ -1,4 +1,4 @@
-import type { MeshControlSetDefinition, MeshControlSetRuleDetail, SymmetryMode } from "./file-export-client";
+import type { MeshControlSetApplyResponse, MeshControlSetDefinition, MeshControlSetRuleDetail, SymmetryMode } from "./file-export-client";
 import { MESH_CONTROL_METHODS, type MeshControlDraft } from "./file-export-mesh-control";
 
 export const MESH_SETTINGS_STORAGE_KEY = "process-flow:mesh-settings-drafts";
@@ -19,6 +19,31 @@ type StoredEntry = { geometryHash: string; draft: MeshSettingsDraft };
 export function defaultMeshSettingsDraft(): MeshSettingsDraft {
   return { globalElementSize: "500", symmetry: "full", controls: [],
     appliedSet: null, setDetails: [], setCustomized: false };
+}
+
+export function needsResolvedRuleMetadata(details: MeshControlSetRuleDetail[]): boolean {
+  return details.some(detail => detail.method === undefined || detail.elementSize === undefined);
+}
+
+/** Backfill original summaries without replacing user edits or mixing set versions. */
+export function restoreResolvedRuleMetadata(draft: MeshSettingsDraft, applied: MeshControlSetApplyResponse): MeshSettingsDraft {
+  if (draft.appliedSet?.id !== applied.setId || draft.appliedSet.version !== applied.setVersion
+    || !needsResolvedRuleMetadata(draft.setDetails)
+    || draft.setDetails.length !== applied.details.length
+    || !draft.setDetails.every((detail, index) => resolvedRuleIdentity(detail) === resolvedRuleIdentity(applied.details[index]))
+    || needsResolvedRuleMetadata(applied.details)) return draft;
+
+  return { ...draft, setDetails: draft.setDetails.map((detail, index) => ({
+    ...detail,
+    method: detail.method ?? applied.details[index].method,
+    elementSize: detail.elementSize === undefined ? applied.details[index].elementSize : detail.elementSize,
+  })) };
+}
+
+function resolvedRuleIdentity(detail: MeshControlSetRuleDetail): string {
+  return JSON.stringify([detail.label, detail.status, detail.startZ, detail.endZ, detail.sourceIds,
+    (detail.resolvedRegions ?? []).map(region => [region.sourceId ?? null,
+      ...(["x", "y", "z"] as const).flatMap(axis => [region.bounds[`${axis}Min`], region.bounds[`${axis}Max`]])])]);
 }
 
 export function loadMeshSettingsDraft(geometryHash: string, storage?: DraftStorage) {
@@ -105,6 +130,8 @@ function isBounds(value: unknown): boolean {
 
 function isDetail(value: unknown): boolean {
   return isRecord(value) && typeof value.label === "string"
+    && (value.method === undefined || MESH_CONTROL_METHODS.some(method => method === value.method))
+    && (value.elementSize == null || (typeof value.elementSize === "number" && Number.isFinite(value.elementSize)))
     && (value.status === "applied" || value.status === "omitted")
     && typeof value.startZ === "number" && Number.isFinite(value.startZ)
     && typeof value.endZ === "number" && Number.isFinite(value.endZ)

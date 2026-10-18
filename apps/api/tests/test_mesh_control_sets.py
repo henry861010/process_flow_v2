@@ -178,6 +178,10 @@ class MeshControlSetApiTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200, response.text)
                 payload = response.json()
                 self.assertEqual(payload["setId"], set_id)
+                self.assertEqual(
+                    [(d["method"], d["elementSize"]) for d in payload["details"]],
+                    [(c["method"], c.get("elementSize")) for c in payload["meshControl"]["controls"]],
+                )
                 self.assertEqual(payload["setVersion"], "1")
                 validate_mesh_control(payload["meshControl"], state=ProcessGeometryState.from_structure(structure))
                 z_controls = [c for c in payload["meshControl"]["controls"] if c["method"] != "3D_REGION"]
@@ -269,6 +273,8 @@ class MeshControlSetApiTests(unittest.TestCase):
                 )
                 self.assertEqual(payload["details"][0]["startZ"], -90)
                 self.assertEqual(payload["details"][0]["endZ"], -90)
+                self.assertEqual(payload["details"][0]["method"], "Z_POINT")
+                self.assertIsNone(payload["details"][0]["elementSize"])
 
     def test_all_models_preserve_selected_sources_and_uniform_modes_for_each_symmetry(self):
         for with_hbm in (True, False):
@@ -364,6 +370,7 @@ class MeshControlSetApiTests(unittest.TestCase):
                     }])
                     self.assertEqual(next(d for d in payload["details"] if d["label"] == "lsi_si"), {
                         "label": "lsi_si", "status": "applied", "startZ": -50, "endZ": 153.25,
+                        "method": "Z_SECTION_AVG", "elementSize": 40.65,
                         "sourceIds": ["lsi-si:upper-right"], "resolvedRegions": None,
                     })
                     for symmetry in ("full", "upper_half", "right_half", "upper_right_quarter"):
@@ -372,6 +379,21 @@ class MeshControlSetApiTests(unittest.TestCase):
                         validate_mesh_control(document, state=ProcessGeometryState.from_structure(structure))
                         validate_mesher_mesh_control(document)
                     self.assertEqual(structure, snapshot)
+
+    def test_omitted_lsi_detail_keeps_method_and_computed_size(self):
+        for thickness in (0, 1e-10):
+            structure = normalize_geometry_structure({"id": "root", "bodies": [{
+                "id": "lsi-si", "key": "lsi.si", "material": "Si",
+                "geometry": {"type": "BoxGeometry", "bottom_left": [0, 0, 0],
+                             "top_right": [100, 100, 0], "thk": thickness},
+            }]})
+            response = self.client.post("/api/mesh-control-sets/meshModel1/apply", json={"geometryStructure": structure})
+            self.assertEqual(response.status_code, 200, response.text)
+            payload = response.json()
+            self.assertEqual(payload["meshControl"]["controls"], [])
+            self.assertEqual(payload["details"][0]["status"], "omitted")
+            self.assertEqual(payload["details"][0]["method"], "Z_SECTION_AVG")
+            self.assertEqual(payload["details"][0]["elementSize"], thickness / 5)
 
     def test_generator_lsi_si_control_uses_only_silicon_thickness(self):
         for generation in ("gen1", "gen2", "gen2-bs-first"):

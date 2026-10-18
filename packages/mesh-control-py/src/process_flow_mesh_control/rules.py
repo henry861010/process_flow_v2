@@ -252,6 +252,8 @@ def append_lsi_si_control(
     if thickness <= ZERO_TOLERANCE:
         details.append({
             "label": "lsi_si",
+            "method": "Z_SECTION_AVG",
+            "elementSize": thickness / section_count,
             "status": "omitted",
             "startZ": si["zMin"],
             "endZ": si["zMax"],

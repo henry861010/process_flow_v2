@@ -49,6 +49,8 @@ import { MeshResolvedRules } from "./mesh-resolved-rules";
 import {
   defaultMeshSettingsDraft,
   loadMeshSettingsDraft,
+  needsResolvedRuleMetadata,
+  restoreResolvedRuleMetadata,
   saveMeshSettingsDraft,
   type MeshSettingsDraft,
 } from "./mesh-settings-drafts";
@@ -146,6 +148,20 @@ function FileExportDialogForm({
     if (kind !== "cdb" || !draftLoaded) return;
     setStorageError(!saveMeshSettingsDraft(geometryHash, meshSettings));
   }, [kind, geometryHash, draftLoaded, meshSettings]);
+
+  React.useEffect(() => {
+    if (kind !== "cdb" || !draftLoaded || !appliedSet || !needsResolvedRuleMetadata(setDetails)) return;
+    const controller = new AbortController();
+    // Rebuild the original result for display metadata only, preserving editable settings.
+    applyMeshControlSet(appliedSet.id, geometryStructure, controller.signal)
+      .then(applied => {
+        if (!controller.signal.aborted && applied.geometryHash === geometryHash) {
+          setMeshSettings(current => restoreResolvedRuleMetadata(current, applied));
+        }
+      })
+      .catch(() => { /* Keep the saved draft usable when the original set is unavailable. */ });
+    return () => controller.abort();
+  }, [kind, draftLoaded, geometryHash, geometryStructure, appliedSet, setDetails]);
 
   React.useEffect(() => {
     if (kind !== "cdb") return;

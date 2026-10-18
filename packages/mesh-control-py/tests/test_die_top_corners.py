@@ -49,6 +49,7 @@ class DieTopCornerTests(unittest.TestCase):
                           "zMin": z_top - 25, "zMax": z_top + 25}
                 self.assertEqual(detail, {
                     "label": control["label"], "status": "applied", "startZ": z_top - 25,
+                    "method": "3D_REGION", "elementSize": 5,
                     "endZ": z_top + 25, "sourceIds": [container_id],
                     "resolvedRegions": [{"sourceId": container_id, "bounds": bounds}],
                 })

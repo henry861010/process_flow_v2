@@ -61,6 +61,8 @@ class SharedHelperTests(unittest.TestCase):
                                     start_z=start, end_z=end, source_ids=sources, label="Test")
         self.assertEqual(len(controls), 1)
         self.assertEqual([item["status"] for item in details], ["applied", "omitted"])
+        self.assertEqual([(item["method"], item["elementSize"]) for item in details],
+                         [("Z_SECTION_AVG", 5), ("Z_SECTION_AVG", 5)])
         sources.append("later")
         self.assertNotIn("reference", controls[0])
         self.assertEqual(details[0]["sourceIds"], ["body:test"])
@@ -75,6 +77,8 @@ class SharedHelperTests(unittest.TestCase):
         append_full_feature_control(controls, details, summary, label="Body", element_size=4)
         append_relative_z_point(controls, details, summary, label="Point", anchor="z_max", offset=-2)
         self.assertEqual(details[1]["startZ"], 18)
+        self.assertEqual([(item["method"], item["elementSize"]) for item in details],
+                         [("Z_SECTION_AVG", 4), ("Z_POINT", None)])
         self.assertEqual(controls[0]["endZ"], {"anchor": "z_max", "offset": 0})
         with self.assertRaisesRegex(ValueError, "Unknown Z anchor"):
             append_relative_z_point(controls, details, summary, label="Invalid", anchor="middle", offset=0)

@@ -18,30 +18,26 @@ export function MeshResolvedRules({ details, customized, instanceNames }: {
         {details.map((detail, index) => {
           const regions = detail.resolvedRegions ?? [];
           const label = formatMeshControlLabel(detail.label, instanceNames, detail.sourceIds);
+          const elementSize = detail.elementSize == null ? "—" : `${formatResolvedCoordinate(detail.elementSize)} µm`;
           return (
-            <li key={`${detail.label}-${index}`} className={regions.length ? "min-w-0 rounded-md border bg-white p-2.5" : "min-w-0"}>
-              <span className="break-words font-medium text-foreground">{label}</span>
+            <li key={`${detail.label}-${index}`} className="min-w-0 [overflow-wrap:anywhere] tabular-nums">
+              <span className="font-medium text-foreground">{label}</span>
+              {`: ${detail.method ?? "—"}, ${elementSize}, `}
               {regions.length ? (
-                <div className="mt-2 space-y-2">
-                  {regions.map((region, regionIndex) => (
-                    <dl key={regionIndex} aria-label={`${label} region ${regionIndex + 1} bounds`}
-                      className={`space-y-1 ${regionIndex ? "border-t pt-2" : ""}`}>
-                      {(["x", "y", "z"] as const).map(axis => (
-                        <div key={axis} className="grid min-w-0 grid-cols-[0.75rem_minmax(0,1fr)] gap-x-2">
-                          <dt>{axis.toUpperCase()}</dt>
-                          <dd className="flex min-w-0 flex-wrap items-baseline gap-x-1 tabular-nums">
-                            <span className="break-all">{formatResolvedCoordinate(region.bounds[`${axis}Min`])}</span>
-                            <span>→</span>
-                            <span className="break-all">{formatResolvedCoordinate(region.bounds[`${axis}Max`])}</span>
-                            <span>µm</span>
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  ))}
-                </div>
+                <>
+                  {regions.map((region, regionIndex) => {
+                    const point = (bound: "Min" | "Max") =>
+                      `[${(["x", "y", "z"] as const).map(axis => formatResolvedCoordinate(region.bounds[`${axis}${bound}`])).join(",")}]`;
+                    return (
+                      <span key={regionIndex} aria-label={`${label} region ${regionIndex + 1} bounds`}
+                        className={regionIndex ? "block" : undefined}>
+                        {`${point("Min")} ~ ${point("Max")} µm`}
+                      </span>
+                    );
+                  })}
+                </>
               ) : (
-                <>: {formatResolvedCoordinate(detail.startZ)} → {formatResolvedCoordinate(detail.endZ)} µm</>
+                <>{formatResolvedCoordinate(detail.startZ)} ~ {formatResolvedCoordinate(detail.endZ)} µm</>
               )}
               {detail.status === "omitted" ? <span> (zero thickness, omitted)</span> : null}
             </li>

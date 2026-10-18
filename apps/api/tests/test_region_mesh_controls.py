@@ -53,6 +53,8 @@ class RegionApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["setVersion"], "1.0.0")
         self.assertEqual([c["region"]["type"] for c in payload["meshControl"]["controls"]], ["box", "polygon"])
+        self.assertEqual([(d["method"], d["elementSize"]) for d in payload["details"]],
+                         [("3D_REGION", 5), ("3D_REGION", 5)])
         self.assertEqual(payload["details"][0]["resolvedRegions"][0]["bounds"]["zMax"], 80)
         self.assertEqual(payload["details"][0]["resolvedRegions"][0]["sourceId"], "root")
         self.assertEqual(payload["meshControl"]["controls"][0]["region"]["min"]["x"], {"anchor": "x_min", "offset": 0})

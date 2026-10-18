@@ -70,6 +70,9 @@ export type MeshControlSetDefinition = {
 
 export type MeshControlSetRuleDetail = {
   label: string;
+  // Optional for drafts saved before resolved summaries included these fields.
+  method?: MeshControlEntry["method"];
+  elementSize?: number | null;
   status: "applied" | "omitted";
   startZ: number;
   endZ: number;

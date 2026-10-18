@@ -40,6 +40,7 @@ class LsiSiTests(unittest.TestCase):
                 }])
                 self.assertEqual(result.details, [{
                     "label": "lsi_si", "status": "applied", "startZ": z,
+                    "method": "Z_SECTION_AVG", "elementSize": ((z + thickness) - z) / 5,
                     "endZ": z + thickness, "sourceIds": ["si"],
                 }])
 
@@ -72,6 +73,7 @@ class LsiSiTests(unittest.TestCase):
             for result in self.apply_all(geometry):
                 self.assertEqual(result.mesh_control["controls"], [])
                 self.assertEqual(result.details, [{"label": "lsi_si", "status": "omitted",
+                                 "method": "Z_SECTION_AVG", "elementSize": thickness / 5,
                                  "startZ": 0, "endZ": thickness, "sourceIds": ["si"]}])
 
     def test_lsi_follows_uf_before_generic_carrier_and_does_not_alias_keys(self):

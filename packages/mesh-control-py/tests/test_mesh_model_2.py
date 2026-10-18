@@ -173,6 +173,8 @@ class MeshModel2Tests(unittest.TestCase):
                         result.details[-1],
                         {
                             "label": "Carrier bottom +10",
+                            "method": "Z_POINT",
+                            "elementSize": None,
                             "status": "applied",
                             "startZ": bottom_z + 10,
                             "endZ": bottom_z + 10,
