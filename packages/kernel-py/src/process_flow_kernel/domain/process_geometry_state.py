@@ -1169,6 +1169,7 @@ def _container_from_payload(container):
                 via.get("direction"),
                 via["koz"],
                 via.get("id"),
+                key=via.get("key"),
             )
         )
     for circuit in container.get("circuits", []):

@@ -72,7 +72,10 @@ footprint。gen1由下往上為`Si`、`USG`、`FsPm0`；gen2由下往上為`DAF`
 `USG`、`PrePm0`、`FsPm0`、`Fow`、`Si carrier`。gen2 (bs-first)由下往上為
 `Micro bump (reflowed)`、`Si`、`USG`、`PrePm0`、`FsPm0`、`Fow`、`Si carrier`，
 不產生DAF、BsPm0與BsVia0。所有層使用完整footprint並相貼堆疊，
-XYZ置中，root key為`lsi`。Si carrier使用body key=`carrier`，DAF使用`daf`；其他層不提供body key。
+XYZ置中，root key為`lsi`。各層使用body keys：`lsi.si`、`lsi.usg`、`lsi.fspm0`、
+`lsi.daf`、`lsi.bspm0`、`lsi.prepm0`、`lsi.fow`、`lsi.si_carrier`；front/back vias
+分別使用`lsi.fsvia0`、`lsi.bsvia0`。只標記該世代存在的features，零厚度仍保留key。
+LSI DAF/carrier keys不作為通用`daf`／`carrier`的別名。
 
 每層提供`<prefix>Material`與`<prefix>Thickness`，全部可編輯，預設如下：
 

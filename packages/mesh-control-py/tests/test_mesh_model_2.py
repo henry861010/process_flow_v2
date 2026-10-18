@@ -3,10 +3,12 @@ from __future__ import annotations
 import unittest
 
 from process_flow_kernel import ProcessGeometryState
-from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry
+from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry, validate_mesh_control
 from process_flow_mesh_control.sets.mesh_model_1 import MeshModel1Set
 from process_flow_mesh_control.sets.mesh_model_2 import MeshModel2Set
 from process_flow_mesh_control.sets.mesh_model_3 import MeshModel3Set
+
+from mesh_control_fixtures import z_control_result
 
 
 def box(z: float, thickness: float) -> dict:
@@ -90,13 +92,14 @@ class MeshModel2Tests(unittest.TestCase):
     def setUp(self):
         self.registry = MeshControlSetRegistry()
 
-    def apply(self, geometry: dict, set_id: str = "meshModel2"):
+    def apply_z_controls(self, geometry: dict, set_id: str = "meshModel2"):
         state = ProcessGeometryState.from_structure(geometry)
         before = state.to_geometry_structure()
         definition, result = self.registry.apply(set_id, state)
+        validate_mesh_control(result.mesh_control, state=state)
         self.assertEqual(state.to_geometry_structure(), before)
         self.assertEqual(definition["version"], "1")
-        return result
+        return z_control_result(result)
 
     def test_numbered_mesh_models_have_independent_implementations(self):
         geometry = structure(
@@ -269,7 +272,7 @@ class MeshModel2Tests(unittest.TestCase):
             )
         )
 
-        result = self.apply(geometry)
+        result = self.apply_z_controls(geometry)
         controls = result.mesh_control["controls"]
 
         self.assertEqual(result.mesh_control["globalElementSize"], 1000)
@@ -324,7 +327,7 @@ class MeshModel2Tests(unittest.TestCase):
             )
         )
 
-        controls = self.apply(geometry).mesh_control["controls"]
+        controls = self.apply_z_controls(geometry).mesh_control["controls"]
 
         self.assertEqual(
             [item["label"] for item in controls],
@@ -363,7 +366,7 @@ class MeshModel2Tests(unittest.TestCase):
         )
         for set_id in ("meshModel1", "meshModel2", "meshModel3"):
             with self.subTest(set_id=set_id):
-                result = self.apply(geometry, set_id)
+                result = self.apply_z_controls(geometry, set_id)
                 controls = result.mesh_control["controls"]
                 self.assertEqual(controls[0]["label"], "TD_uBump")
                 self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:soc"})
@@ -407,7 +410,7 @@ class MeshModel2Tests(unittest.TestCase):
         ))
         for set_id in ("meshModel1", "meshModel2", "meshModel3"):
             with self.subTest(set_id=set_id):
-                result = self.apply(geometry, set_id)
+                result = self.apply_z_controls(geometry, set_id)
                 self.assertEqual([item["label"] for item in result.mesh_control["controls"]], ["adh", "TD_uBump"])
                 self.assertEqual([item["sourceIds"] for item in result.details], [["body:adh"], ["bump:soc"]])
 
@@ -424,7 +427,7 @@ class MeshModel2Tests(unittest.TestCase):
         ))
         for set_id in ("meshModel1", "meshModel2", "meshModel3"):
             with self.subTest(set_id=set_id):
-                result = self.apply(geometry, set_id)
+                result = self.apply_z_controls(geometry, set_id)
                 controls = result.mesh_control["controls"]
                 self.assertEqual(len(controls), 5)
                 for item in controls:
@@ -456,7 +459,7 @@ class MeshModel2Tests(unittest.TestCase):
 
         for set_id in ("meshModel1", "meshModel2", "meshModel3"):
             with self.subTest(set_id=set_id):
-                controls = self.apply(geometry, set_id).mesh_control["controls"]
+                controls = self.apply_z_controls(geometry, set_id).mesh_control["controls"]
 
                 self.assertEqual(
                     [item["label"] for item in controls],
@@ -491,7 +494,7 @@ class MeshModel2Tests(unittest.TestCase):
             ],
         )
 
-        result = self.apply(structure(hbm))
+        result = self.apply_z_controls(structure(hbm))
 
         self.assertEqual(
             [item["label"] for item in result.mesh_control["controls"]],
@@ -506,7 +509,7 @@ class MeshModel2Tests(unittest.TestCase):
     def test_soc_thin_and_zero_middle_sections(self):
         for set_id in ("meshModel1", "meshModel2", "meshModel3"):
             with self.subTest(set_id=set_id):
-                zero_middle = self.apply(structure(soc_container(thickness=220)), set_id)
+                zero_middle = self.apply_z_controls(structure(soc_container(thickness=220)), set_id)
                 self.assertEqual(
                     [item["label"] for item in zero_middle.mesh_control["controls"]],
                     [
@@ -521,7 +524,7 @@ class MeshModel2Tests(unittest.TestCase):
                     ["TD_UF, noHBM Zone3"],
                 )
 
-                overlapping = self.apply(structure(soc_container(thickness=150)), set_id)
+                overlapping = self.apply_z_controls(structure(soc_container(thickness=150)), set_id)
                 self.assertEqual(
                     [item["label"] for item in overlapping.mesh_control["controls"]],
                     [
@@ -539,9 +542,9 @@ class MeshModel2Tests(unittest.TestCase):
                 thin_soc = soc_container(thickness=109)
                 thin_soc["bodies"].append(body("body:pass2", -100, 100, "Passivation", "soc.pass2"))
                 with self.assertRaisesRegex(MeshControlSetNotApplicable, r"soc\.si thickness of at least 110 um"):
-                    self.apply(structure(thin_soc), set_id)
+                    self.apply_z_controls(structure(thin_soc), set_id)
 
-                minimum = self.apply(structure(soc_container(thickness=110)), set_id)
+                minimum = self.apply_z_controls(structure(soc_container(thickness=110)), set_id)
                 self.assertEqual(len(minimum.mesh_control["controls"]), 4)
 
     def test_missing_all_optional_targets_returns_no_local_controls(self):
@@ -552,7 +555,7 @@ class MeshModel2Tests(unittest.TestCase):
             )
         )
 
-        result = self.apply(geometry)
+        result = self.apply_z_controls(geometry)
 
         self.assertEqual(result.mesh_control["controls"], [])
         self.assertEqual(result.details, [])

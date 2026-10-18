@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from process_flow_kernel import ProcessGeometryState, normalize_geometry_structure, validate_bump_stage
-from process_flow_kernel.domain.semantic_keys import validate_body_key, validate_container_key
+from process_flow_kernel.domain.semantic_keys import validate_body_key, validate_container_key, validate_via_key
 from process_flow_kernel.utils.polygon import validate_polygon_loops
 
 
@@ -93,16 +93,17 @@ def _container(value, path):
 
 def _feature(value, kind, path):
     allowed = {"id", "geometry", "material"}
-    if kind == "bodies":
+    if kind in ("bodies", "vias"):
         allowed.add("key")
-    else:
+    if kind != "bodies":
         allowed.update(("density", "koz"))
         if kind in ("vias", "bumps"):
             allowed.add("direction")
         if kind == "bumps":
             allowed.add("stage")
     _object(value, path, allowed)
-    _identity(value, path, key_validator=validate_body_key if kind == "bodies" else None)
+    key_validator = {"bodies": validate_body_key, "vias": validate_via_key}.get(kind)
+    _identity(value, path, key_validator=key_validator)
     _text(value.get("material"), f"{path}.material")
     _primitive(value.get("geometry"), f"{path}.geometry")
     if kind != "bodies":

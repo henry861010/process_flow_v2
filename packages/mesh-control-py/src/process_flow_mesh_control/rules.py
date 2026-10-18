@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from collections.abc import Collection, Iterable, Mapping
 
+from process_flow_kernel import ProcessGeometryState
+
 from .contracts import JsonObject, MeshControlSetNotApplicable
 from .controls import (
     ZERO_TOLERANCE,
@@ -17,6 +19,7 @@ from .controls import (
     append_relative_z_point,
 )
 from .geometry import select_upper_right, subtree_nodes
+from .regions import append_region_control
 
 METAL_TIM_MATERIAL = frozenset({"Mat_metaltime1", "Mat_metaltime2", "Mat_metaltime3"})
 _HBM_CORE_DIE_KEY = re.compile(r"hbm\.core_die_(\d+)")
@@ -222,6 +225,44 @@ def append_soc_uf_controls(
             )
 
 
+def append_lsi_si_control(
+    controls: list[JsonObject],
+    details: list[JsonObject],
+    bodies: Iterable[JsonObject],
+    *,
+    section_count: int = 5,
+) -> None:
+    """Divide the upper-right lsi.si body's full Z range into equal sections.
+
+    Args:
+        controls: Output list receiving one reference Z_SECTION_AVG control.
+        details: Output list receiving its resolved range and source ID.
+        bodies: Detached body summaries; never modified.
+        section_count: Positive integer number of equal sections, default five.
+
+    Returns None. Missing targets add nothing. Thickness at most ZERO_TOLERANCE
+    adds only an omitted detail. Invalid section counts raise ValueError.
+    """
+    if isinstance(section_count, bool) or not isinstance(section_count, int) or section_count <= 0:
+        raise ValueError("LSI Si section count must be a positive integer.")
+    si = select_upper_right(body for body in bodies if body["key"] == "lsi.si")
+    if si is None:
+        return
+    thickness = si["zMax"] - si["zMin"]
+    if thickness <= ZERO_TOLERANCE:
+        details.append({
+            "label": "lsi_si",
+            "status": "omitted",
+            "startZ": si["zMin"],
+            "endZ": si["zMax"],
+            "sourceIds": [si["id"]],
+        })
+        return
+    append_full_feature_control(
+        controls, details, si, label="lsi_si", element_size=thickness / section_count,
+    )
+
+
 def append_bottom_carrier_points(
     controls: list[JsonObject],
     details: list[JsonObject],
@@ -251,6 +292,57 @@ def append_bottom_carrier_points(
             append_relative_z_point(
                 controls, details, body, label=f"Carrier bottom {offset:+g}", offset=offset,
             )
+
+
+def append_die_top_corner_controls(
+    controls: list[JsonObject],
+    details: list[JsonObject],
+    state: ProcessGeometryState,
+    containers: Iterable[JsonObject],
+    *,
+    half_extent: float,
+    element_size: float,
+) -> None:
+    """Append four reference Boxes at each nonempty soc/hbm container's top.
+
+    Args:
+        controls: Output control list, extended in place.
+        details: Output list receiving resolved bounds and container source IDs.
+        state: Geometry used by the region resolver; never modified.
+        containers: Container summaries in desired output order; never modified.
+        half_extent: Positive distance from each corner along every axis, in um.
+        element_size: Positive isotropic element size in um.
+
+    Corners follow (x_min, y_min), (x_min, y_max), (x_max, y_min),
+    (x_max, y_max), all at z_max. Empty containers are skipped. Physical
+    descendant bounds are resolved by append_region_control, without clipping
+    Boxes or merging overlaps. Invalid region parameters raise ValueError.
+    """
+    for container in containers:
+        if container["key"] not in {"soc", "hbm"}:
+            continue
+        if any(container.get(field) is None for field in ("xMin", "xMax", "yMin", "yMax")):
+            continue
+        for x_anchor in ("x_min", "x_max"):
+            for y_anchor in ("y_min", "y_max"):
+                anchors = {"x": x_anchor, "y": y_anchor, "z": "z_max"}
+                append_region_control(
+                    controls, details, state,
+                    label=f"{container['key']} {container['id']} top corner {x_anchor}/{y_anchor}",
+                    element_size=element_size,
+                    coordinate_mode="reference",
+                    reference={"kind": "container", "id": container["id"]},
+                    region={
+                        "type": "box",
+                        **{
+                            bound: {
+                                axis: {"anchor": anchor, "offset": offset}
+                                for axis, anchor in anchors.items()
+                            }
+                            for bound, offset in (("min", -half_extent), ("max", half_extent))
+                        },
+                    },
+                )
 
 
 def _section_candidate(

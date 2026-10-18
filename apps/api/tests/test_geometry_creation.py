@@ -75,6 +75,39 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.json()["structure"]["root"]["bodies"], [])
 
+    def test_lsi_via_keys_persist_at_root_and_nested_scopes(self):
+        for key in ("lsi.fsvia0", "lsi.bsvia0"):
+            with self.subTest(key=key):
+                via = {"key": key, "geometry": box(), "material": "Cu",
+                       "density": 50, "direction": "+z", "koz": 0}
+                response = self.client.post("/api/geometries", json=entity({
+                    "key": "lsi", "bodies": [{"key": "lsi.si", "geometry": box(), "material": "Si"}],
+                    "vias": [via], "children": [{"vias": [via]}],
+                }))
+                self.assertEqual(response.status_code, 201, response.text)
+                saved = response.json()
+                root = saved["structure"]["root"]
+                self.assertEqual(root["bodies"][0]["key"], "lsi.si")
+                self.assertEqual(root["vias"][0]["key"], key)
+                self.assertEqual(root["children"][0]["vias"][0]["key"], key)
+                self.assertEqual(self.client.get(f"/api/geometries/{saved['id']}").json(), saved)
+
+    def test_invalid_via_keys_are_rejected_without_writing(self):
+        count = len(self.client.get("/api/geometries").json())
+        for key in (None, "", " ", "lsi.si", "unknown", 1):
+            for nested in (False, True):
+                with self.subTest(key=key, nested=nested):
+                    root = {"vias": [{"key": key, "geometry": box(), "material": "Cu",
+                                      "density": 50, "direction": "+z", "koz": 0}]}
+                    path = "structure.root.vias[0].key"
+                    if nested:
+                        root = {"children": [root]}
+                        path = "structure.root.children[0].vias[0].key"
+                    response = self.client.post("/api/geometries", json=entity(root))
+                    self.assertEqual(response.status_code, 400, response.text)
+                    self.assertIn(path, response.json()["message"])
+        self.assertEqual(len(self.client.get("/api/geometries").json()), count)
+
     def test_all_bump_stages_persist_at_root_and_nested_scopes(self):
         for stage in ("deposited", "reflowed", "joined"):
             with self.subTest(stage=stage):

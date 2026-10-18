@@ -1,6 +1,17 @@
 """Small spatial layouts shared by selection and mesher regression tests."""
 
 from process_flow_kernel import normalize_geometry_structure
+from process_flow_mesh_control import MeshControlSetResult
+
+
+def z_control_result(result):
+    """Select Z rules for existing regressions; corner rules have dedicated tests."""
+    return MeshControlSetResult(
+        mesh_control={**result.mesh_control, "controls": [
+            c for c in result.mesh_control["controls"] if c["method"] != "3D_REGION"
+        ]},
+        details=[d for d in result.details if not d.get("resolvedRegions")],
+    )
 
 
 def feature(item_id, x, y, z, thickness, *, key=None, width=40):

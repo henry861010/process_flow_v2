@@ -128,6 +128,14 @@ class GeometryFixtureTests(unittest.TestCase):
                     "soc.elk",
                     "soc.si",
                     "wafer-dmy.si",
+                    "lsi.si",
+                    "lsi.usg",
+                    "lsi.fspm0",
+                    "lsi.daf",
+                    "lsi.bspm0",
+                    "lsi.prepm0",
+                    "lsi.fow",
+                    "lsi.si_carrier",
                 }
             )
             | frozenset(

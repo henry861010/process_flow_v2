@@ -14,7 +14,7 @@ before returning it. Region controls are also resolved against the supplied geom
 `MeshModel1Set`, `MeshModel2Set`, and `MeshModel3Set` each compose shared rules
 in their own `build()` method. Their settings remain local to each model:
 `TIM_SETTINGS`, `ADHESIVE_SETTINGS`, `HBM_UF_SETTINGS`, `SOC_UF_SETTINGS`,
-`BUMP_ELEMENT_SIZE`, `CARRIER_OFFSET`, and `GLOBAL_ELEMENT_SIZE`. Changing one
+`BUMP_ELEMENT_SIZE`, `CARRIER_OFFSET`, `LSI_SI_SECTION_COUNT`, and `GLOBAL_ELEMENT_SIZE`. Changing one
 model's settings does not affect the others. A new set can reuse any subset of
 the helpers below without adopting the numbered models' complete workflow.
 
@@ -27,7 +27,7 @@ the candidates once without sorting or modifying them. This replaces the old
 DFS-first selection, which could reference a lower-left object removed by half
 or quarter symmetry reduction.
 
-The rule applies to HBM and SoC containers, the global `soc.si` body, bumps
+The rule applies to HBM and SoC containers, the global `soc.si` and `lsi.si` bodies, bumps
 inside the selected container subtree, and base/top die representatives inside
 the selected HBM. HBM has priority. If the selected HBM has no bump, the bump
 rule falls back to the selected SoC, rather than choosing another HBM.
@@ -53,6 +53,30 @@ All three models add a `Z_POINT` at `z_min + 10 um` for each body keyed
 vias, circuits, and bumps), within `1e-9 um`. The point references the carrier
 body by ID and uses a relative `z_min` offset of 10.
 
+All three models select the upper-right body keyed `lsi.si`, independently of
+HBM/SoC presence, and append a reference `Z_SECTION_AVG` labeled `lsi_si` after
+UF controls and before carrier points. Its complete `z_min` to `z_max` range
+uses `elementSize = (zMax - zMin) / LSI_SI_SECTION_COUNT`, defaulting to five
+equal sections without rounding. Details retain the resolved Z range and source
+body ID. Missing targets add nothing; thickness at most `1e-9 um` adds only an
+`omitted` detail. A zero-thickness representative does not fall back to another
+LSI. The generator provides the `lsi.si` key; old untagged geometry must be
+regenerated or explicitly tagged. `lsi.si_carrier` does not match generic
+`carrier` point rules.
+
+Only `meshModel2` also appends four reference `3D_REGION` Boxes for every
+nonempty container keyed exactly `soc` or `hbm`, after all existing controls.
+Container order remains DFS; corner centers follow `(xMin, yMin, zMax)`,
+`(xMin, yMax, zMax)`, `(xMax, yMin, zMax)`, `(xMax, yMax, zMax)`.
+Each axis extends 25 um on either side of its corner, producing a 50 x 50 x 50 um
+Box with `elementSize = 5`. Model-local `TOP_CORNER_SETTINGS` controls
+`half_extent` and `element_size`. Twenty SoCs add eighty controls.
+Each Box references its container ID, with labels identifying key, ID and corner;
+details include source IDs and resolved XYZ bounds. Bounds include all physical
+descendant features; empty child containers do not affect them. An HBM uses its
+whole container's top, and nested matching containers each receive four Boxes.
+Boxes may extend outside the die and overlapping Boxes remain separate.
+
 ## Reusable functions
 
 Import helpers directly from the following public modules. Each function has
@@ -63,7 +87,7 @@ mutation behavior and relevant errors. All distances and sizes are in um.
 | --- | --- | --- |
 | `process_flow_mesh_control.geometry` | `select_upper_right`, `belongs_to_subtree`, `subtree_nodes` | Select representatives and query nested container trees without modifying geometry. |
 | `process_flow_mesh_control.controls` | `append_full_feature_control`, `append_absolute_section`, `append_relative_z_point`, `build_mesh_control` | Build canonical controls and matching resolved details. |
-| `process_flow_mesh_control.rules` | `append_tim_controls`, `append_adhesive_controls`, `append_hbm_uf_controls`, `append_soc_uf_controls`, `append_bottom_carrier_points` | Compose the existing domain rules with keyword parameter overrides. |
+| `process_flow_mesh_control.rules` | `append_tim_controls`, `append_adhesive_controls`, `append_hbm_uf_controls`, `append_soc_uf_controls`, `append_lsi_si_control`, `append_bottom_carrier_points`, `append_die_top_corner_controls` | Compose the existing domain rules with keyword parameter overrides. |
 
 Append helpers modify only the supplied `controls` and `details` output lists.
 Geometry selection returns references to the detached summaries, not mutable

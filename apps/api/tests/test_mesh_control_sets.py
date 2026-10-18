@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from mesher.contracts.process_flow_2_5d import validate_mesh_control as validate_mesher_mesh_control
 from process_flow_mesh_control import validate_mesh_control
-from process_flow_kernel import normalize_geometry_structure
+from process_flow_kernel import ProcessGeometryState, normalize_geometry_structure
 
 from process_flow_api.main import create_app
 
@@ -179,8 +179,12 @@ class MeshControlSetApiTests(unittest.TestCase):
                 payload = response.json()
                 self.assertEqual(payload["setId"], set_id)
                 self.assertEqual(payload["setVersion"], "1")
-                validate_mesh_control(payload["meshControl"])
-                uf_controls = payload["meshControl"]["controls"][2:]
+                validate_mesh_control(payload["meshControl"], state=ProcessGeometryState.from_structure(structure))
+                z_controls = [c for c in payload["meshControl"]["controls"] if c["method"] != "3D_REGION"]
+                z_details = [d for d in payload["details"] if not d.get("resolvedRegions")]
+                self.assertEqual(len(payload["meshControl"]["controls"]) - len(z_controls),
+                                 4 if set_id == "meshModel2" else 0)
+                uf_controls = z_controls[2:]
                 self.assertEqual(
                     [(item["startZ"], item["endZ"]) for item in uf_controls],
                     [(250, 300), (190, 250), (110, 190), (50, 110), (0, 50)],
@@ -189,11 +193,11 @@ class MeshControlSetApiTests(unittest.TestCase):
                     self.assertNotIn("reference", item)
                     self.assertEqual(item["coordinateMode"], "absolute")
                 self.assertEqual(
-                    [item["sourceIds"] for item in payload["details"][2:]],
+                    [item["sourceIds"] for item in z_details[2:]],
                     [["body:soc"]] * 5,
                 )
                 self.assertEqual(
-                    [item["label"] for item in payload["meshControl"]["controls"]],
+                    [item["label"] for item in z_controls],
                     [
                         "Tim",
                         "adh",
@@ -208,7 +212,7 @@ class MeshControlSetApiTests(unittest.TestCase):
                     self.assertEqual(
                         [
                             item["elementSize"]
-                            for item in payload["meshControl"]["controls"]
+                            for item in z_controls
                         ],
                         [250, 50, 5, 60, 120, 60, 5],
                     )
@@ -250,7 +254,7 @@ class MeshControlSetApiTests(unittest.TestCase):
                 )
                 self.assertEqual(response.status_code, 200, response.text)
                 payload = response.json()
-                validate_mesh_control(payload["meshControl"])
+                validate_mesh_control(payload["meshControl"], state=ProcessGeometryState.from_structure(structure))
                 self.assertEqual(
                     payload["meshControl"]["controls"],
                     [
@@ -276,18 +280,112 @@ class MeshControlSetApiTests(unittest.TestCase):
                 )
                 self.assertEqual(response.status_code, 200, response.text)
                 payload = response.json()
+                z_details = [d for d in payload["details"] if not d.get("resolvedRegions")]
                 self.assertTrue(all(source.endswith(":upper-right")
-                                    for detail in payload["details"] for source in detail["sourceIds"]))
+                                    for detail in z_details for source in detail["sourceIds"]))
                 for symmetry in ("full", "upper_half", "right_half", "upper_right_quarter"):
                     with self.subTest(set_id=set_id, with_hbm=with_hbm, symmetry=symmetry):
                         document = copy.deepcopy(payload["meshControl"])
                         document["symmetry"] = symmetry
-                        validate_mesh_control(document)
+                        validate_mesh_control(document, state=ProcessGeometryState.from_structure(structure))
                         self.assertEqual(document["controls"][0]["coordinateMode"], "reference")
-                        self.assertTrue(all(c["coordinateMode"] == "absolute" and "reference" not in c for c in document["controls"][1:]))
+                        z_controls = [c for c in document["controls"] if c["method"] != "3D_REGION"]
+                        self.assertTrue(all(c["coordinateMode"] == "absolute" and "reference" not in c for c in z_controls[1:]))
                         # Producer and mesher agree on the raw uniform-coordinate document.
                         validate_mesher_mesh_control(document)
                         self.assertEqual(structure, snapshot)
+
+    def test_mm2_returns_four_top_corner_boxes_per_soc_and_hbm(self):
+        structure = spatial_structure(with_hbm=True)
+        structure["root"]["children"].extend(spatial_structure(with_hbm=False)["root"]["children"])
+        # Both layouts reuse feature IDs, so give the SoC features distinct IDs.
+        for soc in structure["root"]["children"][4:]:
+            for kind in ("bodies", "bumps"):
+                for feature in soc[kind]:
+                    feature["id"] = f"soc-{feature['id']}"
+        state = ProcessGeometryState.from_structure(structure)
+        snapshot = copy.deepcopy(structure)
+        response = self.client.post("/api/mesh-control-sets/meshModel2/apply", json={"geometryStructure": structure})
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        controls = [c for c in payload["meshControl"]["controls"] if c["method"] == "3D_REGION"]
+        details = [d for d in payload["details"] if d.get("resolvedRegions")]
+        containers = [n for n in state.find_geometry(kind="container") if n["key"] in ("soc", "hbm")]
+        self.assertEqual(len(controls), 32)
+        self.assertEqual(len(details), 32)
+        self.assertEqual(payload["meshControl"]["controls"][-32:], controls)
+        self.assertEqual(payload["details"][-32:], details)
+        for index, container in enumerate(containers):
+            for corner, (x, y) in enumerate(((container["xMin"], container["yMin"]),
+                                           (container["xMin"], container["yMax"]),
+                                           (container["xMax"], container["yMin"]),
+                                           (container["xMax"], container["yMax"]))):
+                control, detail = controls[index * 4 + corner], details[index * 4 + corner]
+                self.assertEqual(control["reference"], {"kind": "container", "id": container["id"]})
+                self.assertEqual(control["coordinateMode"], "reference")
+                self.assertEqual(control["elementSize"], 5)
+                self.assertEqual(detail["sourceIds"], [container["id"]])
+                self.assertEqual(detail["label"], control["label"])
+                self.assertEqual(detail["resolvedRegions"], [{"sourceId": container["id"], "bounds": {
+                    "xMin": x - 25, "xMax": x + 25, "yMin": y - 25, "yMax": y + 25,
+                    "zMin": container["zMax"] - 25, "zMax": container["zMax"] + 25,
+                }}])
+        for symmetry in ("full", "upper_half", "right_half", "upper_right_quarter"):
+            with self.subTest(symmetry=symmetry):
+                document = copy.deepcopy(payload["meshControl"])
+                document["symmetry"] = symmetry
+                validate_mesh_control(document, state=state)
+                validate_mesher_mesh_control(document)
+        self.assertEqual(structure, snapshot)
+
+    def test_all_models_add_lsi_si_with_and_without_hbm_for_each_symmetry(self):
+        for with_hbm in (True, False):
+            structure = spatial_structure(with_hbm=with_hbm)
+            for name, x, y, thickness in (("left", -150, 150, 100), ("right-bottom", 50, -150, 400),
+                                         ("upper-right", 50, 50, 203.25)):
+                structure["root"]["children"].append({
+                    "id": f"lsi:{name}", "key": "lsi", "bodies": [{
+                        "id": f"lsi-si:{name}", "key": "lsi.si", "material": "Si",
+                        "geometry": {"type": "BoxGeometry", "bottom_left": [x, y, -50],
+                                     "top_right": [x + 40, y + 40, -50], "thk": thickness},
+                    }],
+                })
+            snapshot = copy.deepcopy(structure)
+            for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+                with self.subTest(set_id=set_id, with_hbm=with_hbm):
+                    response = self.client.post(f"/api/mesh-control-sets/{set_id}/apply", json={"geometryStructure": structure})
+                    self.assertEqual(response.status_code, 200, response.text)
+                    payload = response.json()
+                    lsi_controls = [control for control in payload["meshControl"]["controls"] if control["label"] == "lsi_si"]
+                    self.assertEqual(lsi_controls, [{
+                        "method": "Z_SECTION_AVG", "coordinateMode": "reference", "label": "lsi_si",
+                        "reference": {"kind": "body", "id": "lsi-si:upper-right"}, "elementSize": 40.65,
+                        "startZ": {"anchor": "z_min", "offset": 0}, "endZ": {"anchor": "z_max", "offset": 0},
+                    }])
+                    self.assertEqual(next(d for d in payload["details"] if d["label"] == "lsi_si"), {
+                        "label": "lsi_si", "status": "applied", "startZ": -50, "endZ": 153.25,
+                        "sourceIds": ["lsi-si:upper-right"], "resolvedRegions": None,
+                    })
+                    for symmetry in ("full", "upper_half", "right_half", "upper_right_quarter"):
+                        document = copy.deepcopy(payload["meshControl"])
+                        document["symmetry"] = symmetry
+                        validate_mesh_control(document, state=ProcessGeometryState.from_structure(structure))
+                        validate_mesher_mesh_control(document)
+                    self.assertEqual(structure, snapshot)
+
+    def test_generator_lsi_si_control_uses_only_silicon_thickness(self):
+        for generation in ("gen1", "gen2", "gen2-bs-first"):
+            preview = self.app.state.geometry_generators.preview("lsi", {"generation": generation})
+            structure = preview["geometryEntityJson"]["structure"]
+            si = next(body for body in structure["root"]["bodies"] if body["key"] == "lsi.si")
+            for set_id in ("meshModel1", "meshModel2", "meshModel3"):
+                with self.subTest(generation=generation, set_id=set_id):
+                    response = self.client.post(f"/api/mesh-control-sets/{set_id}/apply", json={"geometryStructure": structure})
+                    self.assertEqual(response.status_code, 200, response.text)
+                    payload = response.json()
+                    self.assertEqual(len(payload["meshControl"]["controls"]), 1)
+                    self.assertEqual(payload["meshControl"]["controls"][0]["elementSize"], 40)
+                    self.assertEqual(payload["details"][0]["sourceIds"], [si["id"]])
 
 
 if __name__ == "__main__":

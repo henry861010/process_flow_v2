@@ -6,7 +6,7 @@ audience:
   - geometry producers
   - process-step authors
   - kernel、CAD、viewer 與 API 開發者
-last_verified: 2026-10-13
+last_verified: 2026-10-18
 last_verified_commit: 754a4e03
 source_of_truth:
   - docs/reference/geometry-structure.md
@@ -16,12 +16,12 @@ verified_against:
 
 # Geometry semantic keys
 
-`Container.key` 與 `Body.key` 是 optional industry semantic tags，不是 identity、display
+`Container.key`、`Body.key` 與 `Via.key` 是 optional industry semantic tags，不是 identity、display
 name、material、version 或任意 producer label。唯一 structure-local identity 使用 `id`。
-Via、Circuit 與 Bump 不支援 `key`。
+Circuit 與 Bump 不支援 `key`。
 
 GeometryEntity 的 `entityType` 繼續描述外部形態（例如 `panel`、`wafer`、`die`）；組合後的產業
-功能與 process interaction role 由 Container／Body key 表達。
+功能與 process interaction role 由 Container／Body／Via key 表達。
 
 Key 不存在表示 producer 未指定 semantic tag。Producer MUST omit 未指定的 `key`；`null` 與空字串
 不是合法替代值。相同 key MAY 在同一 structure 中重複。
@@ -66,14 +66,21 @@ MUST NOT 放入 key。
 - `soc.pass2`、`soc.usg`、`soc.elk`、`soc.si`：SoC generator 由下而上建立的四層實體；
   厚度為 0 的層不建立 body。
 - `wafer-dmy.si`：DMY die generator 建立的唯一 Si dummy die body；厚度為 0 時仍保留。
+- `lsi.si`、`lsi.usg`、`lsi.fspm0`、`lsi.daf`、`lsi.bspm0`、`lsi.prepm0`、`lsi.fow`、
+  `lsi.si_carrier`：LSI generator 各層實體；只標記該 generation 存在的層，厚度為 0 時仍保留。
 
 `envelope` 在本版仍是一般 material-owning physical Body；CAD、mesh 與 section consumer 不得
 只因 key 是 `envelope` 就忽略、改變 priority 或改變 materialization。未來 operation 可以明確以
 它選擇 footprint 或 placement target，但必須自行驗證所需 cardinality。
 
+## Via vocabulary
+
+合法值只有 `lsi.fsvia0` 與 `lsi.bsvia0`，分別標記 LSI 的 front-side 與 back-side vias。
+省略 key 的既有 vias 仍有效。Via key 與 body key 分開驗證，不可互換。
+
 ## Producer rules
 
-- Catalog fixture、DB import 與 generator MAY 明確提供 container/body key。
+- Catalog fixture、DB import 與 generator MAY 明確提供 container/body/via key。
 - `carrier.wafer` 與 `carrier.panel` catalog geometry 的 carrier solid MUST 使用 body key=`carrier`。
 - HBM 與 DRAM generator 標記 root container 為 `hbm`／`dram`，並將代表完整 package
   footprint 的 root body 標記為 `envelope`。HBM child containers 不提供 key；其 base、一般 core
@@ -85,8 +92,9 @@ MUST NOT 放入 key。
   標記為 `envelope`。
 - DMY die generator 標記 root container 為 `wafer-dmy`，唯一 Si Box body 使用
   `wafer-dmy.si`。
-- LSI generator標記root為`lsi`；Gen2的Si carrier body使用`carrier`，底部DAF body使用`daf`。
-  其他LSI層不提供body key，via不提供key。
+- LSI generator 標記 root 為 `lsi`，各層與 vias 使用上述 `lsi.*` keys。Si carrier 使用
+  `lsi.si_carrier`，DAF 使用 `lsi.daf`；通用 `carrier`／`daf` 規則維持 exact matching，
+  不將 LSI keys 視為別名。既有幾何不自動遷移，需重新產生或明確補上 key。
 - Molding、DAF 與 FOW 分別建立 `molding`、`daf`、`fow` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
   `daf` role 視為可選的 bonded DAF。

@@ -158,7 +158,7 @@ Via/Circuit/Bump 是 owner container 內的 density features。Feature 不因 sp
 | Field | Body | Via | Circuit | Bump |
 | --- | --- | --- | --- | --- |
 | `id` | required normalized | required normalized | required normalized | required normalized |
-| `key` | optional registered semantic string | not allowed | not allowed | not allowed |
+| `key` | optional registered semantic string | optional registered semantic string | not allowed | not allowed |
 | `geometry` | required | required | required | required |
 | `material` | non-empty string | non-empty string | non-empty string | non-empty string |
 | `density` | not allowed | `0..100` | `0..100` | `0..100` |
@@ -186,7 +186,7 @@ Canonical feature examples：
 
 Rules：
 
-- Body `key` 是 optional、可重複的 industry semantic role；structure-local unique identity
+- Body／Via `key` 是 optional、可重複的 industry semantic role；structure-local unique identity
   仍是 `id`。未指定時 MUST 省略，不得輸出 `null` 或空字串；合法 vocabulary 與 producer rules
   見 [Geometry semantic keys](./geometry-semantic-keys.md)。
 - Via/Bump `direction` MUST always be present；不得從 geometry Z location 推論。

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .bump_stage import BumpStage, validate_bump_stage
-from .semantic_keys import validate_body_key
+from .semantic_keys import validate_body_key, validate_via_key
 
 
 class Body:
@@ -73,13 +73,14 @@ class Body:
 
 
 class Via:
-    def __init__(self, geometry, density, material, direction, koz=0, structure_id=None):
+    def __init__(self, geometry, density, material, direction, koz=0, structure_id=None, *, key=None):
         _assert_direction(direction, "Via")
         self._geometry = geometry
         self._density = density
         self._material = material
         self._direction = direction
         self._koz = _non_negative_number(koz, "Via koz")
+        self._key = validate_via_key(key)
         self._structure_id = structure_id
 
     def z_min(self):
@@ -106,11 +107,14 @@ class Via:
     def koz(self):
         return self._koz
 
+    def key(self):
+        return self._key
+
     def copy(self):
-        return Via(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id)
+        return Via(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id, key=self._key)
 
     def copy_with_thk(self, thk):
-        return Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id)
+        return Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id, key=self._key)
 
     def clear_structure_id(self):
         self._structure_id = None
@@ -143,6 +147,8 @@ class Via:
             "direction": self._direction,
             "koz": self._koz,
         }
+        if self._key is not None:
+            payload["key"] = self._key
         if self._structure_id is not None:
             payload["id"] = self._structure_id
         return payload

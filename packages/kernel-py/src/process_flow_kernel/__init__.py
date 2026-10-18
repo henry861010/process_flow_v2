@@ -30,10 +30,12 @@ from .domain.region import Region, TYPE_DIE, TYPE_EMPTY, TYPE_TARGET
 from .domain.semantic_keys import (
     BODY_KEYS,
     CONTAINER_KEYS,
+    VIA_KEYS,
     container_key_matches,
     validate_body_key,
     validate_container_key,
     validate_geometry_semantic_keys,
+    validate_via_key,
 )
 from .infrastructure.module_resolver import ProcessStepModuleResolver
 from .serialization.geometry_hydration import (
@@ -86,6 +88,7 @@ __all__ = [
     "TYPE_EMPTY",
     "TYPE_TARGET",
     "Via",
+    "VIA_KEYS",
     "analyze_flow_graph",
     "classify_polygon_loops",
     "container_key_matches",
@@ -101,6 +104,7 @@ __all__ = [
     "validate_bump_stage",
     "validate_container_key",
     "validate_geometry_semantic_keys",
+    "validate_via_key",
     "validate_process_step_template",
     "validate_parameter_default_values",
     "validate_polygon_loops",

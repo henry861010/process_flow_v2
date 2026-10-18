@@ -5,23 +5,24 @@ import unittest
 from unittest.mock import patch
 
 from process_flow_kernel import ProcessGeometryState
-from process_flow_mesh_control import MeshControlSetRegistry
+from process_flow_mesh_control import MeshControlSetRegistry, validate_mesh_control
 from process_flow_mesh_control.sets import mesh_model_1
 
-from mesh_control_fixtures import bump, feature, hbm, layout, soc
+from mesh_control_fixtures import bump, feature, hbm, layout, soc, z_control_result
 
 MODELS = ("meshModel1", "meshModel2", "meshModel3")
 
 
 class MeshModelSelectionTests(unittest.TestCase):
-    def apply_all(self, geometry):
+    def apply_all_z_controls(self, geometry):
         state = ProcessGeometryState.from_structure(geometry)
         before = state.to_geometry_structure(), state.inspect()
         for set_id in MODELS:
             with self.subTest(set_id=set_id):
                 _, result = MeshControlSetRegistry().apply(set_id, state)
+                validate_mesh_control(result.mesh_control, state=state)
                 self.assertEqual((state.to_geometry_structure(), state.inspect()), before)
-                yield result
+                yield z_control_result(result)
 
     def test_all_models_select_rightmost_then_topmost_hbm_independent_of_dfs(self):
         children = [
@@ -30,7 +31,7 @@ class MeshModelSelectionTests(unittest.TestCase):
             hbm("last", -100, -20), soc("soc", 120, 120),
         ]
         for ordered in (children, list(reversed(children))):
-            for result in self.apply_all(layout(ordered)):
+            for result in self.apply_all_z_controls(layout(ordered)):
                 controls = result.mesh_control["controls"]
                 self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:upper-right"})
                 self.assertEqual(result.details[0]["sourceIds"], ["bump:upper-right"])
@@ -49,7 +50,7 @@ class MeshModelSelectionTests(unittest.TestCase):
         selected["children"] = [{"id": "nested-bumps", "bumps": [bump("bump:selected", 70, 75)]}]
         children = [soc("lower-left", -150, -150), selected, soc("upper-left", -150, 80),
                     soc("lower-right", 50, -150), soc("last", -100, -20)]
-        for result in self.apply_all(layout(children)):
+        for result in self.apply_all_z_controls(layout(children)):
             controls = result.mesh_control["controls"]
             self.assertEqual(controls[0]["reference"], {"kind": "bump", "id": "bump:selected"})
             for item in controls[1:]:
@@ -59,7 +60,7 @@ class MeshModelSelectionTests(unittest.TestCase):
     def test_selected_hbm_without_bumps_falls_back_to_selected_soc(self):
         children = [hbm("left-hbm", -150, -150), hbm("right-hbm", 50, 50, include_bumps=False),
                     soc("left-soc", -140, -140), soc("right-soc", 100, 100)]
-        for result in self.apply_all(layout(children)):
+        for result in self.apply_all_z_controls(layout(children)):
             controls = result.mesh_control["controls"]
             self.assertEqual(controls[0]["reference"]["id"], "bump:right-soc")
             self.assertTrue(all(source.endswith(":right-hbm") for detail in result.details[1:] for source in detail["sourceIds"]))
@@ -73,7 +74,7 @@ class MeshModelSelectionTests(unittest.TestCase):
                 feature("si:right", 50, 50, 20, 300, key="soc.si"),
             ]}]},
         ])
-        for result in self.apply_all(geometry):
+        for result in self.apply_all_z_controls(geometry):
             self.assertEqual(len(result.mesh_control["controls"]), 5)
             self.assertTrue(all(detail["sourceIds"] == ["si:right"] for detail in result.details))
 
@@ -88,7 +89,7 @@ class MeshModelSelectionTests(unittest.TestCase):
             selected["children"].append({"id": f"upper:{name}", "bodies": [
                 feature(f"die:{name}:topmost", 50, 60, z, thickness, key=f"hbm.{name}_die"),
             ]})
-        for result in self.apply_all(layout([selected])):
+        for result in self.apply_all_z_controls(layout([selected])):
             self.assertEqual(result.details[0]["sourceIds"], ["bump:topmost"])
             self.assertEqual(result.details[1]["sourceIds"], ["die:base:topmost"])
             self.assertEqual(result.details[-1]["sourceIds"], ["die:top:topmost"])

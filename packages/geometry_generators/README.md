@@ -71,8 +71,12 @@ at the Si bottom with direction `-z`, bounded by BsPm0. Heights are independent;
 exceeding a host span returns a field error without clamping. Zero thickness or
 height retains the body or via. Total thickness sums bodies plus the bs-first
 bump, without double-counting vias, with the stack centered on Z.
-`box-rescale@1` adapts bodies, vias, and bumps together. Si carrier uses
-body key `carrier`; DAF uses `daf`. Conditional draft fields retain their values
+`box-rescale@1` adapts bodies, vias, and bumps together. Each active layer uses
+its registered body key: `lsi.si`, `lsi.usg`, `lsi.fspm0`, `lsi.daf`, `lsi.bspm0`,
+`lsi.prepm0`, `lsi.fow`, or `lsi.si_carrier`. Front/back vias use `lsi.fsvia0`
+and `lsi.bsvia0`, respectively. Keys survive zero thickness and adaptation.
+LSI DAF/carrier keys do not alias generic `daf`/`carrier` process roles; existing
+saved geometry requires regeneration or explicit key edits. Conditional draft fields retain their values
 across generation switches but are excluded from normalized recipes when hidden.
 `visibleWhen` supports mutually exclusive `equals` or nonempty `in` operators;
 PrePm0, Fow, and Si carrier are visible in both Gen2 variants.

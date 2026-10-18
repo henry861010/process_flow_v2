@@ -42,8 +42,18 @@ BODY_KEYS = frozenset(
         "soc.elk",
         "soc.si",
         "wafer-dmy.si",
+        "lsi.si",
+        "lsi.usg",
+        "lsi.fspm0",
+        "lsi.daf",
+        "lsi.bspm0",
+        "lsi.prepm0",
+        "lsi.fow",
+        "lsi.si_carrier",
     }
 ) | _HBM_CORE_DIE_KEYS
+
+VIA_KEYS = frozenset({"lsi.fsvia0", "lsi.bsvia0"})
 
 
 def validate_container_key(value):
@@ -52,6 +62,10 @@ def validate_container_key(value):
 
 def validate_body_key(value):
     return _validate_optional_key(value, BODY_KEYS, "body")
+
+
+def validate_via_key(value):
+    return _validate_optional_key(value, VIA_KEYS, "via")
 
 
 def validate_geometry_semantic_keys(payload):
@@ -108,9 +122,16 @@ def _validate_container_payload(container, path):
             continue
         for index, feature in enumerate(features):
             if isinstance(feature, dict) and "key" in feature:
+                if collection == "vias":
+                    if feature["key"] is None:
+                        raise ValueError(
+                            f"{path}.vias[{index}].key must be omitted instead of null"
+                        )
+                    validate_via_key(feature["key"])
+                    continue
                 raise ValueError(
                     f"{path}.{collection}[{index}].key is not supported; "
-                    "semantic keys belong only to containers and bodies"
+                    "semantic keys belong only to containers, bodies and vias"
                 )
 
     children = container.get("children", [])

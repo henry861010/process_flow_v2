@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from process_flow_geometry_generators import GeometryGeneratorRegistry, register_builtin_generators
+from process_flow_kernel import ProcessGeometryState, validate_geometry_semantic_keys
 
 
 class LsiTests(unittest.TestCase):
@@ -12,6 +13,42 @@ class LsiTests(unittest.TestCase):
 
     def preview(self, generation="gen1", **parameters):
         return self.registry.preview("lsi", {"generation": generation, **parameters}, generator_version=1)
+
+    def test_all_generations_tag_active_layers_and_vias_including_zero_thickness(self):
+        body_keys = {
+            "body:lsi-si": "lsi.si", "body:lsi-usg": "lsi.usg",
+            "body:lsi-fs-pm0": "lsi.fspm0", "body:lsi-daf": "lsi.daf",
+            "body:lsi-bs-pm0": "lsi.bspm0", "body:lsi-pre-pm0": "lsi.prepm0",
+            "body:lsi-fow": "lsi.fow", "body:lsi-si-carrier": "lsi.si_carrier",
+        }
+        via_keys = {"via:lsi-fs-via0": "lsi.fsvia0", "via:lsi-bs-via0": "lsi.bsvia0"}
+        expected = {
+            "gen1": ({"lsi.si", "lsi.usg", "lsi.fspm0"}, {"lsi.fsvia0"}),
+            "gen2": (set(body_keys.values()), set(via_keys.values())),
+            "gen2-bs-first": (set(body_keys.values()) - {"lsi.daf", "lsi.bspm0"}, {"lsi.fsvia0"}),
+        }
+        defaults = next(item for item in self.registry.definitions() if item["id"] == "lsi")["defaultParameters"]
+        for generation, (bodies, vias) in expected.items():
+            for zero in (False, True):
+                with self.subTest(generation=generation, zero=zero):
+                    parameters = {key: 0 for key in defaults if key.endswith("Thickness")} if zero else {}
+                    preview = self.preview(generation, **parameters)
+                    self.assertTrue(preview["valid"], preview["errors"])
+                    structure = preview["geometryEntityJson"]["structure"]
+                    root = structure["root"]
+                    self.assertEqual(root["key"], "lsi")
+                    self.assertEqual({body["key"] for body in root["bodies"]}, bodies)
+                    self.assertEqual({via["key"] for via in root["vias"]}, vias)
+                    for collection, keys in (("bodies", body_keys), ("vias", via_keys)):
+                        for feature in root[collection]:
+                            self.assertEqual(feature["key"], keys[feature["id"]])
+                            if zero:
+                                self.assertEqual(feature["geometry"]["thk"], 0)
+                    self.assertTrue(all("key" not in bump for bump in root["bumps"]))
+                    validate_geometry_semantic_keys(structure)
+                    state = ProcessGeometryState.from_structure(structure)
+                    self.assertEqual(state.to_geometry_structure(), structure)
+                    self.assertEqual(self.registry.generate("lsi", 1, preview["normalizedParameters"]), preview["geometryEntityJson"])
 
     def test_bs_first_default_stack_bump_and_preview(self):
         preview = self.preview("gen2-bs-first")
@@ -36,7 +73,7 @@ class LsiTests(unittest.TestCase):
         for lower, upper in zip(geometries, geometries[1:]):
             self.assertEqual(lower["bottom_left"][2] + lower["thk"], upper["bottom_left"][2])
         self.assertEqual(geometries[-1]["bottom_left"][2] + geometries[-1]["thk"], 247.25)
-        self.assertEqual(root["bodies"][-1]["key"], "carrier")
+        self.assertEqual(root["bodies"][-1]["key"], "lsi.si_carrier")
         self.assertEqual(len(root["vias"]), 1)
         front = root["vias"][0]
         self.assertEqual(front["id"], "via:lsi-fs-via0")
@@ -127,8 +164,8 @@ class LsiTests(unittest.TestCase):
                     self.assertEqual(bs["geometry"]["bottom_left"][2], bs_start)
                     self.assertEqual(bs["direction"], "-z")
                     self.assertEqual(bs["geometry"]["thk"], 15)
-                    self.assertEqual(bodies[0]["key"], "daf")
-                    self.assertEqual(bodies[-1]["key"], "carrier")
+                    self.assertEqual(bodies[0]["key"], "lsi.daf")
+                    self.assertEqual(bodies[-1]["key"], "lsi.si_carrier")
                 else:
                     self.assertEqual(len(root["vias"]), 1)
                 for via in root["vias"]:

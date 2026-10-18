@@ -440,7 +440,7 @@ class GeometryDomainTests(unittest.TestCase):
             Body(geometry, "Si", "die")
         with self.assertRaisesRegex(ValueError, "Unsupported container.key"):
             Container(key="root")
-        with self.assertRaisesRegex(ValueError, "via.key is not supported"):
+        with self.assertRaisesRegex(ValueError, "Unsupported via.key"):
             normalize_geometry_structure({"vias": [{"key": "carrier"}]})
         with self.assertRaisesRegex(ValueError, "body.key must be omitted instead of null"):
             normalize_geometry_structure(

@@ -367,6 +367,34 @@ class GeometryGeneratorApiTests(unittest.TestCase):
         for field in ("structure", "generation", "dim", "adaptationContract"):
             self.assertEqual(regenerated[field], preview["geometryEntityJson"][field])
 
+    def test_all_lsi_generations_preserve_keys_through_catalog_save_and_read(self):
+        expected = {
+            "gen1": ({"lsi.si", "lsi.usg", "lsi.fspm0"}, {"lsi.fsvia0"}),
+            "gen2": ({"lsi.daf", "lsi.bspm0", "lsi.si", "lsi.usg", "lsi.prepm0",
+                      "lsi.fspm0", "lsi.fow", "lsi.si_carrier"}, {"lsi.fsvia0", "lsi.bsvia0"}),
+            "gen2-bs-first": ({"lsi.si", "lsi.usg", "lsi.prepm0", "lsi.fspm0", "lsi.fow",
+                               "lsi.si_carrier"}, {"lsi.fsvia0"}),
+        }
+        for generation, (body_keys, via_keys) in expected.items():
+            with self.subTest(generation=generation):
+                response = self.client.post("/api/geometry-generators/lsi/preview", json={
+                    "generatorVersion": 1, "parameters": {"generation": generation},
+                })
+                self.assertEqual(response.status_code, 200, response.text)
+                preview = response.json()
+                self.assertTrue(preview["valid"], preview["errors"])
+                materialized = self.client.post("/api/geometry-materializations", json={"previewToken": preview["previewToken"]})
+                self.assertEqual(materialized.status_code, 200, materialized.text)
+                entity = materialized.json()["geometryEntityJson"]
+                saved = self.client.post("/api/geometries", json={**entity, "name": generation, "owner": "test"})
+                self.assertEqual(saved.status_code, 201, saved.text)
+                fetched = self.client.get(f"/api/geometries/{saved.json()['id']}")
+                self.assertEqual(fetched.status_code, 200, fetched.text)
+                self.assertEqual(fetched.json()["structure"], entity["structure"])
+                root = fetched.json()["structure"]["root"]
+                self.assertEqual({body["key"] for body in root["bodies"]}, body_keys)
+                self.assertEqual({via["key"] for via in root["vias"]}, via_keys)
+
     def test_lsi_defaults_preview_both_generations(self):
         initial = self.app.state.geometry_generators.preview("lsi", {}, generator_version=1)
         self.assertTrue(initial["valid"])

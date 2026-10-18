@@ -6,7 +6,7 @@ import json
 import re
 
 from ..domain.bump_stage import validate_bump_stage
-from ..domain.semantic_keys import validate_body_key, validate_container_key
+from ..domain.semantic_keys import validate_body_key, validate_container_key, validate_via_key
 
 GEOMETRY_SCHEMA_VERSION = "1.0.0"
 DEFAULT_UNIT_SYSTEM = "um"
@@ -82,14 +82,15 @@ def _assign_feature_ids(features, kind, container_path, *, field_path):
     for index, feature in enumerate(features):
         if kind == "bump":
             validate_bump_stage(feature.get("stage"), f"{field_path}.bumps[{index}].stage")
-        if kind == "body" and "key" in feature:
+        if kind in ("body", "via") and "key" in feature:
             if feature["key"] is None:
-                raise ValueError("body.key must be omitted instead of null")
-            validate_body_key(feature["key"])
-        elif kind != "body" and "key" in feature:
+                raise ValueError(f"{kind}.key must be omitted instead of null")
+            validator = validate_body_key if kind == "body" else validate_via_key
+            validator(feature["key"])
+        elif kind not in ("body", "via") and "key" in feature:
             raise ValueError(
                 f"{kind}.key is not supported; semantic keys belong only to "
-                "containers and bodies"
+                "containers, bodies and vias"
             )
         if "id" not in feature:
             feature["id"] = stable_id(

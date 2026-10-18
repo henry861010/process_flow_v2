@@ -72,6 +72,18 @@ BODY_IDS = {
     "fow": "body:lsi-fow",
     "siCarrier": "body:lsi-si-carrier",
 }
+FEATURE_KEYS = {
+    "si": "lsi.si",
+    "usg": "lsi.usg",
+    "fsPm0": "lsi.fspm0",
+    "fsVia0": "lsi.fsvia0",
+    "daf": "lsi.daf",
+    "bsPm0": "lsi.bspm0",
+    "bsVia0": "lsi.bsvia0",
+    "prePm0": "lsi.prepm0",
+    "fow": "lsi.fow",
+    "siCarrier": "lsi.si_carrier",
+}
 LEGACY_PARAMETER_IDS = tuple(
     f"{prefix}{suffix}"
     for prefix in ("layer1", "layer2", "layer3", "layer4", "bsmc", "lsiTopMolding")
@@ -306,11 +318,10 @@ class LsiGenerator:
             thickness = normalized[f"{layer}Thickness"]
             body: JsonObject = {
                 "id": BODY_IDS[layer],
+                "key": FEATURE_KEYS[layer],
                 "geometry": _box(cursor_z, thickness),
                 "material": normalized[f"{layer}Material"],
             }
-            if layer in ("daf", "siCarrier"):
-                body["key"] = "daf" if layer == "daf" else "carrier"
             bodies.append(body)
             cursor_z += thickness
 
@@ -326,6 +337,7 @@ class LsiGenerator:
             vias.append(
                 {
                     "id": via_id,
+                    "key": FEATURE_KEYS[via],
                     "geometry": _box(z, thickness),
                     "material": normalized[f"{via}Material"],
                     "density": normalized[f"{via}Density"],

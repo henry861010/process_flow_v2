@@ -44,6 +44,8 @@ import {
 } from "@/components/geometry-preview/file-export-mesh-control";
 import { Button } from "@/components/ui/button";
 import { MeshRegionEditor } from "./mesh-region-editor";
+import { collectMeshInstanceNames, formatMeshControlLabel } from "./mesh-control-presentation";
+import { MeshResolvedRules } from "./mesh-resolved-rules";
 import {
   defaultMeshSettingsDraft,
   loadMeshSettingsDraft,
@@ -126,6 +128,7 @@ function FileExportDialogForm({
     () => collectKeyedGeometryReferences(geometryStructure),
     [geometryStructure],
   );
+  const meshInstanceNames = React.useMemo(() => collectMeshInstanceNames(geometryStructure), [geometryStructure]);
   const meshControlsPanelId = React.useId();
   const exportDialogTitleId = React.useId();
 
@@ -459,23 +462,7 @@ function FileExportDialogForm({
 
                   <div id={meshControlsPanelId} className="space-y-3">
                     {setDetails.length > 0 ? (
-                      <div className="rounded-md border bg-muted/15 p-3">
-                        <p className="mb-2 text-xs font-semibold">{setCustomized ? "Original resolved rules" : "Resolved rules"}</p>
-                        <ul className="space-y-1 text-xs text-muted-foreground">
-                          {setDetails.map((detail, index) => (
-                            <li key={`${detail.label}-${index}`}>
-                              {detail.label}: {detail.startZ} → {detail.endZ} µm
-                              {detail.resolvedRegions?.map((region, regionIndex) => (
-                                <span key={regionIndex} className="mt-1 block pl-2 font-mono text-[10px]">
-                                  {region.sourceId ? `${region.sourceId}: ` : ""}
-                                  X [{region.bounds.xMin}, {region.bounds.xMax}], Y [{region.bounds.yMin}, {region.bounds.yMax}], Z [{region.bounds.zMin}, {region.bounds.zMax}] µm
-                                </span>
-                              ))}
-                              {detail.status === "omitted" ? " (zero thickness, omitted)" : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                      <MeshResolvedRules details={setDetails} customized={setCustomized} instanceNames={meshInstanceNames} />
                     ) : null}
                     {controls.length === 0 ? (
                       <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">No local mesh controls.</p>
@@ -487,6 +474,8 @@ function FileExportDialogForm({
                               editorId={`${meshControlsPanelId}-${control.clientId}`}
                               index={index}
                               control={control}
+                              displayLabel={formatMeshControlLabel(meshControlDisplayLabel(control, index), meshInstanceNames,
+                                control.method === "3D_REGION" && control.referenceKind === "container" ? [control.referenceId] : [])}
                               expanded={expandedControlIds.includes(control.clientId)}
                               controlError={Number(/Control (\d+)/.exec(error ?? "")?.[1]) === index + 1 ? error ?? undefined : undefined}
                               labelInvalid={error === `Control ${index + 1} label is required.`}
@@ -594,6 +583,7 @@ function MeshControlEditor({
   editorId,
   index,
   control,
+  displayLabel,
   expanded,
   labelInvalid,
   controlError,
@@ -606,6 +596,7 @@ function MeshControlEditor({
   editorId: string;
   index: number;
   control: MeshControlDraft;
+  displayLabel: string;
   expanded: boolean;
   labelInvalid: boolean;
   controlError?: string;
@@ -669,8 +660,8 @@ function MeshControlEditor({
             onToggle();
           }}
         >
-          <span className="truncate text-xs font-semibold text-foreground" title={meshControlDisplayLabel(control, index)}>
-            {meshControlDisplayLabel(control, index)}
+          <span className="truncate text-xs font-semibold text-foreground" title={displayLabel}>
+            {displayLabel}
           </span>
           <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
         </button>

@@ -11,6 +11,7 @@ from ..rules import (
     append_adhesive_controls,
     append_bottom_carrier_points,
     append_hbm_uf_controls,
+    append_lsi_si_control,
     append_soc_uf_controls,
     append_tim_controls,
 )
@@ -19,6 +20,7 @@ from ..rules import (
 GLOBAL_ELEMENT_SIZE = 1000
 BUMP_ELEMENT_SIZE = 10
 CARRIER_OFFSET = 10
+LSI_SI_SECTION_COUNT = 5
 TIM_SETTINGS = {"metal_element_size": 250, "non_metal_element_size": 50}
 ADHESIVE_SETTINGS = {"metal_tim_element_size": 50, "non_metal_tim_element_size": 20}
 HBM_UF_SETTINGS = {
@@ -46,7 +48,7 @@ class MeshModel1Set:
             "id": "meshModel1",
             "version": "1",
             "label": "meshModel1",
-            "description": "Geometry-aware Tim, adhesive, uBump, UF, and bottom carrier controls.",
+            "description": "Geometry-aware Tim, adhesive, uBump, UF, LSI Si, and bottom carrier controls.",
         }
 
     def build(self, state: ProcessGeometryState) -> MeshControlSetResult:
@@ -94,6 +96,9 @@ class MeshModel1Set:
                 controls, details, soc_si, set_id="meshModel1", **SOC_UF_SETTINGS,
             )
 
+        append_lsi_si_control(
+            controls, details, bodies, section_count=LSI_SI_SECTION_COUNT,
+        )
         append_bottom_carrier_points(controls, details, nodes, offset=CARRIER_OFFSET)
         return MeshControlSetResult(
             mesh_control=build_mesh_control(controls, global_element_size=GLOBAL_ELEMENT_SIZE),

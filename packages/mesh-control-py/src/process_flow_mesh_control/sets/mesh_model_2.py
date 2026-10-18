@@ -10,7 +10,9 @@ from ..geometry import select_upper_right, subtree_nodes
 from ..rules import (
     append_adhesive_controls,
     append_bottom_carrier_points,
+    append_die_top_corner_controls,
     append_hbm_uf_controls,
+    append_lsi_si_control,
     append_soc_uf_controls,
     append_tim_controls,
 )
@@ -19,6 +21,8 @@ from ..rules import (
 GLOBAL_ELEMENT_SIZE = 1000
 BUMP_ELEMENT_SIZE = 10
 CARRIER_OFFSET = 10
+LSI_SI_SECTION_COUNT = 5
+TOP_CORNER_SETTINGS = {"half_extent": 25, "element_size": 5}
 TIM_SETTINGS = {"metal_element_size": 250, "non_metal_element_size": 50}
 ADHESIVE_SETTINGS = {"metal_tim_element_size": 50, "non_metal_tim_element_size": 20}
 HBM_UF_SETTINGS = {
@@ -46,11 +50,11 @@ class MeshModel2Set:
             "id": "meshModel2",
             "version": "1",
             "label": "meshModel2",
-            "description": "Geometry-aware Tim, adhesive, uBump, UF, and bottom carrier controls.",
+            "description": "Geometry-aware Tim, adhesive, uBump, UF, LSI Si, bottom carrier, and die top corner controls.",
         }
 
     def build(self, state: ProcessGeometryState) -> MeshControlSetResult:
-        """Build controls/details in um using rightmost, then topmost targets.
+        """Build controls/details in um, including every soc/hbm top corner.
 
         Args:
             state: Input state; geometry and process state are not modified.
@@ -94,7 +98,13 @@ class MeshModel2Set:
                 controls, details, soc_si, set_id="meshModel2", **SOC_UF_SETTINGS,
             )
 
+        append_lsi_si_control(
+            controls, details, bodies, section_count=LSI_SI_SECTION_COUNT,
+        )
         append_bottom_carrier_points(controls, details, nodes, offset=CARRIER_OFFSET)
+        append_die_top_corner_controls(
+            controls, details, state, containers, **TOP_CORNER_SETTINGS,
+        )
         return MeshControlSetResult(
             mesh_control=build_mesh_control(controls, global_element_size=GLOBAL_ELEMENT_SIZE),
             details=details,
