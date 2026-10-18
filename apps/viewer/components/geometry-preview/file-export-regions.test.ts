@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMeshControlConfiguration, changeCoordinateMode, draftsFromMeshControlConfiguration, newMeshControlDraft, validateMeshControlDraft } from "./file-export-mesh-control";
+import { buildMeshControlConfiguration, changeCoordinateMode, draftsFromMeshControlConfiguration, newMeshControlDraft, validateMeshControlDraft, type MeshControlDraft } from "./file-export-mesh-control";
 import { buildRegion, newPolygonLoop, newRegionDraft, validateRegionDraft } from "./file-export-regions";
 
 function regionControl() {
@@ -69,7 +69,7 @@ describe("uniform mesh-control coordinate modes", () => {
   });
 
   it.each(["Z_SECTION_AVG", "Z_SECTION_TOP", "Z_SECTION_BOT", "Z_SECTION_CENTER", "Z_POINT"] as const)("applies one mode to %s and preserves both coordinate banks", method => {
-    let draft = { ...newMeshControlDraft(), label: "Z control", method };
+    let draft: MeshControlDraft = { ...newMeshControlDraft(), label: "Z control", method };
     expect(draft.coordinateMode).toBe("absolute");
     expect([draft.startZ.value, draft.endZ.value, draft.z.value]).toEqual(["", "", ""]);
     draft = changeCoordinateMode(draft, "reference");

@@ -82,6 +82,23 @@ Footer actions order固定：`Export JSON`、`Export CDB`。非Ready全部disabl
 Backdrop、Close、Escape關閉；unmount abort進行中的preview request。關閉不改editor draft，也不取消
 已建立的export jobs。
 
+### CDB mesh settings 草稿
+
+Export CDB 會在同一網站來源／瀏覽器的 `localStorage` 自動保存最後編輯的 mesh settings，
+以 API 提供的完整 `geometryHash` 對應。關閉匯出表單、Cancel、關閉 preview、重新整理或重開
+瀏覽器後，相同 hash 恢復原草稿；不同 hash 使用各自紀錄。不同 flow、step、Template／Instance
+若得到相同 hash，也共用該草稿。最多保留最近使用的 20 個 geometry，超出時移除最久未使用者。
+
+保存內容包含 global element size 原始字串、symmetry、完整 local controls（含 reference、
+box／polygon、inactive coordinates）及已套用 set 的原始來源／版本、rule details、customized
+狀態。未填完或尚未通過驗證的內容也保存；只有匯出時才執行既有驗證。輸出路徑、展開狀態、
+錯誤與進行中的請求不保存。沒有紀錄時維持 `500 / full / 空 controls`。
+
+還原不重新呼叫 apply-set API，set 清單載入或更新也不得覆蓋草稿；已移除或更新的 set 仍顯示
+保存的來源與版本。只有使用者主動選擇 set 才重新套用。JSON 匯出不讀寫 mesh settings 草稿。
+儲存版本不支援或資料損壞時忽略該紀錄；瀏覽器儲存不可用／容量不足時顯示非阻擋提示，
+仍可編輯與匯出。多分頁以最後寫入為準，不做即時同步；不跨裝置同步或跨 geometry 對應 references。
+
 ### Overlay review contract
 
 Geometry Preview 可以承載 Export form。當 Export form 開啟時，Preview 必須保持 mounted，且

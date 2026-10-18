@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/process-flow-api";
 
 const CLIENT_ID_STORAGE_KEY = "process-flow:export-client-id";
 const LEGACY_CLIENT_ID_STORAGE_KEY = "process-flow:cdb-export-client-id";
+let sessionClientId: string | undefined;
 
 export type FileExportKind = "cdb" | "json" | "step";
 
@@ -175,22 +176,23 @@ export function getFileExportClientId() {
     return "server";
   }
 
-  const existing =
-    window.localStorage.getItem(CLIENT_ID_STORAGE_KEY) ||
-    window.localStorage.getItem(LEGACY_CLIENT_ID_STORAGE_KEY);
-  if (existing) {
-    window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, existing);
-    return existing;
+  try {
+    const existing =
+      window.localStorage.getItem(CLIENT_ID_STORAGE_KEY) ||
+      window.localStorage.getItem(LEGACY_CLIENT_ID_STORAGE_KEY);
+    sessionClientId = existing || sessionClientId || newFileExportClientId();
+    window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, sessionClientId);
+  } catch {
+    // Exporting must remain possible when browser storage is blocked or full.
+    sessionClientId ??= newFileExportClientId();
   }
+  return sessionClientId;
+}
 
-  const generated =
-    typeof window.crypto?.randomUUID === "function"
-      ? window.crypto.randomUUID()
-      : `client-${Date.now().toString(36)}-${Math.random()
-          .toString(36)
-          .slice(2, 12)}`;
-  window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, generated);
-  return generated;
+function newFileExportClientId() {
+  return typeof window.crypto?.randomUUID === "function"
+    ? window.crypto.randomUUID()
+    : `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 export async function createFileExportJob(

@@ -25,7 +25,6 @@ import {
   type FileExportJob,
   type FileExportKind,
   type MeshControlSetDefinition,
-  type MeshControlSetRuleDetail,
   type SymmetryMode,
 } from "@/components/geometry-preview/file-export-client";
 import {
@@ -45,6 +44,12 @@ import {
 } from "@/components/geometry-preview/file-export-mesh-control";
 import { Button } from "@/components/ui/button";
 import { MeshRegionEditor } from "./mesh-region-editor";
+import {
+  defaultMeshSettingsDraft,
+  loadMeshSettingsDraft,
+  saveMeshSettingsDraft,
+  type MeshSettingsDraft,
+} from "./mesh-settings-drafts";
 
 const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
@@ -73,16 +78,7 @@ const SYMMETRY_OPTIONS: ReadonlyArray<{
   },
 ];
 
-export function FileExportDialog({
-  kind,
-  geometryStructure,
-  geometryHash,
-  geometryEntityJson,
-  sourceLabel,
-  analyticsContext,
-  onClose,
-  onJobCreated,
-}: {
+type FileExportDialogProps = {
   kind: FileExportKind;
   geometryStructure: unknown;
   geometryHash: string;
@@ -91,15 +87,29 @@ export function FileExportDialog({
   analyticsContext?: import("./geometry-preview-client").AnalyticsContext;
   onClose: () => void;
   onJobCreated: (job: FileExportJob) => void;
-}) {
+};
+
+export function FileExportDialog(props: FileExportDialogProps) {
+  // Remount before initializing another geometry so its draft cannot receive old state.
+  return <FileExportDialogForm key={JSON.stringify([props.kind, props.geometryHash])} {...props} />;
+}
+
+function FileExportDialogForm({
+  kind,
+  geometryStructure,
+  geometryHash,
+  geometryEntityJson,
+  sourceLabel,
+  analyticsContext,
+  onClose,
+  onJobCreated,
+}: FileExportDialogProps) {
   const [portalReady, setPortalReady] = React.useState(false);
-  const [globalElementSize, setGlobalElementSize] = React.useState("500");
-  const [symmetry, setSymmetryMode] = React.useState<SymmetryMode>("full");
-  const [controls, setControls] = React.useState<MeshControlDraft[]>([]);
+  const [meshSettings, setMeshSettings] = React.useState<MeshSettingsDraft>(defaultMeshSettingsDraft);
+  const [draftLoaded, setDraftLoaded] = React.useState(false);
+  const [storageError, setStorageError] = React.useState(false);
+  const { globalElementSize, symmetry, controls, appliedSet, setDetails, setCustomized } = meshSettings;
   const [availableSets, setAvailableSets] = React.useState<MeshControlSetDefinition[]>([]);
-  const [appliedSet, setAppliedSet] = React.useState<MeshControlSetDefinition | null>(null);
-  const [setDetails, setSetDetails] = React.useState<MeshControlSetRuleDetail[]>([]);
-  const [setCustomized, setSetCustomized] = React.useState(false);
   const [libraryError, setLibraryError] = React.useState<string | null>(null);
   const [applyingSet, setApplyingSet] = React.useState(false);
   const applyAbortRef = React.useRef<AbortController | null>(null);
@@ -120,8 +130,19 @@ export function FileExportDialog({
   const exportDialogTitleId = React.useId();
 
   React.useEffect(() => {
+    if (kind === "cdb") {
+      const restored = loadMeshSettingsDraft(geometryHash);
+      if (restored.draft) setMeshSettings(restored.draft);
+      setStorageError(restored.storageError);
+    }
+    setDraftLoaded(true);
     setPortalReady(true);
-  }, []);
+  }, [kind, geometryHash]);
+
+  React.useEffect(() => {
+    if (kind !== "cdb" || !draftLoaded) return;
+    setStorageError(!saveMeshSettingsDraft(geometryHash, meshSettings));
+  }, [kind, geometryHash, draftLoaded, meshSettings]);
 
   React.useEffect(() => {
     if (kind !== "cdb") return;
@@ -165,25 +186,23 @@ export function FileExportDialog({
     pendingControlNavigationRef.current = null;
   }, [controls, error, expandedControlIds, meshControlsPanelId]);
 
-  function markCustomized() {
+  function editMeshSettings(update: (current: MeshSettingsDraft) => Partial<MeshSettingsDraft>) {
     setError(null);
-    if (appliedSet) setSetCustomized(true);
+    setMeshSettings(current => ({ ...current, ...update(current),
+      setCustomized: current.appliedSet ? true : current.setCustomized }));
   }
 
   function addControl() {
     const draft = newMeshControlDraft();
     pendingControlNavigationRef.current = { clientId: draft.clientId, focusLabel: true };
-    markCustomized();
-    setControls((items) => [...items, draft]);
+    editMeshSettings(current => ({ controls: [...current.controls, draft] }));
     setExpandedControlIds((ids) => [...ids, draft.clientId]);
   }
 
   async function selectControlSet(setId: string) {
     applyAbortRef.current?.abort();
     if (!setId) {
-      setAppliedSet(null);
-      setSetDetails([]);
-      setSetCustomized(false);
+      setMeshSettings(current => ({ ...current, appliedSet: null, setDetails: [], setCustomized: false }));
       setLibraryError(null);
       setApplyingSet(false);
       return;
@@ -200,12 +219,14 @@ export function FileExportDialog({
       }
       const definition = availableSets.find((item) => item.id === applied.setId);
       if (!definition) throw new Error("The selected mesh control set is no longer available.");
-      setGlobalElementSize(String(applied.meshControl.globalElementSize));
-      setSymmetryMode(applied.meshControl.symmetry);
-      setControls(draftsFromMeshControlConfiguration(applied.meshControl));
-      setAppliedSet(definition);
-      setSetDetails(applied.details);
-      setSetCustomized(false);
+      setMeshSettings({
+        globalElementSize: String(applied.meshControl.globalElementSize),
+        symmetry: applied.meshControl.symmetry,
+        controls: draftsFromMeshControlConfiguration(applied.meshControl),
+        appliedSet: { ...definition, version: applied.setVersion },
+        setDetails: applied.details,
+        setCustomized: false,
+      });
       setExpandedControlIds([]);
       pendingControlNavigationRef.current = null;
       setError(null);
@@ -345,6 +366,9 @@ export function FileExportDialog({
                       onChange={(event) => void selectControlSet(event.target.value)}
                     >
                       <option value="">Manual / custom</option>
+                      {appliedSet && !availableSets.some(item => item.id === appliedSet.id) ? (
+                        <option value={appliedSet.id}>{appliedSet.label} (saved)</option>
+                      ) : null}
                       {availableSets.map((item) => (
                         <option key={item.id} value={item.id}>{item.label}</option>
                       ))}
@@ -361,6 +385,11 @@ export function FileExportDialog({
                   </div>
                 ) : null}
                 {libraryError ? <p className="mt-3 text-xs text-destructive" role="alert">{libraryError}</p> : null}
+                {storageError ? (
+                  <p className="mt-3 text-xs text-destructive" role="status">
+                    Unable to save mesh settings in this browser. You can continue editing and exporting, but settings may not be restored after closing.
+                  </p>
+                ) : null}
               </section>
 
               <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -383,7 +412,7 @@ export function FileExportDialog({
                         inputMode="decimal"
                         value={globalElementSize}
                         disabled={submitting || applyingSet}
-                        onChange={(event) => { setGlobalElementSize(event.target.value); markCustomized(); }}
+                        onChange={(event) => { const value = event.target.value; editMeshSettings(() => ({ globalElementSize: value })); }}
                       />
                       <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">µm</span>
                     </span>
@@ -407,7 +436,7 @@ export function FileExportDialog({
                               name="symmetry"
                               value={option.value}
                               checked={selected}
-                              onChange={() => { setSymmetryMode(option.value); markCustomized(); }}
+                              onChange={() => editMeshSettings(() => ({ symmetry: option.value }))}
                             />
                             <span>{option.label}</span>
                           </label>
@@ -469,12 +498,10 @@ export function FileExportDialog({
                                   : [...ids, control.clientId]);
                               }}
                               onChange={(next) => {
-                                markCustomized();
-                                setControls((items) => items.map((item, itemIndex) => itemIndex === index ? next : item));
+                                editMeshSettings(current => ({ controls: current.controls.map((item, itemIndex) => itemIndex === index ? next : item) }));
                               }}
                               onRemove={() => {
-                                markCustomized();
-                                setControls((items) => items.filter((_, itemIndex) => itemIndex !== index));
+                                editMeshSettings(current => ({ controls: current.controls.filter((_, itemIndex) => itemIndex !== index) }));
                                 setExpandedControlIds((ids) => ids.filter((id) => id !== control.clientId));
                               }}
                             />
