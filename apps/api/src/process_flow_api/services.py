@@ -36,6 +36,7 @@ from .models import (
     TemplateInstanceCreateRequest,
 )
 from .repository import NotFoundError, ResourceConflictError, SQLiteStore
+from .step_template_transfer import locked_process_step_template as _locked_process_step_template
 
 
 JsonObject = dict[str, Any]
@@ -132,28 +133,6 @@ def update_process_step_template(
         payload.get("parameterDefinitions", []),
     )
     return store.update_process_step_template(updated)
-
-
-def _locked_process_step_template(template: JsonObject) -> JsonObject:
-    locked = copy.deepcopy(template)
-    for field in ("status", "owner", "category", "program"):
-        locked.pop(field, None)
-    # Declaration order is presentation metadata; complete port definitions remain locked.
-    locked["inputPorts"] = sorted(locked["inputPorts"], key=lambda port: port["portId"])
-    _remove_parameter_defaults(locked.get("parameterDefinitions", []))
-    return locked
-
-
-def _remove_parameter_defaults(definitions: Any) -> None:
-    if not isinstance(definitions, list):
-        return
-    for definition in definitions:
-        if not isinstance(definition, Mapping):
-            continue
-        definition.pop("defaultValue", None)
-        repeat = definition.get("repeatDefinition")
-        if isinstance(repeat, Mapping):
-            _remove_parameter_defaults(repeat.get("itemParameterDefinitions", []))
 
 
 def _apply_parameter_defaults(target_definitions: Any, source_definitions: Any) -> None:

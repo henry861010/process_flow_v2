@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from process_flow_kernel import ProcessGeometryState
 
+from ._geometry_query import _GeometryQuery
 from .contracts import JsonObject
-from .regions import _coordinate_mode, _location, _number, _object, resolve_region_control
+from .regions import _coordinate_mode, _location, _number, _object, _resolve_region_control
 
 Z_SECTION_METHODS = ("Z_SECTION_AVG", "Z_SECTION_TOP", "Z_SECTION_BOT", "Z_SECTION_CENTER")
 SYMMETRY_MODES = ("full", "upper_half", "right_half", "upper_right_quarter")
@@ -26,13 +27,14 @@ def validate_mesh_control(mesh_control: JsonObject, *, state: ProcessGeometrySta
         raise ValueError(f"meshControl.symmetry: expected one of {', '.join(SYMMETRY_MODES)}")
     if not isinstance(mesh_control["controls"], list):
         raise ValueError("meshControl.controls: expected a list")
+    query = _GeometryQuery(state)
     for index, control in enumerate(mesh_control["controls"], start=1):
         path = f"Control {index}"
         if not isinstance(control, dict):
             raise ValueError(f"{path}: expected an object")
         method = control.get("method")
         if method == "3D_REGION":
-            resolve_region_control(control, state, path=path)
+            _resolve_region_control(control, query, path=path)
             continue
         if method in Z_SECTION_METHODS:
             fields = ("elementSize", "startZ", "endZ")

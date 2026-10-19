@@ -33,6 +33,8 @@ import {
 import {
   ApiRequestError,
   exportFixtureArchive,
+  exportProcessStepTemplates,
+  importProcessStepTemplates,
   resetPocData,
   resetPocDataFromZip,
 } from "@/lib/process-flow-api";
@@ -78,6 +80,8 @@ export default function ManagementPage() {
   const [exporting, setExporting] = React.useState(false);
   const [resetting, setResetting] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
+  const [stepTransfer, setStepTransfer] = React.useState<"export" | "import" | null>(null);
+  const stepTransferInProgressRef = React.useRef(false);
   const [fixtureMenuOpen, setFixtureMenuOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
@@ -87,6 +91,7 @@ export default function ManagementPage() {
   const [editingStep, setEditingStep] = React.useState<ProcessStepTemplate | null>(null);
   const fixtureMenuRef = React.useRef<HTMLDivElement>(null);
   const fixtureFileRef = React.useRef<HTMLInputElement>(null);
+  const stepTemplateFileRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!fixtureMenuOpen) return;
@@ -135,11 +140,11 @@ export default function ManagementPage() {
     });
     return counts;
   }, [data.processFlowInstances]);
-  const fixtureBusy = exporting || resetting || importing;
+  const fixtureBusy = exporting || resetting || importing || stepTransfer !== null;
   const resourceBusy = loading || fixtureBusy || deleting !== null;
 
   async function handleDelete(target: ManagementDeletion) {
-    if (deletionInProgressRef.current || resourceBusy || editingTemplate || editingStep) return;
+    if (deletionInProgressRef.current || stepTransferInProgressRef.current || resourceBusy || editingTemplate || editingStep) return;
     const { collection, resource } = target;
     const action = deletionActions[collection];
     if (!window.confirm(`Permanently delete ${action.label} "${resource.name}" (${resource.id})?\n\n${action.consequence}`)) return;
@@ -179,7 +184,7 @@ export default function ManagementPage() {
   ];
 
   async function handleDatabaseReset() {
-    if (resourceBusy || deletionInProgressRef.current) return;
+    if (resourceBusy || deletionInProgressRef.current || stepTransferInProgressRef.current) return;
     setFixtureMenuOpen(false);
     if (!window.confirm("Reset the database and restore the default POC data?")) return;
     setResetting(true);
@@ -198,7 +203,7 @@ export default function ManagementPage() {
   }
 
   async function handleFixtureExport() {
-    if (resourceBusy || deletionInProgressRef.current) return;
+    if (resourceBusy || deletionInProgressRef.current || stepTransferInProgressRef.current) return;
     setFixtureMenuOpen(false);
     setExporting(true);
     try {
@@ -213,7 +218,7 @@ export default function ManagementPage() {
   }
 
   async function handleZipReset(file: File) {
-    if (resourceBusy || deletionInProgressRef.current) return;
+    if (resourceBusy || deletionInProgressRef.current || stepTransferInProgressRef.current) return;
     if (!window.confirm(`Reset the database using ${file.name}? Current data will be replaced.`)) return;
     setImporting(true);
     setSuccess(null);
@@ -227,6 +232,31 @@ export default function ManagementPage() {
       setFixtureMenuOpen(true);
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function handleStepTemplateTransfer(file?: File) {
+    if (resourceBusy || deletionInProgressRef.current || stepTransferInProgressRef.current || editingTemplate || editingStep) return;
+    stepTransferInProgressRef.current = true;
+    setStepTransfer(file ? "import" : "export");
+    setFixtureMenuOpen(false);
+    setError(null);
+    setSuccess(null);
+    try {
+      if (file) {
+        const result = await importProcessStepTemplates(file);
+        setData((current) => ({ ...current, processStepTemplates: result.processStepTemplates }));
+        setSuccess(`Imported process step templates: ${result.createdCount} added, ${result.updatedCount} overwritten.`);
+      } else {
+        await exportProcessStepTemplates();
+        setSuccess("Exported process step templates as JSON.");
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to transfer process step templates.");
+      setFixtureMenuOpen(true);
+    } finally {
+      stepTransferInProgressRef.current = false;
+      setStepTransfer(null);
     }
   }
 
@@ -427,6 +457,19 @@ export default function ManagementPage() {
       </div>
       <div ref={fixtureMenuRef} className="fixed bottom-5 right-5 z-50">
         <input
+          ref={stepTemplateFileRef}
+          type="file"
+          accept=".json,application/json"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Select process step templates JSON"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file) void handleStepTemplateTransfer(file);
+          }}
+        />
+        <input
           ref={fixtureFileRef}
           type="file"
           accept=".zip,application/zip"
@@ -440,7 +483,7 @@ export default function ManagementPage() {
           }}
         />
         {fixtureMenuOpen ? (
-          <div id="fixture-actions" className="mb-2 w-52 rounded-md border bg-popover p-1 text-popover-foreground shadow-lg">
+          <div id="fixture-actions" className="mb-2 max-h-[calc(100dvh-5rem)] w-64 max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-lg">
             <p className="px-3 py-2 text-xs font-medium text-muted-foreground">Fixture actions</p>
             {error ? (
               <p role="alert" className="mx-2 mb-2 max-h-28 overflow-auto rounded bg-destructive/10 p-2 text-xs text-destructive">
@@ -474,6 +517,31 @@ export default function ManagementPage() {
             >
               <RotateCcw className="h-4 w-4" />Reset
             </button>
+            <div className="mt-1 border-t pt-1">
+              <p className="px-3 py-2 text-xs font-medium text-muted-foreground">Process step templates</p>
+              <p className="px-3 pb-2 text-xs text-muted-foreground">
+                Import overwrites matching IDs and adds new steps. Other steps are kept.
+              </p>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                disabled={resourceBusy || editingTemplate !== null || editingStep !== null}
+                onClick={() => void handleStepTemplateTransfer()}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />Export JSON
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                disabled={resourceBusy || editingTemplate !== null || editingStep !== null}
+                onClick={() => {
+                  setFixtureMenuOpen(false);
+                  stepTemplateFileRef.current?.click();
+                }}
+              >
+                <Upload className="h-4 w-4" aria-hidden="true" />Import JSON
+              </button>
+            </div>
           </div>
         ) : null}
         <Button
@@ -483,7 +551,9 @@ export default function ManagementPage() {
           className="ml-auto flex rounded-full bg-background shadow-md"
           disabled={resourceBusy}
           aria-label={
-            importing ? "Resetting from fixture ZIP"
+            stepTransfer === "import" ? "Importing process step templates JSON"
+              : stepTransfer === "export" ? "Exporting process step templates JSON"
+              : importing ? "Resetting from fixture ZIP"
               : resetting ? "Resetting database"
                 : exporting ? "Exporting fixture" : "Fixture actions"
           }

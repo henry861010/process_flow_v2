@@ -6,8 +6,8 @@ import math
 
 from process_flow_kernel import BoxGeometry, PolygonGeometry, ProcessGeometryState, validate_polygon_loops
 
+from ._geometry_query import _GeometryQuery
 from .contracts import JsonObject
-from .geometry import subtree_nodes
 
 
 def _object(value, path, required, optional=()):
@@ -112,30 +112,13 @@ def resolve_region_control(control: JsonObject, state: ProcessGeometryState | No
     Results contain sourceId (when relative), a canonical primitive and bounds.
     Absolute controls resolve once and cannot contain a reference.
     """
+    return _resolve_region_control(control, _GeometryQuery(state), path=path)
+
+
+def _resolve_region_control(control: JsonObject, query: _GeometryQuery, *, path="control") -> list[JsonObject]:
+    """Resolve one control using the enclosing operation's geometry snapshot."""
     relative = validate_region_control(control, path=path)
-    sources = [None]
-    if relative:
-        if state is None:
-            raise ValueError(f"{path}.reference: geometry is required")
-        reference = control["reference"]
-        nodes = state.find_geometry()
-        containers = {node["id"]: node for node in nodes if node["kind"] == "container"}
-        sources = nodes[:1] if reference["kind"] == "root" else [
-            node for node in nodes if all(node.get(field) == value for field, value in reference.items())
-        ]
-        if not sources:
-            raise ValueError(f"{path}.reference: no matching geometry")
-        # Aggregate physical features only: empty child containers must not
-        # contribute the kernel summary's placeholder Z=0 to a region's bounds.
-        for index, source in enumerate(sources):
-            if source["kind"] != "container":
-                continue
-            features = [node for node in subtree_nodes(nodes, containers, source) if node["kind"] != "container"]
-            bounds = {
-                f"{axis}{bound}": aggregate(node[f"{axis}{bound}"] for node in features) if features else None
-                for axis in "xyz" for bound, aggregate in (("Min", min), ("Max", max))
-            }
-            sources[index] = {**source, **bounds}
+    sources = query.sources(control["reference"], path=path) if relative else [None]
     resolved = []
     for source in sources:
         source_path = f"{path}.region" + (f" (source {source['id']})" if source else "")
@@ -180,9 +163,17 @@ def resolve_region_control(control: JsonObject, state: ProcessGeometryState | No
 
 def append_region_control(controls, details, state, *, label, element_size, coordinate_mode, region, reference=None):
     """Append a detached 3D_REGION control and its resolved bounds summary."""
+    _append_region_control(
+        controls, details, _GeometryQuery(state), label=label, element_size=element_size,
+        coordinate_mode=coordinate_mode, region=region, reference=reference,
+    )
+
+
+def _append_region_control(controls, details, query, *, label, element_size, coordinate_mode, region, reference=None):
+    """Append one control using the enclosing operation's geometry snapshot."""
     control = {"method": "3D_REGION", "coordinateMode": coordinate_mode, "label": label, "elementSize": element_size,
                "region": copy.deepcopy(region), **({"reference": copy.deepcopy(reference)} if reference is not None else {})}
-    resolved = resolve_region_control(control, state)
+    resolved = _resolve_region_control(control, query)
     controls.append(control)
     details.append({"label": label, "method": "3D_REGION", "elementSize": element_size, "status": "applied",
                     "startZ": min(r["bounds"]["zMin"] for r in resolved),

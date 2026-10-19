@@ -189,6 +189,48 @@ all three sets, HBM/noHBM layouts, and all four symmetry settings, preserving
 selected sources and resolved Z ranges. Export integration tests verify raw
 JSON delivery and sidecar retention when the worker rejects the new format.
 
+### Region query performance
+
+Region lookup uses a private, operation-local geometry snapshot with ID and
+kind/key indexes. Physical container bounds are aggregated bottom-up once,
+ignoring empty descendants. All corners in one
+`append_die_top_corner_controls()` call share a snapshot, and all regions in
+one `validate_mesh_control()` call share another. Standalone
+`append_region_control()` and `resolve_region_control()` retain their original
+signatures and create their own snapshots internally. No caller needs to pass
+a query object. Snapshots are loaded only for reference regions, never stored
+on the state or reused across operations; geometry must remain unchanged during
+each operation.
+
+For 75 nonempty SoC/HBM targets, MM2 emits 300 corner regions. The complete
+build and validation now perform three `find_geometry()` calls: the existing
+model selection, corner authoring, and final validation. Query-count regression
+tests cover this budget, including the HTTP apply route; absolute-only region
+validation performs no geometry query.
+
+Reproduce the synthetic benchmarks from the repository root:
+
+```bash
+venv/bin/python packages/mesh-control-py/benchmarks/mm2.py
+venv/bin/python packages/mesh-control-py/benchmarks/mm2.py --polygon-vertices 1536
+```
+
+Local measurements on 2026-10-19, with 662 containers including root, 661 Box
+features, and 75 HBM targets:
+
+| Geometry | Before build + validation | After build | After validation | After total |
+| --- | --- | --- | --- | --- |
+| Simple Boxes | 10.46 s | 0.076 s | 0.023 s | 0.099 s |
+| Boxes + one 1,536-vertex Polygon | Not measured end-to-end | 4.46 s | 1.10 s | 5.56 s |
+
+Both optimized runs used two build queries and one validation query. Times
+exclude state restoration (0.013 s and 1.06 s respectively), HTTP overhead,
+and meshing. Simple-Box output and additional mixed/nested fixtures were
+compared against the pre-change results, including all controls and details.
+Timings are diagnostic, not CI thresholds or a guarantee for other models;
+the complex-Polygon baseline was not run end-to-end. Existing kernel Polygon
+validation and registry input-mutation checks remain in place.
+
 ## Uniform coordinate contract
 
 Every `Z_SECTION_*`, `Z_POINT`, and `3D_REGION` control requires one

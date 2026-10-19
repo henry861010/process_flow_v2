@@ -61,6 +61,11 @@ from .models import (
 from .preview_sessions import PreviewCapacityError, PreviewSessionManager, content_hash, etag_matches
 from .repository import DuplicateItemError, NotFoundError, ResourceConflictError, SQLiteStore
 from .seed import load_seed_fixtures
+from .step_template_transfer import (
+    MAX_STEP_TEMPLATE_JSON_BYTES,
+    build_step_template_json,
+    load_step_template_json,
+)
 from .services import (
     bootstrap_payload,
     create_flow_instance,
@@ -199,6 +204,33 @@ def create_app(
         category: str | None = None,
     ):
         return get_store(request).list_process_step_templates(search=search, category=category)
+
+    @app.get("/api/process-step-templates/export")
+    async def export_process_step_templates(request: Request):
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        return Response(
+            content=build_step_template_json(get_store(request).list_process_step_templates()),
+            media_type="application/json",
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Disposition": f'attachment; filename="process-step-templates-{timestamp}.json"',
+            },
+        )
+
+    @app.post("/api/process-step-templates/import")
+    async def import_process_step_templates(request: Request):
+        if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/json":
+            raise HTTPException(status_code=415, detail="Upload step template JSON as application/json")
+        limit_message = "Step template JSON exceeds the 25 MiB upload limit"
+        if int(request.headers.get("content-length", "0")) > MAX_STEP_TEMPLATE_JSON_BYTES:
+            raise HTTPException(status_code=413, detail=limit_message)
+        content = bytearray()
+        async for chunk in request.stream():
+            if len(content) + len(chunk) > MAX_STEP_TEMPLATE_JSON_BYTES:
+                raise HTTPException(status_code=413, detail=limit_message)
+            content.extend(chunk)
+        templates = load_step_template_json(bytes(content))
+        return get_store(request).import_process_step_templates(templates)
 
     @app.get("/api/process-step-templates/{template_id}")
     async def get_process_step_template(request: Request, template_id: str):

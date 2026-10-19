@@ -66,12 +66,21 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/process-step-templates` | List；支援 `search`、`category` |
+| `GET` | `/api/process-step-templates/export` | Download all step templates as a UTF-8 JSON array, including disabled steps |
+| `POST` | `/api/process-step-templates/import` | Merge a JSON array by ID (`application/json`, max 25 MiB); return templates and created/updated counts |
 | `GET` | `/api/process-step-templates/{id}` | Detail |
 | `POST` | `/api/process-step-templates` | Validate and insert template |
 | `PUT` | `/api/process-step-templates/{id}` | Update owner、category、program 與 parameter defaults |
 
 Process-step template deletion is not supported. `DELETE /api/process-step-templates/{id}` returns
 `405 Method Not Allowed`; existing templates remain available for reading and editing.
+
+JSON import replaces complete records with matching IDs and inserts new IDs; omitted IDs remain.
+Templates referenced by saved flows or any user's template drafts only allow changes to status,
+owner, category, program, description, input-port order, and recursive parameter defaults. Other
+changes return `409` with the referenced step and resource ID. Validation and writes are atomic;
+other resources, drafts, and the analytics dataset ID are preserved. Description changes through
+JSON import do not change the existing single-template PUT restrictions.
 
 ### Geometry catalog
 

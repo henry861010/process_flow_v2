@@ -11,6 +11,7 @@ from collections.abc import Collection, Iterable, Mapping
 
 from process_flow_kernel import ProcessGeometryState
 
+from ._geometry_query import _GeometryQuery
 from .contracts import JsonObject, MeshControlSetNotApplicable
 from .controls import (
     ZERO_TOLERANCE,
@@ -19,7 +20,7 @@ from .controls import (
     append_relative_z_point,
 )
 from .geometry import select_upper_right, subtree_nodes
-from .regions import append_region_control
+from .regions import _append_region_control
 
 METAL_TIM_MATERIAL = frozenset({"Mat_metaltime1", "Mat_metaltime2", "Mat_metaltime3"})
 _HBM_CORE_DIE_KEY = re.compile(r"hbm\.core_die_(\d+)")
@@ -317,9 +318,10 @@ def append_die_top_corner_controls(
 
     Corners follow (x_min, y_min), (x_min, y_max), (x_max, y_min),
     (x_max, y_max), all at z_max. Empty containers are skipped. Physical
-    descendant bounds are resolved by append_region_control, without clipping
+    descendant bounds are resolved once per call, without clipping
     Boxes or merging overlaps. Invalid region parameters raise ValueError.
     """
+    query = _GeometryQuery(state)
     for container in containers:
         if container["key"] not in {"soc", "hbm"}:
             continue
@@ -328,8 +330,8 @@ def append_die_top_corner_controls(
         for x_anchor in ("x_min", "x_max"):
             for y_anchor in ("y_min", "y_max"):
                 anchors = {"x": x_anchor, "y": y_anchor, "z": "z_max"}
-                append_region_control(
-                    controls, details, state,
+                _append_region_control(
+                    controls, details, query,
                     label=f"{container['key']} {container['id']} top corner {x_anchor}/{y_anchor}",
                     element_size=element_size,
                     coordinate_mode="reference",

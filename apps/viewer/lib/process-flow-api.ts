@@ -91,7 +91,30 @@ export async function loadBootstrap(): Promise<BootstrapPayload> {
 }
 
 export async function exportFixtureArchive(): Promise<void> {
-  const response = await fetch(`${processFlowApiBaseUrl()}/api/fixture-export`);
+  return downloadApiFile("/api/fixture-export", fixtureArchiveFilename(new Date()));
+}
+
+export type StepTemplateImportResult = {
+  processStepTemplates: ProcessStepTemplate[];
+  createdCount: number;
+  updatedCount: number;
+};
+
+export async function exportProcessStepTemplates(): Promise<void> {
+  const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return downloadApiFile("/api/process-step-templates/export", `process-step-templates-${timestamp}.json`);
+}
+
+export async function importProcessStepTemplates(file: File): Promise<StepTemplateImportResult> {
+  return apiFetch<StepTemplateImportResult>("/api/process-step-templates/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: file,
+  });
+}
+
+async function downloadApiFile(path: string, filename: string): Promise<void> {
+  const response = await fetch(`${processFlowApiBaseUrl()}${path}`);
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const message = getApiErrorMessage(payload) ?? `API request failed: ${response.status}`;
@@ -102,7 +125,7 @@ export async function exportFixtureArchive(): Promise<void> {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = fixtureArchiveFilename(new Date());
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();

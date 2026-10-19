@@ -8,6 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .models import ProcessStepTemplate
+from .step_template_transfer import locked_process_step_template
+
 JsonObject = dict[str, Any]
 DATABASE_SCHEMA_VERSION = "13"
 
@@ -334,6 +337,64 @@ class SQLiteStore:
 
     def get_process_step_template(self, id_: str) -> JsonObject | None:
         return self._get("process_step_templates", id_)
+
+    def import_process_step_templates(self, templates: list[JsonObject]) -> JsonObject:
+        """Merge validated templates, protecting references in the same write transaction."""
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            current = {item["id"]: item for item in self.list_process_step_templates()}
+            structural_changes = {
+                item["id"] for item in templates
+                if item["id"] in current and
+                locked_process_step_template(
+                    ProcessStepTemplate.model_validate(current[item["id"]]).payload(), allow_description=True,
+                ) != locked_process_step_template(
+                    ProcessStepTemplate.model_validate(item).payload(), allow_description=True,
+                )
+            }
+            if structural_changes:
+                for flow in self.list_process_flow_templates():
+                    self._check_import_step_references(
+                        flow.get("stepRefs", []), structural_changes, f"flow template {flow['id']}",
+                    )
+                # Draft summaries omit state; inspect full records, including every user's drafts.
+                for draft in self._list("process_flow_template_drafts", [], [], "id ASC"):
+                    self._check_import_step_references(
+                        [node["stepRef"] for node in draft["state"]["nodes"] if node["kind"] == "processStep"],
+                        structural_changes, f"template draft {draft['id']}",
+                    )
+            updated = sum(item["id"] in current for item in templates)
+            for item in templates:
+                self._upsert_process_step_template_in_transaction(item)
+            result = {
+                "processStepTemplates": self.list_process_step_templates(),
+                "createdCount": len(templates) - updated,
+                "updatedCount": updated,
+            }
+        return result
+
+    @staticmethod
+    def _check_import_step_references(step_refs, structural_changes: set[str], resource: str) -> None:
+        for step_ref in step_refs:
+            template_id = step_ref.get("processStepTemplateId")
+            if template_id in structural_changes:
+                raise ResourceConflictError(
+                    f"Cannot change the structure of process step template {template_id}: referenced by {resource}. "
+                    "Only status, owner, category, program, description, inputPorts order, "
+                    "and parameter defaultValue fields can be imported for referenced steps."
+                )
+
+    def _upsert_process_step_template_in_transaction(self, payload: JsonObject) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO process_step_templates (id, name, category, version, owner, payload)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name, category=excluded.category, version=excluded.version,
+                owner=excluded.owner, payload=excluded.payload
+            """,
+            (payload["id"], payload["name"], payload["category"], payload["version"], payload["owner"], _json(payload)),
+        )
 
     def update_process_step_template(self, payload: JsonObject) -> JsonObject:
         values = {

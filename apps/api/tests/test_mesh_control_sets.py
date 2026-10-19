@@ -4,6 +4,7 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from mesher.contracts.process_flow_2_5d import validate_mesh_control as validate_mesher_mesh_control
@@ -343,6 +344,23 @@ class MeshControlSetApiTests(unittest.TestCase):
                 validate_mesh_control(document, state=state)
                 validate_mesher_mesh_control(document)
         self.assertEqual(structure, snapshot)
+
+    def test_mm2_large_apply_uses_only_three_geometry_queries(self):
+        children = [{"id": f"container:{i}", **({"key": "soc"} if i < 75 else {}), "bodies": [{
+            "id": f"body:{i}", "material": "Si", "geometry": {
+                "type": "BoxGeometry", "bottom_left": [i * 100, 0, 0],
+                "top_right": [i * 100 + 40, 40, 0], "thk": 300,
+            },
+        }]} for i in range(661)]
+        structure = normalize_geometry_structure({"id": "root", "children": children})
+        with patch.object(ProcessGeometryState, "find_geometry", autospec=True,
+                          side_effect=ProcessGeometryState.find_geometry) as query:
+            response = self.client.post("/api/mesh-control-sets/meshModel2/apply", json={"geometryStructure": structure})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(query.call_count, 3)
+        payload = response.json()
+        self.assertEqual(sum(c["method"] == "3D_REGION" for c in payload["meshControl"]["controls"]), 300)
+        self.assertEqual(sum(bool(d.get("resolvedRegions")) for d in payload["details"]), 300)
 
     def test_all_models_add_lsi_si_with_and_without_hbm_for_each_symmetry(self):
         for with_hbm in (True, False):

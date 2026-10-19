@@ -15,9 +15,61 @@ import {
   listEditorDrafts,
   saveEditorDraft,
   deleteEditorDraft,
+  exportProcessStepTemplates,
+  importProcessStepTemplates,
 } from "./process-flow-api";
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("step template JSON transfer", () => {
+  it("uploads the JSON file directly and returns the merged list and counts", async () => {
+    const file = new File(['[{"id":"step"}]'], "templates.json", { type: "text/plain" });
+    const result = { processStepTemplates: [{ id: "step", description: "Updated" }], createdCount: 1, updatedCount: 2 };
+    const fetch = vi.fn().mockResolvedValue(Response.json(result));
+    vi.stubGlobal("fetch", fetch);
+    await expect(importProcessStepTemplates(file)).resolves.toEqual(result);
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/process-step-templates/import"),
+      expect.objectContaining({ method: "POST", body: file }));
+    expect(fetch.mock.calls[0][1].headers.get("Content-Type")).toBe("application/json");
+  });
+
+  it("downloads a JSON blob with a timestamp filename and releases the object URL", async () => {
+    const click = vi.fn(), remove = vi.fn(), appendChild = vi.fn();
+    const link = { href: "", download: "", click, remove };
+    const blob = new Blob(['[{"id":"disabled-step","status":"disabled"}]'], { type: "application/json" });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:step-templates");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    vi.stubGlobal("document", { createElement: vi.fn().mockReturnValue(link), body: { appendChild } });
+    const fetch = vi.fn().mockResolvedValue(new Response(blob));
+    vi.stubGlobal("fetch", fetch);
+    try {
+      await exportProcessStepTemplates();
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/process-step-templates/export"));
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(link.href).toBe("blob:step-templates");
+      expect(link.download).toMatch(/^process-step-templates-\d{8}T\d{6}Z\.json$/);
+      expect(appendChild).toHaveBeenCalledWith(link);
+      expect(click).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:step-templates");
+    } finally {
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+    }
+  });
+
+  it.each([400, 409, 413, 415])("retains actionable import errors (%s)", async (status) => {
+    const message = "Cannot change step structure: referenced by template draft example";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ message }, { status })));
+    await expect(importProcessStepTemplates(new File(["[]"], "templates.json")))
+      .rejects.toMatchObject({ status, message });
+  });
+
+  it("does not create a download when export fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ message: "Export unavailable" }, { status: 500 })));
+    await expect(exportProcessStepTemplates()).rejects.toMatchObject({ status: 500, message: "Export unavailable" });
+  });
+});
 
 describe("editor draft requests", () => {
   it("scopes instance listing and recovery to the selected template", async () => {
