@@ -123,11 +123,11 @@ describe("zero placement dependencies", () => {
     expect(empty.stepConfigurations.another.parameterValues.placements).toEqual([]);
     expect(empty.stepConfigurations.prepare1.parameterValues).toEqual({});
     expect(createEmptyFlowConfiguration(template, steps).stepConfigurations.place.parameterValues).toEqual({});
-    const source: ProcessFlowInstance = { schemaVersion: 2, id: "source", name: "Source", version: "V0", owner: "test", description: "", processFlowTemplateId: "flow", inputBindings: {}, stepConfigurations: { place: { parameterValues: { placements: [placement] } } } };
+    const source: ProcessFlowInstance = { schemaVersion: 2, revision: 1, id: "source", name: "Source", version: "V0", owner: "test", description: "", processFlowTemplateId: "flow", inputBindings: {}, stepConfigurations: { place: { activeRecipeId: "r", recipes: [{ id: "r", name: "Source", description: "", createdAt: "2026-10-21T00:00:00Z", parameterValues: { placements: [placement] } }] } } };
     const copied = configurationFromInstance(template, steps, source);
-    expect(copied.stepConfigurations.place).toEqual(source.stepConfigurations.place);
+    expect(copied.stepConfigurations.place.parameterValues).toEqual(source.stepConfigurations.place.recipes[0].parameterValues);
     (copied.stepConfigurations.place.parameterValues.placements as unknown[]).pop();
-    expect(source.stepConfigurations.place.parameterValues.placements).toEqual([placement]);
+    expect(source.stepConfigurations.place.recipes[0].parameterValues.placements).toEqual([placement]);
   });
 
   it("prunes multistep branches and shows unused separately from direct preview readiness", () => {

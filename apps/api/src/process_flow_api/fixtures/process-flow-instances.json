@@ -19,64 +19,121 @@
     },
     "stepConfigurations": {
       "pnp_hbm": {
-        "parameterValues": {
-          "placements": [
-            {
-              "targetRegion": { "type": "rectangle", "bottomLeftX": -760, "bottomLeftY": -520, "topRightX": 640, "topRightY": 480 },
-              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
-              "anchor": "center"
-            },
-            {
-              "targetRegion": { "type": "rectangle", "bottomLeftX": 760, "bottomLeftY": -520, "topRightX": 2160, "topRightY": 480 },
-              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
-              "anchor": "center"
+        "recipes": [
+          {
+            "id": "9aeca3dbeb8a43008e1768c6b6569c28",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "placements": [
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": -760,
+                    "bottomLeftY": -520,
+                    "topRightX": 640,
+                    "topRightY": 480
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                },
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": 760,
+                    "bottomLeftY": -520,
+                    "topRightX": 2160,
+                    "topRightY": 480
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                }
+              ]
             }
-          ]
-        }
+          }
+        ],
+        "activeRecipeId": "9aeca3dbeb8a43008e1768c6b6569c28"
       },
       "mold_cap": {
-        "parameterValues": {
-          "material": "EMC-G700",
-          "thickness": 180
-        }
+        "recipes": [
+          {
+            "id": "4dd06a86f90d409eafbc835c46f19833",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "material": "EMC-G700",
+              "thickness": 180
+            }
+          }
+        ],
+        "activeRecipeId": "4dd06a86f90d409eafbc835c46f19833"
       },
       "rdl_build": {
-        "parameterValues": {
-          "layers": {
-            "items": [
-              {
-                "itemId": "layers_item_1",
-                "index": 1,
-                "values": {
-                  "Dielectric": "PI-2611",
-                  "Conductivity": "Cu",
-                  "thk": 8,
-                  "density": 62
-                }
-              },
-              {
-                "itemId": "layers_item_2",
-                "index": 2,
-                "values": {
-                  "Dielectric": "PI-2611",
-                  "Conductivity": "Cu",
-                  "thk": 6,
-                  "density": 48
-                }
+        "recipes": [
+          {
+            "id": "845e95dbc5f7453da59f94b058923a3a",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "layers": {
+                "items": [
+                  {
+                    "itemId": "layers_item_1",
+                    "index": 1,
+                    "values": {
+                      "Dielectric": "PI-2611",
+                      "Conductivity": "Cu",
+                      "thk": 8,
+                      "density": 62
+                    }
+                  },
+                  {
+                    "itemId": "layers_item_2",
+                    "index": 2,
+                    "values": {
+                      "Dielectric": "PI-2611",
+                      "Conductivity": "Cu",
+                      "thk": 6,
+                      "density": 48
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
-        }
+        ],
+        "activeRecipeId": "845e95dbc5f7453da59f94b058923a3a"
       },
       "c4_bump": {
-        "parameterValues": {
-          "material": "SAC305",
-          "thk": 65,
-          "density": 58,
-          "koz": 18
-        }
+        "recipes": [
+          {
+            "id": "bb0ed96b428d4b6bbc99c558ba75158a",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "material": "SAC305",
+              "thk": 65,
+              "density": 58,
+              "koz": 18
+            }
+          }
+        ],
+        "activeRecipeId": "bb0ed96b428d4b6bbc99c558ba75158a"
       }
-    }
+    },
+    "revision": 1
   },
   {
     "schemaVersion": 2,
@@ -98,59 +155,126 @@
     },
     "stepConfigurations": {
       "pnp_hbm": {
-        "parameterValues": {
-          "placements": [
-            {
-              "targetRegion": { "type": "rectangle", "bottomLeftX": -820, "bottomLeftY": -560, "topRightX": 580, "topRightY": 440 },
-              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
-              "anchor": "center"
-            },
-            {
-              "targetRegion": { "type": "rectangle", "bottomLeftX": 0, "bottomLeftY": -560, "topRightX": 1400, "topRightY": 440 },
-              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
-              "anchor": "center"
-            },
-            {
-              "targetRegion": { "type": "rectangle", "bottomLeftX": 820, "bottomLeftY": -560, "topRightX": 2220, "topRightY": 440 },
-              "pose": { "x": 0, "y": 0, "rotationZ": 0 },
-              "anchor": "center"
+        "recipes": [
+          {
+            "id": "355a0ca4e7604a5ebc6b33620acd2136",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "placements": [
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": -820,
+                    "bottomLeftY": -560,
+                    "topRightX": 580,
+                    "topRightY": 440
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                },
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": 0,
+                    "bottomLeftY": -560,
+                    "topRightX": 1400,
+                    "topRightY": 440
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                },
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": 820,
+                    "bottomLeftY": -560,
+                    "topRightX": 2220,
+                    "topRightY": 440
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                }
+              ]
             }
-          ]
-        }
+          }
+        ],
+        "activeRecipeId": "355a0ca4e7604a5ebc6b33620acd2136"
       },
       "mold_cap": {
-        "parameterValues": {
-          "material": "EMC-R920",
-          "thickness": 210
-        }
+        "recipes": [
+          {
+            "id": "5e1676d716574e7989b06d5f476ecf25",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "material": "EMC-R920",
+              "thickness": 210
+            }
+          }
+        ],
+        "activeRecipeId": "5e1676d716574e7989b06d5f476ecf25"
       },
       "rdl_build": {
-        "parameterValues": {
-          "layers": {
-            "items": [
-              {
-                "itemId": "layers_item_1",
-                "index": 1,
-                "values": {
-                  "Dielectric": "ABF-GX92",
-                  "Conductivity": "Cu",
-                  "thk": 10,
-                  "density": 56
-                }
+        "recipes": [
+          {
+            "id": "1186bd312a044db3afe9bd6e2e315cbc",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "layers": {
+                "items": [
+                  {
+                    "itemId": "layers_item_1",
+                    "index": 1,
+                    "values": {
+                      "Dielectric": "ABF-GX92",
+                      "Conductivity": "Cu",
+                      "thk": 10,
+                      "density": 56
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
-        }
+        ],
+        "activeRecipeId": "1186bd312a044db3afe9bd6e2e315cbc"
       },
       "c4_bump": {
-        "parameterValues": {
-          "material": "SAC405",
-          "thk": 72,
-          "density": 53,
-          "koz": 20
-        }
+        "recipes": [
+          {
+            "id": "1ba922bfe7194d8885c27376a788b2f5",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "material": "SAC405",
+              "thk": 72,
+              "density": 53,
+              "koz": 20
+            }
+          }
+        ],
+        "activeRecipeId": "1ba922bfe7194d8885c27376a788b2f5"
       }
-    }
+    },
+    "revision": 1
   },
   {
     "schemaVersion": 2,
@@ -172,79 +296,125 @@
     },
     "stepConfigurations": {
       "main_bump": {
-        "parameterValues": {
-          "material": "SnAg",
-          "thk": 20,
-          "density": 40,
-          "koz": 0
-        }
+        "recipes": [
+          {
+            "id": "2e454fd39b8a4ee5825d7ab1a6cce457",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "material": "SnAg",
+              "thk": 20,
+              "density": 40,
+              "koz": 0
+            }
+          }
+        ],
+        "activeRecipeId": "2e454fd39b8a4ee5825d7ab1a6cce457"
       },
       "die_bump": {
-        "parameterValues": {
-          "material": "SnAg",
-          "thk": 15,
-          "density": 80,
-          "koz": 0
-        }
+        "recipes": [
+          {
+            "id": "fb5b09a1e57a4935812a1ba286c5ce9b",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "material": "SnAg",
+              "thk": 15,
+              "density": 80,
+              "koz": 0
+            }
+          }
+        ],
+        "activeRecipeId": "fb5b09a1e57a4935812a1ba286c5ce9b"
       },
       "die_flip": {
-        "parameterValues": {}
+        "recipes": [
+          {
+            "id": "c93da70fa9444fc4953f68a5559fab9c",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {}
+          }
+        ],
+        "activeRecipeId": "c93da70fa9444fc4953f68a5559fab9c"
       },
       "pnp": {
-        "parameterValues": {
-          "placements": [
-            {
-              "targetRegion": {
-                "type": "rectangle",
-                "bottomLeftX": -18000,
-                "bottomLeftY": -8000,
-                "topRightX": -8000,
-                "topRightY": 8000
-              },
-              "pose": {
-                "x": 0,
-                "y": 0,
-                "rotationZ": 0
-              },
-              "anchor": "center"
-            },
-            {
-              "targetRegion": {
-                "type": "polygon",
-                "points": [
-                  [
-                    8000,
-                    -8000
-                  ],
-                  [
-                    20000,
-                    -8000
-                  ],
-                  [
-                    18000,
-                    8000
-                  ],
-                  [
-                    8000,
-                    8000
-                  ]
-                ]
-              },
-              "pose": {
-                "x": 0,
-                "y": 0,
-                "rotationZ": 0
-              },
-              "anchor": "center"
+        "recipes": [
+          {
+            "id": "78f2f77e27b8400eb57e7ff764db81ff",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "placements": [
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": -18000,
+                    "bottomLeftY": -8000,
+                    "topRightX": -8000,
+                    "topRightY": 8000
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                },
+                {
+                  "targetRegion": {
+                    "type": "polygon",
+                    "points": [
+                      [
+                        8000,
+                        -8000
+                      ],
+                      [
+                        20000,
+                        -8000
+                      ],
+                      [
+                        18000,
+                        8000
+                      ],
+                      [
+                        8000,
+                        8000
+                      ]
+                    ]
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                }
+              ]
             }
-          ]
-        }
+          }
+        ],
+        "activeRecipeId": "78f2f77e27b8400eb57e7ff764db81ff"
       },
       "joint": {
-        "parameterValues": {
-          "bump_joined_height": 25
-        }
+        "recipes": [
+          {
+            "id": "8ba4cbddec024d70b09b8a4423eb0153",
+            "name": "Initial recipe",
+            "description": "",
+            "createdAt": "2026-10-21T00:00:00Z",
+            "parameterValues": {
+              "bump_joined_height": 25
+            }
+          }
+        ],
+        "activeRecipeId": "8ba4cbddec024d70b09b8a4423eb0153"
       }
-    }
+    },
+    "revision": 1
   }
 ]

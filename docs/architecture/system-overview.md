@@ -59,12 +59,12 @@ kernel在execution time動態import process-step modules；CAD與mesher process-
 
 FastAPI 的 strict Pydantic models 會拒絕 unknown fields。Service 驗證 domain constraints
 後，`SQLiteStore` 把 canonical camelCase JSON 存入 `payload` column，並另外保存 list/query
-metadata。現行 public API 對 process step 與 flow template 提供 restricted update；instance 與
-geometry 採 insert-only，兩種 editor draft 則有獨立 snapshot 與 revision update lifecycle。
+metadata。現行 public API 對 process step 與 flow template 提供 restricted update；geometry 採 insert-only；instance 支援 revision-checked recipe append、active selection 與 bindings update。
+只保留 Template Draft 的 snapshot 與 revision lifecycle。
 
 ### Compile 與 execute
 
-1. API 從 SQLite 載入 instance、flow template 與被引用的 step templates。
+1. API 從 SQLite 載入 instance、flow template 與被引用的 step templates，將各站 active recipes 解析成 FlowConfiguration。
 2. `StoreGeometryCatalog` 把 SQLite geometry lookup 轉接成 kernel 的
    `GeometryCatalogResolver`。
 3. `FlowCompiler` 驗證 topology/configuration、解析 catalog 或 embedded geometry、normalize
@@ -77,7 +77,7 @@ geometry 採 insert-only，兩種 editor draft 則有獨立 snapshot 與 revisio
 
 ### Editor draft commit
 
-兩種 draft 各自保存在獨立資料表。Create/update 只驗證 snapshot 格式並檢查 revision，允許未完成的 flow。Commit 使用目前 editor 的正式 create payload 進行完整驗證，同一 SQLite transaction 寫入必要 geometries、immutable template/instance 並刪除來源 draft；失敗全部 rollback。
+只保留 Template Draft 資料表。Create/update 只驗證 snapshot 格式並檢查 revision，允許未完成的 flow。Commit 使用目前 editor 的正式 create payload 進行完整驗證，同一 SQLite transaction 寫入必要 geometries、template/追蹤 instance 並刪除來源 draft；失敗全部 rollback。
 
 Template draft commit 可附帶新 instance 的 metadata 與完整 configuration。此時共用 combined
 create 的 preparation，transaction 重新檢查 draft revision，再一次建立 template、必要

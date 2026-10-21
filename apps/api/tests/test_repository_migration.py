@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from process_flow_kernel import instance_flow_configuration
 from process_flow_api.repository import DATABASE_SCHEMA_VERSION, SQLiteStore
 
 
@@ -86,7 +87,7 @@ class RepositoryMigrationTests(unittest.TestCase):
                 ).fetchone()["value"]
                 self.assertEqual(version, DATABASE_SCHEMA_VERSION)
                 self.assertEqual(store.list_geometries(), [])
-                self.assertIsNone(store.get_editor_draft("instance", "workspace-existing"))
+                self.assertFalse(store._table_exists("process_flow_instance_drafts"))
             finally:
                 store.close()
 
@@ -144,7 +145,7 @@ class RepositoryMigrationTests(unittest.TestCase):
                 self.assertEqual(migrated["description"], "")
                 self.assertEqual(migrated["inputBindings"], referenced["inputBindings"])
                 self.assertEqual(
-                    migrated["stepConfigurations"],
+                    instance_flow_configuration(migrated)["stepConfigurations"],
                     referenced["stepConfigurations"],
                 )
                 self.assertEqual(

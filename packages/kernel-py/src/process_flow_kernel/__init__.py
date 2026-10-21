@@ -1,4 +1,5 @@
 from .application.context import ProcessStepContext
+from .application.instance_configuration import instance_flow_configuration, resolve_instance_configuration
 from .application.execution_plan import ExecutionPlan, PlannedGeometryInput, PlannedStep
 from .application.execution_result import GeometryKernelExecutionResult
 from .application.flow_compiler import (
@@ -51,6 +52,8 @@ from .serialization.schema import (
 from .utils.polygon import classify_polygon_loops, validate_polygon_loops
 
 __all__ = [
+    "instance_flow_configuration",
+    "resolve_instance_configuration",
     "Body",
     "BODY_KEYS",
     "BoxGeometry",

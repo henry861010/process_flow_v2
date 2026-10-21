@@ -17,6 +17,7 @@ from .models import (
     ProcessStepTemplate,
 )
 from .seed import FIXTURE_FILES
+from .instance_data import upgrade_legacy_instance
 
 MAX_ARCHIVE_BYTES = 25 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
@@ -69,10 +70,17 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
                 ids: set[str] = set()
                 identities: set[tuple[str, str]] = set()
                 for index, item in enumerate(items):
+                    if key == "processFlowInstances" and isinstance(item, dict):
+                        template = next((template for template in result.get("processFlowTemplates", [])
+                                         if template["id"] == item.get("processFlowTemplateId")), None)
+                        item = upgrade_legacy_instance(item, template)
+                        items[index] = item
                     try:
                         validated = models[key].model_validate(item)
                     except ValidationError as error:
                         raise ValueError(f"{filename}[{index}]: {error}") from error
+                    if key == "processFlowInstances":
+                        items[index] = validated.payload()
                     item_id = item.get("id")
                     if not item_id:
                         raise ValueError(f"{filename}[{index}] must have an id")

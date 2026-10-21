@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiRequestError,
-  commitInstanceEditorDraft,
+  addInstanceRecipe,
+  setInstanceActiveRecipe,
+  updateInstanceInputBindings,
+  getProcessFlowInstance,
   commitTemplateEditorDraft,
   commitTemplateInstanceEditorDraft,
   createProcessFlowInstance,
@@ -71,31 +74,30 @@ describe("step template JSON transfer", () => {
   });
 });
 
-describe("editor draft requests", () => {
-  it("scopes instance listing and recovery to the selected template", async () => {
+describe("template draft requests", () => {
+  it("lists and restores template drafts", async () => {
     const fetch = vi.fn().mockImplementation(async () => new Response("[]"));
     vi.stubGlobal("fetch", fetch);
-    await listEditorDrafts("instance", { templateId: "template/id", user: "engineer", search: "progress" });
-    await getEditorDraft("instance", "draft/id", "template/id");
-    expect(fetch.mock.calls[0][0]).toContain("processFlowTemplateId=template%2Fid");
-    expect(fetch.mock.calls[0][0]).toContain("user=engineer&search=progress");
-    expect(fetch.mock.calls[1][0]).toContain("draft%2Fid?processFlowTemplateId=template%2Fid");
+    await listEditorDrafts("template", { user: "engineer", search: "progress" });
+    await getEditorDraft("template", "draft/id");
+    expect(fetch.mock.calls[0][0]).toContain("/api/process-flow-template-drafts?user=engineer&search=progress");
+    expect(fetch.mock.calls[1][0]).toContain("/api/process-flow-template-drafts/draft%2Fid");
   });
-  it("updates the original revision or creates a separate draft, and checks revision on delete", async () => {
+  it("uses the original revision on update and delete", async () => {
     const fetch = vi.fn().mockImplementation(async () => new Response("{}"));
     vi.stubGlobal("fetch", fetch);
-    const body = { schemaVersion: 1 as const, user: "user", name: "draft", processFlowTemplateId: "template", state: {
+    const body = { schemaVersion: 1 as const, user: "user", name: "draft", state: {
       metadata: { name: "", version: "", owner: "", description: "" },
       configuration: { inputBindings: {}, stepConfigurations: {}, embeddedGeometries: {} },
+      nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 },
     } };
-    await saveEditorDraft("instance", body, { id: "original", revision: 3 });
-    await saveEditorDraft("instance", body);
+    await saveEditorDraft("template", body, { id: "original", revision: 3 });
+    await saveEditorDraft("template", body);
     expect(fetch.mock.calls[0][1].method).toBe("PUT");
     expect(JSON.parse(fetch.mock.calls[0][1].body).revision).toBe(3);
-    expect(fetch.mock.calls[1][1].method).toBe("POST");
     expect(JSON.parse(fetch.mock.calls[1][1].body)).not.toHaveProperty("revision");
-    await deleteEditorDraft("instance", { id: "original", revision: 4 } as never, "template");
-    expect(fetch.mock.calls[2][0]).toContain("processFlowTemplateId=template&revision=4");
+    await deleteEditorDraft("template", { id: "original", revision: 4 } as never);
+    expect(fetch.mock.calls[2][0]).toContain("revision=4");
   });
 });
 
@@ -157,7 +159,7 @@ describe("server-generated flow IDs", () => {
   };
   const instance = {
     schemaVersion: 2 as const, name: "Instance", version: "V0", owner: "test", description: "",
-    inputBindings: {}, stepConfigurations: {}, embeddedGeometries: {},
+    initialConfiguration: { inputBindings: {}, stepConfigurations: {}, embeddedGeometries: {} },
   };
 
   it("sends create metadata and returns the assigned template ID", async () => {
@@ -197,15 +199,6 @@ describe("server-generated flow IDs", () => {
     expect(body.processFlowInstance).not.toHaveProperty("processFlowTemplateId");
   });
 
-  it("commits an instance draft using current values and its revision", async () => {
-    const request = { ...instance, processFlowTemplateId: "template" };
-    const saved = { ...request, id: "assigned" };
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(commitInstanceEditorDraft({ id: "draft", revision: 2 }, request)).resolves.toEqual(saved);
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, processFlowInstance: request });
-  });
-
   it("commits a template with its instance in one revision-checked request", async () => {
     const request = { processFlowTemplate: template, processFlowInstance: instance };
     const saved = {
@@ -235,5 +228,32 @@ describe("server-generated flow IDs", () => {
       processFlowTemplate: template, processFlowInstance: instance,
     })).rejects.toMatchObject({ status: 409, message: "Draft changed" });
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("tracked instance mutations", () => {
+  const instance = { id: "instance/id", revision: 7 };
+  it("sends recipe values and activation with the current revision", async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ ...instance, revision: 8 }));
+    vi.stubGlobal("fetch", fetch);
+    const recipe = { name: "Trial", description: "", parameterValues: {}, activate: true };
+    await addInstanceRecipe(instance, "step/id", recipe);
+    expect(fetch.mock.calls[0][0]).toContain("/instance%2Fid/steps/step%2Fid/recipes");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 7, ...recipe });
+  });
+  it("switches active recipes and replaces geometry bindings", async () => {
+    const fetch = vi.fn().mockImplementation(async () => Response.json({ ...instance, revision: 8 }));
+    vi.stubGlobal("fetch", fetch);
+    await setInstanceActiveRecipe(instance, "step", "recipe-2");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 7, recipeId: "recipe-2" });
+    await updateInstanceInputBindings(instance, {});
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ revision: 7, inputBindings: {} });
+    await getProcessFlowInstance(instance.id);
+    expect(fetch.mock.calls[2][0]).toContain("/process-flow-instances/instance%2Fid");
+  });
+  it("preserves conflict errors so callers can keep unsubmitted forms", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ message: "Instance changed" }, { status: 409 })));
+    await expect(setInstanceActiveRecipe(instance, "step", "recipe")).rejects.toMatchObject({ status: 409, message: "Instance changed" });
   });
 });

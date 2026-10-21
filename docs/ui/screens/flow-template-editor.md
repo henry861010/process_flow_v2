@@ -50,7 +50,7 @@ Home and source replacement protect unsaved changes with a named dialog offering
 Template & Instance for each new source. Switching modes and cancel/reopen retain metadata
 and the selected mode. Template only hides instance fields and can submit with incomplete
 configuration. Invalid topology or disabled steps block both modes; incomplete instance
-configuration blocks only combined submission. All blocking reasons are visible in the dialog.
+configuration is accepted in both modes. Blocking topology and metadata reasons remain visible.
 Required name/version/owner fields show inline errors after submit and focus the first invalid
 field. The footer stays fixed while the body scrolls. Dialogs trap focus, support Escape when
 idle, and return focus on close, including nested source/delete confirmations.
@@ -84,22 +84,18 @@ an edited field, including an explicitly cleared field, no longer follows templa
 Cancel/reopen preserves edits. Loading another template or draft resets instance metadata overrides.
 These overrides are session state and are not added to the template draft snapshot.
 
-The combined command requires complete instance configuration using the same validation as the
-instance editor. Missing inputs or step parameters appear in a visible requirements list, and the
-final submission remains disabled until they are resolved; the toolbar entry stays available. Zero PnP placements skip unused die branches;
-their values and recipes are retained. Template-only save remains available with incomplete values.
-
-Combined save uses `POST /api/process-flow-template-instances`, without caller-generated IDs or
-a caller-generated instance/template relationship. The backend assigns both IDs, compiles and
-canonicalizes the configuration, preserves generator recipes without creating catalog geometry,
-and atomically creates both resources. An active template draft uses its revision-checked commit
-endpoint with the additional `processFlowInstance` payload instead.
+The combined command accepts incomplete instance configuration. It sends `initialConfiguration`
+in `POST /api/process-flow-template-instances`, without caller-generated IDs or a caller-generated
+relationship. The backend assigns both IDs, copies each provided station parameterValues into its
+first immutable active recipe, retains generator parameters without executing them, and atomically
+creates template, instance and any materialized embedded geometry. An active Template Draft uses
+its revision-checked commit endpoint with the additional `processFlowInstance` payload instead.
 
 Saving validates template name, version, owner, and topology. The dialog has no ID field;
 `POST /api/process-flow-templates` omits `id`, and the server assigns a 32-character lowercase
 UUID4 hex ID without a prefix.
 Both save commands submit a fixed snapshot, prevent concurrent editor mutations and duplicate
-submission, and return Home on success. Failed saves retain the dialog, metadata, configuration,
+submission. Template-only save returns Home; combined creation opens the new instance ID route. Failed saves retain the dialog, metadata, configuration,
 and active draft. Required metadata validation applies to both records for combined save.
 
 ## Graph interaction
@@ -129,9 +125,8 @@ In topology-locked view mode, step single-click only selects; double-click and p
   template save does not persist their bindings.
 - `UI-FTE-003`: valid topology can save while preview-only configuration is incomplete.
 - `UI-FTE-004`: scalar step values are saved as flow defaults; the source geometry category is saved as the flow-input contract, while its catalog id and collection values remain preview-only.
-- `UI-FTE-005`: successful template-only or combined save returns Home with the new template available.
-- `UI-FTE-006`: complete configuration enables combined save; missing inputs/parameters disable it
-  with visible requirements, while template-only save remains available.
+- `UI-FTE-005`: template-only save returns Home; combined save opens the newly created tracking instance.
+- `UI-FTE-006`: valid topology and metadata enable combined creation even with missing inputs/parameters.
 - `UI-FTE-007`: instance metadata follows template fields until edited; cancel/reopen preserves edits,
   and loading another template/draft resets them.
 - `UI-FTE-008`: combined save persists arrays, repeat groups, placements, bindings, and recipes in the
@@ -179,7 +174,7 @@ Save Template & Instance applies the same rule to both new resources: insert tem
 geometries and instance, then delete the active draft in one transaction, rechecking its revision
 before any writes. A stale revision or any failure preserves the draft and rolls back all inserts.
 
-Acceptance `UI-FTE-DRAFT-001`: save an unfinished graph, reload the page, load via Start from… → Drafts and verify positions/viewport, connections, metadata and full values. `UI-FTE-DRAFT-002`: verify update/new-copy, filtering, delete, missing dependencies, failed requests, stale revision and dirty confirmation. `UI-FTE-DRAFT-003`: verify either formal save consumes only the active draft and returns Home.
+Acceptance `UI-FTE-DRAFT-001`: save an unfinished graph, reload the page, load via Start from… → Drafts and verify positions/viewport, connections, metadata and full values. `UI-FTE-DRAFT-002`: verify update/new-copy, filtering, delete, missing dependencies, failed requests, stale revision and dirty confirmation. `UI-FTE-DRAFT-003`: verify either formal save consumes only the active draft; combined creation opens the new instance.
 
 
 ## Toolbar and dialog acceptance

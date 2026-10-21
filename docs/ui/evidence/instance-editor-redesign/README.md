@@ -11,11 +11,18 @@ last_verified_commit: 782194d8
 source_of_truth:
   - apps/viewer/components/process-flow-instance-editor/process-flow-instance-editor.tsx
   - apps/viewer/components/process-flow-save/editor-shell-header.tsx
-  - apps/viewer/components/process-flow-save/instance-source-dialog.tsx
   - apps/viewer/components/process-flow-save/save-information-dialog.tsx
 ---
 
 # Instance Editor Toolbar Redesign Evidence
+
+> The toolbar and Instance Draft captures below are historical. The current instance lifecycle and
+> station recipe dialog are specified in [Flow Instance Editor](../../screens/flow-instance-editor.md).
+> On 2026-10-21, the replacement station dialog was verified at 1440×900, 1024×768 and 390×844
+> using an isolated temporary database. Checks covered separate active/inspection state, inline
+> recipe details, defaults and exact-copy creation, dirty-source confirmation, revision conflict
+> retention and explicit reload without resubmission, long names and ten-recipe lists, fixed footer,
+> nested focus trapping and return to the station's Edit step button.
 
 Route: `/flow-instance-editor/?templateId=flow_tpl_aaa_demo`. Reviewed the exported production
 build at `http://localhost:3001`, light scheme and browser zoom 100%. These JPEG captures record

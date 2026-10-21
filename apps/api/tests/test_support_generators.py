@@ -114,7 +114,7 @@ class SupportGeneratorApiTests(unittest.TestCase):
                         response = self.client.post("/api/process-flow-instances", json=instance_create_payload(request))
                         self.assertEqual(response.status_code, 201, response.text)
                         saved = response.json()
-                    self.assertEqual(saved["inputBindings"]["support"]["parameters"], parameters)
+                    self.assertEqual(saved["inputBindings"]["support"]["parameters"], {} if parameters == defaults else {**parameters, f"{layer}Material": "  Custom support  "})
                     reopened = self.client.get(f"/api/process-flow-instances/{saved['id']}")
                     self.assertEqual(reopened.status_code, 200, reopened.text)
                     self.assertEqual(reopened.json(), saved)

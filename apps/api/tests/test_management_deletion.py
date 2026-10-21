@@ -69,12 +69,12 @@ class ManagementDeletionTests(unittest.TestCase):
 
     def assert_geometry_conflict(self, geometry, resource_type, resource_id):
         before = self.client.get("/api/bootstrap").json()
-        drafts = self.store.list_editor_drafts("instance")
+        drafts = self.store.list_editor_drafts("template")
         response = self.client.delete(f"/api/geometries/{geometry['id']}")
         self.assertEqual(response.status_code, 409, response.text)
         self.assertIn(f"{resource_type} {resource_id}", response.json()["message"])
         self.assertEqual(self.client.get("/api/bootstrap").json(), before)
-        self.assertEqual(self.store.list_editor_drafts("instance"), drafts)
+        self.assertEqual(self.store.list_editor_drafts("template"), drafts)
 
     def test_unreferenced_geometry_deletion_preserves_other_resources(self):
         geometry = self.create_deletable_geometry()

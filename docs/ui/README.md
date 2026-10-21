@@ -88,9 +88,9 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 
 | Route | Canonical entry state | 操作旅程 | Acceptance |
 | --- | --- | --- | --- |
-| `/` | reset 後 Home ready | template card navigation、create routes、reset | `UI-HOME-001` 至 `UI-HOME-005` |
+| `/` | reset 後 Home ready | template 分組 instance 列表、建立彈窗、資源工具、loading/error/retry | `UI-HOME-001` 至 `UI-HOME-007` |
 | `/flow-template-editor` | fresh draft | click-add step、drag catalog geometry、connect、save、preview | `UI-FTE-001` 至 `UI-FTE-005` |
-| `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA instance | load source instance、edit、preview、save immutable copy | `UI-FIE-001` 至 `UI-FIE-007` |
+| `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA instance | Create instance、add recipes、switch active、preview | `UI-FIE-001` 至 `UI-FIE-007` |
 | `/geometry-generator?generatorId=<id>` | generator defaults | preview、download、Save to DB | `UI-GEN-001` 至 `UI-GEN-003` |
 | `/management` | bootstrap ready | inspect resources、edit flow-template metadata/defaults、edit process-step settings、open authoring routes | `UI-MGMT-001` 至 `UI-MGMT-005` |
 | `/dashboard` | active export snapshot | all-client counts、stage/detail/elapsed、FIFO queue、refresh/stale recovery | `UI-DASH-001` 至 `UI-DASH-008` |
@@ -120,10 +120,10 @@ Visual regression 的預設資料狀態稱為 `ui-golden`：
 | 資料 | Canonical record |
 | --- | --- |
 | Flow template | `flow_tpl_aaa_demo` / `AAA Demo` |
-| Immutable instance | `flow_inst_aaa_demo_hbm4_alpha` / `HBM4 Alpha Build` |
+| Tracked instance | `flow_inst_aaa_demo_hbm4_alpha` / `HBM4 Alpha Build` |
 | Geometry | `panel_plp_310x310mm_glass`、`hbm3_8hi` |
 | Process step | `step_tpl_molding`，以及 fixture 中其餘 `V0.0.0` templates |
-| Editor drafts | 每個 case 建立自己的 template/instance snapshot，驗證 revision、恢復與正式儲存後刪除，不依賴其他測試留下的資料 |
+| Editor drafts | 每個 case 建立自己的 template snapshot，驗證 revision、恢復與正式儲存後刪除，不依賴其他測試留下的資料 |
 
 表中的 fixture id 是既有資料的 opaque identity；數字尾碼不表示產品版本，也不能用來
 切換行為。

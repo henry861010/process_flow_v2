@@ -13,19 +13,16 @@ from process_flow_kernel import (
     FlowCompiler,
     GeometryKernel,
     InMemoryGeometryCatalog,
+    resolve_instance_configuration,
     flow_default_values_for_step_template,
     validate_flow_graph,
     validate_flow_parameter_defaults,
     validate_process_step_template as validate_step_contract,
 )
 
-from .configuration_materialization import (
-    canonicalize_generator_bindings,
-    materialize_embedded_bindings,
-)
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
-from .identifiers import generated_flow_instance_id, generated_flow_template_id
+from .identifiers import generated_flow_template_id
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,
@@ -35,6 +32,7 @@ from .models import (
     ProcessStepTemplate,
     TemplateInstanceCreateRequest,
 )
+from .instance_service import prepare_instance
 from .repository import NotFoundError, ResourceConflictError, SQLiteStore
 from .step_template_transfer import locked_process_step_template as _locked_process_step_template
 
@@ -298,17 +296,9 @@ def prepare_template_instance(
     generators: GeometryGeneratorRegistry,
 ) -> tuple[JsonObject, JsonObject, list[JsonObject]]:
     template = prepare_flow_template(store, body.processFlowTemplate)
-    instance = {
-        **body.processFlowInstance.payload(),
-        "id": generated_flow_instance_id(),
-        "processFlowTemplateId": template["id"],
-    }
     require_enabled_template(template, kind="Process flow", action="create a new instance")
-    step_templates = load_step_templates_for_template(store, template)
-    plan = _compiler(store, generators).compile(template, instance, step_templates)
-    instance = canonicalize_generator_bindings(instance, plan)
-    geometries, persisted_bindings = materialize_embedded_bindings(instance)
-    return template, _persisted_instance(instance, persisted_bindings), geometries
+    instance, geometries = prepare_instance(store, template, body.processFlowInstance.model_dump(mode="json"), generators)
+    return template, instance, geometries
 
 
 def create_flow_instance(
@@ -325,35 +315,10 @@ def prepare_flow_instance(
     body: ProcessFlowInstanceCreate,
     generators: GeometryGeneratorRegistry,
 ) -> tuple[JsonObject, list[JsonObject]]:
-    payload = {**body.payload(), "id": generated_flow_instance_id()}
-    template = require_item(
-        store.get_process_flow_template(payload["processFlowTemplateId"]),
-        payload["processFlowTemplateId"],
-    )
+    payload = body.model_dump(mode="json")
+    template = require_item(store.get_process_flow_template(body.processFlowTemplateId), body.processFlowTemplateId)
     require_enabled_template(template, kind="Process flow", action="create a new instance")
-    step_templates = load_step_templates_for_template(store, template)
-    plan = _compiler(store, generators).compile(template, payload, step_templates)
-    payload = canonicalize_generator_bindings(payload, plan)
-    geometries, persisted_bindings = materialize_embedded_bindings(payload)
-    instance = _persisted_instance(payload, persisted_bindings)
-    return instance, geometries
-
-
-def _persisted_instance(
-    create_payload: JsonObject,
-    persisted_bindings: dict[str, JsonObject],
-) -> JsonObject:
-    return {
-        "schemaVersion": 2,
-        "id": create_payload["id"],
-        "name": create_payload["name"],
-        "version": create_payload["version"],
-        "owner": create_payload["owner"],
-        "description": create_payload.get("description", ""),
-        "processFlowTemplateId": create_payload["processFlowTemplateId"],
-        "inputBindings": persisted_bindings,
-        "stepConfigurations": create_payload.get("stepConfigurations", {}),
-    }
+    return prepare_instance(store, template, payload, generators)
 
 
 def execute_instance(
@@ -365,7 +330,8 @@ def execute_instance(
         instance["processFlowTemplateId"],
     )
     step_templates = load_step_templates_for_template(store, template)
-    plan = _compiler(store, generators).compile(template, instance, step_templates)
+    configuration = resolve_instance_configuration(instance, template, step_templates)
+    plan = _compiler(store, generators).compile(template, configuration, step_templates)
     result = GeometryKernel().execute(plan)
     return {
         "geometryStructure": result.geometry(),

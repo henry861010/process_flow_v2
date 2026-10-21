@@ -4,6 +4,8 @@ import json
 from importlib.resources import files
 from typing import Any
 
+from .instance_data import upgrade_legacy_instance
+
 from process_flow_kernel import (
     validate_flow_graph,
     validate_flow_parameter_defaults,
@@ -36,4 +38,9 @@ def load_seed_fixtures() -> dict[str, list[JsonObject]]:
     for flow_template in result["processFlowTemplates"]:
         validate_flow_graph(flow_template, step_templates)
         validate_flow_parameter_defaults(flow_template, step_templates)
+    templates = {template["id"]: template for template in result["processFlowTemplates"]}
+    result["processFlowInstances"] = [
+        upgrade_legacy_instance(instance, templates.get(instance.get("processFlowTemplateId")))
+        for instance in result["processFlowInstances"]
+    ]
     return result

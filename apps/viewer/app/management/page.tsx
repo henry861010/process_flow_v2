@@ -48,7 +48,7 @@ const deletionActions = {
   },
   processFlowTemplates: {
     label: "flow template",
-    consequence: "All instance drafts referencing this template will also be permanently deleted.",
+    consequence: "This flow template will be permanently deleted.",
   },
   processFlowInstances: {
     label: "instance",
@@ -58,10 +58,7 @@ const deletionActions = {
     label: "template draft",
     consequence: "This unfinished template draft will be permanently deleted. Saved templates, instances and geometries will be preserved.",
   },
-  processFlowInstanceDrafts: {
-    label: "instance draft",
-    consequence: "This unfinished instance draft will be permanently deleted. Its template, saved instances and geometries will be preserved.",
-  },
+
 };
 
 const emptyData: ManagementData = {
@@ -71,7 +68,6 @@ const emptyData: ManagementData = {
   geometries: [],
   geometryGenerators: [],
   processFlowTemplateDrafts: [],
-  processFlowInstanceDrafts: [],
 };
 
 export default function ManagementPage() {
@@ -180,7 +176,6 @@ export default function ManagementPage() {
     { label: "Geometries", count: data.geometries.length, icon: Box },
     { label: "Process steps", count: data.processStepTemplates.length, icon: Braces },
     { label: "Template drafts", count: data.processFlowTemplateDrafts.length, icon: FilePenLine },
-    { label: "Instance drafts", count: data.processFlowInstanceDrafts.length, icon: FilePenLine },
   ];
 
   async function handleDatabaseReset() {
@@ -309,7 +304,6 @@ export default function ManagementPage() {
               <TabsTrigger value="geometries">Geometries</TabsTrigger>
               <TabsTrigger value="steps">Process steps</TabsTrigger>
               <TabsTrigger value="template-drafts">Template drafts</TabsTrigger>
-              <TabsTrigger value="instance-drafts">Instance drafts</TabsTrigger>
             </TabsList>
           </div>
 
@@ -355,7 +349,8 @@ export default function ManagementPage() {
                   <Cell>{instance.version}</Cell>
                   <Cell>{instance.owner}</Cell>
                   <td className="px-4 py-3 align-top">
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
+                      <Button asChild size="sm" variant="outline"><Link href={`/flow-instance-editor?instanceId=${encodeURIComponent(instance.id)}`}>Open instance</Link></Button>
                       <DeleteButton
                         name={instance.name}
                         disabled={resourceBusy}
@@ -443,16 +438,7 @@ export default function ManagementPage() {
             />
           </TabsContent>
 
-          <TabsContent value="instance-drafts">
-            <DraftTable
-              drafts={data.processFlowInstanceDrafts}
-              templateById={templateById}
-              loading={loading}
-              disabled={resourceBusy}
-              deletingId={deleting?.collection === "processFlowInstanceDrafts" ? deleting.id : undefined}
-              onDelete={(draft) => void handleDelete({ collection: "processFlowInstanceDrafts", resource: draft })}
-            />
-          </TabsContent>
+
         </Tabs>
       </div>
       <div ref={fixtureMenuRef} className="fixed bottom-5 right-5 z-50">
@@ -625,15 +611,14 @@ function DeleteButton({ name, disabled, deleting, onClick }: {
   );
 }
 
-function DraftTable({ drafts, templateById, loading, disabled, deletingId, onDelete }: {
+function DraftTable({ drafts, loading, disabled, deletingId, onDelete }: {
   drafts: EditorDraftSummary[];
-  templateById?: Map<string, ProcessFlowTemplate>;
   loading: boolean;
   disabled: boolean;
   deletingId?: string;
   onDelete: (draft: EditorDraftSummary) => void;
 }) {
-  const headings = ["Draft", ...(templateById ? ["Template"] : []), "User", "Revision", "Updated", "Actions"];
+  const headings = ["Draft", "User", "Revision", "Updated", "Actions"];
   return (
     <ResourceTable headings={headings}>
       {loading || drafts.length === 0 ? (
@@ -645,7 +630,6 @@ function DraftTable({ drafts, templateById, loading, disabled, deletingId, onDel
       ) : drafts.map((draft) => (
         <tr key={draft.id} className="border-b last:border-b-0">
           <IdentityCell name={draft.name} id={draft.id} />
-          {templateById ? <Cell>{templateById.get(draft.processFlowTemplateId ?? "")?.name ?? draft.processFlowTemplateId}</Cell> : null}
           <Cell>{draft.user}</Cell>
           <Cell>{draft.revision}</Cell>
           <Cell><time dateTime={draft.updatedAt} title={draft.updatedAt}>{new Date(draft.updatedAt).toLocaleString()}</time></Cell>

@@ -64,12 +64,12 @@ def test_combined_create_rolls_back_duplicate_identity(service, collision):
     else:
         instance_request["name"] = instance["name"]
     # Materialization must also roll back when the instance identity conflicts.
-    binding_id = next(iter(instance_request["inputBindings"]))
-    instance_request["inputBindings"] = copy.deepcopy(instance_request["inputBindings"])
-    original_geometry_id = instance_request["inputBindings"][binding_id]["geometryId"]
+    binding_id = next(iter(instance_request["initialConfiguration"]["inputBindings"]))
+    instance_request["initialConfiguration"]["inputBindings"] = copy.deepcopy(instance_request["initialConfiguration"]["inputBindings"])
+    original_geometry_id = instance_request["initialConfiguration"]["inputBindings"][binding_id]["geometryId"]
     geometry = next(item for item in before["geometries"] if item["id"] == original_geometry_id)
-    instance_request["inputBindings"][binding_id] = {"kind": "embedded", "localId": "local"}
-    instance_request["embeddedGeometries"] = {"local": {k: v for k, v in geometry.items() if k != "id"}}
+    instance_request["initialConfiguration"]["inputBindings"][binding_id] = {"kind": "embedded", "localId": "local"}
+    instance_request["initialConfiguration"]["embeddedGeometries"] = {"local": {k: v for k, v in geometry.items() if k != "id"}}
     response = client.post("/api/process-flow-template-instances", json={
         "processFlowTemplate": template_request, "processFlowInstance": instance_request,
     })
@@ -151,7 +151,7 @@ def test_v10_migration_preserves_records_and_reports_existing_duplicates(tmp_pat
     try:
         assert migrated.dataset_id == dataset_id
         assert migrated.get_process_flow_template("template") == {**template, "status": "enabled"}
-        assert migrated.get_process_flow_instance("instance") == instance
+        assert migrated.get_process_flow_instance("instance") == {**instance, "revision": 1, "stepConfigurations": {}}
         for kind, source in (("template", template), ("instance", instance)):
             with pytest.raises(DuplicateItemError):
                 getattr(migrated, f"insert_process_flow_{kind}")({**source, "id": "duplicate"})

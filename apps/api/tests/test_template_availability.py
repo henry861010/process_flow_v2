@@ -10,7 +10,7 @@ import zipfile
 
 from fastapi.testclient import TestClient
 
-from flow_requests import instance_create_payload, template_create_payload
+from flow_requests import instance_create_payload, template_create_payload, instance_configuration
 from process_flow_api.main import create_app
 from process_flow_api.repository import SQLiteStore
 
@@ -114,7 +114,7 @@ class TemplateAvailabilityTests(unittest.TestCase):
             "processFlowTemplateId": self.flow["id"],
             "target": {"type": "stepOutput", "stepRefId": self.flow["stepRefs"][0]["stepRefId"], "outputPortId": "result_geometry"},
             "configuration": {"inputBindings": self.instance["inputBindings"],
-                              "stepConfigurations": self.instance["stepConfigurations"]},
+                              "stepConfigurations": instance_configuration(self.instance)["stepConfigurations"]},
         })
         self.assertEqual(preview.status_code, 200, preview.text)
         exported = self.client.post("/api/geometry-preview/step", json={

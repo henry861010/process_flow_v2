@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildProcessFlowInstanceCreate,
+  instanceFlowConfiguration,
+  missingActiveRecipeSteps,
   configurationFromInstance,
   instanceEditorEntry,
   instancesForTemplate,
@@ -62,6 +64,7 @@ const stepTemplate: ProcessStepTemplate = {
 function instance(id: string, templateId = template.id): ProcessFlowInstance {
   return {
     schemaVersion: 2,
+    revision: 1,
     id,
     name: id,
     version: "V0.0.0",
@@ -69,14 +72,14 @@ function instance(id: string, templateId = template.id): ProcessFlowInstance {
     description: "source description",
     processFlowTemplateId: templateId,
     inputBindings: {},
-    stepConfigurations: { step: { parameterValues: { value: "source" } } },
+    stepConfigurations: { step: { activeRecipeId: "recipe", recipes: [{ id: "recipe", name: "Source", description: "", createdAt: "2026-10-21T00:00:00Z", parameterValues: { value: "source" } }] } },
   };
 }
 
 describe("instance editor helpers", () => {
   it("reads the fixed template entry", () => {
-    expect(instanceEditorEntry("?templateId=flow-template")).toEqual({ templateId: "flow-template" });
-    expect(instanceEditorEntry("")).toEqual({ templateId: null });
+    expect(instanceEditorEntry("?templateId=flow-template")).toEqual({ templateId: "flow-template", instanceId: null });
+    expect(instanceEditorEntry("")).toEqual({ templateId: null, instanceId: null });
   });
 
   it("only returns instances for the selected template", () => {
@@ -89,7 +92,7 @@ describe("instance editor helpers", () => {
     expect(copied.stepConfigurations.step.parameterValues.value).toBe("source");
     expect(copied.embeddedGeometries).toEqual({});
     copied.stepConfigurations.step.parameterValues.value = "changed";
-    expect(source.stepConfigurations.step.parameterValues.value).toBe("source");
+    expect(source.stepConfigurations.step.recipes[0].parameterValues.value).toBe("source");
   });
 
   it("copies and submits generator recipes without sharing parameter objects", () => {
@@ -104,12 +107,12 @@ describe("instance editor helpers", () => {
       { ...newInstanceIdentity(), name: "Copy", owner: "test" },
       copied,
     );
-    expect(payload.inputBindings.incoming_hbm).toEqual(source.inputBindings.incoming_hbm);
-    expect(payload.embeddedGeometries).toEqual({});
+    expect(payload.initialConfiguration!.inputBindings.incoming_hbm).toEqual(source.inputBindings.incoming_hbm);
+    expect(payload.initialConfiguration!.embeddedGeometries).toEqual({});
     if (copied.inputBindings.incoming_hbm.kind !== "generator") throw new Error("Expected generator");
     copied.inputBindings.incoming_hbm.parameters.topCoreDieThickness = 70;
     expect(source.inputBindings.incoming_hbm).toMatchObject({ parameters: { topCoreDieThickness: 50 } });
-    expect(payload.inputBindings.incoming_hbm).toMatchObject({ parameters: { topCoreDieThickness: 50 } });
+    expect(payload.initialConfiguration!.inputBindings.incoming_hbm).toMatchObject({ parameters: { topCoreDieThickness: 50 } });
   });
 
   it("uses flow scalar defaults only when no instance is imported", () => {
@@ -158,4 +161,32 @@ describe("instance editor helpers", () => {
     expect(validateInstanceIdentity({ ...identity, owner: " " })).toBe("Owner is required.");
   });
 
+});
+
+
+describe("tracked instance recipes", () => {
+  it("creates an empty tracking object without client-generated recipes", () => {
+    const payload = buildProcessFlowInstanceCreate(template.id, { ...newInstanceIdentity(), name: "R&D", owner: "rd" });
+    expect(payload).not.toHaveProperty("initialConfiguration");
+    expect(payload).not.toHaveProperty("revision");
+  });
+  it("reads an existing instance route", () => {
+    expect(instanceEditorEntry("?instanceId=tracked")).toEqual({ templateId: null, instanceId: "tracked" });
+  });
+  it("projects only the active snapshot and isolates nested values", () => {
+    const source = instance("source");
+    source.stepConfigurations.step.recipes.push({ ...source.stepConfigurations.step.recipes[0], id: "next", parameterValues: { value: "next", nested: [1, 2] } });
+    source.stepConfigurations.step.activeRecipeId = "next";
+    const projected = instanceFlowConfiguration(source);
+    expect(projected.stepConfigurations.step.parameterValues.value).toBe("next");
+    (projected.stepConfigurations.step.parameterValues.nested as number[]).push(3);
+    expect(source.stepConfigurations.step.recipes[1].parameterValues.nested).toEqual([1, 2]);
+    expect(source.stepConfigurations.step.recipes[0].parameterValues.value).toBe("source");
+  });
+  it("does not select a recipe or defaults when active selection is cleared", () => {
+    const source = instance("source");
+    source.stepConfigurations.step.activeRecipeId = null;
+    expect(instanceFlowConfiguration(source).stepConfigurations).toEqual({});
+    expect(missingActiveRecipeSteps(source, template, [stepTemplate])).toEqual(["step"]);
+  });
 });

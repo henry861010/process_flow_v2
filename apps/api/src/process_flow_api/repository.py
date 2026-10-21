@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+import copy
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,9 +11,10 @@ from typing import Any
 
 from .models import ProcessStepTemplate
 from .step_template_transfer import locked_process_step_template
+from .instance_data import restore_missing_active_recipes, upgrade_legacy_instance
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "13"
+DATABASE_SCHEMA_VERSION = "15"
 
 
 class DuplicateItemError(ValueError):
@@ -141,7 +143,11 @@ class SQLiteStore:
             if current_version == 11:
                 self._migrate_v11_to_v12()
                 current_version = 12
-            if current_version == 12:
+            if current_version in (12, 13):
+                self._migrate_v13_to_v14()
+                current_version = 14
+            if current_version == 14:
+                self._migrate_v14_to_v15()
                 self._set_schema_version()
                 return
             # Older local data is rebuilt from fixtures so no stale references to
@@ -157,7 +163,29 @@ class SQLiteStore:
                 self._migrate_v9_to_v10()
             self._migrate_v10_to_v11()
             self._migrate_v11_to_v12()
+            self._migrate_v13_to_v14()
+            self._migrate_v14_to_v15()
             self._set_schema_version()
+
+    def _migrate_v14_to_v15(self) -> None:
+        from .models import InstanceStepConfiguration
+        for row in self._connection.execute("SELECT id,payload FROM process_flow_instances").fetchall():
+            payload = json.loads(row["payload"])
+            updated = restore_missing_active_recipes(payload)
+            for station in updated.get("stepConfigurations", {}).values():
+                InstanceStepConfiguration.model_validate(station)
+            if updated != payload:
+                self._connection.execute("UPDATE process_flow_instances SET payload=? WHERE id=?",
+                                         (_json(updated), row["id"]))
+
+    def _migrate_v13_to_v14(self) -> None:
+        for row in self._connection.execute("SELECT id,payload FROM process_flow_instances").fetchall():
+            payload = json.loads(row["payload"])
+            template = self.get_process_flow_template(payload.get("processFlowTemplateId", ""))
+            payload = upgrade_legacy_instance(payload, template)
+            self._connection.execute("UPDATE process_flow_instances SET payload=? WHERE id=?",
+                                     (_json(payload), row["id"]))
+        self._connection.execute("DROP TABLE IF EXISTS process_flow_instance_drafts")
 
     def _table_exists(self, table: str) -> bool:
         return self._connection.execute(
@@ -165,7 +193,7 @@ class SQLiteStore:
         ).fetchone() is not None
 
     def _migrate_v11_to_v12(self) -> None:
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             table = _draft_table(kind)
             parent = "process_flow_template_id TEXT NOT NULL," if kind == "instance" else ""
             self._connection.execute(f"""
@@ -180,23 +208,6 @@ class SQLiteStore:
             if kind == "instance":
                 self._connection.execute(f"CREATE INDEX IF NOT EXISTS idx_{table}_template ON {table}(process_flow_template_id)")
         if self._table_exists("process_flow_workspaces"):
-            for row in self._connection.execute("SELECT payload FROM process_flow_workspaces").fetchall():
-                old = json.loads(row["payload"])
-                if old["status"] != "draft":
-                    continue
-                payload = {
-                    "schemaVersion": 1, "id": old["id"], "user": "legacy.import",
-                    "name": old["name"], "processFlowTemplateId": old["processFlowTemplateId"],
-                    "revision": old["revision"], "createdAt": old["createdAt"], "updatedAt": old["updatedAt"],
-                    "state": {
-                        "metadata": {"name": "", "version": "V0.0.0", "owner": "", "description": ""},
-                        "configuration": {key: old.get(key, {}) for key in
-                            ("inputBindings", "stepConfigurations", "embeddedGeometries")},
-                    },
-                }
-                from .models import InstanceEditorDraft
-                InstanceEditorDraft.model_validate(payload)
-                self._insert_values(_draft_table("instance"), _draft_values("instance", payload))
             self._connection.execute("DROP TABLE process_flow_workspaces")
 
     def _set_schema_version(self) -> None:
@@ -459,7 +470,6 @@ class SQLiteStore:
             for table, label in (
                 ("process_flow_instances", "instance"),
                 ("process_flow_template_drafts", "template draft"),
-                ("process_flow_instance_drafts", "instance draft"),
             ):
                 for row in self._connection.execute(f"SELECT id, payload FROM {table}"):
                     payload = json.loads(row["payload"])
@@ -503,10 +513,6 @@ class SQLiteStore:
                 raise ResourceConflictError(
                     f"Process flow template {id_} is referenced by instance {instance['id']}"
                 )
-            self._connection.execute(
-                "DELETE FROM process_flow_instance_drafts WHERE process_flow_template_id = ?",
-                (id_,),
-            )
             self._delete_in_transaction("process_flow_templates", id_)
 
     def update_process_flow_template(self, payload: JsonObject) -> JsonObject:
@@ -548,6 +554,32 @@ class SQLiteStore:
 
     def get_process_flow_instance(self, id_: str) -> JsonObject | None:
         return self._get("process_flow_instances", id_)
+
+    def update_process_flow_instance(self, id_: str, revision: int, mutate) -> JsonObject:
+        """Check the latest snapshot and preserve immutable recipes in one transaction."""
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            current = self.get_process_flow_instance(id_)
+            if current is None:
+                raise NotFoundError(id_)
+            if current["revision"] != revision:
+                raise ResourceConflictError("Instance changed in another session. Reload before applying changes.")
+            updated, geometries = mutate(copy.deepcopy(current))
+            mutable = {"revision", "inputBindings", "stepConfigurations"}
+            if {k: v for k, v in current.items() if k not in mutable} != {k: v for k, v in updated.items() if k not in mutable}:
+                raise ResourceConflictError("Instance identity and metadata cannot be changed")
+            if set(current["stepConfigurations"]) != set(updated["stepConfigurations"]):
+                raise ResourceConflictError("Instance stations cannot be changed")
+            for key, station in current["stepConfigurations"].items():
+                if updated["stepConfigurations"][key]["recipes"][:len(station["recipes"])] != station["recipes"]:
+                    raise ResourceConflictError("Existing recipes cannot be changed or deleted")
+            updated["revision"] = revision + 1
+            from .models import ProcessFlowInstance
+            updated = ProcessFlowInstance.model_validate(updated).payload()
+            for geometry in geometries:
+                self._insert_geometry_in_transaction(geometry)
+            self._connection.execute("UPDATE process_flow_instances SET payload=? WHERE id=?", (_json(updated), id_))
+        return updated
 
     def delete_process_flow_instance(self, id_: str) -> None:
         with self._connection:
@@ -776,7 +808,7 @@ RESOURCE_TABLES = (
     "geometries",
 )
 
-TABLES = ("process_flow_template_drafts", "process_flow_instance_drafts", *RESOURCE_TABLES)
+TABLES = ("process_flow_template_drafts", *RESOURCE_TABLES)
 
 
 def _duplicate_item_error(error: sqlite3.IntegrityError) -> DuplicateItemError:
@@ -804,7 +836,7 @@ def utc_now() -> str:
 
 
 def _draft_table(kind: str) -> str:
-    if kind not in ("template", "instance"):
+    if kind != "template":
         raise ValueError("Unknown draft kind")
     return f"process_flow_{kind}_drafts"
 

@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 from process_flow_kernel import ProcessStepModuleResolver
 
 import process_flow_api.main as api_main
-from flow_requests import instance_create_payload, template_create_payload
+from flow_requests import instance_create_payload, template_create_payload, instance_configuration, station_values
 from process_flow_api.main import create_app
 from process_flow_api import services as api_services
 from process_flow_api.export_job_logging import ExportJobLogError
@@ -1325,7 +1325,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         rejected = self.client.post("/api/process-flow-instances", json=instance_create_payload(blank_owner))
         self.assertEqual(rejected.status_code, 422, rejected.text)
 
-    def test_direct_instance_create_rejects_wrong_geometry_category_without_writing(self):
+    def test_geometry_category_is_checked_when_executing_incomplete_instance(self):
         bootstrap = self.reset_poc_data()
         source = next(
             instance
@@ -1343,15 +1343,11 @@ class ProcessFlowApiTests(unittest.TestCase):
 
         response = self.client.post("/api/process-flow-instances", json=instance_create_payload(request))
 
-        self.assertEqual(response.status_code, 400, response.text)
-        self.assertIn(
-            "Geometry category die.dram is not accepted",
-            response.json()["message"],
-        )
-        self.assertEqual(
-            len(self.client.get("/api/process-flow-instances").json()),
-            instance_count,
-        )
+        self.assertEqual(response.status_code, 201, response.text)
+        executed = self.client.post(f"/api/process-flow-instances/{response.json()['id']}/execute")
+        self.assertEqual(executed.status_code, 400, executed.text)
+        self.assertIn("Geometry category die.dram is not accepted", executed.json()["message"])
+        self.assertEqual(len(self.client.get("/api/process-flow-instances").json()), instance_count + 1)
 
     def test_direct_instance_create_materializes_generated_geometry(self):
         bootstrap = self.reset_poc_data()
@@ -1415,7 +1411,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         template["id"] = response.json()["id"]
         instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
         instance.update(id="flow_inst_zero_branch", name="Zero placement instance", processFlowTemplateId=template["id"])
-        instance["stepConfigurations"]["pnp_hbm"]["parameterValues"]["placements"] = []
+        station_values(instance, "pnp_hbm")["placements"] = []
         instance["inputBindings"].pop("incoming_hbm")
         return template, instance
 
@@ -1451,7 +1447,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         instance = copy.deepcopy(next(item for item in bootstrap["processFlowInstances"]
                                       if item["id"] == "flow_inst_dual_bump_demo"))
         instance["name"] = "Zero placement MR joint"
-        instance["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = []
+        station_values(instance, "pnp")["placements"] = []
         instance["inputBindings"].pop("incoming_die")
         for step in ("die_bump", "die_flip"):
             instance["stepConfigurations"].pop(step)
@@ -1461,7 +1457,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         saved = self.client.get(f"/api/process-flow-instances/{instance['id']}")
         self.assertEqual(saved.status_code, 200, saved.text)
         self.assertNotIn("incoming_die", saved.json()["inputBindings"])
-        self.assertEqual(set(saved.json()["stepConfigurations"]), {"main_bump", "pnp", "joint"})
+        self.assertEqual(set(instance_configuration(saved.json())["stepConfigurations"]), {"main_bump", "pnp", "joint"})
         executed = self.client.post(f"/api/process-flow-instances/{instance['id']}/execute")
         self.assertEqual(executed.status_code, 200, executed.text)
         outputs = executed.json()["stepOutputs"]
@@ -1479,7 +1475,7 @@ class ProcessFlowApiTests(unittest.TestCase):
 
     def test_zero_placement_preserves_unused_generator_recipe_and_reactivation_validates_it(self):
         _, instance = self.zero_placement_branch()
-        binding = {"kind": "generator", "generatorId": "unknown-inactive", "generatorVersion": 1, "parameters": {"draft": "retained"}}
+        binding = {"kind": "generator", "generatorId": "hbm", "generatorVersion": 2, "parameters": {"topCoreDieThickness": -1}}
         instance["inputBindings"]["incoming_hbm"] = binding
         with mock.patch.object(self.app.state.geometry_generators, "generate", side_effect=AssertionError("Inactive recipe generated")) as generate:
             created = self.client.post("/api/process-flow-instances", json=instance_create_payload(instance))
@@ -1496,13 +1492,16 @@ class ProcessFlowApiTests(unittest.TestCase):
             self.assertEqual(self.client.post("/api/process-flow-instances", json=instance_create_payload(copied)).status_code, 201)
             generate.assert_not_called()
         copied["id"] = "flow_inst_reactivated"
-        copied["stepConfigurations"]["pnp_hbm"]["parameterValues"]["placements"] = [{
+        copied["name"] = "Reactivated trial"
+        station_values(copied, "pnp_hbm")["placements"] = [{
             "targetRegion": {"type": "rectangle", "bottomLeftX": 0, "bottomLeftY": 0, "topRightX": 10, "topRightY": 10},
             "pose": {"x": 0, "y": 0, "rotationZ": 0}, "anchor": "center",
         }]
         for name in ("hbm_prepare1", "hbm_prepare2"):
             copied["stepConfigurations"][name] = {"parameterValues": {"material": "EMC", "thickness": 2}}
-        rejected = self.client.post("/api/process-flow-instances", json=instance_create_payload(copied))
+        reactivated = self.client.post("/api/process-flow-instances", json=instance_create_payload(copied))
+        self.assertEqual(reactivated.status_code, 201, reactivated.text)
+        rejected = self.client.post(f"/api/process-flow-instances/{reactivated.json()['id']}/execute")
         self.assertEqual(rejected.status_code, 400, rejected.text)
 
 
@@ -1531,7 +1530,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(binding["kind"], "generator")
         self.assertEqual(binding["generatorVersion"], 2)
         self.assertEqual(binding["parameters"]["packageX"], 1400)
-        self.assertEqual(binding["parameters"]["coreDieCount"], 4)
+        self.assertNotIn("coreDieCount", binding["parameters"])
         self.assertNotIn("geometryId", binding)
         self.assertNotIn("embeddedGeometries", created.json())
         self.assertEqual(len(self.client.get("/api/geometries").json()), before_count)
@@ -1547,7 +1546,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 "processFlowTemplateId": source["processFlowTemplateId"],
                 "configuration": {
                     "inputBindings": created.json()["inputBindings"],
-                    "stepConfigurations": created.json()["stepConfigurations"],
+                    "stepConfigurations": instance_configuration(created.json())["stepConfigurations"],
                     "embeddedGeometries": {},
                 },
             },
@@ -1560,7 +1559,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 "processFlowTemplateId": source["processFlowTemplateId"],
                 "configuration": {
                     "inputBindings": created.json()["inputBindings"],
-                    "stepConfigurations": created.json()["stepConfigurations"],
+                    "stepConfigurations": instance_configuration(created.json())["stepConfigurations"],
                     "embeddedGeometries": {},
                 },
             },
@@ -1631,12 +1630,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         binding = saved["inputBindings"]["incoming_soc"]
         self.assertEqual(binding["generatorId"], "soc")
         self.assertEqual(binding["generatorVersion"], 1)
-        self.assertEqual(binding["parameters"], {
-            "pass2Thickness": 5.625, "pass2Material": "pass2",
-            "usgThickness": 2.89, "usgMaterial": "usg",
-            "elkThickness": 1.315, "elkMaterial": "elk",
-            "siThickness": 200, "siMaterial": "si",
-        })
+        self.assertEqual(binding["parameters"], instance["inputBindings"]["incoming_soc"]["parameters"])
         self.assertEqual(
             self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), saved
         )
@@ -1765,8 +1759,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         binding = saved["inputBindings"]["incoming_lsi"]
         self.assertEqual(binding["generatorId"], "lsi")
         self.assertEqual(binding["generatorVersion"], 1)
-        self.assertEqual(binding["parameters"]["siMaterial"], "Si")
-        self.assertEqual(len(binding["parameters"]), 23)
+        self.assertEqual(binding["parameters"]["siMaterial"], "  Si  ")
+        self.assertEqual(binding["parameters"], instance["inputBindings"]["incoming_lsi"]["parameters"])
         self.assertEqual(
             self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), saved
         )
@@ -1802,6 +1796,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         source = bootstrap["processFlowInstances"][0]
         request = copy.deepcopy(source)
         request["id"] = "flow_inst_invalid_generator"
+        request["name"] = "Generator validation trial"
         request["inputBindings"]["incoming_hbm"] = {
             "kind": "generator", "generatorId": "hbm", "parameters": {},
         }
@@ -1816,8 +1811,11 @@ class ProcessFlowApiTests(unittest.TestCase):
         request["inputBindings"]["incoming_hbm"]["generatorVersion"] = 2
         request["inputBindings"]["incoming_hbm"]["parameters"] = {"topCoreDieThickness": -1}
         invalid_parameters = self.client.post("/api/process-flow-instances", json=instance_create_payload(request))
-        self.assertEqual(invalid_parameters.status_code, 400, invalid_parameters.text)
-        self.assertIn("topCoreDieThickness", invalid_parameters.json()["message"])
+        self.assertEqual(invalid_parameters.status_code, 201, invalid_parameters.text)
+        invalid_execution = self.client.post(f"/api/process-flow-instances/{invalid_parameters.json()['id']}/execute")
+        self.assertEqual(invalid_execution.status_code, 400)
+        self.assertIn("topCoreDieThickness", invalid_execution.json()["message"])
+        request["name"] = "Next generator trial"
 
         request["inputBindings"]["incoming_hbm"] = {
             "kind": "generator", "generatorId": "missing", "generatorVersion": 2,
@@ -1832,8 +1830,10 @@ class ProcessFlowApiTests(unittest.TestCase):
             "parameters": {},
         }
         wrong_category = self.client.post("/api/process-flow-instances", json=instance_create_payload(request))
-        self.assertEqual(wrong_category.status_code, 400, wrong_category.text)
-        self.assertIn("Geometry category die.dram is not accepted", wrong_category.json()["message"])
+        self.assertEqual(wrong_category.status_code, 201, wrong_category.text)
+        invalid_execution = self.client.post(f"/api/process-flow-instances/{wrong_category.json()['id']}/execute")
+        self.assertEqual(invalid_execution.status_code, 400)
+        self.assertIn("Geometry category die.dram is not accepted", invalid_execution.json()["message"])
         self.assertIsNone(self.app.state.store.get_process_flow_instance(request["id"]))
 
     def test_combined_template_instance_create_preserves_generator_recipe(self):
@@ -1862,7 +1862,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         instance["processFlowTemplateId"] = response.json()["processFlowInstance"]["processFlowTemplateId"]
         binding = response.json()["processFlowInstance"]["inputBindings"]["incoming_hbm"]
         self.assertEqual(binding["kind"], "generator")
-        self.assertEqual(binding["parameters"]["coreDieCount"], 4)
+        self.assertNotIn("coreDieCount", binding["parameters"])
         self.assertEqual(len(self.client.get("/api/geometries").json()), before_count)
 
     def test_direct_instance_materialization_rolls_back_on_duplicate_instance(self):
@@ -1881,7 +1881,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         }
         geometry_count = len(bootstrap["geometries"])
 
-        with mock.patch("process_flow_api.services.generated_flow_instance_id", return_value=source["id"]):
+        with mock.patch("process_flow_api.instance_service.generated_flow_instance_id", return_value=source["id"]):
             response = self.client.post(
                 "/api/process-flow-instances",
                 json=instance_create_payload({
@@ -2024,7 +2024,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 "flowTemplate": flow_template,
                 "configuration": {
                     "inputBindings": instance["inputBindings"],
-                    "stepConfigurations": instance["stepConfigurations"],
+                    "stepConfigurations": instance_configuration(instance)["stepConfigurations"],
                     "embeddedGeometries": {},
                 },
             },
@@ -2043,7 +2043,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 "flowTemplate": draft_template,
                 "configuration": {
                     "inputBindings": instance["inputBindings"],
-                    "stepConfigurations": instance["stepConfigurations"],
+                    "stepConfigurations": instance_configuration(instance)["stepConfigurations"],
                     "embeddedGeometries": {},
                 },
             },
@@ -2063,7 +2063,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 "flowTemplate": draft_template,
                 "configuration": {
                     "inputBindings": instance["inputBindings"],
-                    "stepConfigurations": instance["stepConfigurations"],
+                    "stepConfigurations": instance_configuration(instance)["stepConfigurations"],
                     "embeddedGeometries": {},
                 },
             },
@@ -3117,7 +3117,7 @@ def preview_session_request(
     bootstrap=None,
     through_step_index=None,
 ):
-    step_configurations = instance["stepConfigurations"]
+    step_configurations = instance_configuration(instance)["stepConfigurations"]
     if bootstrap is not None and through_step_index is not None:
         step_templates = {
             template["id"]: template for template in bootstrap["processStepTemplates"]

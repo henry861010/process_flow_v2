@@ -302,7 +302,7 @@ function ProcessFlowTemplateEditorInner() {
   const canSaveTemplate =
     hydrated && !topologyLocked && !busyAction && !drafts.busy && !analysis.error && !availabilityError;
   const configurationComplete = isConfigurationComplete(draftTemplate, stepTemplates, configuration, resolvedGeometries);
-  const canSaveTemplateInstance = canSaveTemplate && configurationComplete;
+  const canSaveTemplateInstance = canSaveTemplate;
   const instanceConfigurationIssues = !analysis.error && !configurationComplete
     ? flowConfigurationIssues(draftTemplate, stepTemplates, configuration, resolvedGeometries)
     : [];
@@ -921,10 +921,13 @@ function ProcessFlowTemplateEditorInner() {
     setSaveDialogError(null);
     setMessage(null);
     try {
-      const saved = combined
+      const created = combined
         ? (drafts.active
             ? await commitTemplateInstanceEditorDraft(drafts.active, request)
-            : await createProcessFlowTemplateInstance(request)).processFlowTemplate
+            : await createProcessFlowTemplateInstance(request))
+        : null;
+      const saved = created
+        ? created.processFlowTemplate
         : drafts.active
           ? await commitTemplateEditorDraft(drafts.active, request.processFlowTemplate)
           : await createProcessFlowTemplate(request.processFlowTemplate);
@@ -933,7 +936,9 @@ function ProcessFlowTemplateEditorInner() {
       setSavedTemplate(saved);
       setFlowTemplates((current) => [...current, saved]);
       setSaveDialogMode(null);
-      router.push("/");
+      router.push(created
+        ? `/flow-instance-editor?instanceId=${encodeURIComponent(created.processFlowInstance.id)}`
+        : "/");
     } catch (error) {
       setSaveDialogError(
         error instanceof Error ? error.message : "Unable to save flow.",
@@ -1125,7 +1130,7 @@ function ProcessFlowTemplateEditorInner() {
           mode={saveDialogMode}
           onModeChange={(mode) => { setPreferredSaveMode(mode); setSaveDialogMode(mode); setSaveDialogError(null); }}
           blockingIssues={blockingIssues}
-          configurationIssues={configurationIssues}
+          configurationIssues={[]}
           template={metadata}
           instance={instanceMetadata}
           error={saveDialogError}

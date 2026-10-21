@@ -52,7 +52,7 @@ describe("save flow dialog", () => {
   });
   it("retains the existing instance editor interface without outcome selection", () => {
     const html = render("instance", { modern: false });
-    expect(html).toContain("Save instance");
+    expect(html).toContain("Create instance");
     expect(html).not.toContain("save-mode");
     expect(html).not.toContain("Template information");
     expect(html).toContain("Configured instance");

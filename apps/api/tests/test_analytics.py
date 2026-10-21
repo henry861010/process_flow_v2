@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from flow_requests import instance_configuration
+
 import asyncio
 import copy
 import json
@@ -83,7 +85,7 @@ def test_success_conflict_and_validation_events_do_not_save_body_owner(service):
     created = client.post("/api/process-flow-instances", json=instance_create_payload(payload))
     assert created.status_code == 201
     payload["id"] = created.json()["id"]
-    with mock.patch("process_flow_api.services.generated_flow_instance_id", return_value=created.json()["id"]):
+    with mock.patch("process_flow_api.instance_service.generated_flow_instance_id", return_value=created.json()["id"]):
         assert client.post("/api/process-flow-instances", json=instance_create_payload(payload)).status_code == 409
     assert client.post("/api/process-flow-instances", json={"owner": "injected-owner"}).status_code == 422
     events = rows(app, "usage_events", "event_name='flow_instance.create'")
@@ -155,7 +157,7 @@ def test_preview_context_and_inline_draft_attribution(service):
     app, client = service
     template, source = instance_source(client)
     target = {"type": "flowInput", "flowInputId": template["flowInputs"][0]["flowInputId"]}
-    config = {"inputBindings": source["inputBindings"], "stepConfigurations": source["stepConfigurations"]}
+    config = instance_configuration(source)
     for context in ({"flowTemplateId": template["id"], "flowInstanceId": source["id"]},
                     {"flowTemplateId": "missing", "flowInstanceId": source["id"]}):
         payload = {"processFlowTemplateId": template["id"], "target": target,

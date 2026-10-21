@@ -70,7 +70,6 @@ def test_merge_fully_overwrites_by_id_and_preserves_other_data_and_drafts(servic
     client, store = service
     original = steps(client)
     template_draft = make_draft(client, "template", original["step_tpl_molding"])
-    instance_draft = make_draft(client, "instance")
     before = client.get("/api/bootstrap").json()
     dataset_id = store.dataset_id
     replacement = copy.deepcopy(original["step_tpl_ecl"])
@@ -91,7 +90,6 @@ def test_merge_fully_overwrites_by_id_and_preserves_other_data_and_drafts(servic
         key: value for key, value in before.items() if key != "processStepTemplates"
     }
     assert store.get_editor_draft("template", template_draft["id"]) == template_draft
-    assert store.get_editor_draft("instance", instance_draft["id"]) == instance_draft
     assert store.dataset_id == dataset_id
 
 

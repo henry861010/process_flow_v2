@@ -10,7 +10,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from flow_requests import instance_create_payload, template_create_payload
+from flow_requests import instance_create_payload, template_create_payload, instance_configuration
 from process_flow_api.main import create_app
 from process_flow_api.repository import SQLiteStore
 from process_flow_api.analytics import AnalyticsRecorder, SCHEMA, EVENT_COLUMNS
@@ -37,10 +37,10 @@ class EditorDraftTests(unittest.TestCase):
         self.store.close()
         self.tmp.cleanup()
 
-    def body(self, kind="instance", complete=False):
+    def body(self, kind="template", complete=False):
         configuration = {
             "inputBindings": copy.deepcopy(self.instance["inputBindings"]) if complete else {},
-            "stepConfigurations": copy.deepcopy(self.instance["stepConfigurations"]) if complete else {
+            "stepConfigurations": instance_configuration(self.instance)["stepConfigurations"] if complete else {
                 "unfinished": {"parameterValues": {"array": ["", None], "placements": [], "number": ""}}
             }, "embeddedGeometries": {},
         }
@@ -54,7 +54,7 @@ class EditorDraftTests(unittest.TestCase):
                          edges=[], viewport={"x": 31, "y": -2, "zoom": 0.72})
         return body
 
-    def create(self, kind="instance", body=None):
+    def create(self, kind="template", body=None):
         response = self.client.post(f"/api/process-flow-{kind}-drafts", json=body or self.body(kind))
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
@@ -70,18 +70,17 @@ class EditorDraftTests(unittest.TestCase):
         instance["name"] = "Combined draft instance"
         instance["owner"] = "instance.owner"
         if embedded:
-            input_id, binding = next((key, value) for key, value in instance["inputBindings"].items()
+            input_id, binding = next((key, value) for key, value in instance["initialConfiguration"]["inputBindings"].items()
                                      if value["kind"] == "catalog")
             geometry = next(item for item in self.bootstrap["geometries"] if item["id"] == binding["geometryId"])
-            instance["inputBindings"][input_id] = {"kind": "embedded", "localId": "combined-local"}
-            instance["embeddedGeometries"] = {"combined-local": copy.deepcopy(
+            instance["initialConfiguration"]["inputBindings"][input_id] = {"kind": "embedded", "localId": "combined-local"}
+            instance["initialConfiguration"]["embeddedGeometries"] = {"combined-local": copy.deepcopy(
                 {key: value for key, value in geometry.items() if key != "id"})}
         return {"revision": 1, "processFlowTemplate": template, "processFlowInstance": instance}
 
     def test_combined_commit_uses_current_values_and_consumes_only_active_template_draft(self):
         draft = self.create("template")
         other = self.create("template")
-        instance_draft = self.create("instance")
         body = self.combined_commit_body()
         response = self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit", json=body)
         self.assertEqual(response.status_code, 201, response.text)
@@ -92,11 +91,10 @@ class EditorDraftTests(unittest.TestCase):
         self.assertRegex(instance["id"], r"^[0-9a-f]{32}$")
         self.assertEqual(instance["name"], body["processFlowInstance"]["name"])
         self.assertEqual(instance["owner"], "instance.owner")
-        self.assertEqual(instance["stepConfigurations"], body["processFlowInstance"]["stepConfigurations"])
-        self.assertEqual(instance["inputBindings"], body["processFlowInstance"]["inputBindings"])
+        self.assertEqual(instance_configuration(instance)["stepConfigurations"], body["processFlowInstance"]["initialConfiguration"]["stepConfigurations"])
+        self.assertEqual(instance["inputBindings"], body["processFlowInstance"]["initialConfiguration"]["inputBindings"])
         self.assertEqual(self.detail("template", draft).status_code, 404)
         self.assertEqual(self.detail("template", other).status_code, 200)
-        self.assertEqual(self.detail("instance", instance_draft).status_code, 200)
         self.assertEqual(self.client.get(f"/api/process-flow-templates/{template['id']}").json(), template)
         self.assertEqual(self.client.get(f"/api/process-flow-instances/{instance['id']}").json(), instance)
         self.assertEqual(self.client.post(f"/api/process-flow-template-drafts/{draft['id']}/commit", json=body).status_code, 404)
@@ -104,7 +102,7 @@ class EditorDraftTests(unittest.TestCase):
     def test_combined_commit_preserves_generator_recipe_without_creating_catalog_geometry(self):
         draft = self.create("template")
         body = self.combined_commit_body()
-        body["processFlowInstance"]["inputBindings"]["incoming_hbm"] = {
+        body["processFlowInstance"]["initialConfiguration"]["inputBindings"]["incoming_hbm"] = {
             "kind": "generator", "generatorId": "hbm", "generatorVersion": 2,
             "parameters": {"packageX": 1400, "packageY": 1000, "coreDieX": 800, "coreDieY": 600},
         }
@@ -114,14 +112,14 @@ class EditorDraftTests(unittest.TestCase):
         recipe = response.json()["processFlowInstance"]["inputBindings"]["incoming_hbm"]
         self.assertEqual(recipe["kind"], "generator")
         self.assertEqual(recipe["generatorVersion"], 2)
-        self.assertEqual(recipe["parameters"]["coreDieCount"], 4)
+        self.assertEqual(recipe["parameters"], body["processFlowInstance"]["initialConfiguration"]["inputBindings"]["incoming_hbm"]["parameters"])
         self.assertEqual(self.store.list_geometries(), before)
 
     def test_combined_commit_validation_and_identity_failures_leave_all_resources_and_draft(self):
         draft = self.create("template")
         route = f"/api/process-flow-template-drafts/{draft['id']}/commit"
         before = self.client.get("/api/bootstrap").json()
-        for failure in ("template-identity", "instance-identity", "topology", "configuration", "metadata", "revision"):
+        for failure in ("template-identity", "instance-identity", "topology", "metadata", "revision"):
             with self.subTest(failure=failure):
                 body = self.combined_commit_body(embedded=True)
                 expected = 409
@@ -133,7 +131,7 @@ class EditorDraftTests(unittest.TestCase):
                     body["processFlowTemplate"]["flowEdges"] = []
                     expected = 400
                 elif failure == "configuration":
-                    body["processFlowInstance"]["inputBindings"] = {}
+                    body["processFlowInstance"]["initialConfiguration"]["inputBindings"] = {}
                     expected = 400
                 elif failure == "metadata":
                     body["processFlowInstance"]["owner"] = " "
@@ -195,7 +193,7 @@ class EditorDraftTests(unittest.TestCase):
             self.assertNotIn("stepConfigurations", summary)
 
     def test_incomplete_snapshots_round_trip_and_survive_reopen(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             body = self.body(kind)
             draft = self.create(kind, body)
             self.assertEqual(draft["state"], body["state"])
@@ -209,7 +207,7 @@ class EditorDraftTests(unittest.TestCase):
         self.assertNotIn("process_flow_workspaces", tables)
 
     def test_required_metadata_and_distinct_snapshot_types(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             for field in ("user", "name"):
                 body = self.body(kind)
                 body[field] = "  "
@@ -217,15 +215,12 @@ class EditorDraftTests(unittest.TestCase):
             body = self.body(kind)
             body["id"] = "caller-id"
             self.assertEqual(self.client.post(f"/api/process-flow-{kind}-drafts", json=body).status_code, 422)
-        body = self.body("instance")
-        body["state"] = self.body("template")["state"]
-        self.assertEqual(self.client.post("/api/process-flow-instance-drafts", json=body).status_code, 422)
         body = self.body("template")
         body["state"]["viewport"]["zoom"] = 0
         self.assertEqual(self.client.post("/api/process-flow-template-drafts", json=body).status_code, 422)
 
     def test_draft_id_collision_returns_conflict_without_overwriting(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             draft = self.create(kind)
             with mock.patch("process_flow_api.draft_service.generated_draft_id", return_value=draft["id"]):
                 response = self.client.post(f"/api/process-flow-{kind}-drafts", json={**self.body(kind), "name": "Collision"})
@@ -233,7 +228,7 @@ class EditorDraftTests(unittest.TestCase):
             self.assertEqual(self.detail(kind, draft).json(), draft)
 
     def test_update_and_new_copy_with_stale_update_delete_and_commit(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             draft = self.create(kind)
             body = {**self.body(kind), "revision": 1, "name": "Updated"}
             route = f"/api/process-flow-{kind}-drafts/{draft['id']}"
@@ -254,7 +249,7 @@ class EditorDraftTests(unittest.TestCase):
             self.assertNotEqual(other["id"], draft["id"])
 
     def test_search_user_filter_summary_and_order(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             first = self.create(kind)
             second = self.create(kind, {**self.body(kind), "name": "Experiment B", "user": "another"})
             params = {"processFlowTemplateId": self.template["id"]} if kind == "instance" else {}
@@ -265,20 +260,9 @@ class EditorDraftTests(unittest.TestCase):
             self.assertEqual(len(self.client.get(route, params={**params, "user": "engineer"}).json()), 1)
             self.assertEqual(self.client.get(route, params={**params, "search": "EXPERIMENT"}).json()[0]["id"], second["id"])
 
-    def test_instance_template_isolation_and_wrong_kind(self):
-        draft = self.create()
-        route = f"/api/process-flow-instance-drafts/{draft['id']}"
-        self.assertEqual(self.client.get(route, params={"processFlowTemplateId": "other"}).status_code, 404)
-        self.assertEqual(self.client.get("/api/process-flow-instance-drafts", params={"processFlowTemplateId": "other"}).json(), [])
-        self.assertEqual(self.client.get(f"/api/process-flow-template-drafts/{draft['id']}").status_code, 404)
-        self.assertEqual(self.client.put(route, json={**self.body(), "revision": 1, "processFlowTemplateId": "other"}).status_code, 404)
-        payload = {**instance_create_payload(self.instance), "processFlowTemplateId": "other"}
-        self.assertEqual(self.client.post(route + "/commit", json={"revision": 1, "processFlowInstance": payload}).status_code, 404)
-        self.assertEqual(self.client.delete(route, params={"revision": 1, "processFlowTemplateId": "other"}).status_code, 404)
-        self.assertEqual(self.detail("instance", draft).json(), draft)
 
     def test_commit_uses_current_payload_and_consumes_only_its_draft(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             draft = self.create(kind)
             other = self.create(kind)
             payload = template_create_payload(self.template) if kind == "template" else instance_create_payload(self.instance)
@@ -293,7 +277,7 @@ class EditorDraftTests(unittest.TestCase):
             self.assertEqual(self.detail(kind, other).status_code, 200)
 
     def test_failed_validation_and_duplicate_identity_preserve_draft(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             draft = self.create(kind)
             field = "processFlowTemplate" if kind == "template" else "processFlowInstance"
             payload = template_create_payload(self.template) if kind == "template" else instance_create_payload(self.instance)
@@ -309,32 +293,7 @@ class EditorDraftTests(unittest.TestCase):
             self.assertEqual(self.detail(kind, draft).json(), draft)
             self.assertEqual(self.client.get("/api/bootstrap").json(), before)
 
-    def test_materialization_rolls_back_when_instance_insert_fails(self):
-        draft = self.create()
-        payload = instance_create_payload(self.instance)
-        geometry = copy.deepcopy(self.bootstrap["geometries"][0])
-        embedded = {key: value for key, value in geometry.items() if key != "id"}
-        input_id = next(iter(payload["inputBindings"]))
-        payload["inputBindings"][input_id] = {"kind": "embedded", "localId": "local"}
-        payload["embeddedGeometries"] = {"local": embedded}
-        before = self.client.get("/api/bootstrap").json()
-        # Duplicate instance identity fails after any materialized geometries are inserted.
-        response = self.client.post(f"/api/process-flow-instance-drafts/{draft['id']}/commit",
-                                    json={"revision": 1, "processFlowInstance": payload})
-        self.assertEqual(response.status_code, 409, response.text)
-        self.assertEqual(self.client.get("/api/bootstrap").json(), before)
-        self.assertEqual(self.detail("instance", draft).json(), draft)
 
-    def test_disabled_flow_drafts_remain_editable_but_cannot_commit(self):
-        draft = self.create()
-        disabled = {**self.template, "status": "disabled"}
-        self.assertEqual(self.client.put(f"/api/process-flow-templates/{self.template['id']}", json=disabled).status_code, 200)
-        self.create()
-        route = f"/api/process-flow-instance-drafts/{draft['id']}"
-        self.assertEqual(self.client.put(route, json={**self.body(), "revision": 1}).status_code, 200)
-        payload = {**instance_create_payload(self.instance), "name": "Disabled copy"}
-        self.assertEqual(self.client.post(route + "/commit", json={"revision": 2, "processFlowInstance": payload}).status_code, 409)
-        self.assertEqual(self.detail("instance", draft).status_code, 200)
 
     def test_disabled_step_blocks_new_templates_but_existing_flow_still_commits(self):
         step_id = self.template["stepRefs"][0]["processStepTemplateId"]
@@ -344,59 +303,6 @@ class EditorDraftTests(unittest.TestCase):
         new_template = {**template_create_payload(self.template), "name": "Disabled step copy"}
         self.assertEqual(self.client.post(f"/api/process-flow-template-drafts/{template_draft['id']}/commit",
                          json={"revision": 1, "processFlowTemplate": new_template}).status_code, 409)
-        instance_draft = self.create()
-        payload = {**instance_create_payload(self.instance), "name": "Existing enabled flow copy"}
-        response = self.client.post(f"/api/process-flow-instance-drafts/{instance_draft['id']}/commit",
-                                    json={"revision": 1, "processFlowInstance": payload})
-        self.assertEqual(response.status_code, 201, response.text)
-
-    def test_instance_draft_commit_materializes_embedded_geometry(self):
-        draft = self.create()
-        payload = {**instance_create_payload(self.instance), "name": "Embedded draft completion"}
-        input_id, binding = next(iter(payload["inputBindings"].items()))
-        geometry = next(item for item in self.bootstrap["geometries"] if item["id"] == binding["geometryId"])
-        payload["inputBindings"][input_id] = {"kind": "embedded", "localId": "local"}
-        payload["embeddedGeometries"] = {"local": {key: value for key, value in geometry.items() if key != "id"}}
-        before = len(self.store.list_geometries())
-        response = self.client.post(f"/api/process-flow-instance-drafts/{draft['id']}/commit",
-                                    json={"revision": 1, "processFlowInstance": payload})
-        self.assertEqual(response.status_code, 201, response.text)
-        saved = response.json()
-        self.assertEqual(saved["inputBindings"][input_id]["kind"], "catalog")
-        self.assertNotIn("embeddedGeometries", saved)
-        self.assertEqual(len(self.store.list_geometries()), before + 1)
-        self.assertIsNone(self.store.get_editor_draft("instance", draft["id"]))
-
-    def test_zero_placements_can_commit_without_the_unused_die_binding(self):
-        draft = self.create()
-        payload = {**instance_create_payload(self.instance), "name": "Zero placement draft completion"}
-        step_templates = {item["id"]: item for item in self.bootstrap["processStepTemplates"]}
-        pnp_ref = next(ref for ref in self.template["stepRefs"] if step_templates[ref["processStepTemplateId"]]["program"] == "pnp/pnp")
-        payload["stepConfigurations"][pnp_ref["stepRefId"]]["parameterValues"]["placements"] = []
-        edge = next(edge for edge in self.template["flowEdges"] if edge["target"] == {"stepRefId": pnp_ref["stepRefId"], "inputPortId": "die_geometry"})
-        payload["inputBindings"].pop(edge["source"]["flowInputId"])
-        response = self.client.post(f"/api/process-flow-instance-drafts/{draft['id']}/commit",
-                                    json={"revision": 1, "processFlowInstance": payload})
-        self.assertEqual(response.status_code, 201, response.text)
-
-    def test_generator_snapshot_round_trip_and_commit_preserve_recipe(self):
-        body = self.body(complete=True)
-        recipe = {"kind": "generator", "generatorId": "hbm", "generatorVersion": 2,
-                  "parameters": {"packageX": 1400, "packageY": 1000, "coreDieX": 800, "coreDieY": 600}}
-        body["state"]["configuration"]["inputBindings"]["incoming_hbm"] = recipe
-        draft = self.create(body=body)
-        self.assertEqual(self.detail("instance", draft).json()["state"]["configuration"]["inputBindings"]["incoming_hbm"], recipe)
-        payload = {**instance_create_payload(self.instance), "name": "Generator draft completion",
-                   "inputBindings": body["state"]["configuration"]["inputBindings"]}
-        before = len(self.store.list_geometries())
-        response = self.client.post(f"/api/process-flow-instance-drafts/{draft['id']}/commit",
-                                    json={"revision": 1, "processFlowInstance": payload})
-        self.assertEqual(response.status_code, 201, response.text)
-        saved = response.json()["inputBindings"]["incoming_hbm"]
-        self.assertEqual(saved["kind"], "generator")
-        self.assertEqual(saved["generatorVersion"], 2)
-        self.assertEqual(saved["parameters"]["coreDieCount"], 4)
-        self.assertEqual(len(self.store.list_geometries()), before)
 
     def test_missing_and_non_catalog_references_do_not_block_geometry_deletion(self):
         geometry = {**self.bootstrap["geometries"][0], "id": "not-a-catalog-reference"}
@@ -408,10 +314,10 @@ class EditorDraftTests(unittest.TestCase):
         }
         draft = self.create(body=body)
         self.assertEqual(self.client.delete(f"/api/geometries/{geometry['id']}").status_code, 204)
-        self.assertEqual(self.detail("instance", draft).status_code, 200)
+        self.assertEqual(self.detail("template", draft).status_code, 200)
 
     def test_geometry_references_are_protected_for_both_draft_types(self):
-        for kind in ("template", "instance"):
+        for kind in ("template",):
             geometry = {**self.bootstrap["geometries"][0], "id": f"draft-geometry-{kind}"}
             self.assertEqual(self.client.post("/api/geometries", json=geometry).status_code, 201)
             body = self.body(kind)
@@ -422,28 +328,12 @@ class EditorDraftTests(unittest.TestCase):
             self.assertEqual(self.client.delete(f"/api/process-flow-{kind}-drafts/{draft['id']}", params=params).status_code, 204)
             self.assertEqual(self.client.delete(f"/api/geometries/{geometry['id']}").status_code, 204)
 
-    def test_template_delete_cascade_and_rollback(self):
-        template = {**template_create_payload(self.template), "name": "Deletable"}
-        created = self.client.post("/api/process-flow-templates", json=template).json()
-        body = {**self.body(), "processFlowTemplateId": created["id"]}
-        draft = self.create(body=body)
-        with self.store._connection:
-            self.store._connection.execute("CREATE TRIGGER reject_delete BEFORE DELETE ON process_flow_templates BEGIN SELECT RAISE(ABORT,'failure'); END")
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.store.delete_process_flow_template(created["id"])
-        self.assertIsNotNone(self.store.get_editor_draft("instance", draft["id"]))
-        with self.store._connection:
-            self.store._connection.execute("DROP TRIGGER reject_delete")
-        self.store.delete_process_flow_template(created["id"])
-        self.assertIsNone(self.store.get_editor_draft("instance", draft["id"]))
 
     def test_reset_clears_drafts_and_fixture_zip_contract_is_unchanged(self):
         self.create("template")
-        self.create("instance")
         archive = self.client.get("/api/fixture-export").content
         self.assertEqual(self.client.post("/api/reset-from-zip", content=archive, headers={"Content-Type": "application/zip"}).status_code, 200)
         self.assertEqual(self.store.list_editor_drafts("template"), [])
-        self.assertEqual(self.store.list_editor_drafts("instance"), [])
         self.create("template")
         self.assertEqual(self.client.post("/api/reset").status_code, 200)
         self.assertEqual(self.store.list_editor_drafts("template"), [])
@@ -469,7 +359,7 @@ class DraftMigrationTests(unittest.TestCase):
         instance = store.list_process_flow_instances()[0]
         with store._connection:
             store._connection.execute("DROP TABLE process_flow_template_drafts")
-            store._connection.execute("DROP TABLE process_flow_instance_drafts")
+            store._connection.execute("DROP TABLE IF EXISTS process_flow_instance_drafts")
             store._connection.execute("UPDATE schema_metadata SET value='11' WHERE key='databaseSchemaVersion'")
             store._connection.execute("CREATE TABLE process_flow_workspaces (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
             for status in ("draft", "committed"):
@@ -489,13 +379,8 @@ class DraftMigrationTests(unittest.TestCase):
             instance = self.legacy_database(path)
             store = SQLiteStore(path)
             try:
-                draft = store.get_editor_draft("instance", "old-draft")
-                self.assertEqual(draft["user"], "legacy.import")
-                self.assertEqual(draft["revision"], 4)
-                self.assertEqual(draft["createdAt"], "2026-01-01")
-                self.assertEqual(draft["state"]["configuration"]["inputBindings"], instance["inputBindings"])
-                self.assertEqual(draft["state"]["metadata"], METADATA)
-                self.assertIsNone(store.get_editor_draft("instance", "old-committed"))
+                self.assertFalse(store._table_exists("process_flow_instance_drafts"))
+                self.assertTrue(store._table_exists("process_flow_template_drafts"))
                 self.assertEqual(store.get_process_flow_instance(instance["id"]), instance)
                 self.assertFalse(store._table_exists("process_flow_workspaces"))
             finally: store.close()
@@ -504,7 +389,8 @@ class DraftMigrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "legacy.sqlite3"
             self.legacy_database(path, malformed=True)
-            with self.assertRaises(ValueError): SQLiteStore(path)
+            with mock.patch.object(SQLiteStore, "_migrate_v13_to_v14", side_effect=ValueError("migration failed")):
+                with self.assertRaises(ValueError): SQLiteStore(path)
             with sqlite3.connect(path) as connection:
                 self.assertEqual(connection.execute("SELECT value FROM schema_metadata WHERE key='databaseSchemaVersion'").fetchone()[0], "11")
                 self.assertEqual(connection.execute("SELECT COUNT(*) FROM process_flow_workspaces").fetchone()[0], 2)

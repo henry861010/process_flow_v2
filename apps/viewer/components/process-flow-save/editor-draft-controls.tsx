@@ -9,10 +9,10 @@ import {
   deleteEditorDraft, getEditorDraft, listEditorDrafts, saveEditorDraft,
   type EditorDraftKind,
 } from "@/lib/process-flow-api";
-import type { EditorDraft, EditorDraftSummary, InstanceEditorDraftState, TemplateEditorDraftState } from "@/lib/process-flow/types";
+import type { EditorDraft, EditorDraftSummary, TemplateEditorDraftState } from "@/lib/process-flow/types";
 import { assertDraftVersion, draftFingerprint } from "@/lib/process-flow/editor-drafts";
 
-type State = InstanceEditorDraftState | TemplateEditorDraftState;
+type State = TemplateEditorDraftState;
 type Confirmation = { title: string; description: string; action: string; resolve: (accepted: boolean) => void };
 const inputClass = "h-9 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
@@ -127,9 +127,7 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
     try {
       const identity = { schemaVersion: 1 as const, user: identityValues.user.trim(), name: identityValues.name.trim() };
       if (kind === "template" && !("nodes" in captured)) throw new Error("Template snapshot is missing its graph.");
-      const body = kind === "instance"
-        ? { ...identity, state: captured, processFlowTemplateId: templateId! }
-        : { ...identity, state: captured as TemplateEditorDraftState };
+      const body = { ...identity, state: captured as TemplateEditorDraftState };
       const saved = await saveEditorDraft(kind, body, !asNew && active ? active : undefined);
       setActive(saved); setUser(saved.user); setName(saved.name);
       setBaseline(draftFingerprint(captured)); setLastSavedAt(saved.updatedAt);

@@ -37,6 +37,7 @@ export function ParameterValueEditor({
   errors = {},
   disabled = false,
   groups = [],
+  compact = false,
   onChange,
 }: {
   definitions: ParameterDefinition[];
@@ -44,6 +45,7 @@ export function ParameterValueEditor({
   errors?: Record<string, string>;
   disabled?: boolean;
   groups?: ParameterDefinitionGroup[];
+  compact?: boolean;
   onChange: (values: Record<string, unknown>) => void;
 }) {
   if (definitions.length === 0) {
@@ -88,6 +90,7 @@ export function ParameterValueEditor({
                 values={values}
                 errors={errors}
                 disabled={disabled}
+                compact={compact}
                 onChange={onChange}
               />
             </div>
@@ -100,6 +103,7 @@ export function ParameterValueEditor({
               values={values}
               errors={errors}
               disabled={disabled}
+              compact={compact}
               onChange={onChange}
             />
           </div>
@@ -115,6 +119,7 @@ export function ParameterValueEditor({
         values={values}
         errors={errors}
         disabled={disabled}
+        compact={compact}
         onChange={onChange}
       />
     </div>
@@ -126,12 +131,14 @@ function ParameterRows({
   values,
   errors,
   disabled,
+  compact,
   onChange,
 }: {
   definitions: ParameterDefinition[];
   values: Record<string, unknown>;
   errors: Record<string, string>;
   disabled: boolean;
+  compact?: boolean;
   onChange: (values: Record<string, unknown>) => void;
 }) {
   return definitions.map((definition) => (
@@ -141,6 +148,7 @@ function ParameterRows({
       value={values[definition.id]}
       error={errors[definition.id]}
       disabled={disabled}
+      compact={compact}
       onChange={(value) => onChange({ ...values, [definition.id]: value })}
     />
   ));
@@ -151,12 +159,14 @@ function ParameterRow({
   value,
   error,
   disabled,
+  compact,
   onChange,
 }: {
   definition: ParameterDefinition;
   value: unknown;
   error?: string;
   disabled: boolean;
+  compact?: boolean;
   onChange: (value: unknown) => void;
 }) {
   if (definition.valueType === "fieldGroupArray" && definition.repeatDefinition) {
@@ -182,7 +192,7 @@ function ParameterRow({
     return (
       <div className={cn("px-4 py-4 text-sm", error && "bg-destructive/5")}>
         <div className="mb-3">
-          <ParameterLabel definition={definition} />
+          <ParameterLabel definition={definition} compact={compact} />
         </div>
         <PrimitiveControl
           definition={definition}
@@ -198,11 +208,13 @@ function ParameterRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1",
+        compact
+          ? "grid grid-cols-[minmax(100px,0.8fr)_minmax(0,1.2fr)] items-center gap-3 px-3 py-2 text-sm"
+          : "grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1",
         error && "bg-destructive/5",
       )}
     >
-      <ParameterLabel definition={definition} />
+      <ParameterLabel definition={definition} compact={compact} />
       <div>
         <PrimitiveControl
           definition={definition}
@@ -657,7 +669,7 @@ function ParameterLabel({
   compact?: boolean;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 break-words">
       <div className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
         {definition.name}
         {definition.required === false ? null : (
@@ -665,7 +677,7 @@ function ParameterLabel({
         )}
       </div>
       <div className="mt-1 flex flex-wrap gap-1 font-mono text-[11px] text-muted-foreground">
-        <span>{definition.id}</span>
+        <span className="min-w-0 break-all">{definition.id}</span>
         {definition.unit ? <span>/ {definition.unit}</span> : null}
       </div>
       {definition.description && !compact ? (

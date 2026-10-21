@@ -6,7 +6,7 @@ audience:
   - API 與 data engineers
   - 維護者與 operator
   - QA 與 coding agent
-last_verified: 2026-10-13
+last_verified: 2026-10-21
 last_verified_commit: b01b1e70
 source_of_truth:
   - docs/data-model.md
@@ -65,20 +65,12 @@ transaction 保持一致。Direct database edits 不屬於 supported API。
 | `process_flow_template_id` | `TEXT` | not null, indexed | `processFlowTemplateId` |
 | `payload` | `TEXT` | not null | complete JSON |
 
-### 2.4 Editor draft tables
+### 2.4 Template editor draft table
 
-`process_flow_template_drafts` 與 `process_flow_instance_drafts` 分開保存各自型別的 snapshot；不共用 payload model。
-
-| Column | SQLite type | Payload path |
-| --- | --- | --- |
-| `id` | TEXT primary key | `id` |
-| `user`, `name` | TEXT not null | `user`, `name` |
-| `revision` | INTEGER not null | `revision` |
-| `created_at`, `updated_at` | TEXT not null | `createdAt`, `updatedAt` |
-| `payload` | TEXT not null | complete draft JSON |
-| `process_flow_template_id` | TEXT not null; instance table only | `processFlowTemplateId` |
-
-Both tables index user and updated time; instance drafts also index template ID. List endpoints return summaries without state. JSON contains a separate `state.metadata` and `state.configuration`; template state additionally contains nodes, edges and viewport.
+Only `process_flow_template_drafts` remains. It stores id, user, name, revision, created_at,
+updated_at and the full payload, with user and update-time indexes. Snapshot state contains
+metadata, FlowConfiguration, nodes, edges and viewport. Schema 14 drops the retired
+`process_flow_instance_drafts` table; no runtime API reads or writes instance drafts.
 
 ### 2.5 `geometries`
 
@@ -107,7 +99,7 @@ Current required row：
 ```json
 {
   "key": "databaseSchemaVersion",
-  "value": "13"
+  "value": "14"
 }
 ```
 
@@ -115,7 +107,7 @@ Current required row：
 匯入時在同一 transaction 更新。它不是 payload schema version，不包含在 fixture 匯出中。
 獨立分析資料庫與使用紀錄規則見 [Service 使用紀錄](analytics.md)。
 
-Database internal marker string `"13"`、Process payload wire marker integer `2` 與
+Database internal marker string `"14"`、Process payload wire marker integer `2` 與
 GeometryStructure format marker string `"1.0.0"` MUST NOT 混用；三者都不是產品版號。
 
 Version 9原地補齊v8 instance JSON payload metadata：`version="V0.0.0"`、
@@ -138,7 +130,6 @@ foreign keys：
 flowchart LR
   ST["process_step_templates.id"] -.-> SR["flow template stepRefs[].processStepTemplateId"]
   FT["process_flow_templates.id"] -.-> FI["instances.processFlowTemplateId"]
-  FT -.-> ID["instance drafts.processFlowTemplateId"]
   GE["geometries.id"] -.-> IB["inputBindings.*.geometryId"]
 ```
 
@@ -152,7 +143,7 @@ Normative service rules：
   `parameterDefaults`。Step status、owner、category、program 與 definition defaults MAY update in place；
   existing flow defaults MUST NOT be rewritten by that update。
 - A `ProcessFlowInstance` references a flow-template with locked identity/version/topology and either catalog geometry snapshots
-  or versioned generator recipes. Catalog references MUST NOT drift；generator implementations MUST
+  or versioned generator recipes. Bindings may be replaced with revision checks; generator implementations MUST
   preserve the behavior of versions referenced by instances。
 - Physical foreign keys MAY 在 future schema 加入，但不得改變 JSON reference contract。
 
@@ -169,25 +160,24 @@ status to `enabled`. Existing `PUT /api/process-step-templates/{id}` and
 `PUT /api/process-flow-templates/{id}` accept status changes; omission preserves current status.
 Null or unsupported values return 422. List, detail, and bootstrap include disabled templates.
 
-Disabled flow templates reject new instance creation (including copies) and instance draft commit with 409. Editor draft create/update/reload remain available.
+Disabled flow templates reject new instance creation (including copies) with 409. Existing instances remain mutable through the narrow recipe/binding APIs; Template Draft create/update/reload remain available.
 Disabled step templates reject new flow-template references with 409, including combined
 `POST /api/process-flow-template-instances`. Existing enabled flows referencing them remain usable
-for new instance drafts and instances. Combined creation checks both restrictions before any writes.
+for new instances. Combined creation checks both restrictions before any writes.
 Availability checks belong at service entrypoints, not shared reference loading or kernel validation:
 historical instance read, preview, execution, and export remain available. Re-enabling restores new
 usage. Process-step template deletion is not supported. Flow-template deletion is permitted only
-when no instance references it, and also removes its instance drafts in the same transaction.
+when no instance references it.
 
 ## 4. Mutability policy
 
 | Resource | Create | Update | Delete |
 | --- | --- | --- | --- |
 | `ProcessStepTemplate` | yes | restricted full replace | Not supported; DELETE returns 405。 |
-| `ProcessFlowTemplate` | yes | restricted full replace | Only without referencing instances; also deletes its instance drafts。 |
-| `ProcessFlowInstance` | yes | no | Deletes the instance。 |
+| `ProcessFlowTemplate` | yes | restricted full replace | Only without referencing instances。 |
+| `ProcessFlowInstance` | yes | revision-checked recipe append / active selection / bindings | Deletes the instance。 |
 | `GeometryEntity` | yes | no | Not part of current public lifecycle。 |
 | `TemplateEditorDraft` | yes | revision-checked full replace | Revision-checked delete, or consumed by commit。 |
-| `InstanceEditorDraft` | yes | revision-checked full replace | Revision-checked delete, consumed by commit, or removed with its flow template。 |
 
 `ProcessStepTemplate` update只允許`status`、`owner`、`category`、`program`、`inputPorts`順序與recursive parameter
 `defaultValue`改變；id、version、name、description、完整port definitions與parameter definition contract MUST
@@ -261,11 +251,19 @@ replace `updatedAt`。
 
 ## 8. Editor draft optimistic update
 
-Create assigns revision 1. PUT, DELETE and commit require the current revision. A write transaction re-reads the draft while holding `BEGIN IMMEDIATE`, verifies revision and fixed instance template ID, and only then changes rows. Stale revision returns 409; an absent or mismatched template-scoped draft returns 404. Updates increment revision and preserve createdAt.
+Template Draft create assigns revision 1. PUT, DELETE and commit require the current revision.
+The transaction holds `BEGIN IMMEDIATE`, re-reads the draft and returns 409 for stale revisions.
+Instance mutations use the same locking and revision policy against their canonical JSON payload;
+every successful mutation increments revision exactly once. Instance metadata, stations and all
+existing recipe entries are protected by repository guards. No generic instance overwrite is exposed.
 
 ## 9. Atomic editor draft commit
 
-The commit request includes the editor's current formal create payload. Shared preparation validates the resource and resolves used geometries before writing. One transaction checks draft revision, inserts referenced materialized geometries and the immutable template/instance, then deletes the draft. Every failure rolls back all writes. Success consumes the draft; subsequent calls to its ID return 404.
+Template Draft commit validates template topology and metadata. An optional new instance accepts
+incomplete `initialConfiguration`, whose parameters are wrapped in immutable first recipes.
+One transaction checks draft revision, inserts template, optional instance and materialized geometry,
+then deletes the draft. Every failure rolls back all writes. Instance binding mutations materialize
+embedded geometries and replace bindings in the same transaction after checking revision.
 
 ## 10. Error mapping
 
@@ -275,26 +273,27 @@ The commit request includes the editor's current formal create payload. Shared p
 | Domain validation / compile error | `400 Bad Request` |
 | Missing resource | `404 Not Found` |
 | Duplicate immutable id | `409 Conflict` |
-| Stale editor draft revision | `409 Conflict` |
+| Stale template draft or instance revision | `409 Conflict` |
 
 Transaction failure MUST NOT return partial resource payload。
 
 ## 11. SQLite schema 初始化與 reset policy
 
-Current internal schema marker 是 `"9"`。Startup policy：
+Current internal schema marker is `"15"`. Versions 8–14 migrate through the existing supported
+chain; version 13 upgrades in place without reseeding. Every old step parameterValues becomes one
+immutable active recipe, missing stations become empty collections, and instance revision starts at 1.
+Instance IDs, metadata, geometry bindings, template drafts and analyticsDatasetId are preserved.
+Old Instance Draft data is deliberately removed. All conversion and table removal share one
+transaction; failure preserves the old marker and data. Version 14 to 15 repairs nonempty recipe
+collections with null/missing active IDs by choosing the first recipe, incrementing each affected
+instance revision once. Empty stations and valid active IDs are unchanged; all recipe content,
+identity, metadata and bindings are preserved. Invalid non-null references fail validation and roll
+back the migration. The 13 → 14 → 15 chain remains in place. Reopening version 15 is idempotent.
 
-1. Ensure current physical schema can be created/recognized。
-2. Read `schema_metadata.databaseSchemaVersion`。
-3. Marker是`"8"`時，在同一transaction原地補齊instance metadata並升級到`"9"`。
-4. Marker缺少或是小於`"8"`的整數時，在同一transaction destructively clear所有resource
-   tables；不執行coordinates-to-placements migration。
-5. Marker是非數字或大於`"9"`時MUST明確fail且不得刪除資料。
-6. Ensure physical tables/columns/indexes match the current schema；row deletion alone 若無法
-   做到，MUST drop/recreate 或明確 fail，不得把不符合目前結構的 DDL 標記成 current。
-7. Set marker `"9"`。
-8. Load validated canonical fixtures when all resource tables are empty。
-
-Marker already `"9"` 時，startup MUST NOT silently reseed a partially populated database。
+Missing/pre-8 markers retain the existing legacy reset boundary. Unknown or future markers fail.
+Fixtures are loaded only when formal resource tables are empty; startup never overwrites a populated
+database. Process resource marker `2`, DB marker `15` and geometry marker `1.0.0` are independent.
+Legacy fixture ZIP instances are converted on import, including the same missing-active repair; new exports preserve every recipe and active ID.
 
 ## 12. Reset 與 seed
 
@@ -326,13 +325,14 @@ service 與 compiler 保證，direct database mutation 不屬於 supported inter
 
 ## 12. Schema 11 → 12 migration
 
-Migration creates both draft tables, converts each legacy draft workspace into an instance draft, retaining ID, name, revision, timestamps and complete configuration. User is `legacy.import`; formal metadata starts blank with version `V0.0.0`. Committed workspace rows are removed while saved instances and geometries remain. The old table and indexes are dropped only inside the successful transaction. Failed conversion rolls back the table changes and marker. Supported older schema migrations continue into version 13.
-
-Geometry deletion protects exact catalog references in instances and both draft state configurations. Template deletion atomically removes its instance drafts; copied template drafts are independent. Reset/import clears both draft tables. Fixture ZIP remains the four formal-resource JSON files; database backup includes drafts.
+The historical version 12 introduced editor drafts. Current migration retains Template Draft,
+removes legacy workspaces and Instance Draft, and preserves formal resources. Version 13 to 14
+wraps old parameterValues as first active recipes and starts revision at 1. Geometry deletion checks
+catalog references in tracked instances and Template Draft configuration. Reset/import clears the
+Template Draft table; fixture ZIP still contains the four formal-resource JSON files.
 
 ## 15. Joint catalog
 
 Canonical fixtures provide `step_tpl_mr_joint` and `step_tpl_tcb_joint` in category
 `joint`. Startup and fixture ZIP imports do not convert legacy Joint templates or
-references. The internal schema marker remains `"13"`; the 12 → 13 transition only
-updates this marker. Empty databases are populated from the canonical fixtures.
+references. The historical 12 → 13 transition only updated the schema marker; the current marker is `"15"`. Empty databases are populated from the canonical fixtures.

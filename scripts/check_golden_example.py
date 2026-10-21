@@ -14,6 +14,7 @@ from process_flow_api.models import (
 )
 from process_flow_kernel import (
     FlowCompiler,
+    resolve_instance_configuration,
     GeometryKernel,
     validate_flow_graph,
     validate_process_step_template,
@@ -65,7 +66,7 @@ def main() -> int:
     fixtures = json.loads(GEOMETRY_FIXTURES.read_text(encoding="utf-8"))
     plan = FlowCompiler(FixtureGeometryCatalog(fixtures)).compile(
         template,
-        instance,
+        resolve_instance_configuration(instance, template, [step]),
         [step],
     )
     assert tuple(plan.terminal_step_ref_ids) == ("pnp",)

@@ -1,3 +1,4 @@
+import { analyzeFlowDependencies } from "./dependencies";
 import { createEmptyFlowConfiguration } from "./configuration";
 import type {
   FlowConfiguration,
@@ -17,6 +18,7 @@ export function instanceEditorEntry(search: string) {
   const params = new URLSearchParams(search);
   return {
     templateId: params.get("templateId"),
+    instanceId: params.get("instanceId"),
   };
 }
 
@@ -44,11 +46,7 @@ export function configurationFromInstance(
     }
     return configuration;
   }
-  return {
-    inputBindings: structuredClone(instance.inputBindings),
-    stepConfigurations: structuredClone(instance.stepConfigurations),
-    embeddedGeometries: {},
-  };
+  return instanceFlowConfiguration(instance);
 }
 
 export function newInstanceIdentity(): InstanceIdentityDraft {
@@ -67,7 +65,7 @@ export function validateInstanceIdentity(
 export function buildProcessFlowInstanceCreate(
   templateId: string,
   identity: InstanceIdentityDraft,
-  configuration: FlowConfiguration,
+  configuration?: FlowConfiguration,
 ): ProcessFlowInstanceCreate {
   return {
     ...buildProcessFlowInstanceForNewTemplateCreate(identity, configuration),
@@ -77,7 +75,7 @@ export function buildProcessFlowInstanceCreate(
 
 export function buildProcessFlowInstanceForNewTemplateCreate(
   identity: InstanceIdentityDraft,
-  configuration: FlowConfiguration,
+  configuration?: FlowConfiguration,
 ): ProcessFlowInstanceForNewTemplateCreate {
   return {
     schemaVersion: 2,
@@ -85,8 +83,24 @@ export function buildProcessFlowInstanceForNewTemplateCreate(
     version: identity.version.trim(),
     owner: identity.owner.trim(),
     description: identity.description.trim(),
-    inputBindings: structuredClone(configuration.inputBindings),
-    stepConfigurations: structuredClone(configuration.stepConfigurations),
-    embeddedGeometries: structuredClone(configuration.embeddedGeometries),
+    ...(configuration ? { initialConfiguration: structuredClone(configuration) } : {}),
   };
+}
+
+export function instanceFlowConfiguration(instance: ProcessFlowInstance): FlowConfiguration {
+  const configuration: FlowConfiguration = {
+    inputBindings: structuredClone(instance.inputBindings), stepConfigurations: {}, embeddedGeometries: {},
+  };
+  for (const [stepId, station] of Object.entries(instance.stepConfigurations)) {
+    const recipe = station.recipes.find((item) => item.id === station.activeRecipeId);
+    if (recipe) configuration.stepConfigurations[stepId] = { parameterValues: structuredClone(recipe.parameterValues) };
+  }
+  return configuration;
+}
+
+export function missingActiveRecipeSteps(instance: ProcessFlowInstance, template: ProcessFlowTemplate,
+  steps: ProcessStepTemplate[], outputStepRefId?: string) {
+  const configuration = instanceFlowConfiguration(instance);
+  const dependencies = analyzeFlowDependencies(template, steps, configuration, outputStepRefId);
+  return [...dependencies.stepRefIds].filter((id) => !configuration.stepConfigurations[id]);
 }

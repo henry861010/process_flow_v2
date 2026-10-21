@@ -16,6 +16,9 @@ from .analytics import current_origin, request_context, request_owner, utc_times
 from .repository import DuplicateItemError, NotFoundError, ResourceConflictError
 
 OPERATIONS = {
+    ("POST", "/api/process-flow-instances/{instance_id}/steps/{step_ref_id}/recipes"): "flow_instance.recipe_create",
+    ("PUT", "/api/process-flow-instances/{instance_id}/steps/{step_ref_id}/active-recipe"): "flow_instance.recipe_activate",
+    ("PUT", "/api/process-flow-instances/{instance_id}/input-bindings"): "flow_instance.bindings_update",
     ("POST", "/api/process-flow-templates"): "flow_template.create",
     ("PUT", "/api/process-flow-templates/{template_id}"): "flow_template.update",
     ("DELETE", "/api/process-flow-templates/{template_id}"): "flow_template.delete",
@@ -40,7 +43,7 @@ OPERATIONS = {
     ("POST", "/api/process-step-templates"): "step_template.create",
     ("PUT", "/api/process-step-templates/{template_id}"): "step_template.update",
 }
-for _kind in ("template", "instance"):
+for _kind in ("template",):
     _base = f"/api/process-flow-{_kind}-drafts"
     for _method, _suffix, _action in (("POST", "", "create"), ("PUT", "/{draft_id}", "update"),
                                       ("DELETE", "/{draft_id}", "delete"), ("POST", "/{draft_id}/commit", "commit")):
@@ -71,6 +74,7 @@ def flow_summary(template: Any) -> dict[str, Any]:
 def configuration_summary(configuration: Any) -> dict[str, Any]:
     if configuration is None:
         return {}
+    configuration = value(configuration, "initialConfiguration", configuration) or {}
     bindings = value(configuration, "inputBindings", {})
     counts = {kind: 0 for kind in ("catalog", "embedded", "generator")}
     generators: set[tuple[str, int]] = set()
@@ -84,7 +88,7 @@ def configuration_summary(configuration: Any) -> dict[str, Any]:
             if identifier and isinstance(version, int):
                 generators.add((identifier, version))
     configurations = value(configuration, "stepConfigurations", {})
-    return {"configured_step_count": sum(bool(value(step, "parameterValues", {}))
+    return {"configured_step_count": sum(bool(value(step, "parameterValues", {})) or bool(value(step, "activeRecipeId"))
                                           for step in configurations.values()),
             "binding_counts": counts,
             "generators": [{"id": identifier, "version": version}

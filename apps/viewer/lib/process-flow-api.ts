@@ -285,7 +285,7 @@ export async function createProcessFlowInstance(
   });
 }
 
-export type EditorDraftKind = "template" | "instance";
+export type EditorDraftKind = "template";
 function editorDraftPath(kind: EditorDraftKind, id?: string) {
   return `/api/process-flow-${kind}-drafts${id ? `/${encodeURIComponent(id)}` : ""}`;
 }
@@ -325,8 +325,25 @@ export async function commitTemplateInstanceEditorDraft(
     { method: "POST", body: JSON.stringify({ revision: draft.revision, ...body }) },
   );
 }
-export async function commitInstanceEditorDraft(draft: Pick<EditorDraft, "id" | "revision">, body: ProcessFlowInstanceCreate) {
-  return apiFetch<ProcessFlowInstance>(editorDraftPath("instance", draft.id) + "/commit", {
-    method: "POST", body: JSON.stringify({ revision: draft.revision, processFlowInstance: body }),
+
+
+export function getProcessFlowInstance(id: string) {
+  return apiFetch<ProcessFlowInstance>(`/api/process-flow-instances/${encodeURIComponent(id)}`);
+}
+export function addInstanceRecipe(instance: Pick<ProcessFlowInstance, "id" | "revision">, stepId: string,
+  recipe: { name: string; description: string; parameterValues: Record<string, unknown>; activate?: boolean }) {
+  return apiFetch<ProcessFlowInstance>(`/api/process-flow-instances/${encodeURIComponent(instance.id)}/steps/${encodeURIComponent(stepId)}/recipes`, {
+    method: "POST", body: JSON.stringify({ revision: instance.revision, ...recipe }),
+  });
+}
+export function setInstanceActiveRecipe(instance: Pick<ProcessFlowInstance, "id" | "revision">, stepId: string, recipeId: string) {
+  return apiFetch<ProcessFlowInstance>(`/api/process-flow-instances/${encodeURIComponent(instance.id)}/steps/${encodeURIComponent(stepId)}/active-recipe`, {
+    method: "PUT", body: JSON.stringify({ revision: instance.revision, recipeId }),
+  });
+}
+export function updateInstanceInputBindings(instance: Pick<ProcessFlowInstance, "id" | "revision">,
+  inputBindings: ProcessFlowInstance["inputBindings"]) {
+  return apiFetch<ProcessFlowInstance>(`/api/process-flow-instances/${encodeURIComponent(instance.id)}/input-bindings`, {
+    method: "PUT", body: JSON.stringify({ revision: instance.revision, inputBindings }),
   });
 }

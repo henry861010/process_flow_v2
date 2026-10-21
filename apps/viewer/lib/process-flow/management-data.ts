@@ -11,15 +11,14 @@ import {
 
 export type ManagementData = BootstrapPayload & {
   processFlowTemplateDrafts: EditorDraftSummary[];
-  processFlowInstanceDrafts: EditorDraftSummary[];
 };
 
 export type ManagementDeletion =
   | { collection: "processFlowTemplates" | "processFlowInstances" | "geometries"; resource: { id: string; name: string } }
-  | { collection: "processFlowTemplateDrafts" | "processFlowInstanceDrafts"; resource: EditorDraftSummary };
+  | { collection: "processFlowTemplateDrafts"; resource: EditorDraftSummary };
 
 export function managementDataFromBootstrap(payload: BootstrapPayload): ManagementData {
-  return { ...payload, processFlowTemplateDrafts: [], processFlowInstanceDrafts: [] };
+  return { ...payload, processFlowTemplateDrafts: [] };
 }
 
 function newestFirst(drafts: EditorDraftSummary[]) {
@@ -31,13 +30,9 @@ export async function loadManagementData(): Promise<ManagementData> {
     loadBootstrap(),
     listEditorDrafts("template", {}),
   ]);
-  const instanceDrafts = await Promise.all(payload.processFlowTemplates.map((template) =>
-    listEditorDrafts("instance", { templateId: template.id }),
-  ));
   return {
     ...payload,
     processFlowTemplateDrafts: newestFirst(templateDrafts),
-    processFlowInstanceDrafts: newestFirst(instanceDrafts.flat()),
   };
 }
 
@@ -48,10 +43,7 @@ export async function deleteManagementResource(target: ManagementDeletion): Prom
     case "processFlowInstances": return deleteProcessFlowInstance(resource.id);
     case "geometries": return deleteGeometry(resource.id);
     case "processFlowTemplateDrafts": return deleteEditorDraft("template", target.resource);
-    case "processFlowInstanceDrafts": {
-      if (!target.resource.processFlowTemplateId) throw new Error("Instance draft is missing its template ID. Reload the page.");
-      return deleteEditorDraft("instance", target.resource, target.resource.processFlowTemplateId);
-    }
+
   }
 }
 
@@ -60,10 +52,5 @@ export function removeManagementResource(data: ManagementData, target: Managemen
     ...data,
     [target.collection]: data[target.collection].filter((item) => item.id !== target.resource.id),
   };
-  if (target.collection === "processFlowTemplates") {
-    updated.processFlowInstanceDrafts = data.processFlowInstanceDrafts.filter((draft) =>
-      draft.processFlowTemplateId !== target.resource.id,
-    );
-  }
   return updated;
 }

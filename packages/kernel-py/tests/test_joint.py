@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from process_flow_kernel import instance_flow_configuration
+
 import copy
 import json
 import unittest
@@ -361,7 +363,7 @@ class JointTests(unittest.TestCase):
         read = lambda name: json.loads((fixtures / name).read_text())
         steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
         flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
-        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
+        configuration = instance_flow_configuration(next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo"))
         configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = []
         configuration["inputBindings"].pop("incoming_die")
         for step in ("die_bump", "die_flip"):
@@ -383,7 +385,7 @@ class JointTests(unittest.TestCase):
         read = lambda name: json.loads((fixtures / name).read_text())
         steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
         flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
-        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
+        configuration = instance_flow_configuration(next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo"))
         before = copy.deepcopy(geometries)
         result = GeometryKernel().execute(FlowCompiler(InMemoryGeometryCatalog(geometries)).compile(flow, configuration, steps))
         root = result.geometry()["root"]
@@ -492,7 +494,7 @@ class JointEntryPointTests(unittest.TestCase):
         read = lambda name: json.loads((fixtures / name).read_text())
         steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
         flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
-        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
+        configuration = instance_flow_configuration(next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo"))
         compiler = FlowCompiler(InMemoryGeometryCatalog(geometries))
         expected = GeometryKernel().execute(compiler.compile(flow, configuration, steps)).geometry()
         next(ref for ref in flow["stepRefs"] if ref["stepRefId"] == "joint")["processStepTemplateId"] = "step_tpl_tcb_joint"

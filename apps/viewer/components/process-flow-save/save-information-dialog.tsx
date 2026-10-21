@@ -231,7 +231,7 @@ export function SaveInformationDialog({
                 <div>
                   <h3 className="text-sm font-semibold">Instance information</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Identify the initial immutable process flow instance.
+                    Identify the initial flow tracking instance.
                   </p>
                 </div>
               ) : null}
@@ -442,15 +442,15 @@ function dialogConfig(mode: SaveInformationMode) {
     case "template-and-instance":
       return {
         title: "Save template and instance",
-        description: "Enter the information for both immutable records before saving.",
-        submitLabel: "Save Template & Instance",
+        description: "Enter the information for the template and its new tracking instance.",
+        submitLabel: "Save Template & Create Instance",
         Icon: GitBranch,
       };
     case "instance":
       return {
-        title: "Save instance",
-        description: "Enter the information used to identify this immutable instance.",
-        submitLabel: "Save Instance",
+        title: "Create instance",
+        description: "Enter the information used to identify this flow tracking instance.",
+        submitLabel: "Create Instance",
         Icon: GitBranch,
       };
 

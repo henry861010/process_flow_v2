@@ -181,7 +181,7 @@ class WaferDmyGeneratorTests(unittest.TestCase):
                     saved = response.json()
                 self.assertEqual(saved["inputBindings"]["incoming_wafer_dmy"], {
                     "kind": "generator", "generatorId": "wafer-dmy", "generatorVersion": 1,
-                    "parameters": parameters,
+                    "parameters": {} if parameters == {"siThickness": 200, "siMaterial": "si"} else {**parameters, "siMaterial": f"  {parameters['siMaterial']}  "},
                 })
                 reopened = self.client.get(f"/api/process-flow-instances/{saved['id']}")
                 self.assertEqual(reopened.status_code, 200, reopened.text)

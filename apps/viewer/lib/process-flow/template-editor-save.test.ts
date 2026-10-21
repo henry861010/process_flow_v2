@@ -61,9 +61,9 @@ describe("template and instance save", () => {
     expect(request.processFlowTemplate).not.toHaveProperty("inputBindings");
     expect(request.processFlowInstance).not.toHaveProperty("id");
     expect(request.processFlowInstance).not.toHaveProperty("processFlowTemplateId");
-    expect(request.processFlowInstance).toMatchObject({ name: "Instance", owner: "owner", ...configuration });
-    request.processFlowInstance.stepConfigurations.mold.parameterValues.items = [];
-    const binding = request.processFlowInstance.inputBindings.main;
+    expect(request.processFlowInstance).toMatchObject({ name: "Instance", owner: "owner", initialConfiguration: configuration });
+    request.processFlowInstance.initialConfiguration!.stepConfigurations.mold.parameterValues.items = [];
+    const binding = request.processFlowInstance.initialConfiguration!.inputBindings.main;
     if (binding.kind === "generator") binding.parameters.width = 200;
     expect(configuration.stepConfigurations.mold.parameterValues.items).toEqual(["a", "b"]);
     expect(configuration.inputBindings.main).toMatchObject({ parameters: { width: 100 } });
@@ -107,7 +107,7 @@ describe("template and instance save", () => {
     expect(isConfigurationComplete(template, [pnp], configuration, [geometry])).toBe(true);
     expect(templateInstanceConfigurationIssues(template, [pnp], configuration, [geometry])).toEqual([]);
     const request = buildTemplateInstanceCreate(template, metadata, configuration);
-    expect(request.processFlowInstance.inputBindings.die).toEqual(configuration.inputBindings.die);
+    expect(request.processFlowInstance.initialConfiguration!.inputBindings.die).toEqual(configuration.inputBindings.die);
     for (const placements of [undefined, null, {}, [null]]) {
       configuration.stepConfigurations.mold.parameterValues.placements = placements;
       expect(isConfigurationComplete(template, [pnp], configuration, [geometry])).toBe(false);

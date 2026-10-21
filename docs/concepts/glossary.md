@@ -26,8 +26,8 @@ source_of_truth:
 | `FlowEdge` | Geometry dataflow connection，source 是 flow input 或 step output，target 是 step input port。 |
 | `FlowConfiguration` | `inputBindings`、`stepConfigurations` 與 `embeddedGeometries` 的共用 configuration shape。 |
 | `TemplateEditorDraft` | 可不完整的 template editor snapshot，包含拓樸、配置與畫布位置。 |
-| `InstanceEditorDraft` | 指定 template 下可不完整的 configuration 與 metadata snapshot。 |
-| `ProcessFlowInstance` | Complete、immutable、只使用 catalog bindings 的產品 configuration snapshot。 |
+| `ProcessFlowInstance` | 可未完成的研發追蹤物件；包含共用 catalog/generator bindings、每站 immutable recipes 與 active 選擇。 |
+| `StepRecipe` | 某站不可變的 parameterValues 快照；新增後只能複製，不能改寫或刪除。 |
 | `GeometryEntity` | Geometry catalog record；metadata 與完整 `GeometryStructure` 的封裝。 |
 | `EmbeddedGeometry` | Editor draft 內尚未 materialize 到 catalog 的 geometry record。 |
 | `GeometryStructure` | Kernel、CAD、mesher 與 viewer 交換的 geometry tree document。 |

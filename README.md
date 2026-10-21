@@ -1,7 +1,7 @@
 # Process Flow
 
 Process Flow 是 local-first 的半導體製程建模 PoC。它把可重用的 process step、flow
-topology、未完成的 editor drafts、immutable product instance 與 geometry catalog 分開管理，
+topology、未完成的 template drafts、可追蹤研發 recipes 的 instance 與 geometry catalog 分開管理，
 再由 compiler 產生可執行 plan，交給 kernel、CAD 與 mesher 處理。
 
 ## Repository 結構

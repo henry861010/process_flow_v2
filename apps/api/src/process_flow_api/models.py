@@ -273,28 +273,83 @@ class FlowConfiguration(StrictModel):
     embeddedGeometries: dict[str, EmbeddedGeometry] = Field(default_factory=dict)
 
 
-class ProcessFlowInstance(StrictModel):
+class FiniteJsonModel(StrictModel):
+    @model_validator(mode="after")
+    def finite_json(self):
+        json.dumps(self.model_dump(mode="python"), allow_nan=False)
+        return self
+
+
+class StepRecipe(FiniteJsonModel):
+    id: NonBlankString
+    name: NonBlankString
+    description: str = ""
+    createdAt: NonBlankString
+    parameterValues: dict[str, Any] = Field(default_factory=dict)
+
+
+class InstanceStepConfiguration(StrictModel):
+    recipes: list[StepRecipe] = Field(default_factory=list)
+    activeRecipeId: NonBlankString | None = None
+
+    @model_validator(mode="after")
+    def valid_active_recipe(self):
+        ids = [recipe.id for recipe in self.recipes]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Recipe IDs must be unique within a station")
+        if ids and self.activeRecipeId is None:
+            raise ValueError("A station with recipes must have an active recipe")
+        if self.activeRecipeId is not None and self.activeRecipeId not in ids:
+            raise ValueError("Active recipe must belong to the same station")
+        return self
+
+
+class ProcessFlowInstance(FiniteJsonModel):
     schemaVersion: Literal[2] = 2
     id: str = Field(min_length=1)
+    revision: int = Field(ge=1)
     name: str = Field(min_length=1)
     version: NonBlankString
     owner: NonBlankString
     description: str = ""
     processFlowTemplateId: str = Field(min_length=1)
     inputBindings: dict[str, PersistedGeometryBinding]
-    stepConfigurations: dict[str, StepConfiguration]
+    stepConfigurations: dict[str, InstanceStepConfiguration]
+
+    def payload(self) -> JsonObject:
+        return self.model_dump(mode="json")
 
 
-class ProcessFlowInstanceForNewTemplateCreate(FlowConfiguration):
+class ProcessFlowInstanceForNewTemplateCreate(FiniteJsonModel):
     schemaVersion: Literal[2] = 2
-    name: str = Field(min_length=1)
+    name: NonBlankString
     version: NonBlankString
     owner: NonBlankString
     description: str = ""
+    initialConfiguration: FlowConfiguration | None = None
 
 
 class ProcessFlowInstanceCreate(ProcessFlowInstanceForNewTemplateCreate):
     processFlowTemplateId: str = Field(min_length=1)
+
+
+class StepRecipeCreate(FiniteJsonModel):
+    revision: int = Field(ge=1)
+    name: NonBlankString
+    description: str = ""
+    parameterValues: dict[str, Any] = Field(default_factory=dict)
+    activate: bool = False
+
+
+class ActiveRecipeUpdate(StrictModel):
+    revision: int = Field(ge=1)
+    recipeId: NonBlankString
+
+
+class InstanceInputBindingsUpdate(FiniteJsonModel):
+    revision: int = Field(ge=1)
+    inputBindings: dict[str, GeometryBinding]
+    embeddedGeometries: dict[str, EmbeddedGeometry] = Field(default_factory=dict)
 
 
 class EditorMetadata(StrictModel):
@@ -335,7 +390,7 @@ class DraftEdge(StrictModel):
     targetHandle: str | None = None
 
 
-class InstanceEditorDraftState(StrictModel):
+class EditorWorkingState(StrictModel):
     metadata: EditorMetadata
     configuration: FlowConfiguration
 
@@ -345,7 +400,7 @@ class InstanceEditorDraftState(StrictModel):
         return self
 
 
-class TemplateEditorDraftState(InstanceEditorDraftState):
+class TemplateEditorDraftState(EditorWorkingState):
     nodes: list[Annotated[DraftInputNode | DraftStepNode, Field(discriminator="kind")]]
     edges: list[DraftEdge]
     viewport: DraftViewport
@@ -358,19 +413,7 @@ class TemplateEditorDraftCreate(StrictModel):
     state: TemplateEditorDraftState
 
 
-class InstanceEditorDraftCreate(StrictModel):
-    schemaVersion: Literal[1] = 1
-    user: NonBlankString
-    name: NonBlankString
-    processFlowTemplateId: NonBlankString
-    state: InstanceEditorDraftState
-
-
 class TemplateEditorDraftUpdate(TemplateEditorDraftCreate):
-    revision: int = Field(ge=1)
-
-
-class InstanceEditorDraftUpdate(InstanceEditorDraftCreate):
     revision: int = Field(ge=1)
 
 
@@ -380,21 +423,10 @@ class TemplateEditorDraft(TemplateEditorDraftUpdate):
     updatedAt: str
 
 
-class InstanceEditorDraft(InstanceEditorDraftUpdate):
-    id: str
-    createdAt: str
-    updatedAt: str
-
-
 class TemplateEditorDraftCommit(StrictModel):
     revision: int = Field(ge=1)
     processFlowTemplate: ProcessFlowTemplateCreate
     processFlowInstance: ProcessFlowInstanceForNewTemplateCreate | None = None
-
-
-class InstanceEditorDraftCommit(StrictModel):
-    revision: int = Field(ge=1)
-    processFlowInstance: ProcessFlowInstanceCreate
 
 
 class GeometryEntity(StrictModel):

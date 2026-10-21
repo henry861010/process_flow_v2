@@ -6,7 +6,7 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-10-16
+last_verified: 2026-10-21
 last_verified_commit: 5e9dd07d
 source_of_truth:
   - docs/ui/screens
@@ -32,7 +32,7 @@ UI-<AREA>-<三位數>
 Visual capture MUST：
 
 1. 啟動 API 與 Viewer，確認 network idle。
-2. 呼叫 POC reset，等待 bootstrap reload 完成。
+2. 在隔離 fixture database 呼叫 POC reset，或啟動全新 seeded database，等待 bootstrap reload 完成；不得清除開發者的工作資料。
 3. 使用 Chromium、browser zoom `100%`、device scale factor `1`、light scheme、
    reduced motion、locale `en-US`、timezone `Asia/Taipei`。
 4. viewport 使用 `1440×900`、`1024×768`、`390×844`，不可包含 browser chrome。
@@ -51,7 +51,7 @@ assertion為主。
 
 | Screen/state | 1440×900 | 1024×768 | 390×844 |
 | --- | --- | --- | --- |
-| Home ready | `home-1440x900.png` pending | `home-1024x768.png` pending | `home-390x844.png` pending |
+| Home ready | [home-1440x900.png](../assets/reference/home-1440x900.png) | [home-1024x768.png](../assets/reference/home-1024x768.png) | [home-390x844.png](../assets/reference/home-390x844.png) |
 | HBM Editor default | `hbm-editor-1440x900.png` pending | `hbm-editor-1024x768.png` pending | `hbm-editor-390x844.png` pending |
 | Management ready | `management-1440x900.png` pending | `management-1024x768.png` pending | `management-390x844.png` pending |
 | Flow Template fresh | `flow-template-editor-1440x900.png` pending | `flow-template-editor-1024x768.png` pending | `flow-template-editor-390x844.png` pending |
@@ -83,7 +83,13 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 
 | ID | Given | When | Then |
 | --- | --- | --- | --- |
-| `UI-HOME-001` | reset fixtures loaded | open `/` | 每個template顯示一張card，metadata與instance count正確。 |
+| `UI-HOME-001` | isolated fixtures、disabled／empty／missing template | open `/` | 每個template一區，顯示版本及instance數量；空區No instances yet，disabled保留歷史，缺失來源集中Unavailable template。 |
+| `UI-HOME-002` | 特殊字元ID與長名稱 | inspect／activate instance rows | 每列單一可存取link，instanceId編碼正確，metadata及Open instance完整；分區與區內保留API順序。 |
+| `UI-HOME-003` | home／非home generator manifests | activate resource tools and Management | 頁首Create Template緊鄰Create Instance左側且只有一個入口；底部home generators、Geometry順序及導頁正確，工具預設展開且使用outline樣式。 |
+| `UI-HOME-004` | delayed／failed／empty bootstrap及已知資料 | load、Retry、simulate refresh failure | skeleton、錯誤、Retrying停用與成功empty state明確區分；已知groups/counts/generators保留，static links可用；無enabled template時停用建立並說明原因。 |
+| `UI-HOME-005` | canonical／long names | inspect 1440×900、1024×768、390×844 | 所有寬度單欄分區；長名稱不造成水平溢出；手機彈窗表單可捲動且footer可操作。 |
+| `UI-HOME-006` | Home ready／loading／dialog open | Tab、Shift+Tab、Enter、Escape | focus依visual order且有ring；row可用Enter；dialog focus限制與返回正確；decorative icons隱藏；skeleton動畫只在no-preference media內。 |
+| `UI-HOME-007` | enabled template、creation error／delay | open、validate、cancel、submit、reopen saved instance | template未預選、version預填V0.0.0；required欄位驗證；失敗保留輸入、pending防重複；成功導向editor，每站一組active Initial recipe且參數套用defaults，geometry為空。 |
 | `UI-GEN-001` | Home ready | click `Create HBM`或`Create DRAM` | navigate至專用editor並載入正確generator definition。 |
 | `UI-HBM-004` | valid HBM parameters | click Generate JSON | 下載合法純GeometryStructure，root molding與child dies符合HBM mapping。 |
 | `UI-HBM-007` | valid HBM parameters與metadata | click Save to DB | catalog建立`die.hbm` immutable geometry並回報server id。 |
@@ -95,21 +101,24 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-FTE-013` | saved/loaded draft | quick update、edit details、new copy、simulate stale revision、edit during save | quick update不開彈窗且沿用identity；copy建立新記錄；衝突不覆寫；送出後的新修改仍dirty。 |
 | `UI-FTE-014` | save/source dialog | submit blank metadata、Tab/Shift+Tab、Escape、nested confirmation | 行內錯誤與首個錯誤焦點；最上層modal鎖定焦點，關閉還原trigger。 |
 | `UI-FTE-015` | editor and dialogs | inspect 1440×900、1024×768、390×844 | 操作列／modal不溢出；頁尾可見，body捲動；工作區沿用原minimum width。 |
-| `UI-FIE-001` | Home ready | click AAA template | fixed AAA topology與default configuration出現，沒有template selector。 |
-| `UI-FIE-002` | AAA route | inspect From instance | 只列AAA instances；選擇後copy values但identity保持new draft。 |
-| `UI-FIE-003` | complete configuration | Save → enter full metadata | 建立新的immutable instance並返回Home，source保持不變。 |
+| `UI-FIE-001` | enabled template | Home Use template → Create | 顯示基本 metadata 表單；geometry／recipes 可留空。 |
+| `UI-FIE-002` | 同 template sources | 選擇初始來源並 Create | 只列同 template，僅複製 active 設定，recipes 取得新 ID。 |
+| `UI-FIE-003` | empty tracking instance | Create without source | 每站 recipes 為空、activeRecipeId 為 null，bindings 為空；不預建 recipes。 |
 | `UI-FIE-015` | fixed template loaded | inspect toolbar、status、expand issues | 四個入口、template副標題與進度／缺項／錯誤分區呈現；只有Save為實心主操作。 |
 | `UI-FIE-016` | dirty instance editor | select blank／instance／draft；Keep editing／Discard changes；simulate load failure | row只選取；footer才載入；保留或替換符合確認結果，失敗不改原內容。 |
 | `UI-FIE-017` | incomplete or disabled configuration | open Save… | modal顯示完整原因與metadata；可開啟但最後提交停用，完整enabled配置可提交。 |
 | `UI-FIE-018` | source/save/draft modal | required-field submit、Tab/Shift+Tab、Escape、nested confirmation | inline錯誤與首錯焦點；topmost modal鎖焦點並關閉後還原trigger。 |
 | `UI-FIE-019` | editor and dialogs | inspect 1440×900、1024×768、390×844 | 操作列與modal不溢出；footer可見且內容區獨立捲動。 |
+| `UI-FIE-020` | candidate inspection | Select/expand another recipe | 上方 active 參數不變，單列展開且選取與 Active 標記不同。 |
+| `UI-FIE-021` | required active | One or more recipes | 只能切換 active，不能清空；空站點仍可建立。 |
+| `UI-FIE-022` | recipe source protection | Edit then change source/close | 確認捨棄或保留；成功新增後選取並展開新列。 |
 | `UI-MGMT-001` | bootstrap 與 draft summaries ready | open Management tabs | 六類 resource count 與 rows 符合 bootstrap 及兩種草稿摘要。 |
 | `UI-MGMT-002` | Process steps tab | click row Edit、change allowed fields/default、Save | 頁內modal只暴露允許欄位；成功後row即時更新且不導頁。 |
 | `UI-MGMT-009` | Process step input ports | Move up/down with mouse or keyboard、Cancel／Save and reopen | 順序可修改且首尾與saving按鈕停用；Cancel丟棄排序，Save保留排序，port definitions與output ports仍鎖定。 |
 | `UI-MGMT-005` | Templates tab，含重複 step template 引用及既有 instances | Edit → change metadata/per-step labels/scalar defaults → Save；清空 label；Cancel；模擬儲存失敗；重新開啟 editor | id/version/step identity/order/topology保持鎖定；label/default依stepRefId獨立更新且允許重複label；label即時更新標題，空白回到process-step名稱；Save後重開保留label，共用template的instances重新載入顯示新label且配置不變；defaults只影響未來blank instances；Cancel不寫入；saving停用輸入及重送；失敗保留草稿並顯示錯誤。 |
-| `UI-MGMT-006` | Management 的 flow template、instance、相關 instance drafts 與引用資料 | cancel/confirm Delete；依 instance → flow template 刪除；模擬錯誤與新增引用；查看 Process steps | 引用中的 flow template 停用 Delete，引用數量只顯示於 Instances 欄位；Process steps 只有 Edit，沒有 Delete；取消無請求；busy 防重送並停用其他異動；成功更新 rows/counts、解除引用並顯示訊息；flow 刪除清理草稿、instance 刪除其正式 record，geometry 與 step templates 保留；409/404 顯示錯誤並刷新 bootstrap，其他錯誤保留資料。 |
+| `UI-MGMT-006` | templates、instances、引用資料 | Open instance；cancel/confirm Delete；檢查引用衝突 | Instance 可重新開啟；引用中的 template 不能刪除；衝突或失敗不留下部分刪除；不再清理 Instance Draft。 |
 | `UI-MGMT-007` | Geometries 含未引用與被 instance、兩種 editor draft 引用的 geometry | cancel/confirm Delete；解除引用後再刪除；模擬 404／409／500 與刷新失敗 | 每列有 Delete；確認顯示名稱、ID 與永久刪除說明；取消無請求；busy 顯示 Deleting…、防重送並停用其他異動；未引用項目成功移除 row、更新 count 並顯示成功訊息；catalog 精確引用回傳 409 並指出資源類型與 ID，embedded／generator 不誤擋；404／409 刷新 bootstrap，一般錯誤保留資料，刷新失敗提示重新載入；不連帶刪除其他資源。 |
-| `UI-MGMT-008` | 兩種草稿，跨多個 templates／users，另含沒有正式 template 的情境 | 查看兩種草稿分頁；cancel/confirm Delete；模擬 revision 更新、404／409／500、刷新失敗；刪除正式 template；Reset／ZIP reset | 獨立分頁及 counts 正確，欄位完整、更新時間由新到舊，instance template 名稱可 fallback ID；沒有正式 template 仍顯示 template drafts；載入中與空列表有提示；取消不送請求、busy 防重送；DELETE 包含 revision 與必要 template scope；成功更新 row/count 並保留其他資源；404／409 刷新全部列表後要求重新確認、不自動重試，其他錯誤及刷新失敗保留資料；正式 template 清理相關 instance drafts，兩種 reset 清空草稿；窄螢幕無整頁水平溢出、鍵盤可切換分頁並刪除。 |
+| `UI-MGMT-008` | Template Draft 與無正式 template 的情境 | list、sort、revision-checked Delete、Reset／ZIP reset | Template Draft 行為保留；不存在 Instance Draft 分頁或 API；stale conflict 要求重新確認。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-GRAPH-012` | inputPorts reordered around primary | reload Template／Instance editor；Template Arrange | 接口依宣告順序；primary同排，前置auxiliary在上、後置在下；未接primary、巢狀與disconnected區塊不重疊，portId接線維持原語意。 |
 | `UI-PREVIEW-001` | ready target in Template Editor | click Preview | 共用 Geometry Preview loading後 ready。 |
@@ -164,7 +173,7 @@ Review 不只驗證單一 component，還 MUST 依下列順序走完跨 screen j
 | Journey | Entry | Required transition | Completion evidence |
 | --- | --- | --- | --- |
 | Template topology | fresh `/flow-template-editor` | Step add → Geometry add → valid connect → Save Template → save dialog | metadata只在dialog顯示、topology locked、configuration仍可編 |
-| Instance configuration | Home AAA template card | blank/source values → edit → Preview → Save dialog | full metadata建立新instance並返回Home |
+| Instance configuration | Home AAA Demo / Use template | Create → add recipes／geometry → Preview | metadata建立追蹤instance並留在該instance管理畫面 |
 | Catalog geometry | Home Create HBM/DRAM | parameters → Preview → Save to DB | success留在editor並顯示new geometry id |
 | Preview/export | ready input/step target | Loading → Ready → Export form → job terminal | Preview不被下層 overlay close path 誤關 |
 | CAD workbench | `/cad-viewer` demo | import/section/camera → Reset | model/error清理且 camera view保留 |
@@ -193,4 +202,4 @@ Journey 中的 current gap 必須保留原操作路徑並標記 gap ID；不可�
 
 ## Editor draft acceptance
 
-Both editors verify Save Draft, From Draft, required user/name, author/search filters, updated-time ordering, revision-checked update/delete, Save as New Draft, failed requests, dirty source/Home/unload confirmation and current-payload formal commit. Template recovery includes topology, positions and viewport; instance recovery is fixed-template scoped. Collections, placements, recipes and final metadata must survive reload without defaults. Keyboard focus remains in draft dialogs and returns to the trigger after close.
+Template Editor verifies Save Draft, From Draft, revision-checked update/delete and atomic commit. Instance Editor has no drafts: Create first, then append immutable recipes, switch active and apply shared geometry with revision checks. Failed operations retain pending forms.

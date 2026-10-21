@@ -114,9 +114,9 @@ def test_id_collision_rolls_back_all_records(service, kind):
     app, client, before, template, instance = service
     instance_request = {**instance_create_payload(instance), "name": "ID collision instance"}
     geometry = next(item for item in before["geometries"] if item["id"] == "hbm3_8hi")
-    instance_request["inputBindings"] = copy.deepcopy(instance_request["inputBindings"])
-    instance_request["inputBindings"]["incoming_hbm"] = {"kind": "embedded", "localId": "collision-geometry"}
-    instance_request["embeddedGeometries"] = {
+    instance_request["initialConfiguration"]["inputBindings"] = copy.deepcopy(instance_request["initialConfiguration"]["inputBindings"])
+    instance_request["initialConfiguration"]["inputBindings"]["incoming_hbm"] = {"kind": "embedded", "localId": "collision-geometry"}
+    instance_request["initialConfiguration"]["embeddedGeometries"] = {
         "collision-geometry": {key: value for key, value in geometry.items() if key != "id"},
     }
     if kind == "template":
@@ -129,7 +129,8 @@ def test_id_collision_rolls_back_all_records(service, kind):
                    "processFlowInstance": instance_create_payload(instance_request, for_new_template=True)}
     resource = "template" if kind.endswith("template") else "instance"
     existing_id = template["id"] if resource == "template" else instance["id"]
-    with mock.patch(f"process_flow_api.services.generated_flow_{resource}_id", return_value=existing_id):
+    module = "services" if resource == "template" else "instance_service"
+    with mock.patch(f"process_flow_api.{module}.generated_flow_{resource}_id", return_value=existing_id):
         response = client.post(route, json=request)
     assert response.status_code == 409, response.text
     assert client.get("/api/bootstrap").json() == before
