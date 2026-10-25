@@ -43,7 +43,7 @@ class ZeroPlacementDependenciesTests(unittest.TestCase):
         }
         self.configuration = {
             "inputBindings": {"main": {"kind": "catalog", "geometryId": "main"}},
-            "stepConfigurations": {"pnp": {"parameterValues": {"placements": []}}},
+            "stepConfigurations": {"pnp": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"placements": []}}], "selectedRecipeId": "r1"}},
         }
         self.compiler = FlowCompiler(InMemoryGeometryCatalog([geometry_entity("main", main_geometry())]))
 
@@ -75,13 +75,13 @@ class ZeroPlacementDependenciesTests(unittest.TestCase):
     def test_nonzero_reactivation_and_missing_or_malformed_values_fail(self):
         for value in ([rectangle_placement(0, 0, 5, 5)], None, "", {}, 0):
             with self.subTest(value=value):
-                self.configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = value
+                self.configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = value
                 with self.assertRaises(ValueError):
                     self.compile()
-        self.configuration["stepConfigurations"]["pnp"]["parameterValues"] = {}
+        self.configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"] = {}
         with self.assertRaises(ValueError):
             self.compile()
-        self.configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = []
+        self.configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = []
         self.assertEqual(len(self.compile().steps), 1)
 
     def test_direct_branch_preview_requires_its_configuration(self):
@@ -89,7 +89,7 @@ class ZeroPlacementDependenciesTests(unittest.TestCase):
             self.compile(output_step_ref_id="prepare2")
         self.configuration["inputBindings"]["die"] = {"kind": "catalog", "geometryId": "main"}
         for step in ("prepare1", "prepare2"):
-            self.configuration["stepConfigurations"][step] = {"parameterValues": {"material": "EMC", "thickness": 2}}
+            self.configuration["stepConfigurations"][step] = {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "EMC", "thickness": 2}}], "selectedRecipeId": "r1"}
         plan = self.compile(output_step_ref_id="prepare2")
         self.assertEqual([step.step_ref_id for step in plan.steps], ["prepare1", "prepare2"])
         self.assertEqual(set(plan.external_geometries), {"die"})
@@ -105,8 +105,8 @@ class ZeroPlacementDependenciesTests(unittest.TestCase):
                                   input_edge("inner-main", "die", "inner"),
                                   input_edge("inner-die", "unused", "inner", "die_geometry"),
                                   output_edge("outer-die", "inner", "pnp", "die_geometry")]
-        self.configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [rectangle_placement(0, 0, 5, 5)]
-        self.configuration["stepConfigurations"]["inner"] = {"parameterValues": {"placements": []}}
+        self.configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = [rectangle_placement(0, 0, 5, 5)]
+        self.configuration["stepConfigurations"]["inner"] = {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"placements": []}}], "selectedRecipeId": "r1"}
         self.configuration["inputBindings"]["die"] = {"kind": "catalog", "geometryId": "main"}
         plan = self.compile()
         self.assertEqual([step.step_ref_id for step in plan.steps], ["inner", "pnp"])
@@ -138,11 +138,11 @@ class ZeroPlacementDependenciesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Missing incoming edge"):
             self.compile()
         self.flow = original
-        self.configuration["stepConfigurations"]["prepare1"] = {"parameterValues": []}
+        self.configuration["stepConfigurations"]["prepare1"] = {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": []}], "selectedRecipeId": "r1"}
         with self.assertRaisesRegex(ValueError, "parameterValues must be an object"):
             self.compile()
         self.configuration["stepConfigurations"].pop("prepare1")
-        self.configuration["stepConfigurations"]["unknown"] = {"parameterValues": {}}
+        self.configuration["stepConfigurations"]["unknown"] = {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"}
         with self.assertRaisesRegex(ValueError, "Unknown step configuration"):
             self.compile()
 

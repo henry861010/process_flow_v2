@@ -36,8 +36,7 @@ snapshots、content-addressed binary mesh、OCC exact body section與Three.js de
 `POST /api/geometry-preview` 接受：
 
 - 一個 `flowInput` 或 `stepOutput` target；
-- persisted `processFlowTemplateId` 與 inline draft `flowTemplate` 必須恰好提供一個；
-- 共用的 `configuration`；
+- persisted `flowId` 與 inline `flow: {definition, configuration}` 必須恰好提供一個；
 - optional `sourceLabel`。
 
 ```mermaid

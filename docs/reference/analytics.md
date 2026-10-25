@@ -45,7 +45,7 @@ API process 啟動及跨 UTC 日期時自動產生每日一致性備份，保留
 ## 格式與隱私邊界
 
 兩張主要資料表為 `api_requests`、`usage_events`；內部 `analytics_metadata` 保存
-schema version `2`。每筆含 `request_owner`、`occurred_at`、`environment`、`app_version`、
+schema version `3`。每筆含 `request_owner`、`occurred_at`、`environment`、`app_version`、
 `server_instance_id`、`dataset_id`、`record_version`。UTC 時間固定為 ISO 8601 毫秒 `Z` 格式，
 耗時用 monotonic clock 計算並存為整數毫秒。
 
@@ -72,22 +72,20 @@ step/generator 清單最多 256 項，總數欄位不截斷。名稱與 ID 是�
 端點接受選填的 `analyticsContext`：
 
 ```json
-{"flowTemplateId":"my-flow","flowInstanceId":"my-instance","sourceKind":"instance"}
+{"flowId":"my-flow","flowRevision":3,"sourceKind":"flow"}
 ```
 
-可用欄位為 flowTemplateId/flowInstanceId/sourceKind；sourceKind 為
-template/instance/inline_draft/geometry。沒有 context 的舊 client 可繼續使用。
+可用欄位為 flowId/flowRevision/sourceKind；sourceKind 為 flow/inline_draft/geometry。Context 可省略；舊 flow context 欄位不再接受。
 後端只保留存在且關聯一致的引用，無法確認時標記 `context_confirmed=false`。
 Context 是「來源歸因」，不證明本次設定或輸出的 geometry 與保存資源完全相同，也不提供
-身分或授權。Inline template 不依其 id 當成已保存 topology；確認的來源只存
-`base_flow_template_id`。匯出背景工作保留提交時的 owner/request/dataset，而非輪詢者身分。
+身分或授權。Inline flow 不當成保存版本；確認的來源只存 `base_flow_id`／`base_flow_revision`。匯出背景工作保留提交時的 owner/request/dataset，而非輪詢者身分。
 
 dataset UUID 存在業務 schema_metadata，reset/ZIP 匯入在同一 transaction 更換；失敗時不更換。
 重啟保留 dataset UUID。每次操作仍使用開始時的 dataset；reset/import 事件另含 new_dataset_id。
 Server 啟動時，舊 process 已接受但沒有完成事件的 export 產生 unknown/SERVER_RESTART 結果。
 此設計限單一 API process，不能同時啟動多個 process 共用此 DB。
 
-建立事件只在業務成功後保存；editor draft commit 成功後也記錄正式 resource create 事件。草稿完成後刪除，重試相同 ID 回 404，不重複建立。Fixtures 與 ZIP 匯入不偽造逐筆建立事件。
+建立事件只在業務成功後保存；editor draft commit 成功後也記錄正式 flow create 或 update 事件。草稿完成後刪除，重試相同 ID 回 404，不重複建立。Fixtures 與 ZIP 匯入不偽造逐筆建立事件。
 Generator preview 即使 HTTP 200，若 valid=false，其事件 outcome 仍為 failure。
 Validation 在 endpoint 前失敗時，只保存最小失敗事件，不保留無效輸入。
 
@@ -122,6 +120,8 @@ venv/bin/python -m process_flow_api.analytics_cli --db apps/api/.data/analytics.
 
 ## Editor draft events 與 schema migration
 
-`template_draft.create/update/delete/commit` 與 `instance_draft.create/update/delete/commit` 記錄操作結果，draft ID、種類、名稱與 revision 存於 properties JSON，不保存完整 snapshot。User 是草稿作者資訊，不可當作 authenticated request owner。
+`flow_draft.create/update/delete/commit` 記錄操作結果，draft ID、種類、名稱與 revision 存於 properties JSON，不保存完整 snapshot。User 是草稿作者資訊，不可當作 authenticated request owner。
 
 Schema 1 → 2 transaction 保留全部歷史事件，把非 null 的 workspace_id 移至 properties_json.legacy_workspace_id 後移除舊欄位。失敗回滾並保留既有 DB。歷史 event names/source kinds 維持原值；新操作不再產生 workspace events。
+
+Schema 2 → 3 增加 flow_id／flow_revision；新事件使用 flow.create/update/delete/execute。舊 flow_template_id、flow_instance_id、event names、source kinds 與 properties 原樣保留，不推測歷史 revision。新事件 record_version=2；業務 migration 保留 dataset UUID。

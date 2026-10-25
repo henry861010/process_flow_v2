@@ -1,14 +1,6 @@
 import type {
-  GeometryEntity,
-  EditorDraft,
-  EditorDraftSummary,
-  EditorDraftCreate,
-  ProcessFlowInstance,
-  ProcessFlowInstanceCreate,
-  ProcessFlowTemplate,
-  ProcessFlowTemplateCreate,
-  ProcessStepTemplate,
-  TemplateInstanceCreateRequest,
+  GeometryEntity, FlowDraft, FlowDraftSummary, FlowDraftCreate,
+  ProcessFlow, ProcessFlowCreate, ProcessFlowUpdate, FlowOrigin, ProcessStepTemplate,
 } from "@/lib/process-flow/types";
 import type {
   GeometryGeneratorDefinition,
@@ -30,8 +22,7 @@ export class ApiRequestError extends Error {
 
 export type BootstrapPayload = {
   processStepTemplates: ProcessStepTemplate[];
-  processFlowTemplates: ProcessFlowTemplate[];
-  processFlowInstances: ProcessFlowInstance[];
+  processFlows: ProcessFlow[];
   geometries: GeometryEntity[];
   geometryGenerators: GeometryGeneratorDefinition[];
 };
@@ -226,107 +217,35 @@ export async function updateProcessStepTemplate<T>(
   );
 }
 
-export async function listProcessFlowTemplates<T>(): Promise<T[]> {
-  return apiFetch<T[]>("/api/process-flow-templates");
+export async function getProcessFlow(id: string) {
+  return apiFetch<ProcessFlow>(`/api/process-flows/${encodeURIComponent(id)}`);
 }
-
-export async function deleteProcessFlowTemplate(templateId: string): Promise<void> {
-  await apiFetch<unknown>(`/api/process-flow-templates/${encodeURIComponent(templateId)}`, {
-    method: "DELETE",
-  });
+export async function createProcessFlow(flow: ProcessFlowCreate) {
+  return apiFetch<ProcessFlow>("/api/process-flows", { method: "POST", body: JSON.stringify(flow) });
 }
-
-export async function deleteProcessFlowInstance(instanceId: string): Promise<void> {
-  await apiFetch<unknown>(`/api/process-flow-instances/${encodeURIComponent(instanceId)}`, {
-    method: "DELETE",
-  });
+export async function updateProcessFlow(id: string, flow: ProcessFlowUpdate) {
+  return apiFetch<ProcessFlow>(`/api/process-flows/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(flow) });
 }
-
-export async function createProcessFlowTemplate(
-  template: ProcessFlowTemplateCreate,
-): Promise<ProcessFlowTemplate> {
-  return apiFetch<ProcessFlowTemplate>("/api/process-flow-templates", {
-    method: "POST",
-    body: JSON.stringify(template),
-  });
+export async function deleteProcessFlow(flow: Pick<ProcessFlow, "id" | "revision">) {
+  return apiFetch<void>(`/api/process-flows/${encodeURIComponent(flow.id)}?revision=${flow.revision}`, { method: "DELETE" });
 }
-
-export async function updateProcessFlowTemplate<T>(
-  templateId: string,
-  template: T,
-): Promise<T> {
-  return apiFetch<T>(
-    `/api/process-flow-templates/${encodeURIComponent(templateId)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(template),
-    },
-  );
-}
-
-export async function createProcessFlowTemplateInstance(
-  payload: TemplateInstanceCreateRequest,
-): Promise<{
-  processFlowTemplate: ProcessFlowTemplate;
-  processFlowInstance: ProcessFlowInstance;
-}> {
-  return apiFetch("/api/process-flow-template-instances", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function createProcessFlowInstance(
-  instance: ProcessFlowInstanceCreate,
-): Promise<ProcessFlowInstance> {
-  return apiFetch<ProcessFlowInstance>("/api/process-flow-instances", {
-    method: "POST",
-    body: JSON.stringify(instance),
-  });
-}
-
-export type EditorDraftKind = "template" | "instance";
-function editorDraftPath(kind: EditorDraftKind, id?: string) {
-  return `/api/process-flow-${kind}-drafts${id ? `/${encodeURIComponent(id)}` : ""}`;
-}
-function draftQuery(options: { templateId?: string; user?: string; search?: string; revision?: number }) {
+function draftPath(id?: string) { return `/api/process-flow-drafts${id ? `/${encodeURIComponent(id)}` : ""}`; }
+export async function listFlowDrafts(options: { user?: string; search?: string } = {}) {
   const query = new URLSearchParams();
-  if (options.templateId) query.set("processFlowTemplateId", options.templateId);
   if (options.user) query.set("user", options.user);
   if (options.search) query.set("search", options.search);
-  if (options.revision !== undefined) query.set("revision", String(options.revision));
-  return query.size ? `?${query}` : "";
+  return apiFetch<FlowDraftSummary[]>(draftPath() + (query.size ? `?${query}` : ""));
 }
-export async function listEditorDrafts(kind: EditorDraftKind, options: { templateId?: string; user?: string; search?: string }) {
-  return apiFetch<EditorDraftSummary[]>(editorDraftPath(kind) + draftQuery(options));
+export async function getFlowDraft(id: string) { return apiFetch<FlowDraft>(draftPath(id)); }
+export async function saveFlowDraft(body: FlowDraftCreate, current?: Pick<FlowDraft, "id" | "revision">) {
+  return apiFetch<FlowDraft>(draftPath(current?.id), { method: current ? "PUT" : "POST",
+    body: JSON.stringify({ ...body, ...(current ? { revision: current.revision } : {}) }) });
 }
-export async function getEditorDraft(kind: EditorDraftKind, id: string, templateId?: string) {
-  return apiFetch<EditorDraft>(editorDraftPath(kind, id) + draftQuery({ templateId }));
+export async function deleteFlowDraft(draft: Pick<FlowDraft, "id" | "revision">) {
+  return apiFetch<void>(`${draftPath(draft.id)}?revision=${draft.revision}`, { method: "DELETE" });
 }
-export async function saveEditorDraft(kind: EditorDraftKind, body: EditorDraftCreate, current?: Pick<EditorDraft, "id" | "revision">) {
-  return apiFetch<EditorDraft>(editorDraftPath(kind, current?.id), {
-    method: current ? "PUT" : "POST", body: JSON.stringify({ ...body, ...(current ? { revision: current.revision } : {}) }),
-  });
-}
-export async function deleteEditorDraft(kind: EditorDraftKind, draft: EditorDraftSummary, templateId?: string) {
-  await apiFetch<unknown>(editorDraftPath(kind, draft.id) + draftQuery({ templateId, revision: draft.revision }), { method: "DELETE" });
-}
-export async function commitTemplateEditorDraft(draft: Pick<EditorDraft, "id" | "revision">, body: ProcessFlowTemplateCreate) {
-  return apiFetch<ProcessFlowTemplate>(editorDraftPath("template", draft.id) + "/commit", {
-    method: "POST", body: JSON.stringify({ revision: draft.revision, processFlowTemplate: body }),
-  });
-}
-export async function commitTemplateInstanceEditorDraft(
-  draft: Pick<EditorDraft, "id" | "revision">,
-  body: TemplateInstanceCreateRequest,
-) {
-  return apiFetch<{ processFlowTemplate: ProcessFlowTemplate; processFlowInstance: ProcessFlowInstance }>(
-    editorDraftPath("template", draft.id) + "/commit",
-    { method: "POST", body: JSON.stringify({ revision: draft.revision, ...body }) },
-  );
-}
-export async function commitInstanceEditorDraft(draft: Pick<EditorDraft, "id" | "revision">, body: ProcessFlowInstanceCreate) {
-  return apiFetch<ProcessFlowInstance>(editorDraftPath("instance", draft.id) + "/commit", {
-    method: "POST", body: JSON.stringify({ revision: draft.revision, processFlowInstance: body }),
+export async function commitFlowDraft(draft: Pick<FlowDraft, "id" | "revision">, flow: ProcessFlowCreate, target?: FlowOrigin) {
+  return apiFetch<ProcessFlow>(draftPath(draft.id) + "/commit", {
+    method: "POST", body: JSON.stringify({ revision: draft.revision, flow, ...(target ? { target } : {}) }),
   });
 }

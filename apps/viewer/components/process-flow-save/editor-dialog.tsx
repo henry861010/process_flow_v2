@@ -10,13 +10,13 @@ const focusableSelector = "button:not(:disabled), input:not(:disabled), select:n
 
 /** The topmost dialog owns focus, including when a confirmation overlays a picker. */
 export function useEditorDialogFocus(
-  panel: React.RefObject<HTMLElement>, onClose: () => void, busy: boolean, returnFocus?: React.RefObject<HTMLElement>,
+  panel: React.RefObject<HTMLElement>, onClose: () => void, busy: boolean, returnFocus?: React.RefObject<HTMLElement>, enabled = true,
 ) {
   const latest = React.useRef({ onClose, busy });
   latest.current = { onClose, busy };
   React.useEffect(() => {
     const element = panel.current;
-    if (!element) return;
+    if (!enabled || !element) return;
     const previous = returnFocus?.current ?? document.activeElement as HTMLElement | null;
     dialogs.push(element);
     const controls = () => Array.from(element.querySelectorAll<HTMLElement>(focusableSelector))
@@ -57,7 +57,7 @@ export function useEditorDialogFocus(
         else dialogs.at(-1)?.querySelector<HTMLElement>(focusableSelector)?.focus();
       });
     };
-  }, [panel, returnFocus]);
+  }, [panel, returnFocus, enabled]);
 }
 
 export function EditorDialog({ title, description, busy = false, onClose, children, footer, className, returnFocus }: {

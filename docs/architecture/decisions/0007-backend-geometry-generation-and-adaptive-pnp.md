@@ -35,7 +35,7 @@ PnP 原本只接受 rectangle coordinates，且只會對 BoxGeometry subtree 做
 
 1. Generator 的 parameter definition、validation、geometry build與engineering preview由後端
    registry擁有；前端只渲染versioned generic preview document。
-2. `GeometryEntity`與`EmbeddedGeometry`可明確保存versioned `adaptationContract`。Explicit
+2. `GeometryEntity`與`GeometryDocument`可明確保存versioned `adaptationContract`。Explicit
    contract永遠優先，未知id/version必須失敗。
 3. 唯一 PnP program locator是`pnp/pnp`，唯一parameter是`placements`；`coordinates`、
    `coordinateList`與`pnp/pnp_v2`不存在於current contract。

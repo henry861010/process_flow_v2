@@ -60,7 +60,7 @@ Kernel execution result 已保存 execution plan 中每個已執行 step 的 out
    identity、order、label、normalized `geometryEntityJson`、`meshUrl` 與 `sectionUrl`。
 6. 切換 session 內 snapshot MUST NOT 重新 compile 或 execute flow。
 7. Session 是 bounded in-memory LRU中的ephemeral interaction resource，不是committed
-   ProcessFlowInstance或durable export record。Eviction後asset URL回`404`；client以原request重新POST，
+   ProcessFlow或durable export record。Eviction後asset URL回`404`；client以原request重新POST，
    MUST得到相同content-derived identities。
 
 ### 2. Body identity、diff 與 content-addressed binary mesh

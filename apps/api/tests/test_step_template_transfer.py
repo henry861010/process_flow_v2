@@ -24,19 +24,14 @@ def steps(client):
 
 
 def make_draft(client, kind, step=None):
-    flow = client.get("/api/bootstrap").json()["processFlowTemplates"][0]
-    body = {"user": "another.engineer", "name": "Unfinished work", "state": {
+    body = {"schemaVersion": 2, "user": "another.engineer", "name": f"Unfinished {kind}", "state": {
         "metadata": {"name": "", "version": "", "owner": "", "description": ""},
-        "configuration": {"inputBindings": {}, "stepConfigurations": {}, "embeddedGeometries": {}},
+        "configuration": {"inputBindings": {}, "stepConfigurations": {}},
+        "nodes": [{"id": "unfinished", "kind": "processStep", "position": {"x": 0, "y": 0},
+                   "stepRef": {"stepRefId": "unfinished", "processStepTemplateId": step["id"]}}] if step else [],
+        "edges": [], "viewport": {"x": 0, "y": 0, "zoom": 1}, "editingRecipeIds": {},
     }}
-    if kind == "instance":
-        body["processFlowTemplateId"] = flow["id"]
-    else:
-        body["state"].update(nodes=[{
-            "id": "unfinished", "kind": "processStep", "position": {"x": 0, "y": 0},
-            "stepRef": {"stepRefId": "unfinished", "processStepTemplateId": step["id"]},
-        }], edges=[], viewport={"x": 0, "y": 0, "zoom": 1})
-    response = client.post(f"/api/process-flow-{kind}-drafts", json=body)
+    response = client.post("/api/process-flow-drafts", json=body)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -90,8 +85,8 @@ def test_merge_fully_overwrites_by_id_and_preserves_other_data_and_drafts(servic
     assert {key: value for key, value in after.items() if key != "processStepTemplates"} == {
         key: value for key, value in before.items() if key != "processStepTemplates"
     }
-    assert store.get_editor_draft("template", template_draft["id"]) == template_draft
-    assert store.get_editor_draft("instance", instance_draft["id"]) == instance_draft
+    assert store.get_flow_draft(template_draft["id"]) == template_draft
+    assert store.get_flow_draft(instance_draft["id"]) == instance_draft
     assert store.dataset_id == dataset_id
 
 
@@ -128,8 +123,8 @@ def test_referenced_structure_conflict_rejects_entire_batch(service, change):
     client, _ = service
     original = steps(client)
     source = original["step_tpl_molding"]
-    flow = next(flow for flow in client.get("/api/bootstrap").json()["processFlowTemplates"]
-                if any(ref["processStepTemplateId"] == source["id"] for ref in flow["stepRefs"]))
+    flow = next(flow for flow in client.get("/api/bootstrap").json()["processFlows"]
+                if any(ref["processStepTemplateId"] == source["id"] for ref in flow["definition"]["stepRefs"]))
     response = client.post("/api/process-step-templates/import", json=[
         {**original["step_tpl_ecl"], "id": "must_not_be_inserted"}, {**source, **change},
     ])

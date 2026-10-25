@@ -28,8 +28,7 @@ source_of_truth:
 
 ## 可用範圍與 context
 
-`GeometryPreviewPanel` 是 Flow Template Editor與 Flow Instance Editor共用的 full-page overlay；
-兩頁都 MUST 可開啟，不能只實作 Instance surface。
+`GeometryPreviewPanel` 是 Flow Editor 與 geometry 相關頁面共用的 full-page overlay；input 與 step output 都可使用。
 
 ```ts
 type GeometryPreviewContext = {
@@ -41,9 +40,8 @@ type GeometryPreviewContext = {
 };
 ```
 
-Template draft request可帶inline `flowTemplate`；saved Template/Instance request帶
-`processFlowTemplateId`。Target是`flowInput`或`stepOutput`。UI在request前依target upstream
-有效 dependency closure檢查readiness；零 placement 的 `pnp/pnp` 不追蹤 die input，
+Draft request 帶 inline `flow: {definition, configuration}`；saved flow request 帶 `flowId`。Target是`flowInput`或`stepOutput`。UI在request前依target upstream
+有效 dependency closure檢查readiness；採用 recipe 為零 placement 的 `pnp/pnp` 不追蹤 die input，
 主流程 input 仍必要。直接 preview 未使用分支時重新以該 target 計算 closure；disabled
 control顯示第一個 blocking reason。
 
@@ -78,7 +76,7 @@ step template 名稱），主標題字級 `1.6875rem`（27px，原字級的 1.5 
 request 狀態變化。Step label 與 badge 群組水平間距 `24px`，badge 之間維持 `8px`。
 長標題可換行，Close 不縮小。
 
-Footer actions order固定：`Export JSON`、`Export CDB`。非Ready全部disabled。
+Footer actions order固定：`Export JSON`、`Export STEP`、`Export CDB`。非Ready全部disabled。
 Backdrop、Close、Escape關閉；unmount abort進行中的preview request。關閉不改editor draft，也不取消
 已建立的export jobs。
 
@@ -86,7 +84,7 @@ Backdrop、Close、Escape關閉；unmount abort進行中的preview request。關
 
 Export CDB 會在同一網站來源／瀏覽器的 `localStorage` 自動保存最後編輯的 mesh settings，
 以 API 提供的完整 `geometryHash` 對應。關閉匯出表單、Cancel、關閉 preview、重新整理或重開
-瀏覽器後，相同 hash 恢復原草稿；不同 hash 使用各自紀錄。不同 flow、step、Template／Instance
+瀏覽器後，相同 hash 恢復原草稿；不同 hash 使用各自紀錄。不同 flow、step
 若得到相同 hash，也共用該草稿。最多保留最近使用的 20 個 geometry，超出時移除最久未使用者。
 
 保存內容包含 global element size 原始字串、symmetry、完整 local controls（含 reference、
@@ -104,8 +102,8 @@ box／polygon、inactive coordinates）及已套用 set 的原始來源／版本
 Geometry Preview 可以承載 Export form。當 Export form 開啟時，Preview 必須保持 mounted，且
 最上層 form 的 `Close`、`Cancel`、idle `Escape` 與 backdrop 只關閉 form；submitting 時不可關閉。
 這是 target behavior，與 [Interaction Patterns](../interaction-patterns.md) 的 modal stack contract
-一致。現行 Escape 會被 Preview／underlying Node Editor 的 document listener 同時處理，引用
-`UI-GAP-MODAL-STACK-001`。
+一致。Preview、Export 與 Flow Node Editor 共用 topmost dialog stack，實測見
+[Unified editor evidence](../evidence/unified-flow-editor/README.md)。
 
 ## Panel 狀態機
 

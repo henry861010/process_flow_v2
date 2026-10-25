@@ -8,8 +8,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-13
-last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
+last_verified: 2026-10-25
+last_verified_commit: 7d49bf0b
 source_of_truth:
   - docs/ui/reconstruction-guide.md
   - docs/ui/acceptance/README.md
@@ -36,29 +36,25 @@ source_of_truth:
 ### Home
 
 - [ ] Header counts 與 bootstrap 一致。
-- [ ] instance rows 與 template-only rows 同時顯示。
+- [ ] 單一 Flow 列表，不再分 template／instance。
 - [ ] filter、`shown`、table horizontal scroll owner 正確。
 - [ ] 390px 時 document 無 horizontal overflow，只有 table wrapper 可水平捲動。
 - [ ] `cmd: reset-poc-data` 的 icon、title、aria-label 與 fixed position 正確。
 
-### Flow Template Editor
+### Flow Editor
 
-- [ ] fresh state 顯示空 graph、兩側 library 與 disabled save commands。
-- [ ] Step item 可 click-add；Geometry item 的 drag-only 行為若仍存在，標記 `UI-GAP-DRAG-001`。
-- [ ] node 單擊開啟 inspector；double-click 不得是唯一路徑。
-- [ ] Template/Instance metadata不在editor header常駐顯示。
-- [ ] valid topology + incomplete configuration 可開Save Template dialog，完成資訊後保存並鎖 topology。
-- [ ] `1024×768` 明確檢查 right pane 是否裁切，引用 `UI-GAP-RESP-001`。
-
-### Flow Instance Editor
-
-- [ ] 選擇 AAA 後default configuration與dirty status正確。
-- [ ] Header 提供 Save Draft / From Draft；草稿 user/name 與正式 metadata 分开。
-- [ ] graph 是 view-only；single-click node 開啟 inspector。
-- [ ] ready target 可 Preview；unrelated incomplete branch 不阻擋。
-- [ ] From Draft 恢復完整值，不套用 defaults；正式 Save 成功後原子刪除來源草稿。
-- [ ] revision 衝突與失敗保留內容；另存新草稿、搜尋、作者篩選與刪除可用。
-- [ ] 正式 template 儲存後鎖 topology；正式 instance 儲存成功返回 Home。
+- [ ] fresh state 顯示空 graph、兩側 library 與 disabled save command。
+- [ ] Step item 可 click-add；Geometry drag-only gap 仍記錄為 `UI-GAP-DRAG-001`。
+- [ ] Edit button／double-click 可開站點面板，單擊供接線使用。
+- [ ] 正式 metadata 於 Save dialog 編輯；保存後仍可修改 topology。
+- [ ] 合法拓樸、未完成 configuration 可保存；無效已提供值或拓樸只能存草稿。
+- [ ] Add／Copy recipe 不改採用，Currently editing 與 Adopted 清楚區分，刪除採用後 null。
+- [ ] 保存／恢復草稿包含畫布、viewport、查看 recipe 與 target revision，讀取不套 defaults。
+- [ ] 正式更新使用 revision；409 保留內容，提供 Reload 與 Save as。
+- [ ] 另存完整複製 configuration，記錄直接來源 revision，來源更新／刪除不連動。
+- [ ] ready target 可 Preview；無關 incomplete branch 不阻擋。
+- [ ] commit 成功後才原子刪除來源草稿；失敗保留。
+- [ ] `1024×768` 檢查 right pane 是否裁切，引用 `UI-GAP-RESP-001`。
 
 ### Management process-step editing
 

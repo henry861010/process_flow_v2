@@ -1,39 +1,39 @@
 from __future__ import annotations
-
 import json
 from importlib.resources import files
 from typing import Any
-
-from process_flow_kernel import (
-    validate_flow_graph,
-    validate_flow_parameter_defaults,
-    validate_geometry_semantic_keys,
-    validate_process_step_template,
-)
+from process_flow_kernel import FlowCompiler, InMemoryGeometryCatalog, validate_geometry_semantic_keys, validate_process_step_template
+from .models import ProcessFlow, ProcessStepTemplate, GeometryEntity
 
 JsonObject = dict[str, Any]
-
-
 FIXTURE_FILES = {
     "processStepTemplates": "process-step-templates.json",
-    "processFlowTemplates": "process-flow-templates.json",
-    "processFlowInstances": "process-flow-instances.json",
+    "processFlows": "process-flows.json",
     "geometries": "geometries.json",
 }
 
 
+def validate_fixtures(result: dict[str, list[JsonObject]]) -> None:
+    geometry_ids = {geometry["id"] for geometry in result["geometries"]}
+    for geometry in result["geometries"]:
+        GeometryEntity.model_validate(geometry)
+        validate_geometry_semantic_keys(geometry["structure"])
+    steps = result["processStepTemplates"]
+    for step in steps:
+        ProcessStepTemplate.model_validate(step)
+        validate_process_step_template(step)
+    compiler = FlowCompiler(InMemoryGeometryCatalog(result["geometries"]))
+    for flow in result["processFlows"]:
+        ProcessFlow.model_validate(flow)
+        compiler.validate_authoring(flow["definition"], flow["configuration"], steps)
+        for binding in flow["configuration"]["inputBindings"].values():
+            if binding["kind"] == "catalog" and binding["geometryId"] not in geometry_ids:
+                raise ValueError(f"Flow {flow['id']} references missing geometry {binding['geometryId']}")
+
+
 def load_seed_fixtures() -> dict[str, list[JsonObject]]:
     fixture_dir = files("process_flow_api").joinpath("fixtures")
-    result: dict[str, list[JsonObject]] = {}
-    for key, filename in FIXTURE_FILES.items():
-        with fixture_dir.joinpath(filename).open("r", encoding="utf-8") as file:
-            result[key] = json.load(file)
-    for geometry in result["geometries"]:
-        validate_geometry_semantic_keys(geometry["structure"])
-    step_templates = result["processStepTemplates"]
-    for step_template in step_templates:
-        validate_process_step_template(step_template)
-    for flow_template in result["processFlowTemplates"]:
-        validate_flow_graph(flow_template, step_templates)
-        validate_flow_parameter_defaults(flow_template, step_templates)
+    result = {key: json.loads(fixture_dir.joinpath(filename).read_text(encoding="utf-8"))
+              for key, filename in FIXTURE_FILES.items()}
+    validate_fixtures(result)
     return result

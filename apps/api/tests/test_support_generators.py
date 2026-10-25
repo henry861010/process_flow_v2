@@ -5,7 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from flow_requests import instance_create_payload, template_create_payload
+from flow_requests import flow_create_payload, fixture_flow
 from process_flow_api.main import create_app
 from process_flow_kernel import GeometryArtifact, validate_geometry_semantic_keys
 from process_flow_steps.pnp.adapters import adapt_geometry
@@ -67,19 +67,19 @@ class SupportGeneratorApiTests(unittest.TestCase):
             with self.subTest(generator=generator_id):
                 is_frame = generator_id == "frame"
                 port = "frame_geometry" if is_frame else "carrier_geometry"
-                template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
+                template = copy.deepcopy(fixture_flow(bootstrap))
                 template["name"] = f"{generator_id} support lifecycle"
-                template["flowInputs"][1].update({
+                template["definition"]["flowInputs"][1].update({
                     "flowInputId": "support", "name": "Support",
                     "geometryConstraints": {"categories": [category]},
                 })
-                template["stepRefs"] = [
+                template["definition"]["stepRefs"] = [
                     {"stepRefId": "attach", "processStepTemplateId":
                      "step_tpl_frame_mount" if is_frame else "step_tpl_carrier_bond"},
                     {"stepRefId": "remove", "processStepTemplateId":
                      "step_tpl_frame_demount" if is_frame else "step_tpl_debond"},
                 ]
-                template["flowEdges"] = [
+                template["definition"]["flowEdges"] = [
                     {"edgeId": "main-to-attach", "source": {"kind": "flowInput", "flowInputId": "incoming_panel"},
                      "target": {"stepRefId": "attach", "inputPortId": "main_geometry"}},
                     {"edgeId": "support-to-attach", "source": {"kind": "flowInput", "flowInputId": "support"},
@@ -88,19 +88,16 @@ class SupportGeneratorApiTests(unittest.TestCase):
                         "kind": "stepOutput", "stepRefId": "attach", "outputPortId": "result_geometry"},
                      "target": {"stepRefId": "remove", "inputPortId": "main_geometry"}},
                 ]
-                instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
+                instance = copy.deepcopy(fixture_flow(bootstrap))
                 instance["name"] = f"{generator_id} default"
-                instance["inputBindings"].pop("incoming_hbm")
-                instance["inputBindings"]["support"] = {
+                instance["configuration"]["inputBindings"].pop("incoming_hbm")
+                instance["configuration"]["inputBindings"]["support"] = {
                     "kind": "generator", "generatorId": generator_id, "generatorVersion": 1, "parameters": {},
                 }
-                instance["stepConfigurations"] = {"attach": {"parameterValues": {}}, "remove": {"parameterValues": {}}}
-                response = self.client.post("/api/process-flow-template-instances", json={
-                    "processFlowTemplate": template_create_payload(template),
-                    "processFlowInstance": instance_create_payload(instance, for_new_template=True),
-                })
+                instance["configuration"]["stepConfigurations"] = {"attach": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"}, "remove": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"}}
+                response = self.client.post("/api/process-flows", json=flow_create_payload({**instance, "definition": template["definition"]}))
                 self.assertEqual(response.status_code, 201, response.text)
-                saved = response.json()["processFlowInstance"]
+                saved = response.json()
                 defaults = self.app.state.geometry_generators.definition(generator_id)["defaultParameters"]
                 edited = {key: value / 2 for key, value in defaults.items() if isinstance(value, (int, float))}
                 edited[f"{layer}Material"] = "Custom support"
@@ -108,17 +105,18 @@ class SupportGeneratorApiTests(unittest.TestCase):
                     if parameters == edited:
                         request = copy.deepcopy(saved)
                         request["name"] = f"{generator_id} edited"
-                        request["inputBindings"]["support"]["parameters"] = {
+                        request["configuration"]["inputBindings"]["support"]["parameters"] = {
                             **parameters, f"{layer}Material": "  Custom support  ",
                         }
-                        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(request))
+                        response = self.client.post("/api/process-flows", json=flow_create_payload(request))
                         self.assertEqual(response.status_code, 201, response.text)
                         saved = response.json()
-                    self.assertEqual(saved["inputBindings"]["support"]["parameters"], parameters)
-                    reopened = self.client.get(f"/api/process-flow-instances/{saved['id']}")
+                    self.assertEqual(saved["configuration"]["inputBindings"]["support"]["parameters"],
+                                     {**parameters, f"{layer}Material": "  Custom support  "} if parameters == edited else {})
+                    reopened = self.client.get(f"/api/process-flows/{saved['id']}")
                     self.assertEqual(reopened.status_code, 200, reopened.text)
                     self.assertEqual(reopened.json(), saved)
-                    response = self.client.post(f"/api/process-flow-instances/{saved['id']}/execute")
+                    response = self.client.post(f"/api/process-flows/{saved['id']}/execute")
                     self.assertEqual(response.status_code, 200, response.text)
                     result = response.json()
                     attached = result["stepOutputs"]["attach"]

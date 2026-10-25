@@ -10,8 +10,7 @@ audience:
 last_verified: 2026-10-13
 last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
 source_of_truth:
-  - apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx
-  - apps/viewer/components/process-flow-instance-editor/process-flow-instance-editor.tsx
+  - apps/viewer/components/process-flow-editor/process-flow-editor.tsx
   - apps/viewer/components/process-step-edit/process-step-edit-dialog.tsx
   - apps/viewer/components/geometry-preview
 ---
@@ -27,22 +26,22 @@ source_of_truth:
 | Process step，兩種 mode | 雙擊或右上角鉛筆按鈕 | 取消暫存拉線並開啟既有 Node Editor dialog。 |
 | Geometry input | 單擊 | 選取並開啟既有 Node Editor dialog；source handle 可單擊或拖曳拉線。 |
 | Graph pane | 單擊空白 | 清除 selection，不關閉已開啟的 modal。 |
-| Step palette item | 單擊或拖放 | 加入 Template graph。 |
+| Step palette item | 單擊或拖放 | 加入 Flow graph。 |
 | Geometry palette item | 拖放 | 建立 Geometry Input 並建立 working catalog binding。 |
 | Edge/terminal Eye button | 單擊 | upstream closure ready 時開 Preview。 |
 | Feature envelope | 單擊 | 選取 feature；glyph 不是 selection authority。 |
 
-Template/Instance screen MUST 綁 `onNodeClick` 作選取行為，step 編輯使用 `onNodeDoubleClick`
+Flow Editor MUST 綁 `onNodeClick` 作選取行為，step 編輯使用 `onNodeDoubleClick`
 與常駐鉛筆按鈕。鉛筆按鈕 MUST 可用 Tab 到達並以 Enter/Space 啟動。Geometry input 維持
 既有單擊行為。拉線中點另一個 step 切換來源，點同一來源、pane 空白或按 Escape 取消；
 點無效 target 保留拉線狀態且不更動 edge。開啟編輯、開始拖曳、切換來源流程、刪除來源或
-進入 topology locked / saving 狀態 MUST 清除暫存拉線。
+進入 saving 狀態 MUST 清除暫存拉線。
 
 ## 拖放
 
 - Graph drop 必須把 `clientX/clientY` 轉成 React Flow coordinates。
 - Step item 同時有 click-add fallback；Geometry item 現況沒有 fallback。
-- Desktop drag 使用 `copy` effect；topology locked 時 item 是 `aria-disabled`/disabled 且不可拖。
+- Desktop drag 使用 `copy` effect；saving 時 item 是 `aria-disabled`/disabled 且不可拖。
 - Touch-only mobile 無法新增 Geometry Input 是 `UI-GAP-DRAG-001`；不得在文件或測試中
   假裝此路徑已可用。
 - CAD file drop 與 file input 都可用；drag-over 以 primary border + ring 顯示。
@@ -71,7 +70,7 @@ Node Editor、Geometry Catalog、Geometry Preview、Process Step Edit、Export f
 6. 關閉後把 focus 還給觸發 control。
 7. background content 使用 `inert` 或等效機制。
 
-現行自製 dialogs 已有 Escape/backdrop/close button，但未完整符合 1–3、6–7，列為
+Flow editor／Preview／Export 已整合共用 focus lifecycle；其他 overlay 與 background inert 尚需完整檢閱，仍列為
 `UI-GAP-A11Y-001`。Reference screenshot 依現況；semantic acceptance 依本 target。
 
 ### Modal stack target
@@ -92,8 +91,8 @@ screen
 - submitting 的 Export form 不接受 `Escape`、Cancel、Close 或 backdrop close。
 - 關閉最上層 modal 後，focus 回到開啟它的 trigger；不得一次關閉整個 overlay stack。
 
-目前 Export form 的 Escape 會穿透到 Geometry Preview／Node Editor，列為
-`UI-GAP-MODAL-STACK-001`；不得在 review 或 reference capture 中視為 accepted behavior。
+Export form、Geometry Preview 與 Node Editor 使用共用 topmost dialog stack；Escape 隔離與 focus restore 已驗證，見
+[UI-FLOW-008 操作紀錄](evidence/unified-flow-editor/README.md)。
 
 ## 表單與 validation
 
@@ -123,21 +122,16 @@ blocking reason；API error 不得清空 draft。
 使用者輸入造成 state 改變時，舊 success/error message SHOULD 清除，避免把過期結果顯示為
 仍然有效。
 
-## Instance copy、dirty 與 save 流程
+## Flow copy、dirty 與 save 流程
 
-```text
-Home template card -> templateId route -> blank defaults
-                                      -> From instance -> copied values
-                                                        -> edit -> Save dialog
-                                                                -> create immutable instance -> Home
-```
+Home flow card → 開啟完整 flow → 編輯拓樸／候選 → Save dialog → 更新或另存，成功後保留在 editor。
 
-- Instance Editor 維持固定 template，不提供 template selector；header 提供 Save Draft 與 From Draft。
-- `From instance`只列同template records；copy configuration但重設所有new-instance metadata。
-- 切換source、返回Home或關閉dirty頁面前必須保護未儲存內容。
-- `Save`要求complete configuration；dialog submit另驗證id grammar/uniqueness以及name、version、owner。
-- Save使用direct immutable create；不提供in-place update。
-- Draft list/load/delete 依 editor 種類與 instance template 範圍查詢；載入不重新套用 defaults。
+- Source 對話框提供 Open／Copy 和跨 flow 草稿恢復。
+- 正式保存要求拓樸與已提供值有效；允許缺少 bindings／required 參數。
+- 目前查看 recipe 與採用分開。查看屬於草稿 UI state；預覽只使用採用 recipe。
+- Draft 保存完整 configuration、畫布與 target revision；載入不重套 defaults。
+- 409 保留內容，提供重新載入與另存；成功 commit 才刪除來源草稿。
+- Dirty 離頁與 source replacement 仍保護未儲存進度。
 
 ## Modal 與 overlay 層級
 
@@ -160,9 +154,8 @@ Visible copy 逐字固定；重建 agent 不可自行翻譯：
 
 | Context | Copy |
 | --- | --- |
-| Home no rows | `No process flows` / `Create instance` |
+| Home no rows | `No process flows` |
 | Template empty graph | `Empty flow` |
-| Instance no template | `Select a flow template` |
 | Parameter empty | `No parameters` |
 | Placement empty | `No placements` |
 | Preview loading | `Generating geometry preview...` |
@@ -173,7 +166,7 @@ API error 顯示 server message；只有無法取得 message 時才使用 compon
 ## 響應式互動
 
 - Mobile 不縮小 graph font；以 fit view、pan 與 zoom 檢視。
-- Scroll 與 graph pan 衝突時，Instance Graph 使用 `panOnScroll`；page 本身鎖定 overflow。
+- Scroll 與 graph pan 衝突時，Flow Graph 使用 `panOnScroll`；page 本身鎖定 overflow。
 - Dialog 寬度皆為 `calc(100vw - 32px)` 上限，四周至少 `16px`。
 - Preview body 在 `<1024px` 單欄；viewport先、controls後，footer 保留可見。
 - Hover-only secondary controls MUST 另有 focus-visible path；現行 Template card clone/delete 與
@@ -185,9 +178,8 @@ API error 顯示 server message；只有無法取得 message 時才使用 compon
 [UI Reconstruction Guide](reconstruction-guide.md)。以下四條 journey 是 review 時的最小
 cross-screen contract：
 
-1. Template topology：click-add Step → drag Geometry → connect → single-click editor → Save Template → Preview。
-2. Instance configuration：select AAA → bind geometry → edit parameters → Preview；另以known
-   使用固定 template URL 驗證草稿存取、恢復、revision conflict 與正式 Save 後草稿清除。
+1. Flow topology：click-add Step → drag Geometry → connect → edit-button editor → Save Flow → Preview。
+2. Flow recipes：新增兩組候選、切換查看與採用，保存重載、草稿恢復、revision conflict 與另存。
 3. Preview/export：open ready target → Loading/Ready → Export form → jobs drawer → terminal state。
 4. CAD workbench：demo/import → section/camera → error or imported state → Reset preserving camera view。
 

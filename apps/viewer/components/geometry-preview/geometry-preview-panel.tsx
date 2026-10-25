@@ -65,6 +65,7 @@ import {
   ViewerScene,
 } from "@/components/viewer/viewer-scene";
 import { ApiRequestError } from "@/lib/process-flow-api";
+import { useEditorDialogFocus } from "@/components/process-flow-save/editor-dialog";
 import { cn } from "@/lib/utils";
 
 export type GeometryPreviewContext = {
@@ -113,15 +114,9 @@ export function GeometryPreviewPanel({
     };
   }
 
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  const panelRef = React.useRef<HTMLElement>(null);
+  const titleId = React.useId();
+  useEditorDialogFocus(panelRef, onClose, false);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -191,6 +186,11 @@ export function GeometryPreviewPanel({
         onClick={onClose}
       />
       <section
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="relative z-10 flex h-full flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
         onClick={(event) => event.stopPropagation()}
       >
@@ -202,7 +202,7 @@ export function GeometryPreviewPanel({
                 preview.sourceKind === "stepOutput" ? "gap-x-6" : "gap-x-2",
               )}
             >
-              <h2
+              <h2 id={titleId}
                 className={cn(
                   "min-w-0 max-w-full break-words font-semibold",
                   preview.sourceKind === "stepOutput"
@@ -264,6 +264,9 @@ export function GeometryPreviewPanel({
             <FileJson />
             Export JSON
           </Button>
+          <Button variant="outline" disabled={!ready} onClick={() => openFileExportDialog("step")}>
+            <Download />Export STEP
+          </Button>
           <Button
             variant="outline"
             disabled={!ready}
@@ -283,8 +286,8 @@ export function GeometryPreviewPanel({
           geometryEntityJson={targetSnapshot.geometryEntityJson}
           sourceLabel={`${preview.sourceLabel} -> ${targetSnapshot.label}`}
           analyticsContext={preview.request.analyticsContext ?? {
-            flowTemplateId: preview.request.processFlowTemplateId,
-            sourceKind: preview.request.flowTemplate ? "inline_draft" : "template",
+            flowId: preview.request.flowId,
+            sourceKind: preview.request.flow ? "inline_draft" : "flow",
           }}
           onClose={() => setFileExportDialogKind(null)}
           onJobCreated={handleFileExportJobCreated}

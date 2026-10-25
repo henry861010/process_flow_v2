@@ -1,5 +1,5 @@
 import type {
-  EmbeddedGeometry,
+  GeometryDocument,
   GeometryAdaptationContract,
   ParameterDefinition,
   ParameterDefinitionGroup,
@@ -92,10 +92,10 @@ export type GeometryGeneratorPreview = {
   engineeringPreview: EngineeringPreviewDocument | null;
   geometryHash: string | null;
   previewToken: string | null;
-  geometryEntityJson: (EmbeddedGeometry & { id?: string | null }) | null;
+  geometryEntityJson: (GeometryDocument & { id?: string | null }) | null;
 };
 
 export type GeometryMaterialization = {
   geometryHash: string;
-  geometryEntityJson: EmbeddedGeometry & { id?: string | null };
+  geometryEntityJson: GeometryDocument & { id?: string | null };
 };

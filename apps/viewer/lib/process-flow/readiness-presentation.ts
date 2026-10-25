@@ -29,7 +29,6 @@ export function geometryInputStatusLabel(
 ) {
   if (readiness.code === "unused-dependency") return "Unused";
   if (readiness.status === "ready") {
-    if (bindingKind === "embedded") return "Embedded";
     if (bindingKind === "generator") return "Generator";
     return "Catalog";
   }

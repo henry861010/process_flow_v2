@@ -17,16 +17,15 @@ import {
 import { GeometryGeneratorIcon } from "@/components/geometry-generator/geometry-generator-registry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ProcessFlowTemplate } from "@/lib/process-flow/types";
-import { isTemplateEnabled } from "@/lib/process-flow/template-availability";
+import type { ProcessFlow } from "@/lib/process-flow/types";
 import { loadBootstrap } from "@/lib/process-flow-api";
 
 type HomeData = {
-  flowTemplates: ProcessFlowTemplate[];
+  flows: ProcessFlow[];
   geometryGenerators: GeometryGeneratorDefinition[];
 };
 
-const emptyHomeData: HomeData = { flowTemplates: [], geometryGenerators: [] };
+const emptyHomeData: HomeData = { flows: [], geometryGenerators: [] };
 
 export default function Home() {
   const [homeData, setHomeData] = React.useState<HomeData>(emptyHomeData);
@@ -38,7 +37,7 @@ export default function Home() {
     try {
       const payload = await loadBootstrap();
       setHomeData({
-        flowTemplates: payload.processFlowTemplates.filter(isTemplateEnabled),
+        flows: payload.processFlows,
         geometryGenerators: payload.geometryGenerators,
       });
       setLoadError(null);
@@ -63,7 +62,7 @@ export default function Home() {
               <h1 className="text-xl font-semibold tracking-normal">Process Flow</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Choose a template to create a process flow instance.
+              Open a flow to edit its topology and recipe candidates.
             </p>
           </div>
           <Button asChild size="sm" variant="ghost" className="text-muted-foreground">
@@ -74,17 +73,17 @@ export default function Home() {
           </Button>
         </header>
 
-        <section className="flex-1 py-6" aria-labelledby="templates-heading">
+        <section className="flex-1 py-6" aria-labelledby="flows-heading">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 id="templates-heading" className="text-sm font-semibold">
-                Process flow templates
+              <h2 id="flows-heading" className="text-sm font-semibold">
+                Process flows
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Each template opens a new instance editor.
+                Open a flow to edit its topology and recipe candidates.
               </p>
             </div>
-            {!loading ? <Badge variant="outline">{homeData.flowTemplates.length} templates</Badge> : null}
+            {!loading ? <Badge variant="outline">{homeData.flows.length} flows</Badge> : null}
           </div>
 
           {loadError ? (
@@ -97,24 +96,24 @@ export default function Home() {
           ) : null}
 
           {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading templates">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading flows">
               {[0, 1, 2].map((item) => (
                 <div key={item} className="h-28 animate-pulse rounded-md border bg-white/60" />
               ))}
             </div>
-          ) : homeData.flowTemplates.length > 0 ? (
+          ) : homeData.flows.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {homeData.flowTemplates.map((template) => (
+              {homeData.flows.map((template) => (
                 <Link
                   key={template.id}
-                  href={`/flow-instance-editor?templateId=${encodeURIComponent(template.id)}`}
+                  href={`/flow-editor?flowId=${encodeURIComponent(template.id)}`}
                   className="group grid min-h-28 grid-cols-[minmax(0,7fr)_minmax(0,3fr)] items-center rounded-md border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <div className="min-w-0 pr-4">
                     <h3 className="truncate text-base font-semibold" title={template.name}>
                       {template.name}
                     </h3>
-                    <Badge variant="outline" className="mt-2">Enabled</Badge>
+                    <Badge variant="outline" className="mt-2">r{template.revision}</Badge>
                   </div>
                   <div className="min-w-0 text-right">
                     <Badge variant="outline">{template.version}</Badge>
@@ -129,9 +128,9 @@ export default function Home() {
             <div className="grid min-h-56 place-items-center rounded-md border border-dashed bg-white/70 px-6 text-center">
               <div>
                 <Workflow className="mx-auto h-7 w-7 text-primary" />
-                <h3 className="mt-3 text-sm font-semibold">No process flow templates</h3>
+                <h3 className="mt-3 text-sm font-semibold">No process flows</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Create a template to start defining process flow instances.
+                  Create a flow to define its topology and recipes.
                 </p>
               </div>
             </div>
@@ -142,12 +141,12 @@ export default function Home() {
           <div className="mb-3">
             <h2 id="create-heading" className="text-sm font-semibold">Create resources</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Author reusable topology and catalog geometry before using them in instances.
+              Create process flows and catalog geometry.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild>
-              <Link href="/flow-template-editor"><Plus />Create Template</Link>
+              <Link href="/flow-editor"><Plus />Create Flow</Link>
             </Button>
             {generatorsForPlacement(homeData.geometryGenerators, "home").map((definition) => (
               <Button key={definition.id} asChild variant="outline">

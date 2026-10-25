@@ -16,25 +16,25 @@ class FlowGraphAnalysis:
     terminal_step_ref_ids: Sequence[str]
 
 
-def validate_flow_graph(process_flow_template, step_templates):
-    analyze_flow_graph(process_flow_template, step_templates)
+def validate_flow_graph(definition, step_templates):
+    analyze_flow_graph(definition, step_templates)
 
 
 def validate_process_step_template(step_template):
     _validate_step_template_ports(step_template)
 
 
-def analyze_flow_graph(process_flow_template, step_templates) -> FlowGraphAnalysis:
+def analyze_flow_graph(definition, step_templates) -> FlowGraphAnalysis:
     step_templates_by_id = _template_map(step_templates)
     step_refs_by_id = _unique_items(
-        process_flow_template.get("stepRefs", []),
+        definition.get("stepRefs", []),
         "stepRefId",
-        "ProcessFlowTemplate.stepRefs",
+        "FlowDefinition.stepRefs",
     )
     flow_inputs_by_id = _unique_items(
-        process_flow_template.get("flowInputs", []),
+        definition.get("flowInputs", []),
         "flowInputId",
-        "ProcessFlowTemplate.flowInputs",
+        "FlowDefinition.flowInputs",
     )
 
     step_templates_by_ref_id = {}
@@ -43,7 +43,7 @@ def analyze_flow_graph(process_flow_template, step_templates) -> FlowGraphAnalys
     for step_ref_id, step_ref in step_refs_by_id.items():
         step_label = step_ref.get("stepLabel")
         if step_label is not None and not isinstance(step_label, str):
-            raise ValueError("ProcessFlowTemplate.stepRefs[] stepLabel must be a string when provided")
+            raise ValueError("FlowDefinition.stepRefs[] stepLabel must be a string when provided")
         template_id = step_ref.get("processStepTemplateId")
         step_template = step_templates_by_id.get(template_id)
         if step_template is None:
@@ -66,10 +66,10 @@ def analyze_flow_graph(process_flow_template, step_templates) -> FlowGraphAnalys
     outgoing_output_ports = set()
     edge_ids = set()
     used_flow_input_ids = set()
-    for edge in process_flow_template.get("flowEdges", []):
+    for edge in definition.get("flowEdges", []):
         edge_id = edge.get("edgeId")
         if not isinstance(edge_id, str) or not edge_id.strip():
-            raise ValueError("ProcessFlowTemplate.flowEdges[] edgeId must be a non-empty string")
+            raise ValueError("FlowDefinition.flowEdges[] edgeId must be a non-empty string")
         if edge_id in edge_ids:
             raise ValueError(f"Duplicate flow edge id: {edge_id}")
         edge_ids.add(edge_id)
@@ -152,17 +152,17 @@ def analyze_flow_graph(process_flow_template, step_templates) -> FlowGraphAnalys
 
 
 def upstream_step_ref_ids(
-    process_flow_template: Mapping[str, Any],
+    definition: Mapping[str, Any],
     output_step_ref_id: str,
 ) -> set[str]:
     step_ref_ids = {
         step_ref.get("stepRefId")
-        for step_ref in process_flow_template.get("stepRefs", [])
+        for step_ref in definition.get("stepRefs", [])
     }
     if output_step_ref_id not in step_ref_ids:
         raise ValueError(f"Preview stepRefId not found: {output_step_ref_id}")
     incoming = {}
-    for edge in process_flow_template.get("flowEdges", []):
+    for edge in definition.get("flowEdges", []):
         source = edge.get("source", {})
         if source.get("kind") != "stepOutput":
             continue

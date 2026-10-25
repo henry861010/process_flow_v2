@@ -3,11 +3,11 @@ import type {
   GeometryConstraints,
   GeometryEntity,
   ParameterDefinition,
-  ProcessFlowTemplate,
+  FlowDefinition,
   ProcessStepTemplate,
   StepConfiguration,
 } from "./types";
-import { resolveFlowParameterDefaults } from "./parameter-values";
+import { createStepConfiguration, selectedRecipe } from "./recipes";
 import { isPlacementValid } from "./placement-validation";
 import { analyzeFlowDependencies, type FlowDependencies } from "./dependencies";
 
@@ -21,24 +21,18 @@ export function geometryCategoryConstraints(
 }
 
 export function createEmptyFlowConfiguration(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
 ): FlowConfiguration {
   const templatesById = new Map(stepTemplates.map((item) => [item.id, item]));
   const stepConfigurations: Record<string, StepConfiguration> = {};
   template.stepRefs.forEach((stepRef) => {
     const stepTemplate = templatesById.get(stepRef.processStepTemplateId);
-    stepConfigurations[stepRef.stepRefId] = {
-      parameterValues: resolveFlowParameterDefaults(
-        stepRef,
-        stepTemplate?.parameterDefinitions ?? [],
-      ),
-    };
+    stepConfigurations[stepRef.stepRefId] = createStepConfiguration(stepTemplate?.parameterDefinitions ?? []);
   });
   return {
     inputBindings: {},
     stepConfigurations,
-    embeddedGeometries: {},
   };
 }
 
@@ -55,8 +49,7 @@ export function geometryForFlowInput(
   if (binding.kind === "generator") {
     return geometries.find((geometry) => geometry.id === generatedGeometryId(flowInputId)) ?? null;
   }
-  const embedded = configuration.embeddedGeometries[binding.localId];
-  return embedded ? { ...embedded, id: binding.localId } : null;
+  return null;
 }
 
 export function generatedGeometryId(flowInputId: string) {
@@ -90,7 +83,7 @@ export type ConfigurationReadiness = {
 };
 
 export function getFlowInputReadiness(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
@@ -165,7 +158,7 @@ export function getFlowInputReadiness(
 
 export function getStepExecutionReadiness(
   stepRefId: string,
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
@@ -177,7 +170,7 @@ export function getStepExecutionReadiness(
 
 function getStepDependencyReadiness(
   stepRefId: string,
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
@@ -216,7 +209,10 @@ function getStepDependencyReadiness(
     const stepTemplate = stepTemplateById.get(ref.processStepTemplateId);
     if (!stepTemplate) continue;
     const values =
-      configuration.stepConfigurations[ref.stepRefId]?.parameterValues ?? {};
+      selectedRecipe(configuration.stepConfigurations[ref.stepRefId])?.parameterValues ?? {};
+    if (!selectedRecipe(configuration.stepConfigurations[ref.stepRefId])) {
+      return { status: "incomplete", code: "incomplete-parameter", reason: `${stepDisplayName(ref.stepLabel, stepTemplate.name)}: select a recipe.`, stepRefId: ref.stepRefId };
+    }
     const missing = stepTemplate.parameterDefinitions.find(
       (parameter) => !isParameterValueComplete(parameter, values[parameter.id]),
     );
@@ -280,7 +276,7 @@ export function isParameterValueComplete(
 }
 
 export function isConfigurationComplete(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
@@ -290,11 +286,10 @@ export function isConfigurationComplete(
   const knownSteps = new Set(template.stepRefs.map((ref) => ref.stepRefId));
   if (
     !isRecord(configuration.inputBindings) || !isRecord(configuration.stepConfigurations) ||
-    !isRecord(configuration.embeddedGeometries) ||
     Object.keys(configuration.inputBindings).some((id) => !knownInputs.has(id)) ||
     Object.entries(configuration.stepConfigurations).some(([id, step]) =>
       !knownSteps.has(id) || !isRecord(step) ||
-      !isRecord(step.parameterValues === undefined ? {} : step.parameterValues),
+      !Array.isArray(step.recipeCandidates),
     )
   ) return false;
   const dependencies = analyzeFlowDependencies(template, stepTemplates, configuration);
@@ -308,8 +303,8 @@ export function isConfigurationComplete(
   return template.stepRefs.every((ref) => {
     if (!dependencies.stepRefIds.has(ref.stepRefId)) return true;
     const step = templatesById.get(ref.processStepTemplateId);
-    if (!step) return false;
-    const values = configuration.stepConfigurations[ref.stepRefId]?.parameterValues ?? {};
+    if (!step || !selectedRecipe(configuration.stepConfigurations[ref.stepRefId])) return false;
+    const values = selectedRecipe(configuration.stepConfigurations[ref.stepRefId])?.parameterValues ?? {};
     return step.parameterDefinitions.every((parameter) =>
       isParameterValueComplete(parameter, values[parameter.id]),
     );
@@ -318,7 +313,7 @@ export function isConfigurationComplete(
 
 export function getStepConfigurationReadiness(
   stepRefId: string,
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
@@ -339,7 +334,7 @@ export function getStepConfigurationReadiness(
 }
 
 export function isFlowInputBindingRequired(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   flowInputId: string,
   dependencies?: FlowDependencies,
@@ -360,7 +355,7 @@ export function isFlowInputBindingRequired(
 }
 
 function getTemplateStructureError(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   outputStepRefId?: string,
 ): ConfigurationReadiness | null {
@@ -504,7 +499,7 @@ export function geometryMatchesFlowInput(
   geometry:
     | ReturnType<typeof geometryForFlowInput>
     | { entityType: string; category?: string | null; structureFormat: string },
-  input: ProcessFlowTemplate["flowInputs"][number],
+  input: FlowDefinition["flowInputs"][number],
 ) {
   if (!geometry) return false;
   const constraints = input.geometryConstraints;
@@ -530,7 +525,7 @@ export function geometryMatchesFlowInput(
   );
 }
 
-function upstreamStepIds(template: ProcessFlowTemplate, outputStepRefId: string) {
+function upstreamStepIds(template: FlowDefinition, outputStepRefId: string) {
   const stepRefIds = new Set<string>();
   const pending = [outputStepRefId];
   while (pending.length) {
@@ -547,7 +542,7 @@ function upstreamStepIds(template: ProcessFlowTemplate, outputStepRefId: string)
 }
 
 function hasStepCycle(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   relevantStepIds: Set<string>,
 ) {
   const adjacency = new Map<string, string[]>();

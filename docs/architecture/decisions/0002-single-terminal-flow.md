@@ -36,7 +36,7 @@ Preview 與完整 flow execution 的需求不同：preview需要查看任意 int
 
 Process Flow target contract 採 **single-terminal flow**：
 
-1. Persisted `ProcessFlowTemplate` MUST 至少有一個 `flowInput` 與一個 `stepRef`。
+1. Persisted `ProcessFlow.definition` MUST 至少有一個 `flowInput` 與一個 `stepRef`。
 2. Graph MUST acyclic，且每個 required input port剛好有一個 source。
 3. 每個 step output最多一個 consumer；flow input MAY fan-out。
 4. 所有 step refs MUST 屬於同一個 execution graph，且 MUST 收斂至 exactly one terminal

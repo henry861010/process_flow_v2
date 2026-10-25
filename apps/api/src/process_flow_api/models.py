@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_serializer, model_validator
 from process_flow_geometry_generators import GeometryGeneratorDefinition
 
 
@@ -172,47 +172,20 @@ class FlowEdge(StrictModel):
 
 
 class StepRef(StrictModel):
-    stepRefId: str = Field(min_length=1)
+    stepRefId: NonBlankString
     stepLabel: str | None = None
-    processStepTemplateId: str = Field(min_length=1)
-    parameterDefaults: dict[str, Any] | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def reject_null_parameter_defaults(cls, data):
-        if isinstance(data, dict) and "parameterDefaults" in data and data["parameterDefaults"] is None:
-            raise ValueError("parameterDefaults cannot be null; omit it when unspecified")
-        return data
+    processStepTemplateId: NonBlankString
 
 
-class ProcessFlowTemplateCreate(StrictModel):
-    schemaVersion: Literal[2] = 2
-    status: TemplateStatus = "enabled"
-    name: str
-    version: str
-    description: str = ""
-    owner: str = ""
+class FlowDefinition(StrictModel):
     flowInputs: list[FlowInputDefinition]
     stepRefs: list[StepRef]
     flowEdges: list[FlowEdge]
 
 
-class ProcessFlowTemplateDraft(ProcessFlowTemplateCreate):
-    id: str = ""
-
-
-class ProcessFlowTemplate(ProcessFlowTemplateDraft):
-    id: str = Field(min_length=1)
-
-
 class CatalogGeometryBinding(StrictModel):
     kind: Literal["catalog"]
     geometryId: str = Field(min_length=1)
-
-
-class EmbeddedGeometryBinding(StrictModel):
-    kind: Literal["embedded"]
-    localId: str = Field(min_length=1)
 
 
 class GeneratorGeometryBinding(StrictModel):
@@ -223,18 +196,36 @@ class GeneratorGeometryBinding(StrictModel):
 
 
 GeometryBinding = Annotated[
-    CatalogGeometryBinding | EmbeddedGeometryBinding | GeneratorGeometryBinding,
-    Field(discriminator="kind"),
-]
-
-PersistedGeometryBinding = Annotated[
     CatalogGeometryBinding | GeneratorGeometryBinding,
     Field(discriminator="kind"),
 ]
 
+class RecipeCandidate(StrictModel):
+    recipeId: NonBlankString
+    name: NonBlankString
+    description: str = ""
+    parameterValues: dict[str, Any] = Field(default_factory=dict)
+
 
 class StepConfiguration(StrictModel):
-    parameterValues: dict[str, Any] = Field(default_factory=dict)
+    recipeCandidates: list[RecipeCandidate] = Field(default_factory=list)
+    selectedRecipeId: NonBlankString | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_selection(self, handler):
+        payload = handler(self)
+        # Null is an explicit choice, including in nested flow/draft payloads.
+        payload["selectedRecipeId"] = self.selectedRecipeId
+        return payload
+
+    @model_validator(mode="after")
+    def valid_selection(self):
+        ids = [recipe.recipeId for recipe in self.recipeCandidates]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate recipeId within a step")
+        if self.selectedRecipeId is not None and self.selectedRecipeId not in ids:
+            raise ValueError("selectedRecipeId must reference a candidate in this step")
+        return self
 
 
 class GeometryGeneration(StrictModel):
@@ -249,7 +240,7 @@ class GeometryAdaptationContract(StrictModel):
     parameters: JsonObject = Field(default_factory=dict)
 
 
-class EmbeddedGeometry(StrictModel):
+class GeometryDocument(StrictModel):
     name: str
     entityType: str
     category: str | None = None
@@ -270,31 +261,38 @@ class EmbeddedGeometry(StrictModel):
 class FlowConfiguration(StrictModel):
     inputBindings: dict[str, GeometryBinding] = Field(default_factory=dict)
     stepConfigurations: dict[str, StepConfiguration] = Field(default_factory=dict)
-    embeddedGeometries: dict[str, EmbeddedGeometry] = Field(default_factory=dict)
 
 
-class ProcessFlowInstance(StrictModel):
-    schemaVersion: Literal[2] = 2
-    id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
+class FlowOrigin(StrictModel):
+    flowId: NonBlankString
+    revision: int = Field(ge=1)
+
+
+class FlowContent(StrictModel):
+    definition: FlowDefinition
+    configuration: FlowConfiguration
+
+    @model_validator(mode="after")
+    def finite_json(self):
+        json.dumps(self.model_dump(mode="json"), allow_nan=False)
+        return self
+
+
+class ProcessFlowCreate(FlowContent):
+    schemaVersion: Literal[3] = 3
+    name: NonBlankString
     version: NonBlankString
     owner: NonBlankString
     description: str = ""
-    processFlowTemplateId: str = Field(min_length=1)
-    inputBindings: dict[str, PersistedGeometryBinding]
-    stepConfigurations: dict[str, StepConfiguration]
+    origin: FlowOrigin | None = None
 
 
-class ProcessFlowInstanceForNewTemplateCreate(FlowConfiguration):
-    schemaVersion: Literal[2] = 2
-    name: str = Field(min_length=1)
-    version: NonBlankString
-    owner: NonBlankString
-    description: str = ""
+class ProcessFlowUpdate(ProcessFlowCreate):
+    revision: int = Field(ge=1)
 
 
-class ProcessFlowInstanceCreate(ProcessFlowInstanceForNewTemplateCreate):
-    processFlowTemplateId: str = Field(min_length=1)
+class ProcessFlow(ProcessFlowUpdate):
+    id: NonBlankString
 
 
 class EditorMetadata(StrictModel):
@@ -335,9 +333,13 @@ class DraftEdge(StrictModel):
     targetHandle: str | None = None
 
 
-class InstanceEditorDraftState(StrictModel):
+class FlowDraftState(StrictModel):
     metadata: EditorMetadata
     configuration: FlowConfiguration
+    nodes: list[Annotated[DraftInputNode | DraftStepNode, Field(discriminator="kind")]]
+    edges: list[DraftEdge]
+    viewport: DraftViewport
+    editingRecipeIds: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def finite_json(self):
@@ -345,56 +347,29 @@ class InstanceEditorDraftState(StrictModel):
         return self
 
 
-class TemplateEditorDraftState(InstanceEditorDraftState):
-    nodes: list[Annotated[DraftInputNode | DraftStepNode, Field(discriminator="kind")]]
-    edges: list[DraftEdge]
-    viewport: DraftViewport
-
-
-class TemplateEditorDraftCreate(StrictModel):
-    schemaVersion: Literal[1] = 1
+class FlowDraftCreate(StrictModel):
+    schemaVersion: Literal[2] = 2
     user: NonBlankString
     name: NonBlankString
-    state: TemplateEditorDraftState
+    state: FlowDraftState
+    target: FlowOrigin | None = None
+    origin: FlowOrigin | None = None
 
 
-class InstanceEditorDraftCreate(StrictModel):
-    schemaVersion: Literal[1] = 1
-    user: NonBlankString
-    name: NonBlankString
-    processFlowTemplateId: NonBlankString
-    state: InstanceEditorDraftState
-
-
-class TemplateEditorDraftUpdate(TemplateEditorDraftCreate):
+class FlowDraftUpdate(FlowDraftCreate):
     revision: int = Field(ge=1)
 
 
-class InstanceEditorDraftUpdate(InstanceEditorDraftCreate):
-    revision: int = Field(ge=1)
-
-
-class TemplateEditorDraft(TemplateEditorDraftUpdate):
-    id: str
+class FlowDraft(FlowDraftUpdate):
+    id: NonBlankString
     createdAt: str
     updatedAt: str
 
 
-class InstanceEditorDraft(InstanceEditorDraftUpdate):
-    id: str
-    createdAt: str
-    updatedAt: str
-
-
-class TemplateEditorDraftCommit(StrictModel):
+class FlowDraftCommit(StrictModel):
     revision: int = Field(ge=1)
-    processFlowTemplate: ProcessFlowTemplateCreate
-    processFlowInstance: ProcessFlowInstanceForNewTemplateCreate | None = None
-
-
-class InstanceEditorDraftCommit(StrictModel):
-    revision: int = Field(ge=1)
-    processFlowInstance: ProcessFlowInstanceCreate
+    flow: ProcessFlowCreate
+    target: FlowOrigin | None = None
 
 
 class GeometryEntity(StrictModel):
@@ -513,11 +488,6 @@ class GeometryMaterializationResponse(StrictModel):
     geometryEntityJson: GeometryEntity
 
 
-class TemplateInstanceCreateRequest(StrictModel):
-    processFlowTemplate: ProcessFlowTemplateCreate
-    processFlowInstance: ProcessFlowInstanceForNewTemplateCreate
-
-
 class FlowInputPreviewTarget(StrictModel):
     type: Literal["flowInput"]
     flowInputId: str = Field(min_length=1)
@@ -536,23 +506,22 @@ GeometryPreviewTarget = Annotated[
 
 
 class AnalyticsContext(StrictModel):
-    sourceKind: Literal["template", "instance", "inline_draft", "geometry"] | None = None
-    flowTemplateId: str | None = Field(default=None, min_length=1, max_length=256)
-    flowInstanceId: str | None = Field(default=None, min_length=1, max_length=256)
+    sourceKind: Literal["flow", "inline_draft", "geometry"] | None = None
+    flowId: str | None = Field(default=None, min_length=1, max_length=256)
+    flowRevision: int | None = Field(default=None, ge=1)
 
 
 class GeometryPreviewRequest(StrictModel):
     target: GeometryPreviewTarget
     sourceLabel: str | None = None
-    flowTemplate: ProcessFlowTemplateDraft | None = None
-    processFlowTemplateId: str | None = None
-    configuration: FlowConfiguration
+    flow: FlowContent | None = None
+    flowId: NonBlankString | None = None
     analyticsContext: AnalyticsContext | None = None
 
     @model_validator(mode="after")
-    def exactly_one_template_source(self):
-        if (self.flowTemplate is None) == (self.processFlowTemplateId is None):
-            raise ValueError("Provide exactly one of flowTemplate or processFlowTemplateId")
+    def exactly_one_flow_source(self):
+        if (self.flow is None) == (self.flowId is None):
+            raise ValueError("Provide exactly one of flow or flowId")
         return self
 
 
@@ -651,7 +620,7 @@ class FileExportCancelRequest(StrictModel):
     clientId: str = Field(min_length=1, max_length=160)
 
 
-class ExecuteInstanceResponse(StrictModel):
+class ExecuteFlowResponse(StrictModel):
     geometryStructure: JsonObject
     stepOutputs: JsonObject
     terminalStepRefIds: list[str]

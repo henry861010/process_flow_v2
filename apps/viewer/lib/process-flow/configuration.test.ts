@@ -8,7 +8,7 @@ import {
   geometryCategoryConstraints,
   geometryMatchesFlowInput,
 } from "./configuration";
-import type { FlowConfiguration, FlowInputDefinition, GeometryEntity, ProcessFlowTemplate } from "./types";
+import type { FlowConfiguration, FlowInputDefinition, GeometryEntity, FlowDefinition } from "./types";
 
 const baseGeometry: GeometryEntity = {
   id: "hbm3_8hi",
@@ -31,12 +31,12 @@ const constrainedInput: FlowInputDefinition = {
 
 describe("flow input geometry category constraints", () => {
   it("accepts only a resolved generator preview for the current binding", () => {
-    const template: ProcessFlowTemplate = {
-      schemaVersion: 2, status: "enabled",
-      id: "flow",
-      name: "Flow",
-      version: "V0.0.0",
-      owner: "test",
+    const template: FlowDefinition = {
+
+
+
+
+
       flowInputs: [constrainedInput],
       stepRefs: [],
       flowEdges: [],
@@ -49,7 +49,7 @@ describe("flow input geometry category constraints", () => {
         },
       },
       stepConfigurations: {},
-      embeddedGeometries: {},
+
     };
     expect(geometryForFlowInput(configuration, "incoming_hbm", [])).toBeNull();
     expect(isConfigurationComplete(template, [], configuration, [])).toBe(false);

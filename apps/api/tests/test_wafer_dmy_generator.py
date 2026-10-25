@@ -5,7 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from flow_requests import instance_create_payload, template_create_payload
+from flow_requests import flow_create_payload, fixture_flow
 from process_flow_api.main import create_app
 from process_flow_kernel import validate_geometry_semantic_keys
 
@@ -126,19 +126,19 @@ class WaferDmyGeneratorTests(unittest.TestCase):
         reset = self.client.post("/api/reset")
         self.assertEqual(reset.status_code, 200, reset.text)
         bootstrap = reset.json()
-        template = copy.deepcopy(bootstrap["processFlowTemplates"][0])
+        template = copy.deepcopy(fixture_flow(bootstrap))
         template["name"] = "Wafer dummy die placement"
-        template["flowInputs"][1].update({
+        template["definition"]["flowInputs"][1].update({
             "flowInputId": "incoming_wafer_dmy", "name": "DMY die",
             "geometryConstraints": {"categories": ["die.wafer-dmy"]},
         })
-        template["stepRefs"] = template["stepRefs"][:1]
-        template["flowEdges"] = template["flowEdges"][:2]
-        template["flowEdges"][1]["source"]["flowInputId"] = "incoming_wafer_dmy"
-        instance = copy.deepcopy(bootstrap["processFlowInstances"][0])
+        template["definition"]["stepRefs"] = template["definition"]["stepRefs"][:1]
+        template["definition"]["flowEdges"] = template["definition"]["flowEdges"][:2]
+        template["definition"]["flowEdges"][1]["source"]["flowInputId"] = "incoming_wafer_dmy"
+        instance = copy.deepcopy(fixture_flow(bootstrap))
         instance["name"] = "Wafer dummy die placement"
-        instance["inputBindings"].pop("incoming_hbm")
-        instance["inputBindings"]["incoming_wafer_dmy"] = {
+        instance["configuration"]["inputBindings"].pop("incoming_hbm")
+        instance["configuration"]["inputBindings"]["incoming_wafer_dmy"] = {
             "kind": "generator", "generatorId": "wafer-dmy", "generatorVersion": 1,
             "parameters": {},
         }
@@ -148,19 +148,16 @@ class WaferDmyGeneratorTests(unittest.TestCase):
              "topRightX": 1000, "topRightY": 800},
             {"type": "polygon", "points": polygon},
         ]
-        instance["stepConfigurations"] = {
-            "pnp_hbm": {"parameterValues": {"placements": [
+        instance["configuration"]["stepConfigurations"] = {
+            "pnp_hbm": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"placements": [
                 {"targetRegion": region, "pose": {"x": 0, "y": 0, "rotationZ": 0}, "anchor": "center"}
                 for region in regions
-            ]}},
+            ]}}], "selectedRecipeId": "r1"},
         }
         geometry_count = len(bootstrap["geometries"])
-        created = self.client.post("/api/process-flow-template-instances", json={
-            "processFlowTemplate": template_create_payload(template),
-            "processFlowInstance": instance_create_payload(instance, for_new_template=True),
-        })
+        created = self.client.post("/api/process-flows", json=flow_create_payload({**instance, "definition": template["definition"]}))
         self.assertEqual(created.status_code, 201, created.text)
-        saved = created.json()["processFlowInstance"]
+        saved = created.json()
 
         for parameters in (
             {"siThickness": 200, "siMaterial": "si"},
@@ -171,22 +168,22 @@ class WaferDmyGeneratorTests(unittest.TestCase):
                 if parameters != {"siThickness": 200, "siMaterial": "si"}:
                     edited = copy.deepcopy(saved)
                     edited["name"] = f"Wafer dummy die {parameters['siThickness']} um"
-                    edited["inputBindings"]["incoming_wafer_dmy"]["parameters"] = {
+                    edited["configuration"]["inputBindings"]["incoming_wafer_dmy"]["parameters"] = {
                         **parameters, "siMaterial": f"  {parameters['siMaterial']}  ",
                     }
                     response = self.client.post(
-                        "/api/process-flow-instances", json=instance_create_payload(edited),
+                        "/api/process-flows", json=flow_create_payload(edited),
                     )
                     self.assertEqual(response.status_code, 201, response.text)
                     saved = response.json()
-                self.assertEqual(saved["inputBindings"]["incoming_wafer_dmy"], {
+                self.assertEqual(saved["configuration"]["inputBindings"]["incoming_wafer_dmy"], {
                     "kind": "generator", "generatorId": "wafer-dmy", "generatorVersion": 1,
-                    "parameters": parameters,
+                    "parameters": {} if parameters == {"siThickness": 200, "siMaterial": "si"} else {**parameters, "siMaterial": f"  {parameters['siMaterial']}  "},
                 })
-                reopened = self.client.get(f"/api/process-flow-instances/{saved['id']}")
+                reopened = self.client.get(f"/api/process-flows/{saved['id']}")
                 self.assertEqual(reopened.status_code, 200, reopened.text)
                 self.assertEqual(reopened.json(), saved)
-                executed = self.client.post(f"/api/process-flow-instances/{saved['id']}/execute")
+                executed = self.client.post(f"/api/process-flows/{saved['id']}/execute")
                 self.assertEqual(executed.status_code, 200, executed.text)
                 structure = executed.json()["geometryStructure"]
                 validate_geometry_semantic_keys(structure)

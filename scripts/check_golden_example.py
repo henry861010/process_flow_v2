@@ -8,8 +8,7 @@ import re
 from pathlib import Path
 
 from process_flow_api.models import (
-    ProcessFlowInstance,
-    ProcessFlowTemplate,
+    ProcessFlow,
     ProcessStepTemplate,
 )
 from process_flow_kernel import (
@@ -37,7 +36,7 @@ class FixtureGeometryCatalog:
         return self._geometries.get(geometry_id)
 
 
-def load_golden_documents() -> tuple[dict, dict, dict]:
+def load_golden_documents() -> tuple[dict, dict]:
     text = DATA_MODEL.read_text(encoding="utf-8")
     if SECTION_START not in text or SECTION_END not in text.split(SECTION_START, 1)[1]:
         raise AssertionError("PnP golden-example section markers are missing")
@@ -46,26 +45,25 @@ def load_golden_documents() -> tuple[dict, dict, dict]:
         json.loads(block)
         for block in re.findall(r"```json\n(.*?)\n```", section, re.DOTALL)
     ]
-    if len(blocks) != 3:
+    if len(blocks) != 2:
         raise AssertionError(
-            f"Expected 3 JSON documents in the PnP golden example, found {len(blocks)}"
+            f"Expected 2 JSON documents in the PnP golden example, found {len(blocks)}"
         )
-    return blocks[0], blocks[1], blocks[2]
+    return blocks[0], blocks[1]
 
 
 def main() -> int:
-    raw_step, raw_template, raw_instance = load_golden_documents()
+    raw_step, raw_flow = load_golden_documents()
     step = ProcessStepTemplate.model_validate(raw_step).payload()
-    template = ProcessFlowTemplate.model_validate(raw_template).payload()
-    instance = ProcessFlowInstance.model_validate(raw_instance).payload()
+    flow = ProcessFlow.model_validate(raw_flow).payload()
 
     validate_process_step_template(step)
-    validate_flow_graph(template, [step])
+    validate_flow_graph(flow["definition"], [step])
 
     fixtures = json.loads(GEOMETRY_FIXTURES.read_text(encoding="utf-8"))
     plan = FlowCompiler(FixtureGeometryCatalog(fixtures)).compile(
-        template,
-        instance,
+        flow["definition"],
+        flow["configuration"],
         [step],
     )
     assert tuple(plan.terminal_step_ref_ids) == ("pnp",)

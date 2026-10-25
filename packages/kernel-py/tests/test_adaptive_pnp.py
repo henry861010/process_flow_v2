@@ -563,9 +563,9 @@ def execute_pnp(source, placements):
                 "incoming_die": {"kind": "catalog", "geometryId": source["id"]},
             },
             "stepConfigurations": {
-                "pnp": {"parameterValues": {"placements": placements}}
+                "pnp": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"placements": placements}}], "selectedRecipeId": "r1"}
             },
-            "embeddedGeometries": {},
+
         },
         [pnp_step_template()],
     )

@@ -1,53 +1,20 @@
 ---
 title: Home / Process Flow
 status: normative
-owner: Process Flow UI
+owner: integration.platform
 audience:
-  - product
-  - frontend
+  - developers
   - QA
-  - reconstruction-agent
-last_verified: 2026-10-13
-last_verified_commit: 990aaf71
+last_verified: 2026-10-25
+last_verified_commit: 7d49bf0b
 source_of_truth:
   - apps/viewer/app/page.tsx
 ---
 
 # Home / Process Flow
 
-Route: `/`
+Route: `/`。Bootstrap 的 processFlows 以單一列表顯示；所有 flows 都可開啟編輯，不依 status 或 template/product 分類。
 
-## Purpose
+每個 card 顯示 name、version、owner 和 revision，連至 `/flow-editor?flowId=<id>`。Create Flow 開啟空編輯器。既有 geometry generator、Geometry、Management、Dashboard 入口保留。Loading、Retry、空列表與 responsive card grid 沿用既有視覺。
 
-Home is the primary entry point for creating immutable `ProcessFlowInstance` records. It loads
-`GET /api/bootstrap` and renders one full-card link for every enabled flow template.
-
-## Layout and behavior
-
-- Header: `Process Flow`, short task description, and a small `Management` link.
-- Template area: responsive one/two/three-column card grid. Each compact card shows only template
-  name, version, owner, and Enabled status. The name owns the 70% primary column.
-- A card links to `/flow-instance-editor?templateId=<encoded id>`.
-- The lower `Create resources` area links to `/flow-template-editor` and all generators whose
-  `uiPlacements` includes `home`. HBM and DRAM use `/geometry-generator?generatorId=<id>`.
-- A `+ Geometry` command follows the generator commands and links to `/geometry-editor` for
-  direct GeometryStructure JSON authoring. It remains available during loading and API errors.
-- Loading uses stable card skeletons. API errors keep known content and expose `Retry`. Empty data
-  shows `No process flow templates` while preserving all create commands.
-
-## Acceptance
-
-- `UI-HOME-001`: enabled bootstrap templates produce one keyboard-accessible card each; disabled templates are hidden.
-- `UI-HOME-002`: every card carries the correct encoded `templateId` route and only the required
-  name, owner, version, and Enabled status metadata.
-- `UI-HOME-003`: Create Template/HBM/DRAM, Geometry, and Management navigate to their configured routes;
-  Geometry appears after the generator commands.
-- `UI-HOME-004`: loading, empty, and API-error states do not flash false data.
-- `UI-HOME-005`: 390px viewport has no document-level horizontal overflow.
-
-## Template availability
-
-Home filters out disabled flow templates entirely. The template count and empty state reflect only
-enabled templates; when all templates are disabled, the grid shows the existing empty state.
-Disabled templates remain available in Management for inspection and re-enabling.
-Bootstrap continues to include them so historical references and instance previews still resolve.
+驗收：cards 與 counts 符合 processFlows；鍵盤可開啟；Create Flow 進入空畫布；390px 無整頁橫向捲動；API 錯誤仍保留建立 geometry 入口。

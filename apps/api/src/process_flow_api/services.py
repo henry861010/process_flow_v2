@@ -13,27 +13,19 @@ from process_flow_kernel import (
     FlowCompiler,
     GeometryKernel,
     InMemoryGeometryCatalog,
-    flow_default_values_for_step_template,
     validate_flow_graph,
-    validate_flow_parameter_defaults,
     validate_process_step_template as validate_step_contract,
 )
 
-from .configuration_materialization import (
-    canonicalize_generator_bindings,
-    materialize_embedded_bindings,
-)
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
-from .identifiers import generated_flow_instance_id, generated_flow_template_id
+from .identifiers import generated_flow_id
 from .models import (
     GeometryPreviewRequest,
     GeometryPreviewStepRequest,
-    ProcessFlowInstanceCreate,
-    ProcessFlowTemplate,
-    ProcessFlowTemplateCreate,
+    ProcessFlowCreate,
+    ProcessFlowUpdate,
     ProcessStepTemplate,
-    TemplateInstanceCreateRequest,
 )
 from .repository import NotFoundError, ResourceConflictError, SQLiteStore
 from .step_template_transfer import locked_process_step_template as _locked_process_step_template
@@ -46,7 +38,7 @@ JsonObject = dict[str, Any]
 class PreviewRequestContext:
     """Fully resolved, immutable input used to address and build a preview session."""
 
-    template: JsonObject
+    definition: JsonObject
     step_templates: tuple[JsonObject, ...]
     configuration: JsonObject
     target: JsonObject
@@ -76,8 +68,7 @@ class PreviewSnapshotGeometry:
 def bootstrap_payload(store: SQLiteStore) -> JsonObject:
     return {
         "processStepTemplates": store.list_process_step_templates(),
-        "processFlowTemplates": store.list_process_flow_templates(),
-        "processFlowInstances": store.list_process_flow_instances(),
+        "processFlows": store.list_process_flows(),
         "geometries": store.list_geometries(),
     }
 
@@ -93,11 +84,6 @@ def require_enabled_template(template: JsonObject, *, kind: str, action: str) ->
         raise ResourceConflictError(
             f"{kind} template {template['id']} is disabled; cannot {action}"
         )
-
-
-def require_enabled_steps_for_new_flow(step_templates: list[JsonObject]) -> None:
-    for template in step_templates:
-        require_enabled_template(template, kind="Process step", action="create a new flow template")
 
 
 def validate_process_step_template(template: JsonObject) -> None:
@@ -162,216 +148,59 @@ def _apply_parameter_defaults(target_definitions: Any, source_definitions: Any) 
             )
 
 
-def create_flow_template(store: SQLiteStore, body: ProcessFlowTemplateCreate) -> JsonObject:
-    return store.insert_process_flow_template(prepare_flow_template(store, body))
+def load_step_templates_for_definition(store: SQLiteStore, definition: JsonObject) -> list[JsonObject]:
+    return [require_item(store.get_process_step_template(id_), id_)
+            for id_ in dict.fromkeys(ref["processStepTemplateId"] for ref in definition["stepRefs"])]
 
 
-def prepare_flow_template(store: SQLiteStore, body: ProcessFlowTemplateCreate) -> JsonObject:
-    payload = {**body.payload(), "id": generated_flow_template_id()}
-    step_templates = load_step_templates_for_template(store, payload)
-    require_enabled_steps_for_new_flow(step_templates)
-    materialize_flow_parameter_defaults(payload, step_templates)
-    validate_flow_graph(payload, step_templates)
-    validate_flow_parameter_defaults(payload, step_templates)
+def prepare_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: GeometryGeneratorRegistry,
+                 *, current: JsonObject | None = None) -> JsonObject:
+    payload = body.payload()
+    definition, configuration = payload["definition"], payload["configuration"]
+    steps = load_step_templates_for_definition(store, definition)
+    steps_by_id = {step["id"]: step for step in steps}
+    existing_refs = {(ref["stepRefId"], ref["processStepTemplateId"])
+                     for ref in (current or {}).get("definition", {}).get("stepRefs", [])}
+    for ref in definition["stepRefs"]:
+        if (ref["stepRefId"], ref["processStepTemplateId"]) not in existing_refs:
+            require_enabled_template(steps_by_id[ref["processStepTemplateId"]], kind="Process step",
+                                     action="add a new step reference")
+    _compiler(store, generators).validate_authoring(definition, configuration, steps)
+    # Resource identity checks never generate geometry or execute recipes at save time.
+    for binding in configuration["inputBindings"].values():
+        if binding["kind"] == "catalog":
+            require_item(store.get_geometry(binding["geometryId"]), binding["geometryId"])
+        else:
+            try:
+                generators.definition(binding["generatorId"], binding["generatorVersion"])
+            except KeyError:
+                raise ValueError(f"Unknown geometry generator {binding['generatorId']} v{binding['generatorVersion']}") from None
+    payload.update(id=current["id"] if current else generated_flow_id(),
+                   revision=current["revision"] + 1 if current else 1)
+    if current is not None:
+        payload.pop("origin", None)
+        if "origin" in current:
+            payload["origin"] = copy.deepcopy(current["origin"])
     return payload
 
 
-def update_process_flow_template(
-    store: SQLiteStore,
-    template_id: str,
-    body: ProcessFlowTemplate,
-) -> JsonObject:
-    payload = body.payload()
-    if payload["id"] != template_id:
-        raise ValueError("ProcessFlowTemplate.id must match the route id")
-
-    current = require_item(store.get_process_flow_template(template_id), template_id)
-    normalized_current = ProcessFlowTemplate.model_validate(current).payload()
-    if _locked_process_flow_template(
-        normalized_current
-    ) != _locked_process_flow_template(payload):
-        raise ResourceConflictError(
-            "Only status, name, owner, description, stepLabel, and step parameterDefaults fields can be updated"
-        )
-
-    name = payload["name"].strip()
-    owner = payload.get("owner", "").strip()
-    if not name:
-        raise ValueError("ProcessFlowTemplate.name must not be blank")
-    if not owner:
-        raise ValueError("ProcessFlowTemplate.owner must not be blank")
-
-    updated = copy.deepcopy(current)
-    if "status" in body.model_fields_set:
-        updated["status"] = payload["status"]
-    updated["name"] = name
-    updated["owner"] = owner
-    updated["description"] = payload.get("description", "")
-    _apply_flow_parameter_defaults(updated, payload)
-    labels_by_ref_id = {
-        step_ref.stepRefId: (step_ref.stepLabel or "").strip()
-        for step_ref in body.stepRefs
-        if "stepLabel" in step_ref.model_fields_set
-    }
-    for step_ref in updated["stepRefs"]:
-        if step_ref["stepRefId"] in labels_by_ref_id:
-            step_ref["stepLabel"] = labels_by_ref_id[step_ref["stepRefId"]]
-
-    step_templates = load_step_templates_for_template(store, updated)
-    validate_flow_parameter_defaults(updated, step_templates)
-    return store.update_process_flow_template(updated)
+def create_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: GeometryGeneratorRegistry) -> JsonObject:
+    return store.insert_process_flow(prepare_flow(store, body, generators))
 
 
-def _locked_process_flow_template(template: JsonObject) -> JsonObject:
-    locked = copy.deepcopy(template)
-    for field in ("status", "name", "owner", "description"):
-        locked.pop(field, None)
-    for step_ref in locked.get("stepRefs", []):
-        if isinstance(step_ref, dict):
-            step_ref.pop("stepLabel", None)
-            step_ref.pop("parameterDefaults", None)
-    return locked
+def update_flow(store: SQLiteStore, flow_id: str, body: ProcessFlowUpdate,
+                generators: GeometryGeneratorRegistry) -> JsonObject:
+    current = store._required_flow(flow_id, body.revision)
+    return store.update_process_flow(prepare_flow(store, body, generators, current=current), body.revision)
 
 
-def _apply_flow_parameter_defaults(target: JsonObject, source: JsonObject) -> None:
-    source_refs = {
-        step_ref.get("stepRefId"): step_ref
-        for step_ref in source.get("stepRefs", [])
-        if isinstance(step_ref, Mapping)
-    }
-    for target_ref in target.get("stepRefs", []):
-        if not isinstance(target_ref, dict):
-            continue
-        source_ref = source_refs.get(target_ref.get("stepRefId"))
-        if not isinstance(source_ref, Mapping) or "parameterDefaults" not in source_ref:
-            continue
-        target_ref["parameterDefaults"] = copy.deepcopy(source_ref["parameterDefaults"])
-
-
-def materialize_flow_parameter_defaults(
-    template: JsonObject,
-    step_templates: list[JsonObject] | tuple[JsonObject, ...],
-) -> None:
-    step_templates_by_id = {item["id"]: item for item in step_templates}
-    for step_ref in template.get("stepRefs", []):
-        if "parameterDefaults" in step_ref:
-            continue
-        step_template = step_templates_by_id[step_ref["processStepTemplateId"]]
-        step_ref["parameterDefaults"] = flow_default_values_for_step_template(
-            step_template
-        )
-
-
-def load_step_templates_for_template(
-    store: SQLiteStore,
-    template: JsonObject,
-) -> list[JsonObject]:
-    result = []
-    seen = set()
-    for step_ref in template.get("stepRefs", []):
-        template_id = step_ref.get("processStepTemplateId")
-        if template_id in seen:
-            continue
-        seen.add(template_id)
-        result.append(require_item(store.get_process_step_template(template_id), template_id))
-    return result
-
-
-def create_template_instance(
-    store: SQLiteStore,
-    body: TemplateInstanceCreateRequest,
-    generators: GeometryGeneratorRegistry,
-) -> JsonObject:
-    template, instance, geometries = prepare_template_instance(store, body, generators)
-    created_template, created_instance = store.insert_template_and_instance(
-        template, instance, geometries=geometries,
-    )
-    return {
-        "processFlowTemplate": created_template,
-        "processFlowInstance": created_instance,
-    }
-
-
-def prepare_template_instance(
-    store: SQLiteStore,
-    body: TemplateInstanceCreateRequest,
-    generators: GeometryGeneratorRegistry,
-) -> tuple[JsonObject, JsonObject, list[JsonObject]]:
-    template = prepare_flow_template(store, body.processFlowTemplate)
-    instance = {
-        **body.processFlowInstance.payload(),
-        "id": generated_flow_instance_id(),
-        "processFlowTemplateId": template["id"],
-    }
-    require_enabled_template(template, kind="Process flow", action="create a new instance")
-    step_templates = load_step_templates_for_template(store, template)
-    plan = _compiler(store, generators).compile(template, instance, step_templates)
-    instance = canonicalize_generator_bindings(instance, plan)
-    geometries, persisted_bindings = materialize_embedded_bindings(instance)
-    return template, _persisted_instance(instance, persisted_bindings), geometries
-
-
-def create_flow_instance(
-    store: SQLiteStore,
-    body: ProcessFlowInstanceCreate,
-    generators: GeometryGeneratorRegistry,
-) -> JsonObject:
-    instance, geometries = prepare_flow_instance(store, body, generators)
-    return store.insert_instance_with_geometries(instance, geometries=geometries)
-
-
-def prepare_flow_instance(
-    store: SQLiteStore,
-    body: ProcessFlowInstanceCreate,
-    generators: GeometryGeneratorRegistry,
-) -> tuple[JsonObject, list[JsonObject]]:
-    payload = {**body.payload(), "id": generated_flow_instance_id()}
-    template = require_item(
-        store.get_process_flow_template(payload["processFlowTemplateId"]),
-        payload["processFlowTemplateId"],
-    )
-    require_enabled_template(template, kind="Process flow", action="create a new instance")
-    step_templates = load_step_templates_for_template(store, template)
-    plan = _compiler(store, generators).compile(template, payload, step_templates)
-    payload = canonicalize_generator_bindings(payload, plan)
-    geometries, persisted_bindings = materialize_embedded_bindings(payload)
-    instance = _persisted_instance(payload, persisted_bindings)
-    return instance, geometries
-
-
-def _persisted_instance(
-    create_payload: JsonObject,
-    persisted_bindings: dict[str, JsonObject],
-) -> JsonObject:
-    return {
-        "schemaVersion": 2,
-        "id": create_payload["id"],
-        "name": create_payload["name"],
-        "version": create_payload["version"],
-        "owner": create_payload["owner"],
-        "description": create_payload.get("description", ""),
-        "processFlowTemplateId": create_payload["processFlowTemplateId"],
-        "inputBindings": persisted_bindings,
-        "stepConfigurations": create_payload.get("stepConfigurations", {}),
-    }
-
-
-def execute_instance(
-    store: SQLiteStore, instance_id: str, generators: GeometryGeneratorRegistry
-) -> JsonObject:
-    instance = require_item(store.get_process_flow_instance(instance_id), instance_id)
-    template = require_item(
-        store.get_process_flow_template(instance["processFlowTemplateId"]),
-        instance["processFlowTemplateId"],
-    )
-    step_templates = load_step_templates_for_template(store, template)
-    plan = _compiler(store, generators).compile(template, instance, step_templates)
+def execute_flow(store: SQLiteStore, flow_id: str, generators: GeometryGeneratorRegistry) -> JsonObject:
+    flow = require_item(store.get_process_flow(flow_id), flow_id)
+    steps = load_step_templates_for_definition(store, flow["definition"])
+    plan = _compiler(store, generators).compile(flow["definition"], flow["configuration"], steps)
     result = GeometryKernel().execute(plan)
-    return {
-        "geometryStructure": result.geometry(),
-        "stepOutputs": result.step_outputs(),
-        "terminalStepRefIds": result.terminal_step_ref_ids(),
-    }
+    return {"geometryStructure": result.geometry(), "stepOutputs": result.step_outputs(),
+            "terminalStepRefIds": result.terminal_step_ref_ids()}
 
 
 def resolve_preview_request(
@@ -380,16 +209,10 @@ def resolve_preview_request(
 ) -> PreviewRequestContext:
     """Resolve database-backed inputs without compiling or executing the flow."""
 
-    template = (
-        body.flowTemplate.payload()
-        if body.flowTemplate is not None
-        else require_item(
-            store.get_process_flow_template(body.processFlowTemplateId),
-            body.processFlowTemplateId,
-        )
-    )
-    step_templates = tuple(load_step_templates_for_template(store, template))
-    configuration = body.configuration.payload()
+    flow = body.flow.payload() if body.flow is not None else require_item(store.get_process_flow(body.flowId), body.flowId)
+    definition = flow["definition"]
+    step_templates = tuple(load_step_templates_for_definition(store, definition))
+    configuration = flow["configuration"]
     target = body.target.payload()
     referenced_catalog_geometries: JsonObject = {}
     for binding in configuration.get("inputBindings", {}).values():
@@ -402,7 +225,7 @@ def resolve_preview_request(
         referenced_catalog_geometries[geometry_id] = geometry or {"missingGeometryId": geometry_id}
 
     return PreviewRequestContext(
-        template=template,
+        definition=definition,
         step_templates=step_templates,
         configuration=configuration,
         target=target,
@@ -415,10 +238,10 @@ def preview_request_identity(context: PreviewRequestContext) -> JsonObject:
     """Return all semantic inputs that can affect a preview session."""
 
     return {
-        "contractVersion": 1,
+        "contractVersion": 2,
         "target": context.target,
         "sourceLabel": context.source_label,
-        "flowTemplate": context.template,
+        "definition": context.definition,
         "stepTemplates": list(context.step_templates),
         "configuration": context.configuration,
         "catalogGeometries": context.referenced_catalog_geometries,
@@ -440,7 +263,7 @@ def prepare_preview_execution(
     target = context.target
     if target["type"] == "flowInput":
         geometry_structure = compiler.resolve_flow_input(
-            context.template,
+            context.definition,
             context.configuration,
             context.step_templates,
             target["flowInputId"],
@@ -456,7 +279,7 @@ def prepare_preview_execution(
         )
     output_step_ref_id = target["stepRefId"]
     plan = compiler.compile(
-        context.template,
+        context.definition,
         context.configuration,
         context.step_templates,
         output_step_ref_id=output_step_ref_id,
@@ -479,7 +302,7 @@ async def materialize_preview_snapshots(
         flow_input = next(
             (
                 candidate
-                for candidate in context.template.get("flowInputs", [])
+                for candidate in context.definition.get("flowInputs", [])
                 if candidate.get("flowInputId") == flow_input_id
             ),
             None,

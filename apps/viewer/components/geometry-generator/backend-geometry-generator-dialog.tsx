@@ -27,7 +27,7 @@ import type {
 } from "@/components/geometry-generator/geometry-generator-types";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import { Button } from "@/components/ui/button";
-import type { EmbeddedGeometry } from "@/lib/process-flow/types";
+import type { GeometryDocument } from "@/lib/process-flow/types";
 import {
   createGeometry,
   materializeGeneratedGeometry,
@@ -372,8 +372,8 @@ export function BackendGeometryGeneratorDialog({
 }
 
 function embeddedGeometryFromEntity(
-  entity: EmbeddedGeometry & { id?: string | null },
-): EmbeddedGeometry {
+  entity: GeometryDocument & { id?: string | null },
+): GeometryDocument {
   const { id: _id, ...geometry } = entity;
   return {
     ...geometry,

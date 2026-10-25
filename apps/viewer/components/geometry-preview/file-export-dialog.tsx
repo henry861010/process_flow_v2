@@ -43,6 +43,7 @@ import {
   type ZLocationDraft,
 } from "@/components/geometry-preview/file-export-mesh-control";
 import { Button } from "@/components/ui/button";
+import { useEditorDialogFocus } from "@/components/process-flow-save/editor-dialog";
 import { MeshRegionEditor } from "./mesh-region-editor";
 import { collectMeshInstanceNames, formatMeshControlLabel } from "./mesh-control-presentation";
 import { MeshResolvedRules } from "./mesh-resolved-rules";
@@ -125,6 +126,8 @@ function FileExportDialogForm({
   const [outputPath, setOutputPath] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const dialogRef = React.useRef<HTMLFormElement>(null);
+  useEditorDialogFocus(dialogRef, onClose, submitting, undefined, portalReady);
   const config = exportKindConfig(kind);
   const keyedGeometryReferences = React.useMemo(
     () => collectKeyedGeometryReferences(geometryStructure),
@@ -327,6 +330,8 @@ function FileExportDialogForm({
         onClick={submitting ? undefined : onClose}
       />
       <form
+        ref={dialogRef}
+        tabIndex={-1}
         noValidate
         role="dialog"
         aria-modal="true"

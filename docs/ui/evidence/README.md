@@ -28,7 +28,7 @@ source_of_truth:
 | `docs/ui/evidence/` | current browser observation、gap reproduction、review notes | 不可以 |
 | `docs/conformance.md` | gap ID、current/target、狀態與 executable evidence 索引 | 狀態唯一來源 |
 
-## Current browser observation
+## Browser observation 歷史
 
 2026-07-11 的檢閱確認：
 
@@ -41,3 +41,7 @@ source_of_truth:
 
 若要新增 observation，必須記錄 route、entry state、viewport、操作、expected、observed、
 evidence path 與 gap ID；不要只提交未帶 context 的 screenshot。
+
+## Unified ProcessFlow
+
+2026-10-25 的模型重構、候選 recipes、草稿／409 與三種匯出驗收見 [Unified Flow Editor](unified-flow-editor/README.md)。上面的舊 editor 和 Export Escape 觀察僅記錄當時行為，現行狀態以 conformance 為準。

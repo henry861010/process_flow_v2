@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { analyzeFlowDependencies } from "./dependencies";
 import { createEmptyFlowConfiguration, getFlowInputReadiness, getStepConfigurationReadiness, getStepExecutionReadiness, isConfigurationComplete } from "./configuration";
-import { configurationFromInstance } from "./instance-editor";
 import { geometryInputStatusLabel, stepReadinessStatusLabel } from "./readiness-presentation";
-import type { FlowConfiguration, GeometryEntity, ProcessFlowInstance, ProcessFlowTemplate, ProcessStepTemplate, SavedFlowEdge } from "./types";
+import type { FlowConfiguration, GeometryEntity, FlowDefinition, ProcessStepTemplate, SavedFlowEdge } from "./types";
 
 const prepare: ProcessStepTemplate = {
   schemaVersion: 2, status: "enabled", id: "prepare", name: "Prepare", version: "V0", category: "layer",
@@ -30,15 +29,15 @@ const outputEdge = (edgeId: string, source: string, stepRefId: string, inputPort
 });
 
 function scenario() {
-  const template: ProcessFlowTemplate = {
-    schemaVersion: 2, status: "enabled", id: "flow", name: "Flow", version: "V0", owner: "test",
+  const template: FlowDefinition = {
+
     flowInputs: ["main", "die"].map((flowInputId) => ({ flowInputId, name: flowInputId, dataType: "geometry", required: true })),
     stepRefs: [{ stepRefId: "prepare1", processStepTemplateId: "prepare" }, { stepRefId: "prepare2", processStepTemplateId: "prepare" }, { stepRefId: "place", processStepTemplateId: "pnp" }],
     flowEdges: [inputEdge("main", "main", "place"), inputEdge("die", "die", "prepare1"), outputEdge("prepare", "prepare1", "prepare2"), outputEdge("place", "prepare2", "place", "die_geometry")],
   };
   const configuration: FlowConfiguration = {
     inputBindings: { main: { kind: "catalog", geometryId: "main" } },
-    stepConfigurations: { place: { parameterValues: { placements: [] } } }, embeddedGeometries: {},
+    stepConfigurations: { place: { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { placements: [] } }], selectedRecipeId: "r1" } },
   };
   return { template, configuration, steps: structuredClone([prepare, pnp]) };
 }
@@ -46,9 +45,9 @@ function scenario() {
 function configuredScenario() {
   const result = scenario();
   result.configuration.inputBindings.die = { kind: "catalog", geometryId: "main" };
-  result.configuration.stepConfigurations.prepare1 = { parameterValues: { thickness: 2 } };
-  result.configuration.stepConfigurations.prepare2 = { parameterValues: { thickness: 2 } };
-  result.configuration.stepConfigurations.place.parameterValues.placements = [placement];
+  result.configuration.stepConfigurations.prepare1 = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { thickness: 2 } }], selectedRecipeId: "r1" };
+  result.configuration.stepConfigurations.prepare2 = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { thickness: 2 } }], selectedRecipeId: "r1" };
+  result.configuration.stepConfigurations.place.recipeCandidates[0].parameterValues.placements = [placement];
   return result;
 }
 
@@ -86,12 +85,12 @@ describe("step configuration status scope", () => {
 
   it("still propagates missing bindings, parameters and wiring from upstream", () => {
     const { template, configuration, steps } = configuredScenario();
-    delete configuration.stepConfigurations.prepare1.parameterValues.thickness;
+    delete configuration.stepConfigurations.prepare1.recipeCandidates[0].parameterValues.thickness;
     const incomplete = getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry]);
     expect(incomplete).toMatchObject({ status: "incomplete", code: "incomplete-parameter", stepRefId: "prepare1" });
     expect(stepReadinessStatusLabel(incomplete, "prepare2")).toBe("Waiting upstream");
 
-    configuration.stepConfigurations.prepare1.parameterValues.thickness = 2;
+    configuration.stepConfigurations.prepare1.recipeCandidates[0].parameterValues.thickness = 2;
     delete configuration.inputBindings.die;
     expect(getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry]).code).toBe("unbound-geometry");
 
@@ -114,21 +113,7 @@ describe("step configuration status scope", () => {
 });
 
 describe("zero placement dependencies", () => {
-  it("initializes every new instance PnP to zero without changing template defaults or copies", () => {
-    const { template, steps } = scenario();
-    template.stepRefs.push({ stepRefId: "another", processStepTemplateId: "pnp" });
-    const empty = configurationFromInstance(template, steps);
-    expect(empty.inputBindings).toEqual({});
-    expect(empty.stepConfigurations.place.parameterValues.placements).toEqual([]);
-    expect(empty.stepConfigurations.another.parameterValues.placements).toEqual([]);
-    expect(empty.stepConfigurations.prepare1.parameterValues).toEqual({});
-    expect(createEmptyFlowConfiguration(template, steps).stepConfigurations.place.parameterValues).toEqual({});
-    const source: ProcessFlowInstance = { schemaVersion: 2, id: "source", name: "Source", version: "V0", owner: "test", description: "", processFlowTemplateId: "flow", inputBindings: {}, stepConfigurations: { place: { parameterValues: { placements: [placement] } } } };
-    const copied = configurationFromInstance(template, steps, source);
-    expect(copied.stepConfigurations.place).toEqual(source.stepConfigurations.place);
-    (copied.stepConfigurations.place.parameterValues.placements as unknown[]).pop();
-    expect(source.stepConfigurations.place.parameterValues.placements).toEqual([placement]);
-  });
+
 
   it("prunes multistep branches and shows unused separately from direct preview readiness", () => {
     const { template, configuration, steps } = scenario();
@@ -144,20 +129,20 @@ describe("zero placement dependencies", () => {
     expect(stepReadinessStatusLabel(stepReadiness, "prepare2")).toBe("Unused");
     expect(getStepExecutionReadiness("prepare2", template, steps, configuration, []).status).toBe("incomplete");
     configuration.inputBindings.die = { kind: "catalog", geometryId: "main" };
-    configuration.stepConfigurations.prepare1 = { parameterValues: { thickness: 2 } };
-    configuration.stepConfigurations.prepare2 = { parameterValues: { thickness: 2 } };
+    configuration.stepConfigurations.prepare1 = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { thickness: 2 } }], selectedRecipeId: "r1" };
+    configuration.stepConfigurations.prepare2 = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { thickness: 2 } }], selectedRecipeId: "r1" };
     expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
     expect(getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("neutral");
   });
 
   it("restores completeness requirements when placements change and preserves branch values", () => {
     const { template, configuration, steps } = scenario();
-    configuration.stepConfigurations.prepare1 = { parameterValues: { thickness: 8 } };
-    configuration.stepConfigurations.place.parameterValues.placements = [placement];
+    configuration.stepConfigurations.prepare1 = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { thickness: 8 } }], selectedRecipeId: "r1" };
+    configuration.stepConfigurations.place.recipeCandidates[0].parameterValues.placements = [placement];
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
-    configuration.stepConfigurations.place.parameterValues.placements = [];
+    configuration.stepConfigurations.place.recipeCandidates[0].parameterValues.placements = [];
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(true);
-    expect(configuration.stepConfigurations.prepare1.parameterValues.thickness).toBe(8);
+    expect(configuration.stepConfigurations.prepare1.recipeCandidates[0].parameterValues.thickness).toBe(8);
     delete configuration.inputBindings.main;
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
   });
@@ -165,12 +150,12 @@ describe("zero placement dependencies", () => {
   it("does not treat missing, null or malformed placements as zero", () => {
     const { template, configuration, steps } = scenario();
     for (const placements of [undefined, null, 0, "", {}]) {
-      configuration.stepConfigurations.place.parameterValues.placements = placements;
+      configuration.stepConfigurations.place.recipeCandidates[0].parameterValues.placements = placements;
       expect(analyzeFlowDependencies(template, steps, configuration).stepRefIds.has("prepare1")).toBe(true);
       expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
     }
     steps[1].program = "custom/pnp";
-    configuration.stepConfigurations.place.parameterValues.placements = [];
+    configuration.stepConfigurations.place.recipeCandidates[0].parameterValues.placements = [];
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
   });
 
@@ -197,7 +182,7 @@ describe("zero placement dependencies", () => {
     template.flowInputs[1].required = false;
     steps[0].inputPorts[0].required = false;
     template.flowEdges[0] = inputEdge("main", "die", "place");
-    configuration.stepConfigurations.prepare1 = { parameterValues: { thickness: 2 } };
+    configuration.stepConfigurations.prepare1 = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { thickness: 2 } }], selectedRecipeId: "r1" };
     expect(getStepExecutionReadiness("prepare1", template, steps, configuration, []).status).toBe("ready");
     expect(getStepExecutionReadiness("place", template, steps, configuration, []).status).toBe("incomplete");
   });
@@ -207,8 +192,8 @@ describe("zero placement dependencies", () => {
     template.stepRefs = [{ stepRefId: "inner", processStepTemplateId: "pnp" }, template.stepRefs[2]];
     template.flowInputs.push({ flowInputId: "unused", name: "Unused", dataType: "geometry", required: true });
     template.flowEdges = [inputEdge("main", "main", "place"), inputEdge("inner-main", "die", "inner"), inputEdge("inner-die", "unused", "inner", "die_geometry"), outputEdge("place", "inner", "place", "die_geometry")];
-    configuration.stepConfigurations.place.parameterValues.placements = [placement];
-    configuration.stepConfigurations.inner = { parameterValues: { placements: [] } };
+    configuration.stepConfigurations.place.recipeCandidates[0].parameterValues.placements = [placement];
+    configuration.stepConfigurations.inner = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: { placements: [] } }], selectedRecipeId: "r1" };
     expect([...analyzeFlowDependencies(template, steps, configuration).flowInputIds].sort()).toEqual(["die", "main"]);
   });
 
@@ -224,7 +209,7 @@ describe("zero placement dependencies", () => {
     template.flowEdges[1] = outputEdge("cycle", "prepare2", "prepare1");
     expect(getStepExecutionReadiness("place", template, steps, configuration, [geometry]).code).toBe("cycle");
     template.flowEdges[1] = inputEdge("die", "die", "prepare1");
-    configuration.stepConfigurations.unknown = { parameterValues: {} };
+    configuration.stepConfigurations.unknown = { recipeCandidates: [{ recipeId: "r1", name: "Recipe 1", description: "", parameterValues: {} }], selectedRecipeId: "r1" };
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
   });
 });

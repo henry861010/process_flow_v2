@@ -1,4 +1,4 @@
-import type { ProcessFlowTemplate, ProcessStepTemplate, TemplateStatus } from "./types";
+import type { FlowDefinition, ProcessStepTemplate, TemplateStatus } from "./types";
 
 export function isTemplateEnabled(template: { status?: TemplateStatus } | null | undefined) {
   return template != null && template.status !== "disabled";
@@ -6,7 +6,7 @@ export function isTemplateEnabled(template: { status?: TemplateStatus } | null |
 
 // Only new flows check step availability. Existing flows keep their references.
 export function disabledStepsForNewFlow(
-  template: Pick<ProcessFlowTemplate, "stepRefs">,
+  template: Pick<FlowDefinition, "stepRefs">,
   stepTemplates: ProcessStepTemplate[],
 ) {
   const referencedIds = new Set(template.stepRefs.map((ref) => ref.processStepTemplateId));

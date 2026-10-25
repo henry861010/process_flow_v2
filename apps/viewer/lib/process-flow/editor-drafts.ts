@@ -1,10 +1,10 @@
-import type { EditorDraft, ProcessStepTemplate, TemplateEditorDraftState } from "./types";
+import type { FlowDraft, ProcessStepTemplate, FlowDraftState } from "./types";
 
-export function assertDraftVersion(draft: EditorDraft) {
-  if (draft.schemaVersion !== 1) throw new Error("This draft version is not supported.");
+export function assertDraftVersion(draft: FlowDraft) {
+  if (draft.schemaVersion !== 2) throw new Error("This draft version is not supported.");
 }
 
-export function validateTemplateDraftState(state: TemplateEditorDraftState, steps: ProcessStepTemplate[]) {
+export function validateFlowDraftState(state: FlowDraftState, steps: ProcessStepTemplate[]) {
   const ids = new Set<string>();
   const refs = new Set<string>();
   const inputs = new Set<string>();

@@ -59,30 +59,15 @@ kernel在execution time動態import process-step modules；CAD與mesher process-
 
 FastAPI 的 strict Pydantic models 會拒絕 unknown fields。Service 驗證 domain constraints
 後，`SQLiteStore` 把 canonical camelCase JSON 存入 `payload` column，並另外保存 list/query
-metadata。現行 public API 對 process step 與 flow template 提供 restricted update；instance 與
-geometry 採 insert-only，兩種 editor draft 則有獨立 snapshot 與 revision update lifecycle。
+metadata。現行 flow API 統一為 `/api/process-flows`，完整 topology/configuration 可 CAS 更新。草稿統一為 `/api/process-flow-drafts`。
 
 ### Compile 與 execute
 
-1. API 從 SQLite 載入 instance、flow template 與被引用的 step templates。
-2. `StoreGeometryCatalog` 把 SQLite geometry lookup 轉接成 kernel 的
-   `GeometryCatalogResolver`。
-3. `FlowCompiler` 驗證 topology/configuration、解析 catalog 或 embedded geometry、normalize
-   structures，並將structure與generation/adaptation metadata包成`GeometryArtifact`後建立有順序的
-   `ExecutionPlan`。
-4. `GeometryKernel` 解析每個 planned input、clone geometry state、配置 material instance
-   name，並 import `process_flow_steps.<program>`。
-5. Module `execute(context)` 回傳或修改 `ProcessGeometryState`。
-6. Kernel serialize selected output 與 step outputs，最後由 API 回傳 JSON。
+API 載入 flow 自有 definition/configuration 及 step templates。Compiler 先選出採用 recipe，進行 dependency pruning 和完整度驗證，再解析 catalog／generator inputs，產生已解析 ExecutionPlan。Kernel 只執行 plan，不讀 recipe 候選或 repository。
 
 ### Editor draft commit
 
-兩種 draft 各自保存在獨立資料表。Create/update 只驗證 snapshot 格式並檢查 revision，允許未完成的 flow。Commit 使用目前 editor 的正式 create payload 進行完整驗證，同一 SQLite transaction 寫入必要 geometries、immutable template/instance 並刪除來源 draft；失敗全部 rollback。
-
-Template draft commit 可附帶新 instance 的 metadata 與完整 configuration。此時共用 combined
-create 的 preparation，transaction 重新檢查 draft revision，再一次建立 template、必要
-geometries 與 instance 並刪除來源 draft。一般 combined create 與 draft combined commit 均不會
-留下部分正式資料；instance 使用伺服器產生的新 template ID。
+草稿保存畫布與完整 configuration。Commit 在同一交易檢查 draft／target flow revision、建立或更新 flow 並刪草稿；失敗保留原資料。正式保存驗證拓樸與已提供值，不執行 generator 或 kernel。
 
 ### Preview 與 export
 
@@ -93,14 +78,7 @@ Preview 可以直接解析 flow input，或只執行 step output 的 upstream cl
 
 ## Persistence 與生命週期
 
-預設 storage 是 `apps/api/.data/process-flow.sqlite3`。啟動時 store 建立 tables、檢查
-`schema_metadata.databaseSchemaVersion`，且只在所有 resource tables 都是空的時候 seed
-fixtures。目前 marker 是 `"13"`；8–12 版會保留資料並依序 migration，其他較舊 marker
-或無 marker 資料會清空並重新 seed。11 版使用 SQLite unique indexes 確保 flow template
-與 instance 各自的 `(name, version)` 唯一。若 migration 發現既有重複，會列出名稱、版本
-與衝突 IDs 並停止；先處理重複資料再重新啟動，原資料與 schema marker 保留。
-Canonical fixtures 提供 `joint` 類別的 MR joint 與 TCB joint；啟動與 fixture ZIP 匯入不再轉換舊 Joint 引用。Schema marker 保留 `"13"`，12 → 13 僅更新 marker。
-非數字或未來版本marker明確失敗且不得刪除資料。
+業務 SQLite schema 14 使用 canonical JSON 加查詢欄位。已知 8–13 格式經一致性備份後在單一交易升級；unknown／schema 15 拒絕且不 reset。所有 flows 的 (name, version) 唯一。舊 template／instance 及草稿轉換、embedded geometry 保留與失敗回滾詳見 [Persistence](../reference/persistence.md)。
 
 Export job 是 process-local memory state，不是 SQLite resource。API shutdown 會取消 queued／
 running jobs；restart 後 history 會消失。

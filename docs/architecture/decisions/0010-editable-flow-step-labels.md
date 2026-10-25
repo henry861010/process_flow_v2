@@ -1,7 +1,7 @@
 ---
 title: ADR-0010：Management 編輯 flow step labels
-status: normative
-decision_status: accepted
+status: historical
+decision_status: superseded
 owner: integration.platform
 audience:
   - API 與 viewer 開發者
@@ -11,8 +11,8 @@ last_verified_commit: 3c4a81a06e29288e9c911585ba0490da14659f21
 verified_against:
   - apps/api/src/process_flow_api/services.py
   - apps/api/tests/test_api.py
-  - apps/viewer/components/process-flow-template-edit/process-flow-template-edit-dialog.tsx
-  - apps/viewer/lib/process-flow/process-flow-template-update.test.ts
+  - apps/viewer/components/process-flow-editor/process-flow-editor.tsx
+  - apps/api/tests/test_process_flows.py
 ---
 
 # ADR-0010：Management 編輯 flow step labels
@@ -39,3 +39,7 @@ Flow template 儲存後，Management 把 step label 視為 locked topology，使
 
 API 與 frontend tests MUST 覆蓋 flow-local isolation、重複 labels、trim、清空、省略及 locked
 topology 保護。`UI-MGMT-005` 驗證 Save、Cancel、儲存失敗保留草稿及重新載入的顯示行為。
+
+## Superseded by unified ProcessFlow
+
+Flow labels remain flow-local; the restricted template update endpoint has been removed. See [ADR-0011](0011-unified-process-flow.md) and [the data contract](../../data-model.md) for full topology updates and recipes.

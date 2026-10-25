@@ -10,25 +10,25 @@ GROUP BY utc_day,traffic_kind,route ORDER BY utc_day DESC,requests DESC;
 -- 2. Flow creation (fixtures/imports are not emitted as individual creations).
 SELECT dataset_id, event_name, count(*) AS creations
 FROM usage_events WHERE environment='production' AND phase='finished'
-AND outcome='success' AND event_name IN ('flow_template.create','flow_instance.create')
+AND outcome='success' AND event_name = 'flow.create'
 GROUP BY dataset_id,event_name;
 
 -- 3. Flow usage attempts and success, with polling excluded by construction.
 -- Export submission failures have request-based operation ids; accepted jobs have job ids.
-SELECT dataset_id,flow_template_id,event_name, count(DISTINCT operation_id) AS attempts,
+SELECT dataset_id,flow_id,flow_revision,event_name, count(DISTINCT operation_id) AS attempts,
        sum(CASE WHEN outcome='success' THEN 1 ELSE 0 END) AS successes,
        sum(CASE WHEN outcome='failure' THEN 1 ELSE 0 END) AS failures,
        round(avg(duration_ms),2) AS mean_duration_ms
 FROM usage_events WHERE environment='production'
 AND (phase='finished' OR (event_name='export' AND phase='accepted'))
-AND event_name IN ('flow.preview','flow_instance.execute','export')
-GROUP BY dataset_id,flow_template_id,event_name ORDER BY attempts DESC;
+AND event_name IN ('flow.preview','flow.execute','export')
+GROUP BY dataset_id,flow_id,flow_revision,event_name ORDER BY attempts DESC;
 
 -- 4. Step templates referenced by successful flow operations (not step execution counts).
 SELECT j.value AS step_template_id,count(*) AS referenced_by_operations
 FROM usage_events e,json_each(e.properties_json,'$.step_template_ids') j
 WHERE e.environment='production' AND e.phase='finished' AND e.outcome='success'
-AND e.event_name IN ('flow.preview','flow_instance.execute','export')
+AND e.event_name IN ('flow.preview','flow.execute','export')
 GROUP BY j.value ORDER BY referenced_by_operations DESC;
 
 -- 5. Generator recipes referenced by successful flow operations.
@@ -36,7 +36,7 @@ SELECT json_extract(j.value,'$.id') AS generator_id,
        json_extract(j.value,'$.version') AS generator_version,count(*) AS referenced_by_operations
 FROM usage_events e,json_each(e.properties_json,'$.generators') j
 WHERE e.environment='production' AND e.phase='finished' AND e.outcome='success'
-AND e.event_name IN ('flow.preview','flow_instance.execute','export')
+AND e.event_name IN ('flow.preview','flow.execute','export')
 GROUP BY generator_id,generator_version ORDER BY referenced_by_operations DESC;
 
 -- 6. Deployment comparisons and stable error categories.
@@ -51,7 +51,7 @@ WITH ranked AS (
         row_number() OVER (PARTITION BY event_name ORDER BY duration_ms) AS n,
         count(*) OVER (PARTITION BY event_name) AS total
  FROM usage_events WHERE environment='production' AND phase='finished'
- AND duration_ms IS NOT NULL AND event_name IN ('flow.preview','flow_instance.execute','export')
+ AND duration_ms IS NOT NULL AND event_name IN ('flow.preview','flow.execute','export')
 )
 SELECT event_name,
        max(CASE WHEN n=(total+1)/2 THEN duration_ms END) AS median_lower_ms,
@@ -65,3 +65,6 @@ WHERE environment='production' AND request_owner<>'unknown' AND phase='finished'
 -- 9. Known analytics loss (crash losses may be unknowable).
 SELECT occurred_at,json_extract(properties_json,'$.lost_record_count') AS lost_records
 FROM usage_events WHERE event_name='analytics.gap' ORDER BY occurred_at;
+
+-- Legacy events keep their original names and flow_template_id/flow_instance_id.
+-- Query them separately; an historical flow revision cannot be reconstructed.

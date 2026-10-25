@@ -16,12 +16,11 @@ import {
   Workflow,
 } from "lucide-react";
 
-import { ProcessFlowTemplateEditDialog } from "@/components/process-flow-template-edit/process-flow-template-edit-dialog";
 import { ProcessStepEditDialog } from "@/components/process-step-edit/process-step-edit-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { EditorDraftSummary, ProcessFlowTemplate, ProcessStepTemplate } from "@/lib/process-flow/types";
+import type { FlowDraftSummary, ProcessStepTemplate } from "@/lib/process-flow/types";
 import {
   deleteManagementResource,
   loadManagementData,
@@ -44,34 +43,18 @@ type DeletableCollection = ManagementDeletion["collection"];
 const deletionActions = {
   geometries: {
     label: "geometry",
-    consequence: "This geometry will be permanently deleted. Geometries referenced by an instance or editor draft cannot be deleted.",
+    consequence: "This geometry will be permanently deleted. Geometries referenced by an flow or editor draft cannot be deleted.",
   },
-  processFlowTemplates: {
-    label: "flow template",
-    consequence: "All instance drafts referencing this template will also be permanently deleted.",
-  },
-  processFlowInstances: {
-    label: "instance",
-    consequence: "The saved instance will be permanently deleted.",
-  },
-  processFlowTemplateDrafts: {
-    label: "template draft",
-    consequence: "This unfinished template draft will be permanently deleted. Saved templates, instances and geometries will be preserved.",
-  },
-  processFlowInstanceDrafts: {
-    label: "instance draft",
-    consequence: "This unfinished instance draft will be permanently deleted. Its template, saved instances and geometries will be preserved.",
-  },
+  processFlows: { label: "flow", consequence: "This saved flow will be permanently deleted. Derived flows keep their own content." },
+  flowDrafts: { label: "flow draft", consequence: "This unfinished draft will be permanently deleted." },
 };
 
 const emptyData: ManagementData = {
-  processFlowTemplates: [],
-  processFlowInstances: [],
+  processFlows: [],
   processStepTemplates: [],
   geometries: [],
   geometryGenerators: [],
-  processFlowTemplateDrafts: [],
-  processFlowInstanceDrafts: [],
+  flowDrafts: [],
 };
 
 export default function ManagementPage() {
@@ -87,7 +70,7 @@ export default function ManagementPage() {
   const [success, setSuccess] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState<{ collection: DeletableCollection; id: string } | null>(null);
   const deletionInProgressRef = React.useRef(false);
-  const [editingTemplate, setEditingTemplate] = React.useState<ProcessFlowTemplate | null>(null);
+
   const [editingStep, setEditingStep] = React.useState<ProcessStepTemplate | null>(null);
   const fixtureMenuRef = React.useRef<HTMLDivElement>(null);
   const fixtureFileRef = React.useRef<HTMLInputElement>(null);
@@ -129,22 +112,11 @@ export default function ManagementPage() {
     };
   }, []);
 
-  const templateById = React.useMemo(
-    () => new Map(data.processFlowTemplates.map((template) => [template.id, template])),
-    [data.processFlowTemplates],
-  );
-  const instanceCountByTemplate = React.useMemo(() => {
-    const counts = new Map<string, number>();
-    data.processFlowInstances.forEach((instance) => {
-      counts.set(instance.processFlowTemplateId, (counts.get(instance.processFlowTemplateId) ?? 0) + 1);
-    });
-    return counts;
-  }, [data.processFlowInstances]);
   const fixtureBusy = exporting || resetting || importing || stepTransfer !== null;
   const resourceBusy = loading || fixtureBusy || deleting !== null;
 
   async function handleDelete(target: ManagementDeletion) {
-    if (deletionInProgressRef.current || stepTransferInProgressRef.current || resourceBusy || editingTemplate || editingStep) return;
+    if (deletionInProgressRef.current || stepTransferInProgressRef.current || resourceBusy || editingStep) return;
     const { collection, resource } = target;
     const action = deletionActions[collection];
     if (!window.confirm(`Permanently delete ${action.label} "${resource.name}" (${resource.id})?\n\n${action.consequence}`)) return;
@@ -175,12 +147,10 @@ export default function ManagementPage() {
   }
 
   const resources = [
-    { label: "Templates", count: data.processFlowTemplates.length, icon: Workflow },
-    { label: "Instances", count: data.processFlowInstances.length, icon: GitBranch },
+    { label: "Flows", count: data.processFlows.length, icon: Workflow },
     { label: "Geometries", count: data.geometries.length, icon: Box },
     { label: "Process steps", count: data.processStepTemplates.length, icon: Braces },
-    { label: "Template drafts", count: data.processFlowTemplateDrafts.length, icon: FilePenLine },
-    { label: "Instance drafts", count: data.processFlowInstanceDrafts.length, icon: FilePenLine },
+    { label: "Flow drafts", count: data.flowDrafts.length, icon: FilePenLine },
   ];
 
   async function handleDatabaseReset() {
@@ -191,7 +161,6 @@ export default function ManagementPage() {
     setSuccess(null);
     try {
       setData(managementDataFromBootstrap(await resetPocData()));
-      setEditingTemplate(null);
       setEditingStep(null);
       setError(null);
     } catch (reason) {
@@ -224,7 +193,6 @@ export default function ManagementPage() {
     setSuccess(null);
     try {
       setData(managementDataFromBootstrap(await resetPocDataFromZip(file)));
-      setEditingTemplate(null);
       setEditingStep(null);
       setError(null);
     } catch (reason) {
@@ -236,7 +204,7 @@ export default function ManagementPage() {
   }
 
   async function handleStepTemplateTransfer(file?: File) {
-    if (resourceBusy || deletionInProgressRef.current || stepTransferInProgressRef.current || editingTemplate || editingStep) return;
+    if (resourceBusy || deletionInProgressRef.current || stepTransferInProgressRef.current || editingStep) return;
     stepTransferInProgressRef.current = true;
     setStepTransfer(file ? "import" : "export");
     setFixtureMenuOpen(false);
@@ -301,71 +269,28 @@ export default function ManagementPage() {
           ))}
         </section>
 
-        <Tabs defaultValue="templates">
+        <Tabs defaultValue="flows">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <TabsList className="h-auto flex-wrap justify-start">
-              <TabsTrigger value="templates">Templates</TabsTrigger>
-              <TabsTrigger value="instances">Instances</TabsTrigger>
+              <TabsTrigger value="flows">Flows</TabsTrigger>
               <TabsTrigger value="geometries">Geometries</TabsTrigger>
               <TabsTrigger value="steps">Process steps</TabsTrigger>
-              <TabsTrigger value="template-drafts">Template drafts</TabsTrigger>
-              <TabsTrigger value="instance-drafts">Instance drafts</TabsTrigger>
+              <TabsTrigger value="drafts">Drafts</TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="templates">
-            <ResourceTable headings={["Template", "Version", "Owner", "Status", "Instances", "Actions"]}>
-              {data.processFlowTemplates.map((template) => (
-                <tr key={template.id} className="border-b last:border-b-0">
-                  <IdentityCell name={template.name} id={template.id} description={template.description} />
-                  <Cell>{template.version}</Cell>
-                  <Cell>{template.owner}</Cell>
-                  <Cell><Badge variant="outline">{template.status === "disabled" ? "Disabled" : "Enabled"}</Badge></Cell>
-                  <Cell>{instanceCountByTemplate.get(template.id) ?? 0}</Cell>
-                  <td className="px-4 py-3 align-top">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={resourceBusy}
-                        onClick={() => setEditingTemplate(template)}
-                      >
-                        Edit
-                      </Button>
-                      <DeleteButton
-                        name={template.name}
-                        disabled={resourceBusy || (instanceCountByTemplate.get(template.id) ?? 0) > 0}
-                        deleting={deleting?.collection === "processFlowTemplates" && deleting.id === template.id}
-                        onClick={() => void handleDelete({ collection: "processFlowTemplates", resource: template })}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </ResourceTable>
-          </TabsContent>
-
-          <TabsContent value="instances">
-            <ResourceTable headings={["Instance", "Template", "Version", "Owner", "Actions"]}>
-              {data.processFlowInstances.map((instance) => (
-                <tr key={instance.id} className="border-b last:border-b-0">
-                  <IdentityCell name={instance.name} id={instance.id} description={instance.description} />
-                  <Cell>{templateById.get(instance.processFlowTemplateId)?.name ?? instance.processFlowTemplateId}</Cell>
-                  <Cell>{instance.version}</Cell>
-                  <Cell>{instance.owner}</Cell>
-                  <td className="px-4 py-3 align-top">
-                    <div className="flex justify-end">
-                      <DeleteButton
-                        name={instance.name}
-                        disabled={resourceBusy}
-                        deleting={deleting?.collection === "processFlowInstances" && deleting.id === instance.id}
-                        onClick={() => void handleDelete({ collection: "processFlowInstances", resource: instance })}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+          <TabsContent value="flows">
+            <ResourceTable headings={["Flow", "Version", "Owner", "Revision", "Actions"]}>
+              {data.processFlows.map((flow) => <tr key={flow.id} className="border-b last:border-b-0">
+                <IdentityCell name={flow.name} id={flow.id} description={flow.description} />
+                <Cell>{flow.version}</Cell><Cell>{flow.owner}</Cell><Cell>{flow.revision}</Cell>
+                <td className="px-4 py-3 align-top"><div className="flex justify-end gap-2">
+                  <Button asChild size="sm" variant="outline"><Link href={`/flow-editor?flowId=${encodeURIComponent(flow.id)}`}>Edit</Link></Button>
+                  <Button asChild size="sm" variant="outline"><Link href={`/flow-editor?flowId=${encodeURIComponent(flow.id)}&copy=1`}>Copy</Link></Button>
+                  <DeleteButton name={flow.name} disabled={resourceBusy} deleting={deleting?.collection === "processFlows" && deleting.id === flow.id}
+                    onClick={() => void handleDelete({ collection: "processFlows", resource: flow })} />
+                </div></td>
+              </tr>)}
             </ResourceTable>
           </TabsContent>
 
@@ -433,25 +358,10 @@ export default function ManagementPage() {
               ))}
             </ResourceTable>
           </TabsContent>
-          <TabsContent value="template-drafts">
-            <DraftTable
-              drafts={data.processFlowTemplateDrafts}
-              loading={loading}
-              disabled={resourceBusy}
-              deletingId={deleting?.collection === "processFlowTemplateDrafts" ? deleting.id : undefined}
-              onDelete={(draft) => void handleDelete({ collection: "processFlowTemplateDrafts", resource: draft })}
-            />
-          </TabsContent>
-
-          <TabsContent value="instance-drafts">
-            <DraftTable
-              drafts={data.processFlowInstanceDrafts}
-              templateById={templateById}
-              loading={loading}
-              disabled={resourceBusy}
-              deletingId={deleting?.collection === "processFlowInstanceDrafts" ? deleting.id : undefined}
-              onDelete={(draft) => void handleDelete({ collection: "processFlowInstanceDrafts", resource: draft })}
-            />
+          <TabsContent value="drafts">
+            <DraftTable drafts={data.flowDrafts} loading={loading} disabled={resourceBusy}
+              deletingId={deleting?.collection === "flowDrafts" ? deleting.id : undefined}
+              onDelete={(draft) => void handleDelete({ collection: "flowDrafts", resource: draft })} />
           </TabsContent>
         </Tabs>
       </div>
@@ -525,7 +435,7 @@ export default function ManagementPage() {
               <button
                 type="button"
                 className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                disabled={resourceBusy || editingTemplate !== null || editingStep !== null}
+                disabled={resourceBusy || editingStep !== null}
                 onClick={() => void handleStepTemplateTransfer()}
               >
                 <Download className="h-4 w-4" aria-hidden="true" />Export JSON
@@ -533,7 +443,7 @@ export default function ManagementPage() {
               <button
                 type="button"
                 className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                disabled={resourceBusy || editingTemplate !== null || editingStep !== null}
+                disabled={resourceBusy || editingStep !== null}
                 onClick={() => {
                   setFixtureMenuOpen(false);
                   stepTemplateFileRef.current?.click();
@@ -565,23 +475,6 @@ export default function ManagementPage() {
           <Database className={fixtureBusy ? "animate-pulse" : undefined} />
         </Button>
       </div>
-      {editingTemplate ? (
-        <ProcessFlowTemplateEditDialog
-          key={editingTemplate.id}
-          template={editingTemplate}
-          stepTemplates={data.processStepTemplates}
-          onClose={() => setEditingTemplate(null)}
-          onSaved={(saved) => {
-            setData((current) => ({
-              ...current,
-              processFlowTemplates: current.processFlowTemplates.map((template) =>
-                template.id === saved.id ? saved : template,
-              ),
-            }));
-            setEditingTemplate(null);
-          }}
-        />
-      ) : null}
       {editingStep ? (
         <ProcessStepEditDialog
           key={editingStep.id}
@@ -625,15 +518,14 @@ function DeleteButton({ name, disabled, deleting, onClick }: {
   );
 }
 
-function DraftTable({ drafts, templateById, loading, disabled, deletingId, onDelete }: {
-  drafts: EditorDraftSummary[];
-  templateById?: Map<string, ProcessFlowTemplate>;
+function DraftTable({ drafts, loading, disabled, deletingId, onDelete }: {
+  drafts: FlowDraftSummary[];
   loading: boolean;
   disabled: boolean;
   deletingId?: string;
-  onDelete: (draft: EditorDraftSummary) => void;
+  onDelete: (draft: FlowDraftSummary) => void;
 }) {
-  const headings = ["Draft", ...(templateById ? ["Template"] : []), "User", "Revision", "Updated", "Actions"];
+  const headings = ["Draft", "User", "Revision", "Updated", "Actions"];
   return (
     <ResourceTable headings={headings}>
       {loading || drafts.length === 0 ? (
@@ -645,12 +537,13 @@ function DraftTable({ drafts, templateById, loading, disabled, deletingId, onDel
       ) : drafts.map((draft) => (
         <tr key={draft.id} className="border-b last:border-b-0">
           <IdentityCell name={draft.name} id={draft.id} />
-          {templateById ? <Cell>{templateById.get(draft.processFlowTemplateId ?? "")?.name ?? draft.processFlowTemplateId}</Cell> : null}
+
           <Cell>{draft.user}</Cell>
           <Cell>{draft.revision}</Cell>
           <Cell><time dateTime={draft.updatedAt} title={draft.updatedAt}>{new Date(draft.updatedAt).toLocaleString()}</time></Cell>
           <td className="px-4 py-3 align-top">
             <div className="flex justify-end">
+              <Button asChild size="sm" variant="outline"><Link href={`/flow-editor?draftId=${encodeURIComponent(draft.id)}`}>Resume</Link></Button>
               <DeleteButton name={draft.name} disabled={disabled} deleting={deletingId === draft.id} onClick={() => onDelete(draft)} />
             </div>
           </td>

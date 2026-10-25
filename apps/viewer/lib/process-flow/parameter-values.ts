@@ -1,18 +1,9 @@
 import type {
   ParameterDefinition,
   RepeatableGroupValue,
-  StepRef,
   ValidationRule,
   ValueType,
 } from "./types";
-
-const FLOW_DEFAULT_VALUE_TYPES = new Set<ValueType>([
-  "string",
-  "integer",
-  "float",
-  "boolean",
-  "materialRef",
-]);
 
 export function getParameterValue(
   values: Record<string, unknown>,
@@ -54,39 +45,6 @@ export function createDefaultParameterValues(definitions: ParameterDefinition[])
         ? [[parameter.id, structuredClone(parameter.defaultValue)] as const]
         : [],
     ),
-  );
-}
-
-export function isFlowDefaultValueType(valueType: ValueType) {
-  return FLOW_DEFAULT_VALUE_TYPES.has(valueType);
-}
-
-export function createFlowParameterDefaults(
-  definitions: ParameterDefinition[],
-  values: Record<string, unknown>,
-) {
-  return Object.fromEntries(
-    definitions.flatMap((definition) => {
-      if (!isFlowDefaultValueType(definition.valueType)) return [];
-      if (!hasOwn(values, definition.id)) return [];
-      const value = values[definition.id];
-      return isPresentDefault(value)
-        ? [[definition.id, structuredClone(value)] as const]
-        : [];
-    }),
-  );
-}
-
-export function resolveFlowParameterDefaults(
-  stepRef: StepRef,
-  definitions: ParameterDefinition[],
-) {
-  if (hasOwn(stepRef, "parameterDefaults")) {
-    return createFlowParameterDefaults(definitions, stepRef.parameterDefaults ?? {});
-  }
-  return createFlowParameterDefaults(
-    definitions,
-    createDefaultParameterValues(definitions),
   );
 }
 

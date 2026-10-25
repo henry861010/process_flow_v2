@@ -359,10 +359,10 @@ class JointTests(unittest.TestCase):
     def test_zero_placement_flow_runs_joint_without_die_binding_or_configuration(self):
         fixtures = Path(__file__).resolve().parents[3] / "apps/api/src/process_flow_api/fixtures"
         read = lambda name: json.loads((fixtures / name).read_text())
-        steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
-        flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
-        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = []
+        steps, flows, geometries = map(read, ("process-step-templates.json", "process-flows.json", "geometries.json"))
+        flow = next(item for item in flows if item["id"] == "flow_inst_dual_bump_demo")["definition"]
+        configuration = next(item for item in flows if item["id"] == "flow_inst_dual_bump_demo")["configuration"]
+        configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = []
         configuration["inputBindings"].pop("incoming_die")
         for step in ("die_bump", "die_flip"):
             configuration["stepConfigurations"].pop(step)
@@ -381,9 +381,9 @@ class JointTests(unittest.TestCase):
     def test_seed_dual_branch_flow_executes_with_rectangle_and_polygon_children(self):
         fixtures = Path(__file__).resolve().parents[3] / "apps/api/src/process_flow_api/fixtures"
         read = lambda name: json.loads((fixtures / name).read_text())
-        steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
-        flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
-        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
+        steps, flows, geometries = map(read, ("process-step-templates.json", "process-flows.json", "geometries.json"))
+        flow = next(item for item in flows if item["id"] == "flow_inst_dual_bump_demo")["definition"]
+        configuration = next(item for item in flows if item["id"] == "flow_inst_dual_bump_demo")["configuration"]
         before = copy.deepcopy(geometries)
         result = GeometryKernel().execute(FlowCompiler(InMemoryGeometryCatalog(geometries)).compile(flow, configuration, steps))
         root = result.geometry()["root"]
@@ -490,9 +490,9 @@ class JointEntryPointTests(unittest.TestCase):
     def test_tcb_template_runs_same_dual_branch_flow(self):
         fixtures = Path(__file__).resolve().parents[3] / "apps/api/src/process_flow_api/fixtures"
         read = lambda name: json.loads((fixtures / name).read_text())
-        steps, flows, instances, geometries = map(read, ("process-step-templates.json", "process-flow-templates.json", "process-flow-instances.json", "geometries.json"))
-        flow = next(item for item in flows if item["id"] == "flow_tpl_dual_bump_demo")
-        configuration = next(item for item in instances if item["id"] == "flow_inst_dual_bump_demo")
+        steps, flows, geometries = map(read, ("process-step-templates.json", "process-flows.json", "geometries.json"))
+        flow = next(item for item in flows if item["id"] == "flow_inst_dual_bump_demo")["definition"]
+        configuration = next(item for item in flows if item["id"] == "flow_inst_dual_bump_demo")["configuration"]
         compiler = FlowCompiler(InMemoryGeometryCatalog(geometries))
         expected = GeometryKernel().execute(compiler.compile(flow, configuration, steps)).geometry()
         next(ref for ref in flow["stepRefs"] if ref["stepRefId"] == "joint")["processStepTemplateId"] = "step_tpl_tcb_joint"

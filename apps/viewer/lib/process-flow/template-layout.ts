@@ -1,5 +1,5 @@
 import type {
-  ProcessFlowTemplate,
+  FlowDefinition,
   ProcessStepTemplate,
   SavedFlowEdge,
   TemplateLayout,
@@ -29,7 +29,7 @@ type IncomingEdge = {
 };
 
 export function computeTemplateLayout(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
 ): TemplateLayout {
   const stepIds = template.stepRefs.map((stepRef) => stepRef.stepRefId);

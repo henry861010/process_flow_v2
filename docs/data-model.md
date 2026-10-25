@@ -3,193 +3,51 @@ title: Process Flow 資料模型
 status: normative
 owner: integration.platform
 audience:
-  - Process Flow 維護者
-  - API、kernel 與 viewer 開發者
-  - QA 與 coding agent
-last_verified: 2026-10-13
-last_verified_commit: b01b1e70
+  - developers
+  - QA
+last_verified: 2026-10-25
+last_verified_commit: 7d49bf0b
 source_of_truth:
-  - docs/architecture/decisions/0002-single-terminal-flow.md
-  - docs/architecture/decisions/0003-geometry-units-and-density.md
-  - docs/architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md
-  - docs/architecture/decisions/0008-pnp-mixed-target-shapes.md
-  - docs/architecture/decisions/0009-pnp-absolute-target-coordinates.md
-verified_against:
   - apps/api/src/process_flow_api/models.py
-  - apps/api/src/process_flow_api/repository.py
-  - apps/api/src/process_flow_api/draft_service.py
-  - packages/kernel-py/src/process_flow_kernel/application
+  - packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py
+  - apps/viewer/lib/process-flow/types.ts
 ---
 
 # Process Flow 資料模型
 
-本文件是 Process Flow 的頂層 normative data contract，定義 persistence、API、compiler、
-kernel 與 viewer 共用的 resource、reference、lifecycle 與 validation 語義。各 domain 的
-詳細規則委派給本文件連結的 normative reference，不在多處重複定義。
+本文件定義 persistence、API、compiler 與 viewer 共用的資料契約。ProcessFlow schema 為 3；FlowDraft schema 為 2；SQLite schema 為 14。這三個版本與使用者填寫的 `version`、防止覆寫的 `revision` 各自獨立。
 
-若說明文件、fixture 或現行程式碼與本文件衝突，以本文件定義的 target contract 為準；
-尚未對齊的行為列在[已知實作差異](#15-已知實作差異)。
+## 1. 範圍
 
-本文使用下列規範詞：
+Flow 自有完整拓樸與 configuration；不再拆成 flow template 和 flow instance。所有 flows 都能更新或另存。此版沒有 flow lifecycle、template/product 分類、啟停狀態或歷史版本還原。ProcessStepTemplate 的既有管理功能保留。
 
-- **MUST / MUST NOT**：符合本 contract 的實作必須遵守。
-- **SHOULD / SHOULD NOT**：除非有記錄明確理由，否則應遵守。
-- **MAY**：可選行為。
+## 2. 主要物件
 
-## 1. 如何閱讀本文件
+| 物件 | 擁有內容 | 角色 |
+| --- | --- | --- |
+| ProcessStepTemplate | Ports、parameter definitions、program | 可重用的製程定義 |
+| ProcessFlow | Definition、bindings、所有候選 recipes 與採用選擇 | 正式流程；拓樸合法，設定可未完成 |
+| FlowDraft | Metadata、configuration、nodes、edges、viewport、目前編輯候選 | 可保存未完成拓樸與無效的暫存參數 |
+| GeometryEntity | Catalog ID、metadata、GeometryStructure | 可由 catalog binding 引用 |
+| GeometryDocument | 無 catalog ID 的 geometry 內容 | Generator／preview 的結果內容型別 |
 
-第一次接觸 Process Flow 時，先閱讀[五分鐘理解資料模型](#2-五分鐘理解資料模型)，再依工作
-內容進入對應章節；不需要依序讀完整份文件。
+## 3. Ownership
 
-| 想回答的問題 | 建議閱讀 |
-| --- | --- |
-| 系統有哪些主要資料物件？ | [五分鐘理解資料模型](#2-五分鐘理解資料模型) |
-| Step 能接收什麼、執行什麼？ | [`ProcessStepTemplate`](#5-processsteptemplate) |
-| Flow 如何連接多個 Step？ | [`ProcessFlowTemplate`](#6-processflowtemplate) |
-| Geometry 與 parameter values 存在哪裡？ | [`FlowConfiguration`](#7-共用-flowconfiguration) |
-| 草稿如何保存、更新及 commit？ | [`InstanceEditorDraft`](#8-editor-drafts) 與 [commit transaction](#12-editor-draft-commit-transaction) |
-| 什麼操作會執行哪些驗證？ | [驗證時機](#11-驗證時機) |
-| 查 identifier、default、`null` 或版本標記 | [共用欄位與格式規則](#10-共用欄位與格式規則) |
-| 查看完整可執行 payload | [PnP golden example](#14-可完整執行的-pnp-golden-example) |
+Flow 的 `definition` 與 `configuration` 屬於該 flow。另存會完整複製它們；任何 recipe 值的修改都不會傳播到另一 flow。StepRef 仍引用 ProcessStepTemplate；catalog binding 仍引用 GeometryEntity，並非複製 geometry catalog。
 
-名詞不熟悉時先查[術語表](./concepts/glossary.md)；若只需要產品層級說明，閱讀
-[產品模型](./concepts/product-model.md)。
+`origin` 是弱來源記錄，不是 runtime 依賴，也不提供來源內容。來源更新或刪除不影響副本。Step program 的既有更新行為不等於 flow 歷史版本管理。
 
-詳細子規範：
+## 4. 基本資料規則
 
-- [Parameter Schema](./reference/parameter-schema.md)
-- [Geometry Entity and Structure](./reference/geometry-structure.md)
-- [Geometry semantic keys](./reference/geometry-semantic-keys.md)
-- [Persistence](./reference/persistence.md)
-- [ADR-0002：Single-terminal Flow](./architecture/decisions/0002-single-terminal-flow.md)
-- [ADR-0003：Geometry Units and Density](./architecture/decisions/0003-geometry-units-and-density.md)
-- [ADR-0007：Backend Geometry Generation and Unified PnP](./architecture/decisions/0007-backend-geometry-generation-and-adaptive-pnp.md)
-- [ADR-0008：PnP Mixed Target Shapes](./architecture/decisions/0008-pnp-mixed-target-shapes.md)
-- [ADR-0009：PnP Absolute Target Coordinates](./architecture/decisions/0009-pnp-absolute-target-coordinates.md)
-
-### 1.1 範圍與非目標
-
-本文件只定義目前採用的資料模型，不定義舊草案的轉換路徑。未採用與已棄用欄位集中列在
-[Legacy 與禁止欄位](#105-legacy-與禁止欄位)。
-
-本文件不定義：
-
-- 個別 process program 的幾何演算法；
-- CAD、STEP、GLB 或 CDB 格式；
-- UI layout、visual token 或 interaction；
-- material catalog。`materialRef` 是 opaque material key，不表示系統已存在
-  material database。
-
-## 2. 五分鐘理解資料模型
-
-實際使用時，製程工程師會選用 PnP、molding、RDL 與 C4 等 `ProcessStepTemplate` 建立
-`ProcessFlowTemplate`；這份 flow template 代表一項封裝技術的完整製程拓撲，例如 AAA 的
-flow inputs、steps 與 geometry routing，也可保存建立新 instance 時使用的 scalar parameter
-defaults，但不包含特定產品的 geometry 或已完成製程設定。當同一項
-技術套用到 HBM4 Alpha、HBM4 Beta 等不同產品時，工程師會在 `InstanceEditorDraft` 中
-選擇 panel 種類或 HBM 種類，並分別設定 placements、molding thickness、RDL
-layers 等 step parameters。設定完整並 commit 後，系統建立 immutable
-`ProcessFlowInstance`，保存該產品可重現、可執行的完整製程設定。
-
-| Resource | 主要用途 | 半導體封裝範例 | 可變性 |
-| --- | --- | --- | --- |
-| `ProcessStepTemplate` | 定義可重用的單一製程步驟，包括 geometry ports、parameter definitions 與執行程式。 | PnP step 宣告 panel primary input、HBM auxiliary input 與 `placements` parameter。 | Immutable snapshot |
-| `ProcessFlowTemplate` | 定義一項封裝技術的完整 topology，包括 flow inputs、step references 與 edges。 | AAA flow 將 PnP、molding、RDL 與 C4 依製程順序連接。 | Topology/identity/version locked；metadata/step labels/defaults 可受限更新 |
-| `TemplateEditorDraft` | 保存未完成的拓樸與完整 editor working state。 | 編輯製程接線、step labels、試用參數與畫布位置。 | 可 revision-checked 更新 |
-| `InstanceEditorDraft` | 保存特定產品仍在調整中的 `FlowConfiguration`。 | HBM4 Alpha 開發過程中調整 geometry bindings、placements、材料與厚度。 | 可修改直到正式儲存成功後刪除 |
-| `ProcessFlowInstance` | 保存已完成並通過完整驗證的產品製程設定。 | HBM4 Alpha Build 的完整 geometry bindings 與各 step parameter values。 | Immutable snapshot |
-| `GeometryEntity` | 保存可被 flow input 引用的 catalog geometry snapshot。 | `panel_plp_310x310mm_glass` panel 與 `hbm3_8hi` HBM die。 | Immutable snapshot |
-
-```mermaid
-flowchart LR
-  StepTemplate["ProcessStepTemplate<br/>定義單一步驟"] --> FlowTemplate["ProcessFlowTemplate<br/>組成可重用流程"]
-  FlowTemplate --> InstanceDraft["InstanceEditorDraft<br/>可修改的研究草稿"]
-  Catalog["Geometry catalog"] --> InstanceDraft
-  InstanceDraft -->|"atomic commit"| Instance["ProcessFlowInstance<br/>不可修改的完整設定"]
-  FlowTemplate --> Instance
-  Catalog --> Instance
-```
-
-Geometry 與 parameter values 使用不同路徑：
-
-- Geometry 經由 flow inputs、typed ports、`flowEdges` 與 `inputBindings` 傳遞。
-- Parameter definitions 位於 `ProcessStepTemplate`；實際 parameter values 位於
-  `stepConfigurations`。
-- Compiler 將 template、configuration 與 catalog resources 解析成 `ExecutionPlan`。
-- Kernel 只執行 `ExecutionPlan`，不查 repository 或 database id。
-
-### 2.1 本文使用的 PnP 範例
-
-後續章節都以同一個 PnP flow 說明欄位之間的關係：panel 是 primary geometry，die 是
-auxiliary geometry，`placements` 則是 PnP 的 parameter value。
-
-```mermaid
-flowchart LR
-  Panel["incoming_panel<br/>catalog: panel_plp_310x310mm_glass"] --> Main["pnp.main_geometry"]
-  Die["incoming_die<br/>catalog: hbm3_8hi"] --> Aux["pnp.die_geometry"]
-  Main --> PnP["pnp<br/>placements: targetRegion + pose + anchor"]
-  Aux --> PnP
-  PnP --> Result["pnp.result_geometry<br/>唯一 terminal output"]
-```
-
-這個例子的三份完整 JSON 位於 [PnP golden example](#14-可完整執行的-pnp-golden-example)，
-並由 repository script 實際通過 schema、graph、compiler 與 kernel 驗證。
-
-## 3. 核心設計原則
-
-1. Geometry dataflow 與 process parameter values MUST 分開保存與傳遞。
-2. `ProcessFlowTemplate` 定義 topology；`InstanceEditorDraft` 保存可修改的研究設定；
-   `ProcessFlowInstance` 保存完整且不可修改的產品設定。
-3. Geometry 只經由 typed ports 與 `inputBindings` 傳遞，不屬於 parameter value union。
-4. Flow template 的 identity/version/topology locked，但 status、metadata、step labels 與 flow-specific scalar
-   defaults 可受限更新；instance 與 catalog geometry 是 immutable snapshots。Process step 的
-   identity、port definitions 與 parameter definition contract locked，但 status、owner、category、program、input port order 與
-   parameter defaults 可受限地 in-place update；delete policy 另見 persistence specification。
-5. Compiler 負責解析跨 resource references、驗證 graph 與 configuration，並建立
-   `ExecutionPlan`；kernel 不查 repository。
-6. Resource reference MUST 使用穩定的 persisted id。空字串、id prefix 或 sentinel value
-   MUST NOT 表示 source type；union MUST 使用明確 discriminator。
-7. 每個合法 flow MUST 有且只能有一個 terminal step。
-8. Canonical geometry unit MUST 是 `um`；feature density MUST 落在包含端點的 `0..100`。
-
-## 4. Resource 關係與 ownership
-
-```mermaid
-flowchart TB
-  StepTemplate["ProcessStepTemplate"] -->|"StepRef 引用"| FlowTemplate["ProcessFlowTemplate"]
-  FlowTemplate -->|"定義 flowInputId 與 stepRefId"| Configuration["FlowConfiguration"]
-  Configuration --> InstanceDraft["InstanceEditorDraft"]
-  Configuration --> Instance["ProcessFlowInstance"]
-  InstanceDraft -->|"擁有 draft-local data"| Embedded["EmbeddedGeometry"]
-  Catalog["GeometryEntity catalog"] -->|"catalog binding"| Configuration
-  InstanceDraft -->|"commit 並 materialize embedded geometry"| Instance
-```
-
-| Model | 擁有 | 不擁有 | 可變性 |
-| --- | --- | --- | --- |
-| `ProcessStepTemplate` | Geometry ports、parameter definitions、process program 位置 | Parameter values、geometry records、flow topology | Port definitions/parameter contract locked；status/metadata/program/input order/defaults 可更新 |
-| `ProcessFlowTemplate` | Flow inputs、step refs、edges、flow-specific scalar defaults | 產品 geometry bindings | Identity/version/topology locked；status/name/owner/description/step labels/defaults 可受限更新 |
-| `TemplateEditorDraft` | Metadata、拓樸、完整 configuration、畫布位置 | 正式 resource identity | 可 revision-checked 更新 |
-| `InstanceEditorDraft` | Metadata 與完整 configuration snapshot | Topology | 可修改直到正式儲存成功後刪除 |
-| `ProcessFlowInstance` | 完整產品設定 | Embedded geometries、topology、instance lineage | Immutable snapshot |
-| `GeometryEntity` | Catalog metadata 與完整 `GeometryStructure` | Flow-specific role | Immutable snapshot |
-| `ExecutionPlan` | 已解析 structures、排序後 steps、明確 input routing | Repository handle 或尚待解析的 repository id | 僅存在於 runtime；nested mappings MUST 視為 read-only |
-
-`ProcessFlowTemplate` 與 `ProcessFlowInstance` MUST 各自在其 resource collection 中保持
-`(name, version)` 唯一；以儲存的字串精確比對，大小寫不同視為不同值。Instance 的唯一範圍
-跨所有 flow templates，與 owner、status 或 template id 無關。同名不同版本可存在；更新原
-template 不變更此組合時可正常儲存。重複新增或改名 MUST 回傳 HTTP 409，transaction
-不得留下部分 template、instance、geometry 或 instance draft commit。
-
-每個 flow template id 代表一份 topology snapshot；受限 update 只可修改
-`status`、`name`、`owner`、`description` 與既有 step refs 的 `stepLabel`、`parameterDefaults`。
-需要變更 version、flow inputs、step identities、引用、順序或 edges 時 MUST 使用新的 `id`。
-Process step id 是 stable reference，
-受限 update 不得改變 identity、port definitions 或 parameter definition contract；`inputPorts`可只重排順序。`version` label、
-identifier 與未採用欄位的完整規則見
-[共用欄位與格式規則](#10-共用欄位與格式規則)。
+- 所有正式 flows 的 `(name, version)` MUST 唯一。
+- Flow ID 由建立 API 產生；fixture／migration 保留給定 ID。
+- 建立 `revision = 1`；成功更新加 1。更新和刪除 MUST 比對呼叫端 revision，過期回 409。
+- `version` 是使用者標籤，不解析為版本順序。
+- JSON 不接受非有限數字、未知欄位、embedded binding 或舊 flow payload。
+- `stepRefId`、`flowInputId`、`edgeId` 各自在同一 flow 內唯一；recipeId 只需在同一站內唯一。
 
 ## 5. ProcessStepTemplate
+
 
 `ProcessStepTemplate` 定義一個可執行 process node 的 ports、parameters 與 module path。
 在 PnP 範例中，它宣告 primary port `main_geometry`、auxiliary port `die_geometry`、唯一 output
@@ -244,540 +102,108 @@ Geometry MUST NOT 出現在 parameter value union。`controlType` 是 rendering 
 `parameterValues` 相同的 shape 與 validation，且不得是 `null` 或空字串；省略表示沒有
 step-level default。此值只用於初始化 authoring draft，不會由 compiler 隱式套用。
 
-`workingTemp` 等 legacy 欄位的禁止規則集中在
-[Legacy 與禁止欄位](#105-legacy-與禁止欄位)。
 
-## 6. ProcessFlowTemplate
+## 6. ProcessFlow
 
-`ProcessFlowTemplate` 是可重用的製程 topology，不保存 geometry selection 或 parameter
-values。在 PnP 範例中，它以兩條 edges 將 `incoming_panel` 與 `incoming_die` 分別接到 PnP
-的 primary 與 auxiliary ports。
-
-| 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
-| --- | --- | --- | --- | --- |
-| `schemaVersion` | integer literal | yes | `2` | MUST equal `2`。 |
-| `status` | `enabled \| disabled` | no | create: `enabled`; update: preserve current | Controls new usage; disabled templates retain their references and data。 |
-| `id` | identifier | persisted: yes; preview draft: no | draft `""` | Persisted template id MUST non-empty。 |
-| `name` | non-empty string | yes | none | Human-facing name。 |
-| `version` | non-empty string | yes | none | Opaque metadata label；內建 fixture 與 editor default 使用 `V0.0.0`，不得 parse、sort 或驅動行為。 |
-| `description` | string | no | `""` | Description。 |
-| `owner` | non-empty string | persisted: yes | draft MAY be `""` | Owning team。 |
-| `flowInputs` | `FlowInputDefinition[]` | yes | none | MUST 至少一個。 |
-| `stepRefs` | `StepRef[]` | yes | none | MUST 至少一個。 |
-| `flowEdges` | `FlowEdge[]` | yes | none | Typed routing。 |
-
-兩種 template 的 `status` 都可受限更新；`null` 與其他值 MUST reject。舊資料缺少欄位時
-MUST 視為 `enabled`，read responses MUST 包含明確狀態。Step `disabled` 禁止建立新的
-flow template 引用它，但已儲存且啟用的 flow 仍可建立 instance draft／instance。Flow `disabled`
-禁止建立新 instance draft／instance（包含 copy 後另存），既有 draft instance draft 仍可修改及預覽，
-但不能 commit。已 commit instance draft 的重複 commit 保持冪等。既有 instance 的讀取、預覽、
-執行與匯出 MUST 不受兩種 template 停用影響。停用不刪除資料、不改寫引用，也不封存 program
-實作版本；重新啟用恢復新增能力。
-
-### 6.1 FlowInputDefinition
-
-`FlowInputDefinition` 是 `ProcessFlowTemplate` graph 中的外部 geometry source node。它代表
-flow 需要由外部提供的一個 geometry 輸入位置，不是實際的 geometry，也不是 step input
-port。
-
-每個 flow input 可以透過 `flowEdges` 將 geometry 傳到一個或多個 step input ports。Flow
-input 沒有 incoming edge、不執行 process program，也沒有 step parameters；執行時使用的
-實際 geometry 由 `FlowConfiguration.inputBindings[flowInputId]` 綁定 catalog、embedded
-geometry，或指定 generator 的版本與參數。
-
-因此，Template 負責定義 flow input 的名稱、型別、constraints 與 routing；Instance draft 或
-Instance 的 Configuration 則負責選擇這次實際使用的 geometry。
-
-| Model | 所屬位置 | 責任 | PnP 範例 |
-| --- | --- | --- | --- |
-| `FlowInputDefinition` | `ProcessFlowTemplate.flowInputs` | 定義 graph 上的外部 geometry source node。 | `incoming_die` |
-| `GeometryBinding` | `FlowConfiguration.inputBindings` | 指定該 flow input 實際使用的 geometry 來源。 | `{ "kind": "catalog", "geometryId": "hbm3_8hi" }` |
-| `GeometryEntity`／`EmbeddedGeometry` | Catalog 或 `embeddedGeometries` | 保存實際的 geometry metadata 與 `GeometryStructure`。 | HBM die geometry |
-| `FlowEdge` | `ProcessFlowTemplate.flowEdges` | 將 flow input 的 geometry 傳到 step input port。 | `incoming_die -> pnp.die_geometry` |
-| Step input port | `ProcessStepTemplate.inputPorts` | 定義 step 可以接收 geometry 的位置。 | `die_geometry` |
-
-```mermaid
-flowchart LR
-  Catalog["Catalog GeometryEntity"] -->|"geometryId"| Binding["inputBindings[incoming_die]"]
-  Embedded["embeddedGeometries[localId]"] -->|"localId"| Binding
-  Generator["Versioned generator + parameters"] -->|"generate"| Binding
-  Binding --> Input["FlowInput node<br/>incoming_die"]
-  Input -->|"FlowEdge"| Port["Step input port<br/>pnp.die_geometry"]
-  Port --> Step["PnP step"]
+```typescript
+type ProcessFlow = {
+  schemaVersion: 3;
+  id: string;
+  name: string;
+  version: string;
+  owner: string;
+  description: string;
+  revision: number;
+  origin?: { flowId: string; revision: number };
+  definition: {
+    flowInputs: FlowInputDefinition[];
+    stepRefs: StepRef[];
+    flowEdges: FlowEdge[];
+  };
+  configuration: FlowConfiguration;
+};
 ```
 
-| 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
-| --- | --- | --- | --- | --- |
-| `flowInputId` | identifier | yes | none | Template-local identity。 |
-| `name` | non-empty string | yes | none | Display name。 |
-| `description` | string | no | `""` | Description。 |
-| `dataType` | literal `"geometry"` | yes | `"geometry"` | Must match target port。 |
-| `required` | boolean | yes | `true` | See composite requiredness below。 |
-| `geometryConstraints` | object | no | none | Optional entity/category/format filters。 |
+`StepRef` 保留 `stepRefId`、`stepLabel`（省略或空白時顯示 step name）、`processStepTemplateId`。不含 `parameterDefaults`。Definition 不保存畫布座標或目前查看的 recipe。
 
-`GeometryConstraints` fields：
+FlowInputDefinition 宣告 `flowInputId`、name、description、dataType=geometry、required 與可選 geometryConstraints。Constraints 支援 entityTypes（完全匹配）、categories（完全或點分隔子分類）、structureFormats（完全匹配）；空或省略清單表示不限制。
 
-| 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
-| --- | --- | --- | --- | --- |
-| `entityTypes` | non-empty string array | no | omitted | Exact case-sensitive envelope types；empty array 等同不限制。 |
-| `categories` | non-empty string array | no | omitted | Exact 或 dot-delimited descendant categories；empty array 等同不限制。 |
-| `structureFormats` | non-empty string array | no | omitted | Exact case-sensitive formats；目前唯一 supported value 是 `standard`。 |
+FlowEdge 為 `{edgeId, source, target}`；source 是 `{kind: 'flowInput', flowInputId}` 或 `{kind: 'stepOutput', stepRefId, outputPortId}`；target 為 `{stepRefId, inputPortId}`。
 
-Geometry constraint matching：
+正式拓樸至少有一個 input 和一個 step，必須無環、所有引用有效、每個 required port 有唯一來源，且恰好一個 terminal。Optional flow input 仍可連到 required port；是否需要實際 binding 依執行依賴而定。單一 terminal 規則見 [ADR-0002](architecture/decisions/0002-single-terminal-flow.md)。
 
-- `entityTypes`：case-sensitive exact match。
-- `categories`：case-sensitive exact match，或 dot-delimited descendant match；例如
-  `die` 接受 `die.hbm`，但不接受 `dielectric`。
-- `structureFormats`：case-sensitive exact match。
-- Empty or omitted constraint list 表示不限制該維度。
+## 7. FlowConfiguration 與 RecipeCandidate
 
-Flow template editor 從 catalog geometry 或 generator 建立新的 flow input 時，會將來源的 category snapshot
-成單一 `geometryConstraints.categories` 項目。來源 geometry id 仍只存在於 preview
-configuration 的 `inputBindings`；generator 配方也只存在於 preview configuration，兩者都不會寫入 template。作者在儲存前可調整 allowed categories；
-template 儲存後則沿用 immutable topology policy。
-
-### 6.2 StepRef 與 FlowEdge
-
-`StepRef`：
-
-| 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
-| --- | --- | --- | --- | --- |
-| `stepRefId` | identifier | yes | none | Flow-local identity。 |
-| `stepLabel` | string or `null` | no | omitted | Optional display override；empty/`null` 都表示使用 step-template name。 |
-| `processStepTemplateId` | identifier | yes | none | Existing stable step-template reference。 |
-| `parameterDefaults` | parameter-id keyed object | no | 建立時複製 referenced step template 的 eligible scalar defaults | Flow-specific default snapshot；明確 `{}` 表示沒有 defaults。只允許 `string`、`integer`、`float`、`boolean`、`materialRef`，unknown ids 與 collection values MUST reject。 |
-
-Flow template editor 儲存目前已填的 eligible scalar step values 到 `parameterDefaults`。
-`placements`、`fieldGroupArray` 與所有 `[]` value types 即使在 preview draft 已有值也 MUST NOT
-保存為 flow defaults。Instance editor 只有在未匯入既有 instance 時才將 flow defaults 複製成
-`parameterValues`；compiler 不直接讀取 `parameterDefaults`。
-
-依 [ADR-0010](./architecture/decisions/0010-editable-flow-step-labels.md)，Management 的受限 update
-MAY 按 `stepRefId` 更新既有 step ref 的 `stepLabel`。明確字串 MUST trim 首尾空白；空白或
-`null` MUST 儲存為空字串以使用 step-template name；省略欄位 MUST 保留原值。Labels 可重複，
-同一 step template 的多次引用可獨立改名。共用 flow template 的所有 instances 重新載入後
-使用新 label，不回寫 instance 配置或 process-step template 名稱。
-
-Management 的受限 update MAY 更新既有 step ref 的 `parameterDefaults`。明確 `{}` 表示清除
-該 step 的 flow defaults；update request 省略 `parameterDefaults` 表示保留目前 snapshot。
-更新只影響之後以 `Start from blank` 建立的 instance；既有 instance 與從既有 instance 複製的
-configuration MUST NOT 被回寫或重新套用 defaults。
-
-`FlowEdge`：
-
-| 欄位 | 型別 | 必填條件 | Request 省略時 | 契約 |
-| --- | --- | --- | --- | --- |
-| `edgeId` | identifier | yes | none | Flow-local identity。 |
-| `source` | `FlowInputEdgeSource \| StepOutputEdgeSource` | yes | none | Discriminator 是 `kind`。 |
-| `target` | `FlowEdgeTarget` | yes | none | Exactly one target step input。 |
-
-| Object | 欄位 | 契約 |
-| --- | --- | --- |
-| `FlowInputEdgeSource` | `kind: "flowInput"`、required `flowInputId` | References one declared flow input。 |
-| `StepOutputEdgeSource` | `kind: "stepOutput"`、required `stepRefId`、required `outputPortId` | `outputPortId` MUST 是 `result_geometry`。 |
-| `FlowEdgeTarget` | required `stepRefId`、required `inputPortId` | References one declared target port。 |
-
-```json
-{
-  "stepRefId": "molding",
-  "stepLabel": "Molding",
-  "processStepTemplateId": "step_tpl_molding",
-  "parameterDefaults": {
-    "material": "EMC-G700",
-    "thickness": 180
-  }
-}
+```typescript
+type FlowConfiguration = {
+  inputBindings: Record<string, GeometryBinding>;
+  stepConfigurations: Record<string, {
+    recipeCandidates: {
+      recipeId: string;
+      name: string;
+      description: string;
+      parameterValues: Record<string, ParameterValue>;
+    }[];
+    selectedRecipeId: string | null;
+  }>;
+};
+type GeometryBinding =
+  | { kind: 'catalog'; geometryId: string }
+  | { kind: 'generator'; generatorId: string; generatorVersion: number;
+      parameters: Record<string, unknown> };
 ```
 
-Edge source 是 discriminated union：
+Map keys MUST 對應 definition 的 input／step。允許未設定 binding、未建立 step configuration、空候選集合及 `selectedRecipeId: null`。非 null 的 selectedRecipeId MUST 指向同站候選，禁止回退第一組。刪除採用候選後設為 null。
 
-```json
-{ "kind": "flowInput", "flowInputId": "incoming_panel" }
-```
+正式儲存驗證每一組候選已提供值的名稱、型別與 validation，包括非採用候選；可以缺少 required 參數。缺值以省略 key 表達；數值欄位的空字串或 null 不是合法數值。草稿允許這些暫時無效值。字串空值與執行完整度依 [Parameter Schema](reference/parameter-schema.md)。
 
-```json
-{
-  "kind": "stepOutput",
-  "stepRefId": "pnp",
-  "outputPortId": "result_geometry"
-}
-```
+新增站點建立並採用 `Recipe 1`，完整複製該 step 目前明確宣告的 defaults。新增候選也複製 defaults，但不改變採用；複製候選則深拷貝目前查看的全部值並產生新 recipe ID。後續讀取、儲存與 compile MUST NOT 再補 defaults。
 
-Edge target：
+Generator binding 保存原 parameters，儲存不生成 geometry、不重新正規化或套入 defaults。Generator identity/version 必須存在；必要設定於預覽或執行時檢查。
 
-```json
-{ "stepRefId": "pnp", "inputPortId": "main_geometry" }
-```
+## 8. FlowDraft
 
-### 6.3 Topology 不變條件
+FlowDraft 使用 schemaVersion 2：`id, user, name, revision, createdAt, updatedAt, state`，可選 `target`、`origin`。Revision 自 1 遞增；更新和刪除使用 CAS。列表跨 flows，無 template scope。
 
-- 每個 declared flow input MUST 至少有一條 outgoing edge。
-- 每個 required step input port MUST 剛好有一條 incoming edge。
-- Optional input port MAY 有零或一條 incoming edge。
-- Edge source 與 target `dataType` MUST 相同。
-- Step output MUST NOT 連回同一 step，graph MUST acyclic。
-- 每個 step output port 最多一個 consumer；flow input MAY fan-out。
-- 所有 `stepRefs` MUST 位於同一個 connected execution graph，且 MUST 收斂至 exactly
-  one terminal step。Terminal step 是其 `result_geometry` 沒有 outgoing edge 的 step。
-- Flow-level execution output MUST 是唯一 terminal step 的 `result_geometry`。Array order
-  MUST NOT 用來選 output。
+`state` 包含 `metadata`（name/version/owner/description）、完整 configuration、nodes、edges、viewport 及 `editingRecipeIds`。Node 保存 position，flowInput node 保存 definition，processStep node 保存 stepRef。Edge 保存畫布 source/target/handles。Viewport 為 x/y/zoom。
 
-完整決策見 [ADR-0002](./architecture/decisions/0002-single-terminal-flow.md)。
+編輯既有 flow 時，`target: {flowId, revision}` 保存載入時版本；此 revision 不會因草稿更新自動追上伺服器。`editingRecipeIds` 只決定面板查看內容，不改變採用。草稿格式合法即可保存，不要求拓樸或參數完整。
 
-### 6.4 Optional flow input 規則
+## 9. 更新與另存
 
-Binding requirement 是 flow input 與其實際 consumers 的 composite rule：
+更新保留原 id、origin，拓樸與 configuration 可修改。另存送出完整新 flow 內容，origin 記錄直接來源的 ID 及載入時 revision；新副本 revision 為 1。未提供 origin 的全新 flow 沒有來源。Origin 不設外鍵，也不追溯祖先鏈。
 
-- 實際 consumers 由 configuration 的有效 dependency closure 決定。完整 flow 從原本
-  terminal steps 反向追蹤；step-output preview 從指定 target 反向追蹤。
-- 僅 `program: "pnp/pnp"` 且 `placements: []` 的 step 不使用 `die_geometry` dependency；
-  `main_geometry` MUST 保留，PnP 輸出沿用原 state。缺值、null 或錯誤格式不等同零 placement。
-- 沒有有效 consumer 的 input 與上游 steps 不要求 binding、參數完整度或 resource resolution，
-  也不加入 execution plan。若 flow input 還有其他有效 consumer，仍 MUST 檢查。
-- 有有效 consumer 且 `FlowInputDefinition.required: true`：binding MUST 存在。
-- `required: false` 且所有相關 target ports 都 optional：binding MAY 省略。
-- 任一相關 target port required：binding MUST 存在。
-- Partial preview 只計算 target 有效 upstream closure 內的 consumers；直接 preview 未使用分支
-  仍 MUST 完整配置該 target 的有效 dependencies。
-- 有效 consumer 的 optional binding 若有提供，仍 MUST resolve 並符合 constraints。
-- Template 全圖的拓樸、接線、ports 與 references MUST 維持有效；configuration 的基本 shape
-  與未知 step/input keys MUST reject。停用分支不改寫 template topology。
-- 未使用的 bindings、generator recipes 與 step values MUST 保留以供重新啟用；未使用的
-  generator recipe 不要求生成或正規化，重新啟用時 MUST 驗證。
+## 10. 版本與移除欄位
 
-### 6.5 未儲存的 preview draft
-
-Inline preview MAY 使用 `ProcessFlowTemplateDraft`，其 `id` MAY 是空字串；所有
-flow input、step、port 與 edge ids 仍 MUST 合法。Persisted create MUST 使用非空唯一 id。
-
-## 7. `FlowConfiguration`
-
-`FlowConfiguration` 是保存某一次 flow 實際設定的共用資料結構，包含 flow inputs 實際綁定
-的 geometry 來源、每個 step 實際使用的 parameter values，以及尚未存入 catalog 的 embedded
-geometries。它不定義 steps、ports 或 topology；這些結構仍由 `ProcessFlowTemplate` 與其引用
-的 `ProcessStepTemplate` 定義。
-
-Instance draft 內嵌 `FlowConfiguration` 來保存可修改且可以尚未完整的設定；preview request 使用
-同一個結構傳入臨時設定；compiler 則讀取它並產生 `ExecutionPlan`。Instance 保存 commit 後的
-完整設定，但只允許 catalog 或 generator bindings，MUST NOT 保存 `embeddedGeometries`。
-
-| 欄位 | 型別 | 用途 | 必填條件 | Request 省略時 | 契約 |
-| --- | --- | --- | --- | --- | --- |
-| `inputBindings` | map of `flowInputId -> GeometryBinding` | 記錄每個 flow input 實際使用的 geometry 來源。`catalog` 以 `geometryId` 引用 catalog；`embedded` 以 `localId` 引用同一份 configuration；`generator` 保存 generator id、版本及參數。Template 的 `flowEdges` 再將 geometry route 到 step port。 | canonical yes | `{}` | Unknown flow-input key MUST reject。 |
-| `stepConfigurations` | map of `stepRefId -> StepConfiguration` | 記錄每個 step 實際使用的 `parameterValues`，例如 PnP 的 `placements` 或 molding 的 material、thickness。Parameter id 與 value shape 由該 step 引用的 `ProcessStepTemplate` 定義。 | canonical yes | `{}` | Unknown step key MUST reject。 |
-| `embeddedGeometries` | map of `localId -> EmbeddedGeometry` | 作為 draft-local geometry store，暫存尚未進入 catalog 的完整 geometry metadata 與 `GeometryStructure`，供 `embedded` input binding 引用。Commit 只會將實際被引用的項目 materialize 到 catalog。 | configuration canonical yes | `{}` | Instance MUST NOT persist this field。 |
-
-`EmbeddedGeometry`與`GeometryEntity` MAY包含通用`generation` authoring metadata：
-`generatorId`是registry key、`schemaVersion >= 1`標記parameter contract、`parameters`保存完整
-JSON object。Generator validation、build 與 engineering preview 由 backend registry 擁有；
-materialization必須原樣保存metadata。`generation`僅用於重新開啟generator時回填參數，
-不作為flow routing identity。`generator` binding 則是 flow input 的實際來源，compile 時依
-`generatorId`、`generatorVersion` 與 `parameters` 產生 geometry。Instance 儲存前合併預設值、
-驗證並保存完整正規化參數；不建立 catalog record。Registry 必須保留已被 instance 引用的
-版本實作，不得默默升級配方。
-
-兩種geometry也包含versioned `adaptationContract`：`adapterId`是backend adapter registry key、
-`adapterVersion >= 1`、`parameters`是adapter-specific JSON object。Runtime `GeometryArtifact`同時
-攜帶structure與此metadata；PnP依contract materialize target-specific geometry。Explicit contract
-優先；missing contract在runtime依primitive選擇Box-only `box-rescale@1`或single-loop
-`polygon-rescale@1`。同一個`placements[]` MAY交錯rectangle與polygon target；`box-rescale@1`
-的polygon target會將所有root direct features替換成exact target polygon，children維持原shape並
-跟placement做rigid transform。其他structure要求explicit contract；未知adapter id/version MUST reject。
-
-三個 map 的資料關係如下：
-
-- `inputBindings[flowInputId]` 決定 geometry 來自 catalog、`embeddedGeometries` 或 generator，再由
-  template edge 傳到對應的 step port。
-- `stepConfigurations[stepRefId].parameterValues` 直接提供該 step 執行時使用的製程參數。
-- `embeddedGeometries` 不會由 step 直接查詢；它必須先被 `inputBindings` 以 `localId` 引用。
-
-在 PnP 範例中，`inputBindings` 分別為 `incoming_panel` 與 `incoming_die` 選擇 geometry，
-`stepConfigurations.pnp.parameterValues`以同一筆`placements[]` item保存absolute target region與
-固定的hidden transform（zero pose、center anchor）。
-
-`inputBindings` 中的 `GeometryBinding` 有三種來源：
-
-```json
-{ "kind": "catalog", "geometryId": "panel_plp_310x310mm_glass" }
-```
-
-```json
-{ "kind": "embedded", "localId": "draft_panel_1" }
-```
-
-```json
-{
-  "kind": "generator",
-  "generatorId": "hbm",
-  "generatorVersion": 2,
-  "parameters": { "topCoreDieThickness": 50, "dieMaterial": "Si-HBM" }
-}
-```
-
-| Binding kind | Geometry 來源 | 必填欄位 | 禁止欄位 |
-| --- | --- | --- | --- |
-| `catalog` | Persisted `GeometryEntity` catalog record。 | `kind: "catalog"`、non-empty `geometryId` | `localId` |
-| `embedded` | 同一份 `FlowConfiguration.embeddedGeometries` 中的 draft-local record。 | `kind: "embedded"`、non-empty `localId` | `geometryId` |
-| `generator` | Backend registry 中指定版本的 generator；compile 時動態產生 structure。 | `kind: "generator"`、non-empty `generatorId`、positive `generatorVersion`、object `parameters` | `geometryId`、`localId`、`structure` |
-
-`StepConfiguration` 只有一個 canonical field：`parameterValues` 是 parameter-id keyed object，
-request MAY 省略並 default 為 `{}`。Unknown top-level fields 與 unknown parameter ids MUST
-reject；value shape 由對應 `ParameterDefinition` 決定。
-
-`stepConfigurations` 以 `stepRefId` keyed，MUST NOT 重複
-`processStepTemplateId`；template owns 該 binding。
-
-```json
-{
-  "pnp": {
-    "parameterValues": {
-      "placements": [
-        {
-          "targetRegion": {"type": "rectangle", "bottomLeftX": -700, "bottomLeftY": -500, "topRightX": 700, "topRightY": 500},
-          "pose": {"x": 0, "y": 0, "rotationZ": 0},
-          "anchor": "center"
-        }
-      ]
-    }
-  }
-}
-```
-
-## 8. Editor Drafts
-
-`TemplateEditorDraft` 與 `InstanceEditorDraft` 是獨立的可修改 editor snapshots，使用同一 SQLite DB 的兩張獨立資料表。草稿可保存未接完的拓樸、不完整或尚未通過語意驗證的參數；正式儲存才執行完整 domain validation。
-
-| 欄位 | 型別 | 契約 |
-| --- | --- | --- |
-| `schemaVersion` | integer literal `1` | Editor snapshot 版本，與正式 Process resource 的 `2` 分開。 |
-| `id` | string | Server-generated UUID4 hex；legacy migration 保留原 ID。 |
-| `user`, `name` | trimmed nonblank strings | 草稿作者及名稱；與正式 metadata 分開。名稱允許重複。 |
-| `revision` | integer >= 1 | 建立為 1；每次成功更新加一。 |
-| `createdAt`, `updatedAt` | UTC RFC 3339 strings | 建立／最後更新時間。 |
-| `state.metadata` | object | `name`, `version`, `owner`, `description` 的目前編輯值，允許空白。 |
-| `state.configuration` | FlowConfiguration | 完整 bindings、parameter values、embedded geometries，包括 arrays、placements、generator recipes。 |
-| `processFlowTemplateId` | string | Instance draft 必填且不可更換；template draft 不使用此欄位。 |
-| `state.nodes`, `state.edges`, `state.viewport` | arrays / object | Template draft 必填；保存 graph node IDs、domain definitions/references、positions、handle connections 與 x/y/zoom。Instance draft 不接受這些欄位。 |
-
-Snapshot MUST 是有限數字的有效 JSON，不包含 React callbacks、預覽結果或 UI 對話框狀態。草稿保存只驗證格式，不執行 graph/compiler validation；載入不得重新套用 defaults 或默默移除 missing dependencies。
-
-`PUT` 使用 full replacement 並要求目前 revision。Update、DELETE、commit 都 MUST 檢查 revision；stale request 回 `409`。Instance list/detail/delete 帶固定 template ID，跨 template request 回 `404`。
-
-正式 commit 接收 editor 當下的正式 create payload，而不是強制使用上次儲存的 snapshot。成功建立正式 resource 並刪除來源草稿；失敗保留草稿。成功後再呼叫同一草稿 ID 回 `404`，不保留 committed draft lifecycle。
-
-## 9. ProcessFlowInstance
-
-Instance 是完整、immutable，而且只包含 catalog 或 generator bindings 的產品設定。Instance create request
-MAY使用完整FlowConfiguration並包含embedded bindings；server必須在同一transaction將被引用的
-embedded records materialize後，回傳及持久化不含 embedded binding 的 ProcessFlowInstance。
-PnP golden example 的 instance 綁定兩個 catalog geometries，並保存完整的 `placements`。
-
-| 欄位 | 型別 | 必填條件 | 契約 |
-| --- | --- | --- | --- |
-| `schemaVersion` | integer literal `2` | yes | Process resource schema。 |
-| `id` | identifier | yes | Client-selected immutable identity，table-local unique。 |
-| `name` | non-empty string | yes | Immutable display name。 |
-| `version` | non-empty string | yes | Opaque immutable metadata label；editor default `V0.0.0`。 |
-| `owner` | non-empty string | yes | Owning product、RD team或domain。 |
-| `description` | string | yes | Human-facing description；default `""`。 |
-| `processFlowTemplateId` | identifier | yes | Existing immutable template。 |
-| `inputBindings` | map of catalog or generator bindings | yes | Embedded binding MUST NOT appear；使用中的 generator parameters MUST 是完整正規化 snapshot，未使用的 recipes 原樣保留；optional/unused inputs MAY be absent。 |
-| `stepConfigurations` | map | yes | 有效 steps 的 required values MUST complete；未使用的 steps 保留已提供 values，亦 MAY be absent。 |
-
-API MUST NOT provide in-place instance update。新產品、study result 或 recipe change MUST
-建立新的 instance id。目前模型保存通用 identity metadata，但不保存 instance lineage、來源 editor draft ID、created timestamp 或 revision。正式 instance 不帶草稿 lifecycle。
-
-
-## 10. 共用欄位與格式規則
-
-本節集中定義所有 resource 共用的 payload 規則。閱讀單一 resource 時，可以先跳過本節；
-實作 validator、serializer 或 persistence mapping 時則必須套用。
-
-### 10.1 如何閱讀 field table
-
-同一個欄位在 create request、draft 與 canonical response 中可能有不同 requiredness。本文的
-field table 依下列方式解讀：
-
-| 想確認的問題 | 查看位置 |
-| --- | --- |
-| Canonical persisted／response payload 是否必須包含欄位？ | `必填條件` |
-| Create 或 draft request 省略後會發生什麼？ | `Request 省略時` 與該 resource 的 request variant 說明 |
-| 欄位能否傳 `null`？ | `型別`；只有明列 `null` 才可以 |
-| Save、preview、commit 或 execute 是否要求完整？ | [驗證時機](#11-驗證時機) |
-
-除非表格明確標示 request variant，`必填條件: yes` 表示 canonical persisted／response
-payload MUST 包含該欄。若 `Request 省略時` 有 default，create 或 draft request MAY 省略，
-validator 必須補上 default；canonical payload 仍 MUST 明確輸出。省略時沒有 default 且
-`必填條件: yes` 表示 request 必須提供。
-
-Optional 與 nullable 是不同概念。Optional 表示 object key 可以省略；nullable 表示 value
-可以是 `null`。
-
-### 10.2 格式標記與 resource metadata
-
-下列欄位分別是 wire-format marker、internal storage marker、resource label 或 concurrency
-token，**都不是產品正式版號**。目前只支援本文件描述的一種 contract，不提供 version
-negotiation 或依版號切換行為。
-
-| 用途 | 欄位 | 型別 | 目前值 | 意義 |
-| --- | --- | --- | --- | --- |
-| Editor snapshot wire marker | `schemaVersion` | integer | `1` | Template／instance editor draft 的獨立 snapshot 格式。 |
-| Process resource wire marker | `schemaVersion` | integer | `2` | Implementation-reserved fixed literal；不代表第二個產品版本。 |
-| Geometry structure format marker | `GeometryEntity.structure.schemaVersion` | string | `"1.0.0"` | Container tree 與 geometry primitives 的固定格式識別。 |
-| SQLite internal schema marker | `schema_metadata.databaseSchemaVersion` | string | `"13"` | Startup 用來確認目前 physical tables 的內部值，不是 public release。 |
-| Process resource metadata label | `version` | string | Default `"V0.0.0"` | Template、step與instance的opaque display/source label；不得解析、排序或推導行為差異。 |
-| Editor draft concurrency token | `revision` | integer | `>= 1` | Optimistic concurrency token；不代表 template 或產品版本。 |
-
-`GeometryEntity` 外層不是 Process resource schema，因此不包含 numeric
-`schemaVersion: 2`；其 nested `structure` MUST 包含 geometry format marker。正式發行策略
-確立前，內建 Process resource fixture 與 editor default 使用零版 label。GeometryEntity不包含
-resource `version`。Consumer MUST NOT 從 Process resource `version` 或 id prefix 推導 model
-kind、release generation 或 runtime behavior。
-
-### 10.3 Identifier 格式與唯一範圍
-
-下列 Process Flow identifiers MUST 符合：
-
-```text
-^[A-Za-z][A-Za-z0-9_.-]*$
-```
-
-適用範圍：resource `id`、`portId`、`ParameterDefinition.id`、`flowInputId`、
-`stepRefId`、`edgeId`、embedded `localId` 與 repeat `itemId`。GeometryStructure 內部
-衍生的 `container:*` / `body:*` ids 屬於另一個 namespace，不受此 regex 限制。
-
-| Identifier | 唯一性範圍 |
-| --- | --- |
-| Resource `id` | 同一 resource table 內唯一；不同 resource families 不保證 global uniqueness。 |
-| `portId` | `inputPorts` 或 `outputPorts` collection 內唯一。 |
-| `ParameterDefinition.id` | 同一 parameter collection 內唯一；nested repeat collection 重新計算 scope。 |
-| `flowInputId`、`stepRefId`、`edgeId` | 同一 `ProcessFlowTemplate` 內各自唯一。 |
-| Embedded `localId` | 同一 `FlowConfiguration.embeddedGeometries` map 內唯一。 |
-| Repeat `itemId` | 同一 repeat group value 內唯一。 |
-
-### 10.4 Map reference 與 canonical JSON
-
-- `inputBindings` 的 key MUST 是該 template 的 `flowInputId`。
-- `stepConfigurations` 的 key MUST 是該 template 的 `stepRefId`。
-- Embedded binding 的 `localId` MUST 對應同一 configuration 的
-  `embeddedGeometries` key。
-- Catalog binding 的 `geometryId` MUST 對應 persisted `GeometryEntity.id`。
-- Unknown keys MUST 被拒絕；未被任何 binding reference 的 embedded geometry MAY 存在於
-  draft，但 commit MUST 丟棄，不得 materialize。
-
-Canonical persisted JSON SHOULD 省略 optional `null` 欄位；空字串不是 `null` 的替代。
-若 API response 的用途是下載未保存 preview，`GeometryEntity.id` 等欄位 MAY 明確為
-`null`。Consumers MUST NOT 依賴 object key order。
-
-### 10.5 Legacy 與禁止欄位
-
-`geometryRef`、`StepValueSet`、`fieldDefinitions` 與 `templateFamilyId` 是未採用的早期草案
-欄位，MUST NOT 出現在 request 或 persisted resource。系統不提供這些欄位的轉換路徑，也
-沒有 `ProcessFlowTemplateRevision` model。需要另一份 topology 或 version snapshot 時，建立新的
-resource id。
-
-`workingTemp` 已棄用。新建 template MUST NOT 宣告此 parameter，UI 與 compiler 也 MUST NOT
-自動補入。若 process program 確實需要溫度，必須定義語意明確的 domain-specific parameter，
-例如 `bondingTemperature`，不得沿用 `workingTemp` id。
+Runtime MUST NOT 接受 ProcessFlowTemplate／ProcessFlowInstance、flow status、StepRef.parameterDefaults、embedded binding 或 embeddedGeometries。舊格式只允許在 SQLite migration 邊界讀取。GeometryDocument 是內容型別，不是新的 flow-local geometry store。
 
 ## 11. 驗證時機
 
-先以操作理解驗證強度：
-
-- **Save draft**：設定可以不完整，但所有已提供的 key、value shape 與 local reference
-  必須合法。
-- **Preview**：只要求指定輸出所需的 upstream closure 完整；未參與 preview 的 steps MAY
-  不完整。
-- **Create instance／commit**：整份 flow 必須完整，所有使用中的 resources 必須可以解析，
-  geometry 必須可以 hydrate。
-- **Execute**：重新驗證 stored resources，載入 process modules，然後執行完整 plan。
-
-下列兩張表共同定義各 boundary 的精確要求。第一張回答 payload、graph 與 parameter 是否
-完整；第二張回答何時解析外部 resource、深入驗證 geometry 及載入 process module。
-
-| 操作邊界 | Shape / extra fields | Graph | Parameter values |
+| 操作 | 拓樸 | Recipe | Geometry |
 | --- | --- | --- | --- |
-| Step template create | complete | port invariants | definition schema + option enum definition |
-| Flow template create | complete | complete，含 exactly one terminal | definitions resolved |
-| Editor draft create / update | snapshot shape | topology MAY incomplete | parameter semantics/completeness deferred |
-| Flow-input preview | complete | full template valid | unrelated steps MAY be incomplete |
-| Step-output preview | complete | full template valid | target active upstream closure MUST complete |
-| Instance create | complete | referenced template valid | active flow MUST complete |
-| Instance draft commit | complete | referenced template valid | active flow MUST complete |
-| Execute | stored resource is revalidated | complete | active flow complete |
-| Seed/import | MUST pass same validators as create | required | required by resource type |
+| Draft save | 格式驗證，允許未完成 | 格式、ID／選擇一致性；值可暫時無效 | 兩種 binding 格式 |
+| Flow save | 完整合法拓樸 | 全部候選已提供值合法；可缺 required | 引用存在；不生成、不執行 |
+| Full execute | 完整合法拓樸 | 實際依賴站點的採用候選完整 | 實際依賴 inputs 完整 |
+| Step preview | 完整合法拓樸 | 目標與上游依賴完整 | 該 closure 所需 inputs |
+| Input preview | 指定 input 可解析 | 無關站點不要求完整 | 只解析該 input |
 
-| 操作邊界 | Resource existence / constraints | Geometry deep validity | Process module load |
-| --- | --- | --- | --- |
-| Step template create | n/a | n/a | SHOULD validate program locator |
-| Flow template create | step templates MUST exist | n/a | not executed |
-| Editor draft create / update | Catalog、generator 與 embedded references MAY defer | MAY defer | not executed |
-| Flow-input preview | target binding MUST resolve/match | target geometry MUST hydrate | not executed |
-| Step-output preview | closure bindings MUST resolve/match | closure geometries MUST hydrate | closure modules MUST load/execute |
-| Instance create | all used bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable；execution errors remain possible only for domain behavior |
-| Instance draft commit | all used bindings MUST resolve/match | all used geometries MUST hydrate | SHOULD be loadable before persistence |
-| Execute | resolve again | required | required and executed |
-| Seed/import | required where applicable | required | SHOULD verify program locator |
+停用 step 禁止新增引用（含另存的新 flow）。既有 flow 仍可讀取、執行及更新；更新僅保留的同 stepRefId/stepTemplateId 配對可繼續使用停用 step。
 
-「Complete」只表示本表中對應 boundary 的所有 required checks 已通過，不應以單一模糊
-boolean 取代 validation stage 或 error details。
+## 12. 草稿 commit transaction
 
-## 12. Editor draft commit transaction
+`POST /api/process-flow-drafts/{id}/commit` 接受草稿 revision、完整正式 flow create payload 與可選 target。先執行 authoring validation；在同一 transaction 重新檢查 draft revision、建立或 CAS 更新 flow、刪除草稿。任何失敗都保留草稿與原正式資料。另存 commit 不傳 target。
 
-API 共用正式 template／instance create 的驗證與 preparation。Template 要求有效 topology、metadata、scalar defaults 與可用 steps；instance 要求完整 compile、可用 flow template 與 used geometry resolution。
+## 13. Compile、preview 與 export
 
-Write transaction MUST 重新讀取對應種類的 draft，檢查 revision 與 instance 的 template ID，寫入必要的 materialized geometries、正式 resource，最後刪除來源草稿。Duplicate identity、revision conflict 或任一步寫入失敗 MUST rollback 全部 writes。Validation failure 不得先刪除草稿。
+先依 selectedRecipeId 取得有效參數，再分析 dependencies、檢查完整度並 compile。PnP 的 `placements: []` 只依採用 recipe 裁剪 auxiliary 依賴。非採用候選不參與運算。Kernel 只接收已解析 ExecutionPlan，不讀 repository 或候選集合。
 
-Template draft 的 `POST /api/process-flow-template-drafts/{draft_id}/commit` 接受可選的
-`processFlowInstance`，其格式為 `ProcessFlowInstanceForNewTemplateCreate`，不含 `id` 或
-`processFlowTemplateId`。提供此欄位時，共用 combined create 的完整驗證，伺服器產生兩個 ID
-並將 instance 關聯到新 template；同一 transaction 建立 template、必要 geometry、instance，
-最後刪除來源 template draft。成功回傳 `{ processFlowTemplate, processFlowInstance }`。
-未提供此欄位時，維持只建立 template 並回傳 template 的原有行為。
+Preview request 只接受完整 inline `flow: {definition, configuration}` 或 `flowId`，兩者擇一。快取 identity 包含 definition、configuration、step definitions、catalog geometry 與 target；切換採用、改值、改線或 binding 不能命中舊結果。JSON／STEP／CDB 匯出使用相同解析脈絡。
 
-## 13. Compile 與 execute 邊界
-
-```mermaid
-flowchart LR
-  JSON["Template + FlowConfiguration JSON"] --> Shape["Shape validation"]
-  Shape --> Graph["Graph + completeness validation"]
-  Repo["Step templates + Geometry catalog"] --> Resolve["Resource resolution"]
-  Graph --> Resolve
-  Resolve --> Normalize["Parameter + Geometry normalization"]
-  Normalize --> Plan["ExecutionPlan"]
-  Plan --> Kernel["GeometryKernel"]
-  Kernel --> Result["ExecutionResult"]
-```
-
-Compiler MUST：
-
-- resolve step templates；
-- validate 完整 template topology、exactly one terminal 與 configuration-dependent target closure；
-- validate 全部 configuration 的基本 shape；驗證有效 bindings、parameter types、enum options 與 completeness；
-- resolve catalog/embedded geometries，確認 `unitSystem: "um"` 與 constraints；
-- hydrate/normalize external structures；
-- normalize persisted parameter values into runtime values；
-- produce ordered `PlannedStep[]` 與 explicit geometry-input sources。
-
-Kernel MUST：
-
-- receive only `ExecutionPlan`，never repository；
-- never resolve DB ids；
-- clone upstream state before mutation；
-- apply material-instance rewriting to normalized `materialRef` values；
-- execute process modules in topological order；
-- return all executed step outputs plus the unique terminal output；不補造未使用分支的 outputs。
-
-`ExecutionPlan` MAY retain resolved template metadata ids for diagnostics/context；「沒有 DB id」
-表示沒有仍需 repository lookup 的 id。
+API 詳見 [Process Flow API](reference/process-flow-api.md)，SQLite 升級詳見 [Persistence](reference/persistence.md)。
 
 ## 14. 可完整執行的 PnP golden example
 
-以下三個 documents 是同一個完整 target-contract example。它使用現有 catalog fixtures
-`panel_plp_310x310mm_glass` 與 `hbm3_8hi`；若 catalog records 存在，即可 compile 並執行
-`pnp/pnp`。`workingTemp` 刻意不出現，因為該 id 已棄用，且 PnP 不需要溫度 input。
-這些既有 fixture id 是 descriptive opaque identity；不包含 release 版本，也不能用來選擇
-schema 或切換行為。
+下列兩份文件搭配內建 geometry catalog 可直接執行。`scripts/check_golden_example.py` 逐層驗證 Pydantic、拓樸、compiler 與 kernel，結果恰有兩個 placed children。
 
 ### 14.1 ProcessStepTemplate
 
@@ -828,131 +254,147 @@ schema 或切換行為。
 }
 ```
 
-### 14.2 ProcessFlowTemplate
+### 14.2 ProcessFlow
 
 ```json
 {
-  "schemaVersion": 2,
-  "id": "flow_tpl_pnp_golden",
+  "id": "flow_pnp_golden",
   "name": "PnP Golden Flow",
-  "version": "V0.0.0",
-  "description": "Single-terminal PnP reference flow.",
-  "owner": "integration.platform",
-  "flowInputs": [
-    {
-      "flowInputId": "incoming_panel",
-      "name": "Incoming panel",
-      "dataType": "geometry",
-      "required": true,
-      "geometryConstraints": {
-        "entityTypes": ["panel"],
-        "categories": ["carrier.panel"],
-        "structureFormats": ["standard"]
-      }
-    },
-    {
-      "flowInputId": "incoming_die",
-      "name": "Incoming die",
-      "dataType": "geometry",
-      "required": true,
-      "geometryConstraints": {
-        "entityTypes": ["die"],
-        "categories": ["die.hbm"],
-        "structureFormats": ["standard"]
-      }
-    }
-  ],
-  "stepRefs": [
-    {
-      "stepRefId": "pnp",
-      "stepLabel": "Place HBM",
-      "processStepTemplateId": "step_tpl_pnp_golden"
-    }
-  ],
-  "flowEdges": [
-    {
-      "edgeId": "edge_panel_to_pnp_main",
-      "source": {
-        "kind": "flowInput",
-        "flowInputId": "incoming_panel"
-      },
-      "target": {
-        "stepRefId": "pnp",
-        "inputPortId": "main_geometry"
-      }
-    },
-    {
-      "edgeId": "edge_die_to_pnp_aux",
-      "source": {
-        "kind": "flowInput",
-        "flowInputId": "incoming_die"
-      },
-      "target": {
-        "stepRefId": "pnp",
-        "inputPortId": "die_geometry"
-      }
-    }
-  ]
-}
-```
-
-### 14.3 ProcessFlowInstance
-
-```json
-{
-  "schemaVersion": 2,
-  "id": "flow_inst_pnp_golden",
-  "name": "PnP Golden Instance",
   "version": "V0.0.0",
   "owner": "integration.platform",
   "description": "Golden PnP process configuration.",
-  "processFlowTemplateId": "flow_tpl_pnp_golden",
-  "inputBindings": {
-    "incoming_panel": {
-      "kind": "catalog",
-      "geometryId": "panel_plp_310x310mm_glass"
-    },
-    "incoming_die": {
-      "kind": "catalog",
-      "geometryId": "hbm3_8hi"
-    }
+  "schemaVersion": 3,
+  "revision": 1,
+  "definition": {
+    "flowInputs": [
+      {
+        "flowInputId": "incoming_panel",
+        "name": "Incoming panel",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": [
+            "panel"
+          ],
+          "categories": [
+            "carrier.panel"
+          ],
+          "structureFormats": [
+            "standard"
+          ]
+        }
+      },
+      {
+        "flowInputId": "incoming_die",
+        "name": "Incoming die",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": [
+            "die"
+          ],
+          "categories": [
+            "die.hbm"
+          ],
+          "structureFormats": [
+            "standard"
+          ]
+        }
+      }
+    ],
+    "stepRefs": [
+      {
+        "stepRefId": "pnp",
+        "stepLabel": "Place HBM",
+        "processStepTemplateId": "step_tpl_pnp_golden"
+      }
+    ],
+    "flowEdges": [
+      {
+        "edgeId": "edge_panel_to_pnp_main",
+        "source": {
+          "kind": "flowInput",
+          "flowInputId": "incoming_panel"
+        },
+        "target": {
+          "stepRefId": "pnp",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_die_to_pnp_aux",
+        "source": {
+          "kind": "flowInput",
+          "flowInputId": "incoming_die"
+        },
+        "target": {
+          "stepRefId": "pnp",
+          "inputPortId": "die_geometry"
+        }
+      }
+    ]
   },
-  "stepConfigurations": {
-    "pnp": {
-      "parameterValues": {
-        "placements": [
+  "configuration": {
+    "inputBindings": {
+      "incoming_panel": {
+        "kind": "catalog",
+        "geometryId": "panel_plp_310x310mm_glass"
+      },
+      "incoming_die": {
+        "kind": "catalog",
+        "geometryId": "hbm3_8hi"
+      }
+    },
+    "stepConfigurations": {
+      "pnp": {
+        "recipeCandidates": [
           {
-            "targetRegion": {"type": "rectangle", "bottomLeftX": -760, "bottomLeftY": -520, "topRightX": 640, "topRightY": 480},
-            "pose": {"x": 0, "y": 0, "rotationZ": 0},
-            "anchor": "center"
-          },
-          {
-            "targetRegion": {"type": "rectangle", "bottomLeftX": 760, "bottomLeftY": -520, "topRightX": 2160, "topRightY": 480},
-            "pose": {"x": 0, "y": 0, "rotationZ": 0},
-            "anchor": "center"
+            "recipeId": "recipe_1",
+            "name": "Recipe 1",
+            "description": "",
+            "parameterValues": {
+              "placements": [
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": -760,
+                    "bottomLeftY": -520,
+                    "topRightX": 640,
+                    "topRightY": 480
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                },
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": 760,
+                    "bottomLeftY": -520,
+                    "topRightX": 2160,
+                    "topRightY": 480
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                }
+              ]
+            }
           }
-        ]
+        ],
+        "selectedRecipeId": "recipe_1"
       }
     }
   }
 }
 ```
 
-此 graph 的唯一 terminal 是 `pnp.result_geometry`；兩個 required ports 各有 exactly one
-source；兩個 required bindings 與 `placements` 都完整。
+## 15. Conformance
 
-PnP 依 source 的 explicit adaptation contract或primitive default materialize每個target region。
-Box-only source使用`box-rescale@1`；單一、單loop PolygonGeometry使用`polygon-rescale@1`。
-每筆target type獨立處理，因此同一batch可交錯rectangle與polygon；Box-only source的rectangle
-維持全樹additive resize；polygon則將所有root direct body/via/circuit/bump改成exact target shape，
-不rescale或containment-check children。Runtime將absolute target轉入adapter-local frame，children
-套相同rigid translation，再以absolute target bounds center放回global XY並把Z bottom對齊current
-cursor。任一placement失敗時整個batch不得attach部分結果。
-
-## 15. 已知實作差異
-
-所有 current/target/status 只在 [Target contract 實作對照](./conformance.md) 維護；核心
-範圍是 `DM-001` 至 `DM-020`。本節不複製 table，避免同一 gap 在多處產生不同狀態。
-
-任何修改 target contract 的提案 MUST 先新增或更新 ADR，再同步本文件、reference、
-conformance ledger、machine-readable schema（建立後）與 contract tests。
+實作證據及仍存在的限制記錄於 [Conformance](conformance.md)。舊 UI evidence 是歷史資料，不是新資料契約或驗收結果。

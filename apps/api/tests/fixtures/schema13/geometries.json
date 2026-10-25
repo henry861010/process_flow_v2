@@ -1,0 +1,654 @@
+[
+  {
+    "id": "wafer_150mm_silicon",
+    "category": "carrier.wafer",
+    "name": "150 mm Silicon Wafer",
+    "dim": "150000 x 150000 x 675 um",
+    "owner": "demo.example",
+    "description": "150000 x 150000 x 675 um — Standard 150 mm silicon wafer envelope.",
+    "entityType": "wafer",
+    "icon": "carrier.wafer",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "carrier.wafer", "bodies": [{"key": "carrier", "geometry": {"type": "CylinderGeometry", "center": [0, 0, -337.5], "bottom_radius": 75000, "thk": 675}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "wafer_200mm_silicon",
+    "category": "carrier.wafer",
+    "name": "200 mm Silicon Wafer",
+    "dim": "200000 x 200000 x 725 um",
+    "owner": "demo.example",
+    "description": "200000 x 200000 x 725 um — Standard 200 mm silicon wafer envelope.",
+    "entityType": "wafer",
+    "icon": "carrier.wafer",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "carrier.wafer", "bodies": [{"key": "carrier", "geometry": {"type": "CylinderGeometry", "center": [0, 0, -362.5], "bottom_radius": 100000, "thk": 725}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "wafer_300mm_silicon",
+    "category": "carrier.wafer",
+    "name": "300 mm Silicon Wafer",
+    "dim": "300000 x 300000 x 775 um",
+    "owner": "demo.example",
+    "description": "300000 x 300000 x 775 um — Standard 300 mm silicon wafer envelope.",
+    "entityType": "wafer",
+    "icon": "carrier.wafer",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "carrier.wafer", "bodies": [{"key": "carrier", "geometry": {"type": "CylinderGeometry", "center": [0, 0, -387.5], "bottom_radius": 150000, "thk": 775}, "material": "Si"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "panel_plp_310x310mm_glass",
+    "category": "carrier.panel",
+    "name": "310 x 310 mm PLP Glass Panel",
+    "dim": "310000 x 310000 x 700 um",
+    "owner": "demo.example",
+    "description": "310000 x 310000 x 700 um — Compact panel-level packaging glass carrier.",
+    "entityType": "panel",
+    "icon": "carrier.panel",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "carrier.panel", "bodies": [{"key": "carrier", "geometry": {"type": "BoxGeometry", "bottom_left": [-155000, -155000, -350], "top_right": [155000, 155000, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "panel_plp_510x515mm_glass",
+    "category": "carrier.panel",
+    "name": "510 x 515 mm PLP Glass Panel",
+    "dim": "510000 x 515000 x 700 um",
+    "owner": "demo.example",
+    "description": "510000 x 515000 x 700 um — Industry panel-level packaging glass carrier.",
+    "entityType": "panel",
+    "icon": "carrier.panel",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "carrier.panel", "bodies": [{"key": "carrier", "geometry": {"type": "BoxGeometry", "bottom_left": [-255000, -257500, -350], "top_right": [255000, 257500, -350], "thk": 700}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "panel_plp_600x600mm_glass",
+    "category": "carrier.panel",
+    "name": "600 x 600 mm PLP Glass Panel",
+    "dim": "600000 x 600000 x 1000 um",
+    "owner": "demo.example",
+    "description": "600000 x 600000 x 1000 um — Large-format panel-level packaging glass carrier.",
+    "entityType": "panel",
+    "icon": "carrier.panel",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "carrier.panel", "bodies": [{"key": "carrier", "geometry": {"type": "BoxGeometry", "bottom_left": [-300000, -300000, -500], "top_right": [300000, 300000, -500], "thk": 1000}, "material": "glass"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm2_4hi",
+    "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
+    "name": "HBM2 4-Hi",
+    "dim": "7750 x 11870 x 720 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "7750 x 11870 x 720 um — Representative HBM2 4-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm2e_8hi",
+    "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
+    "name": "HBM2E 8-Hi",
+    "dim": "7750 x 11870 x 720 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "7750 x 11870 x 720 um — Representative HBM2E 8-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3875, -5935, -360], "top_right": [3875, 5935, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm3_8hi",
+    "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
+    "name": "HBM3 8-Hi",
+    "dim": "10975 x 10975 x 720 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "10975 x 10975 x 720 um — JEDEC-scale HBM3 8-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5487.5, -5487.5, -360], "top_right": [5487.5, 5487.5, -360], "thk": 720}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm3e_12hi",
+    "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
+    "name": "HBM3E 12-Hi",
+    "dim": "10980 x 10980 x 780 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "10980 x 10980 x 780 um — Production-scale HBM3E 12-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -390], "top_right": [5490, 5490, -390], "thk": 780}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "hbm4_12hi",
+    "category": "die.hbm",
+    "adaptationContract": {"adapterId": "hbm-package", "adapterVersion": 1, "parameters": {}},
+    "name": "HBM4 12-Hi",
+    "dim": "10980 x 10980 x 775 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "10980 x 10980 x 775 um — Representative HBM4 12-Hi package envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "hbm", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-5490, -5490, -387.5], "top_right": [5490, 5490, -387.5], "thk": 775}, "material": "HBM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_ddr3_x8",
+    "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
+    "name": "DDR3 x8 FBGA",
+    "dim": "7500 x 11000 x 1100 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "7500 x 11000 x 1100 um — Representative DDR3 x8 FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_ddr4_x8",
+    "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
+    "name": "DDR4 x8 FBGA",
+    "dim": "7500 x 11000 x 1100 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "7500 x 11000 x 1100 um — Representative DDR4 x8 FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -550], "top_right": [3750, 5500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_ddr5_x8",
+    "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
+    "name": "DDR5 x8 VFBGA",
+    "dim": "7500 x 11000 x 1000 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "7500 x 11000 x 1000 um — Production-scale DDR5 78-ball VFBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-3750, -5500, -500], "top_right": [3750, 5500, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_lpddr4x",
+    "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
+    "name": "LPDDR4X FBGA",
+    "dim": "12000 x 14500 x 1000 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "12000 x 14500 x 1000 um — Representative LPDDR4X FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -7250, -500], "top_right": [6000, 7250, -500], "thk": 1000}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_lpddr5",
+    "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
+    "name": "LPDDR5 TFBGA",
+    "dim": "12400 x 15000 x 1100 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "12400 x 15000 x 1100 um — Production-scale LPDDR5 315-ball TFBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-6200, -7500, -550], "top_right": [6200, 7500, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_gddr6",
+    "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
+    "name": "GDDR6 FBGA",
+    "dim": "14000 x 12000 x 1100 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "14000 x 12000 x 1100 um — Representative GDDR6 FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "dram_gddr7",
+    "category": "die.dram",
+    "adaptationContract": {"adapterId": "dram-package", "adapterVersion": 1, "parameters": {}},
+    "name": "GDDR7 FBGA",
+    "dim": "14000 x 12000 x 1100 um",
+    "vendor": "Generic",
+    "owner": "demo.example",
+    "description": "14000 x 12000 x 1100 um — Representative GDDR7 FBGA component envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "dram", "bodies": [{"geometry": {"type": "BoxGeometry", "bottom_left": [-7000, -6000, -550], "top_right": [7000, 6000, -550], "thk": 1100}, "material": "DRAM-package"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_x_mobile",
+    "category": "die.soic",
+    "name": "Compact SoIC-X Stack",
+    "dim": "8000 x 8000 x 300 um",
+    "owner": "demo.example",
+    "description": "8000 x 8000 x 300 um — Representative compact bumpless SoIC-X two-die stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -4000, -150], "top_right": [4000, 4000, -150], "thk": 300}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_x_cache",
+    "category": "die.soic",
+    "name": "Cache-on-Logic SoIC-X Stack",
+    "dim": "10000 x 10000 x 400 um",
+    "owner": "demo.example",
+    "description": "10000 x 10000 x 400 um — Representative cache-on-logic bumpless SoIC-X stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -5000, -200], "top_right": [5000, 5000, -200], "thk": 400}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_x_logic",
+    "category": "die.soic",
+    "name": "Logic-on-Logic SoIC-X Stack",
+    "dim": "15000 x 15000 x 500 um",
+    "owner": "demo.example",
+    "description": "15000 x 15000 x 500 um — Representative large bumpless SoIC-X logic stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-7500, -7500, -250], "top_right": [7500, 7500, -250], "thk": 500}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_p_chiplet",
+    "category": "die.soic",
+    "name": "Chiplet SoIC-P Stack",
+    "dim": "12000 x 12000 x 600 um",
+    "owner": "demo.example",
+    "description": "12000 x 12000 x 600 um — Representative microbump SoIC-P chiplet stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -6000, -300], "top_right": [6000, 6000, -300], "thk": 600}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_p_hpc",
+    "category": "die.soic",
+    "name": "HPC SoIC-P Stack",
+    "dim": "20000 x 20000 x 800 um",
+    "owner": "demo.example",
+    "description": "20000 x 20000 x 800 um — Representative large microbump SoIC-P HPC stack envelope.",
+    "entityType": "die",
+    "icon": "die.stack",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-10000, -10000, -400], "top_right": [10000, 10000, -400], "thk": 800}, "material": "SoIC-stack"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_8n",
+    "category": "package.soic",
+    "name": "SOIC-8 Narrow Body",
+    "dim": "4900 x 3900 x 1750 um",
+    "owner": "demo.example",
+    "description": "4900 x 3900 x 1750 um — Nominal narrow-body SOIC-8 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-2450, -1950, -875], "top_right": [2450, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_14n",
+    "category": "package.soic",
+    "name": "SOIC-14 Narrow Body",
+    "dim": "8650 x 3900 x 1750 um",
+    "owner": "demo.example",
+    "description": "8650 x 3900 x 1750 um — Nominal narrow-body SOIC-14 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4325, -1950, -875], "top_right": [4325, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_16n",
+    "category": "package.soic",
+    "name": "SOIC-16 Narrow Body",
+    "dim": "9900 x 3900 x 1750 um",
+    "owner": "demo.example",
+    "description": "9900 x 3900 x 1750 um — Nominal narrow-body SOIC-16 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4950, -1950, -875], "top_right": [4950, 1950, -875], "thk": 1750}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_16w",
+    "category": "package.soic",
+    "name": "SOIC-16 Wide Body",
+    "dim": "10300 x 7500 x 2650 um",
+    "owner": "demo.example",
+    "description": "10300 x 7500 x 2650 um — Nominal wide-body SOIC-16 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-5150, -3750, -1325], "top_right": [5150, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_20w",
+    "category": "package.soic",
+    "name": "SOIC-20 Wide Body",
+    "dim": "12800 x 7500 x 2650 um",
+    "owner": "demo.example",
+    "description": "12800 x 7500 x 2650 um — Nominal wide-body SOIC-20 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6400, -3750, -1325], "top_right": [6400, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_24w",
+    "category": "package.soic",
+    "name": "SOIC-24 Wide Body",
+    "dim": "15400 x 7500 x 2650 um",
+    "owner": "demo.example",
+    "description": "15400 x 7500 x 2650 um — Nominal wide-body SOIC-24 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-7700, -3750, -1325], "top_right": [7700, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "soic_28w",
+    "category": "package.soic",
+    "name": "SOIC-28 Wide Body",
+    "dim": "17900 x 7500 x 2650 um",
+    "owner": "demo.example",
+    "description": "17900 x 7500 x 2650 um — Nominal wide-body SOIC-28 molded package envelope.",
+    "entityType": "package",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "soic", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-8950, -3750, -1325], "top_right": [8950, 3750, -1325], "thk": 2650}, "material": "Epoxy-Mold-Compound"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_optical_io_4ch",
+    "category": "die.cpo",
+    "name": "4-Channel CPO Optical I/O Chiplet",
+    "dim": "4000 x 6000 x 200 um",
+    "owner": "demo.example",
+    "description": "4000 x 6000 x 200 um — Representative compact co-packaged-optics chiplet envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-2000, -3000, -100], "top_right": [2000, 3000, -100], "thk": 200}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_optical_engine_8ch",
+    "category": "die.cpo",
+    "name": "8-Channel CPO Optical Engine",
+    "dim": "6000 x 8000 x 250 um",
+    "owner": "demo.example",
+    "description": "6000 x 8000 x 250 um — Representative co-packaged-optics engine envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-3000, -4000, -125], "top_right": [3000, 4000, -125], "thk": 250}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_optical_engine_16ch",
+    "category": "die.cpo",
+    "name": "16-Channel CPO Optical Engine",
+    "dim": "8000 x 10000 x 300 um",
+    "owner": "demo.example",
+    "description": "8000 x 10000 x 300 um — Representative high-channel-count co-packaged-optics engine envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-4000, -5000, -150], "top_right": [4000, 5000, -150], "thk": 300}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_dual_engine",
+    "category": "die.cpo",
+    "name": "Dual CPO Optical Engine",
+    "dim": "10000 x 12000 x 350 um",
+    "owner": "demo.example",
+    "description": "10000 x 12000 x 350 um — Representative dual-engine co-packaged-optics chiplet envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-5000, -6000, -175], "top_right": [5000, 6000, -175], "thk": 350}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "cpo_engine_array",
+    "category": "die.cpo",
+    "name": "CPO Optical Engine Array",
+    "dim": "12000 x 16000 x 500 um",
+    "owner": "demo.example",
+    "description": "12000 x 16000 x 500 um — Representative large co-packaged-optics engine-array envelope.",
+    "entityType": "die",
+    "icon": "die.piece",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {"key": "cpo", "bodies": [{"key": "envelope", "geometry": {"type": "BoxGeometry", "bottom_left": [-6000, -8000, -250], "top_right": [6000, 8000, -250], "thk": 500}, "material": "Si-Photonics"}], "vias": [], "circuits": [], "bumps": [], "children": []}
+    }
+  },
+  {
+    "id": "test1",
+    "category": "test.carrier",
+    "name": "carrier",
+    "dim": "5000 x 5000 x 70 um",
+    "owner": "demo.example",
+    "description": "5000 x 5000 x 70 um — Simple block placeholder for carrier, centered at 0,0,0.",
+    "entityType": "carrier",
+    "icon": "carrier.foopod",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "carrier",
+        "bodies": [
+          {
+            "key": "carrier",
+            "geometry": {
+              "type": "BoxGeometry",
+              "bottom_left": [-2500, -2500, -35],
+              "top_right": [2500, 2500, -35],
+              "thk": 70
+            },
+            "material": "carrier"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "frame_tape",
+    "category": "frame",
+    "name": "350 mm Frame Tape",
+    "dim": "350000 x 350000 x 80 um",
+    "owner": "demo.example",
+    "description": "350000 x 350000 x 80 um — Circular frame-mount tape centered at 0,0,0; outer frame omitted.",
+    "entityType": "frame",
+    "icon": "frame",
+    "structureFormat": "standard",
+    "structure": {
+      "schemaVersion": "1.0.0",
+      "unitSystem": "um",
+      "root": {
+        "key": "frame",
+        "bodies": [
+          {
+            "key": "frame",
+            "geometry": {
+              "type": "CylinderGeometry",
+              "center": [0, 0, -40],
+              "bottom_radius": 175000,
+              "thk": 80
+            },
+            "material": "tape"
+          }
+        ],
+        "vias": [],
+        "circuits": [],
+        "bumps": [],
+        "children": []
+      }
+    }
+  }
+]

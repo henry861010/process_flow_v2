@@ -16,7 +16,7 @@ source_of_truth:
 
 # Process Flow API
 
-`apps/api` 是 FastAPI composition root，負責 HTTP validation、SQLite persistence/transactions、kernel orchestration，以及 preview/export worker lifecycle。Geometry generator engine 由 `packages/geometry_generators` 維護；`create_app` 預設明確註冊四個內建 generator，也可透過 `generator_registry` 注入自訂註冊結果。
+`apps/api` 是 FastAPI composition root，負責 HTTP validation、SQLite persistence/transactions、kernel orchestration，以及 preview/export worker lifecycle。Geometry generator engine 由 `packages/geometry_generators` 維護；`create_app` 預設明確註冊內建 generators，也可透過 `generator_registry` 注入自訂註冊結果。
 
 Canonical model/invariants 見 [`docs/data-model.md`](../../docs/data-model.md)，system flow 見 [System Architecture](../../docs/architecture/system-overview.md)。FastAPI 在 runtime 產生 OpenAPI，local UI 位於 `/docs`；本 README 不重複 schema examples。
 
@@ -46,7 +46,7 @@ Application startup：
 2. Create/check SQLite schema。
 3. 若所有 resource tables empty，load packaged fixtures。
 
-Application shutdown 會 cancel queued exports、terminate running worker processes。Export history 不 persistence。SQLite default path 是 `apps/api/.data/process-flow.sqlite3`。
+Application shutdown 會 cancel queued exports、terminate running worker processes。Export history 不 persistence。SQLite default path 是 設定的 process-flow.sqlite3（可用 PROCESS_FLOW_API_DB_PATH 指定）。
 
 ## Endpoint 群組
 
@@ -56,8 +56,8 @@ Application shutdown 會 cancel queued exports、terminate running worker proces
 | --- | --- | --- |
 | `GET` | `/api/health` | Process health |
 | `GET` | `/api/dashboard/jobs` | Public read-only active export snapshot across all clients; no clientId required |
-| `GET` | `/api/bootstrap` | Templates、instances、geometry catalog bootstrap |
-| `GET` | `/api/fixture-export` | Current step/template/instance/geometry fixture ZIP snapshot |
+| `GET` | `/api/bootstrap` | Process flows、step templates、geometry catalog bootstrap |
+| `GET` | `/api/fixture-export` | Current steps/flows/geometries three-file fixture ZIP |
 | `POST` | `/api/reset` | Destructive fixture reset |
 | `POST` | `/api/reset-from-zip` | Replace database from an exported fixture ZIP (`Content-Type: application/zip`) |
 
@@ -76,7 +76,7 @@ Process-step template deletion is not supported. `DELETE /api/process-step-templ
 `405 Method Not Allowed`; existing templates remain available for reading and editing.
 
 JSON import replaces complete records with matching IDs and inserts new IDs; omitted IDs remain.
-Templates referenced by saved flows or any user's template drafts only allow changes to status,
+Templates referenced by saved flows or any user's flow drafts only allow changes to status,
 owner, category, program, description, input-port order, and recursive parameter defaults. Other
 changes return `409` with the referenced step and resource ID. Validation and writes are atomic;
 other resources, drafts, and the analytics dataset ID are preserved. Description changes through
@@ -100,58 +100,18 @@ omitted IDs and empty collections are filled deterministically. Catalog owner re
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/geometry-generators` | List backend generator manifests |
-| `GET` | `/api/geometry-generators/{id}/versions/{version}` | Get the exact versioned manifest used by an instance recipe |
+| `GET` | `/api/geometry-generators/{id}/versions/{version}` | Get the exact versioned manifest used by a flow binding |
 | `POST` | `/api/geometry-generators/{id}/preview` | Validate parameters、build geometry 與通用2D engineering preview |
 | `POST` | `/api/geometry-materializations` | Materialize exact preview snapshot by opaque token |
 
 Preview token是process-local bounded cache entry；restart、reset或eviction後可能失效。Client遇到
 missing token必須重新preview，不可在前端自行重建geometry。
 
-### Flow template 與 immutable instance
+### Process flows 與 Flow drafts
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET`/`POST` | `/api/process-flow-templates` | List or validate/insert template |
-| `GET` | `/api/process-flow-templates/{id}` | Template detail |
-| `PUT` | `/api/process-flow-templates/{id}` | Restricted metadata and scalar flow-default update |
-| `DELETE` | `/api/process-flow-templates/{id}` | Delete unused template and its instance drafts; `409` if any instance references it |
-| `POST` | `/api/process-flow-template-instances` | Atomic template + first instance insert |
-| `GET`/`POST` | `/api/process-flow-instances` | List or compile/insert complete instance |
-| `GET` | `/api/process-flow-instances/{id}` | Instance detail |
-| `DELETE` | `/api/process-flow-instances/{id}` | Delete instance |
-| `POST` | `/api/process-flow-instances/{id}/execute` | Compile and execute saved instance |
+統一 schema 3 ProcessFlow CRUD、execute 和 schema 2 FlowDraft CRUD／atomic commit；完整路由與錯誤契約見 [Process Flow API](../../docs/reference/process-flow-api.md)。更新／刪除要求 revision，409 保留原資料。正式儲存允許缺少 geometry／required recipe 值，但必須拓樸合法且已提供值有效。
 
-Flow template／instance create requests 不接受 `id`；server 在儲存時產生
-32 字元小寫 UUID4 hex（不帶前綴），response 回傳完整 record 與 ID。
-Combined create 的 instance 同時不傳 `processFlowTemplateId`，由 server 建立引用。
-Draft commit 的正式 create payload 同樣不接受 `id`；成功後草稿刪除。
-呼叫端傳入上述 server-owned fields 回傳 `422`；既有 record、update 與 fixture import
-保留原 ID。
-
-Deletion returns `204` with no body, or `404` for an absent resource. Reference checks and related
-instance draft deletion run in one transaction; failures roll back all deletions. Process-step templates
-are retained when their flow templates are deleted.
-Geometry catalog entries are retained. Deletion uses the existing trusted-local API access model;
-there is no new login or role enforcement. Flow and instance deletion record `flow_template.delete`
-and `flow_instance.delete` analytics events with their resource context before deletion.
-
-### Editor drafts
-
-Two independent snapshot types use separate tables in the business SQLite DB:
-
-| Path prefix | Kind |
-| --- | --- |
-| `/api/process-flow-template-drafts` | Template metadata, graph, viewport and complete working configuration |
-| `/api/process-flow-instance-drafts` | Instance metadata and complete configuration for one fixed template |
-
-Both support GET list, POST create, GET/PUT/DELETE `/{id}`, and POST `/{id}/commit`. Lists omit state and accept user/search; instance lists, detail and deletion require `processFlowTemplateId`. Update/delete/commit require revision. Create starts at 1, updates increment it, and conflicts return 409. Draft user/name are nonblank and separate from formal metadata. Drafts permit incomplete topology and parameter values; format validation still applies.
-
-Commit accepts `{revision, processFlowTemplate}` or `{revision, processFlowInstance}` using the editor's current formal create payload. Shared validation precedes atomic materialization/resource insert/draft deletion. Failures preserve the draft and roll back writes. A consumed draft returns 404. Disabled flows permit draft editing but reject new instances/instance commit.
-
-Business schema marker remains 13. Canonical fixtures provide MR joint / TCB joint in the
-`joint` category; startup and fixture ZIP imports do not convert legacy Joint references.
-Schema 12 converts legacy workspace drafts,
-then removes the old table; legacy workspace APIs are removed. Analytics schema 2 preserves historical workspace IDs inside properties JSON. Reset/import clears drafts; fixture ZIP continues exporting only the four formal resource files.
+舊 template／instance／dual draft／combined create API 已移除。Bootstrap 使用 processFlows，ZIP 僅三檔。SQLite schema 14 migration 先備份，支援已知 8–13 路徑，拒絕未知版本與實驗 schema 15，不自動 reset。
 
 ### Preview 與 export
 
@@ -220,7 +180,7 @@ log 權限設定失敗則拒絕建立工作並清除該 log。此設定只套用
 ## 測試
 
 ```bash
-venv/bin/python -m unittest discover apps/api/tests
+PROCESS_FLOW_API_DB_PATH=:memory: venv/bin/python -m pytest apps/api/tests -q
 ```
 
 Tests涵蓋 startup/seed、CRUD/conflicts、compile/execute、draft transaction、preview/CAD 與 export jobs。

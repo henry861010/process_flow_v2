@@ -6,26 +6,25 @@ import { Button } from "@/components/ui/button";
 import { EditorDialog } from "./editor-dialog";
 import { cn } from "@/lib/utils";
 import {
-  deleteEditorDraft, getEditorDraft, listEditorDrafts, saveEditorDraft,
-  type EditorDraftKind,
+  deleteFlowDraft, getFlowDraft, listFlowDrafts, saveFlowDraft,
 } from "@/lib/process-flow-api";
-import type { EditorDraft, EditorDraftSummary, InstanceEditorDraftState, TemplateEditorDraftState } from "@/lib/process-flow/types";
+import type { FlowDraft, FlowDraftSummary, FlowOrigin, FlowDraftState } from "@/lib/process-flow/types";
 import { assertDraftVersion, draftFingerprint } from "@/lib/process-flow/editor-drafts";
 
-type State = InstanceEditorDraftState | TemplateEditorDraftState;
+type State = FlowDraftState;
 type Confirmation = { title: string; description: string; action: string; resolve: (accepted: boolean) => void };
 const inputClass = "h-9 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
-export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled, busy: parentBusy, modern = false, onLoad }: {
-  kind: EditorDraftKind; templateId?: string; state: State; enabled: boolean;
-  saveDisabled?: boolean; busy?: boolean; modern?: boolean; onLoad: (draft: EditorDraft) => State;
+export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, busy: parentBusy, modern = false, onLoad }: {
+  target?: FlowOrigin; origin?: FlowOrigin; state: State; enabled: boolean;
+  saveDisabled?: boolean; busy?: boolean; modern?: boolean; onLoad: (draft: FlowDraft) => State;
 }) {
   const fingerprint = draftFingerprint(state);
   const [baseline, setBaseline] = React.useState(fingerprint);
   const initialized = React.useRef(false);
   const stateRef = React.useRef(state);
   stateRef.current = state;
-  const [active, setActive] = React.useState<EditorDraft | null>(null);
+  const [active, setActive] = React.useState<FlowDraft | null>(null);
   const [saveOpen, setSaveOpen] = React.useState(false);
   const [saveAsNew, setSaveAsNew] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
@@ -34,7 +33,7 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [userFilter, setUserFilter] = React.useState("");
-  const [rows, setRows] = React.useState<EditorDraftSummary[]>([]);
+  const [rows, setRows] = React.useState<FlowDraftSummary[]>([]);
   const [operation, setOperation] = React.useState<"save" | "load" | "delete" | null>(null);
   const operationRef = React.useRef(false);
   const [loading, setLoading] = React.useState(false);
@@ -92,18 +91,18 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
     const version = ++requestVersion.current;
     setLoading(true); setError(null); setRows([]); setSelectedDraftId(null);
     setSearch(""); setUserFilter("");
-    listEditorDrafts(kind, { templateId }).then((items) => {
+    listFlowDrafts().then((items) => {
       if (current && version === requestVersion.current) setRows(items);
     }).catch((cause) => { if (current && version === requestVersion.current) setError(errorMessage(cause)); })
       .finally(() => { if (current && version === requestVersion.current) setLoading(false); });
     return () => { current = false; invalidateRequests(); };
-  }, [pickerOpen, kind, templateId, invalidateRequests]);
+  }, [pickerOpen, invalidateRequests]);
 
   async function refresh() {
     const version = ++requestVersion.current;
     setLoading(true); setError(null);
     try {
-      const items = await listEditorDrafts(kind, { templateId, user: userFilter.trim(), search: search.trim() });
+      const items = await listFlowDrafts({ user: userFilter.trim(), search: search.trim() });
       if (version === requestVersion.current) { setRows(items); setSelectedDraftId(null); }
     } catch (cause) { if (version === requestVersion.current) setError(errorMessage(cause)); }
     finally { if (version === requestVersion.current) setLoading(false); }
@@ -125,12 +124,9 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
     const captured = structuredClone(stateRef.current);
     operationRef.current = true; setOperation("save"); setError(null);
     try {
-      const identity = { schemaVersion: 1 as const, user: identityValues.user.trim(), name: identityValues.name.trim() };
-      if (kind === "template" && !("nodes" in captured)) throw new Error("Template snapshot is missing its graph.");
-      const body = kind === "instance"
-        ? { ...identity, state: captured, processFlowTemplateId: templateId! }
-        : { ...identity, state: captured as TemplateEditorDraftState };
-      const saved = await saveEditorDraft(kind, body, !asNew && active ? active : undefined);
+      const body = { schemaVersion: 2 as const, user: identityValues.user.trim(), name: identityValues.name.trim(),
+        state: captured, ...(target ? { target } : {}), ...(origin ? { origin } : {}) };
+      const saved = await saveFlowDraft(body, !asNew && active ? active : undefined);
       setActive(saved); setUser(saved.user); setName(saved.name);
       setBaseline(draftFingerprint(captured)); setLastSavedAt(saved.updatedAt);
       setSaveOpen(false);
@@ -144,11 +140,11 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
     }
   }
 
-  async function load(row: EditorDraftSummary) {
+  async function load(row: Pick<FlowDraftSummary, "id">) {
     if (busy || operationRef.current) return false;
     operationRef.current = true; setOperation("load"); setError(null);
     try {
-      const draft = await getEditorDraft(kind, row.id, templateId);
+      const draft = await getFlowDraft(row.id);
       assertDraftVersion(draft);
       const accepted = modern
         ? await confirmReplaceAsync(`Resume draft "${draft.name}"?`)
@@ -163,7 +159,7 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
     finally { operationRef.current = false; setOperation(null); }
   }
 
-  async function remove(row: EditorDraftSummary) {
+  async function remove(row: FlowDraftSummary) {
     if (busy || operationRef.current) return;
     operationRef.current = true; setOperation("delete");
     try {
@@ -172,7 +168,7 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
         : window.confirm(`Delete draft "${row.name}"?`);
       if (!accepted) return;
       setError(null);
-      await deleteEditorDraft(kind, row, templateId);
+      await deleteFlowDraft(row);
       setRows((items) => items.filter((item) => item.id !== row.id));
       if (selectedDraftId === row.id) setSelectedDraftId(null);
       if (active?.id === row.id) {
@@ -184,7 +180,9 @@ export function useEditorDrafts({ kind, templateId, state, enabled, saveDisabled
   }
 
   function detach() { setActive(null); setName(""); setNotice(null); setLastSavedAt(null); setError(null); }
-  function markClean(captured: State = stateRef.current) { setBaseline(draftFingerprint(captured)); }
+  const markClean = React.useCallback((captured: State = stateRef.current) => {
+    setBaseline(draftFingerprint(captured));
+  }, []);
   function confirmReplace() { return !dirty || window.confirm("Discard changes since the last save?"); }
   function openSave(asNew = false) {
     saveReturnFocus.current = menuOpen

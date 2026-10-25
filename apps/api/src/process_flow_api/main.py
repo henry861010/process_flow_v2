@@ -26,7 +26,7 @@ from .geometry_validation import validate_catalog_structure
 from .models import (
     CdbFileExportCreateRequest,
     DashboardJobsResponse,
-    ExecuteInstanceResponse,
+    ExecuteFlowResponse,
     FileExportCancelRequest,
     FileExportCreateRequest,
     FileExportJobListResponse,
@@ -46,17 +46,12 @@ from .models import (
     MeshControlSetDefinition,
     PreviewSectionResponse,
     PreviewSessionResponse,
-    ProcessFlowInstanceCreate,
-    ProcessFlowTemplate,
-    ProcessFlowTemplateCreate,
+    ProcessFlowCreate,
+    ProcessFlowUpdate,
     ProcessStepTemplate,
-    TemplateInstanceCreateRequest,
-    TemplateEditorDraftCreate,
-    TemplateEditorDraftUpdate,
-    TemplateEditorDraftCommit,
-    InstanceEditorDraftCreate,
-    InstanceEditorDraftUpdate,
-    InstanceEditorDraftCommit,
+    FlowDraftCreate,
+    FlowDraftUpdate,
+    FlowDraftCommit,
 )
 from .preview_sessions import PreviewCapacityError, PreviewSessionManager, content_hash, etag_matches
 from .repository import DuplicateItemError, NotFoundError, ResourceConflictError, SQLiteStore
@@ -68,18 +63,16 @@ from .step_template_transfer import (
 )
 from .services import (
     bootstrap_payload,
-    create_flow_instance,
-    create_flow_template,
-    create_template_instance,
-    execute_instance,
+    create_flow,
+    update_flow,
+    execute_flow,
     preview_geometry,
     preview_step_geometry,
     require_item,
-    update_process_flow_template,
     update_process_step_template,
     validate_process_step_template,
 )
-from .draft_service import create_draft, update_draft, commit_template_draft, commit_instance_draft
+from .draft_service import create_draft, update_draft, commit_draft
 
 
 def create_app(
@@ -334,107 +327,53 @@ def create_app(
             "geometryEntityJson": preview["geometryEntityJson"],
         }
 
-    @app.get("/api/process-flow-templates")
-    async def list_process_flow_templates(request: Request):
-        return get_store(request).list_process_flow_templates()
+    @app.get("/api/process-flows")
+    async def list_process_flows(request: Request):
+        return get_store(request).list_process_flows()
 
-    @app.get("/api/process-flow-templates/{template_id}")
-    async def get_process_flow_template(request: Request, template_id: str):
-        return require_item(get_store(request).get_process_flow_template(template_id), template_id)
+    @app.get("/api/process-flows/{flow_id}")
+    async def get_process_flow(request: Request, flow_id: str):
+        return require_item(get_store(request).get_process_flow(flow_id), flow_id)
 
-    @app.post("/api/process-flow-templates", status_code=status.HTTP_201_CREATED)
-    async def create_process_flow_template(request: Request, body: ProcessFlowTemplateCreate):
-        return create_flow_template(get_store(request), body)
+    @app.post("/api/process-flows", status_code=201)
+    async def create_process_flow(request: Request, body: ProcessFlowCreate):
+        return create_flow(get_store(request), body, get_geometry_generators(request))
 
-    @app.put("/api/process-flow-templates/{template_id}")
-    async def replace_process_flow_template(
-        request: Request,
-        template_id: str,
-        body: ProcessFlowTemplate,
-    ):
-        return update_process_flow_template(get_store(request), template_id, body)
+    @app.put("/api/process-flows/{flow_id}")
+    async def replace_process_flow(request: Request, flow_id: str, body: ProcessFlowUpdate):
+        return update_flow(get_store(request), flow_id, body, get_geometry_generators(request))
 
-    @app.delete("/api/process-flow-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-    async def delete_process_flow_template(request: Request, template_id: str):
-        get_store(request).delete_process_flow_template(template_id)
-        return None
+    @app.delete("/api/process-flows/{flow_id}", status_code=204)
+    async def delete_process_flow(request: Request, flow_id: str, revision: int = Query(ge=1)):
+        get_store(request).delete_process_flow(flow_id, revision)
 
-    @app.post("/api/process-flow-template-instances", status_code=status.HTTP_201_CREATED)
-    async def create_process_flow_template_instance(request: Request, body: TemplateInstanceCreateRequest):
-        return create_template_instance(get_store(request), body, get_geometry_generators(request))
+    @app.post("/api/process-flows/{flow_id}/execute", response_model=ExecuteFlowResponse)
+    async def execute_process_flow(request: Request, flow_id: str):
+        return execute_flow(get_store(request), flow_id, get_geometry_generators(request))
 
-    @app.get("/api/process-flow-instances")
-    async def list_process_flow_instances(request: Request):
-        return get_store(request).list_process_flow_instances()
+    @app.get("/api/process-flow-drafts")
+    async def list_flow_drafts(request: Request, user: str | None = None, search: str | None = None):
+        return get_store(request).list_flow_drafts(user=user, search=search)
 
-    @app.get("/api/process-flow-instances/{instance_id}")
-    async def get_process_flow_instance(request: Request, instance_id: str):
-        return require_item(get_store(request).get_process_flow_instance(instance_id), instance_id)
+    @app.post("/api/process-flow-drafts", status_code=201)
+    async def create_flow_draft(request: Request, body: FlowDraftCreate):
+        return create_draft(get_store(request), body)
 
-    @app.post("/api/process-flow-instances", status_code=status.HTTP_201_CREATED)
-    async def create_process_flow_instance(request: Request, body: ProcessFlowInstanceCreate):
-        return create_flow_instance(get_store(request), body, get_geometry_generators(request))
+    @app.get("/api/process-flow-drafts/{draft_id}")
+    async def get_flow_draft(request: Request, draft_id: str):
+        return require_item(get_store(request).get_flow_draft(draft_id), draft_id)
 
-    @app.delete("/api/process-flow-instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
-    async def delete_process_flow_instance(request: Request, instance_id: str):
-        get_store(request).delete_process_flow_instance(instance_id)
-        return None
+    @app.put("/api/process-flow-drafts/{draft_id}")
+    async def update_flow_draft(request: Request, draft_id: str, body: FlowDraftUpdate):
+        return update_draft(get_store(request), draft_id, body)
 
-    @app.post("/api/process-flow-instances/{instance_id}/execute", response_model=ExecuteInstanceResponse)
-    async def execute_process_flow_instance(request: Request, instance_id: str):
-        return execute_instance(get_store(request), instance_id, get_geometry_generators(request))
+    @app.delete("/api/process-flow-drafts/{draft_id}", status_code=204)
+    async def delete_flow_draft(request: Request, draft_id: str, revision: int = Query(ge=1)):
+        get_store(request).delete_flow_draft(draft_id, revision)
 
-    @app.get("/api/process-flow-template-drafts")
-    async def list_template_drafts(request: Request, user: str | None = None, search: str | None = None):
-        return get_store(request).list_editor_drafts("template", user=user, search=search)
-
-    @app.post("/api/process-flow-template-drafts", status_code=201)
-    async def create_template_draft(request: Request, body: TemplateEditorDraftCreate):
-        return create_draft(get_store(request), "template", body)
-
-    @app.get("/api/process-flow-template-drafts/{draft_id}")
-    async def get_template_draft(request: Request, draft_id: str):
-        return require_item(get_store(request).get_editor_draft("template", draft_id), draft_id)
-
-    @app.put("/api/process-flow-template-drafts/{draft_id}")
-    async def update_template_draft(request: Request, draft_id: str, body: TemplateEditorDraftUpdate):
-        return update_draft(get_store(request), "template", draft_id, body)
-
-    @app.delete("/api/process-flow-template-drafts/{draft_id}", status_code=204)
-    async def delete_template_draft(request: Request, draft_id: str, revision: int = Query(ge=1)):
-        get_store(request).delete_editor_draft("template", draft_id, revision)
-
-    @app.post("/api/process-flow-template-drafts/{draft_id}/commit", status_code=201)
-    async def finish_template_draft(request: Request, draft_id: str, body: TemplateEditorDraftCommit):
-        return commit_template_draft(get_store(request), draft_id, body, get_geometry_generators(request))
-
-    @app.get("/api/process-flow-instance-drafts")
-    async def list_instance_drafts(request: Request, processFlowTemplateId: str,
-                                   user: str | None = None, search: str | None = None):
-        return get_store(request).list_editor_drafts("instance", template_id=processFlowTemplateId,
-                                                    user=user, search=search)
-
-    @app.post("/api/process-flow-instance-drafts", status_code=201)
-    async def create_instance_draft(request: Request, body: InstanceEditorDraftCreate):
-        return create_draft(get_store(request), "instance", body)
-
-    @app.get("/api/process-flow-instance-drafts/{draft_id}")
-    async def get_instance_draft(request: Request, draft_id: str, processFlowTemplateId: str):
-        return require_item(get_store(request).get_editor_draft("instance", draft_id,
-                            template_id=processFlowTemplateId), draft_id)
-
-    @app.put("/api/process-flow-instance-drafts/{draft_id}")
-    async def update_instance_draft(request: Request, draft_id: str, body: InstanceEditorDraftUpdate):
-        return update_draft(get_store(request), "instance", draft_id, body)
-
-    @app.delete("/api/process-flow-instance-drafts/{draft_id}", status_code=204)
-    async def delete_instance_draft(request: Request, draft_id: str, processFlowTemplateId: str,
-                                     revision: int = Query(ge=1)):
-        get_store(request).delete_editor_draft("instance", draft_id, revision, template_id=processFlowTemplateId)
-
-    @app.post("/api/process-flow-instance-drafts/{draft_id}/commit", status_code=201)
-    async def finish_instance_draft(request: Request, draft_id: str, body: InstanceEditorDraftCommit):
-        return commit_instance_draft(get_store(request), draft_id, body, get_geometry_generators(request))
+    @app.post("/api/process-flow-drafts/{draft_id}/commit")
+    async def finish_flow_draft(request: Request, draft_id: str, body: FlowDraftCommit):
+        return commit_draft(get_store(request), draft_id, body, get_geometry_generators(request))
 
     @app.post("/api/geometry-preview", response_model=GeometryPreviewResponse)
     async def geometry_preview(request: Request, body: GeometryPreviewRequest):

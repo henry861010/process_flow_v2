@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { computeTemplateLayout } from "./template-layout";
 import type {
   GeometryInputPort,
-  ProcessFlowTemplate,
+  FlowDefinition,
   ProcessStepTemplate,
   SavedFlowEdge,
 } from "./types";
@@ -444,12 +444,12 @@ function flowTemplate(
   flowInputIds: string[],
   steps: Array<[stepRefId: string, processStepTemplateId: string]>,
   flowEdges: SavedFlowEdge[],
-): ProcessFlowTemplate {
+): FlowDefinition {
   return {
-    schemaVersion: 2, status: "enabled",
-    id: "layout-test",
-    name: "Layout test",
-    version: "V0.0.0",
+
+
+
+
     flowInputs: flowInputIds.map((flowInputId) => ({
       flowInputId,
       name: flowInputId,

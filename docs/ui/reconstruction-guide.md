@@ -37,67 +37,38 @@ source_of_truth:
 
 | Route | Entry state | 主要 fixture / setup | 第一個檢查點 |
 | --- | --- | --- | --- |
-| `/` | Home ready | reset 後完整 bootstrap | template cards、instance counts與create routes |
-| `/flow-template-editor` | fresh template draft | reset 後直接開 route，不選 template | catalog/step palettes、空 graph與單一save command |
-| `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA configuration | 由Home點AAA template card | fixed template、From instance、default configuration與Save |
+| `/` | Home ready | reset 後完整 bootstrap | flow cards、flow count 與 create routes |
+| `/flow-editor` | fresh flow draft | reset 後直接開 route，不選來源 | catalog/step palettes、空 graph與單一save command |
+| `/flow-editor?flowId=flow_inst_aaa_demo_hbm4_alpha` | saved Alpha flow | 由 Home 點 Alpha flow card | editable flow、Start from…、saved recipes/configuration 與 Save |
 | `/geometry-generator?generatorId=<id>` | generator defaults | 由Home或Management的generator command進入 | matching registry definition、preview與Save to DB |
 | `/management` | resource overview | reset 後完整 bootstrap | 四類count、tabs、process-step Edit modal |
 | `/cad-viewer` | demo workbench | 直接開 route，不 import file | demo model、Section XZ、Grid/Axes on、ISO |
-| Geometry Preview | ready preview | Instance Editor 綁定 `panel_plp_310x310mm_glass` 後開 Preview | Loading → Ready、viewport、right controls、footer |
+| Geometry Preview | ready preview | Flow Editor 綁定 `panel_plp_310x310mm_glass` 後開 Preview | Loading → Ready、viewport、right controls、footer |
 
 ## 主要操作旅程
 
-### Template topology
+### Flow topology
 
 ```text
 fresh draft
   -> click Step template
   -> drag Geometry item to graph
   -> connect valid ports
-  -> single-click node
+  -> click node Edit button
   -> edit inspector
-  -> Save Template
-  -> enter template information in save dialog
-  -> topology locked, configuration remains editable
+  -> Save Flow
+  -> enter flow metadata in save dialog
+  -> topology remains editable, configuration remains editable
   -> open Preview when target is ready
 ```
 
-必要結果：
+必要結果：Step click-add、Geometry drag、合法接線後可儲存；未完成設定不鎖拓樸。Step 以 Edit button／雙擊開啟，單擊作為接線來源。
 
-- Step palette 必須支援 click-add；Geometry palette 的 touch/keyboard fallback 是已知 gap。
-- graph node 的 primary editor path 是單擊，不得要求雙擊。
-- Template metadata不在editor常駐顯示；Save Template才開啟save dialog。
-- Save Template 可在configuration incomplete時開dialog並成功保存，但會鎖topology。
-- topology locked 後，catalog binding、parameters 與 Preview 仍依規格可用。
+### Flow configuration
 
-對應驗收：`UI-FTE-001`、`UI-FTE-002`、`UI-FTE-003`、`UI-FTE-004`、`UI-GRAPH-001`。
+開啟 flow → 建立兩組候選 → 編輯不同值 → 明確採用 → Preview → Save 更新／另存 → 重載。
 
-### Instance configuration
-
-```text
-Home AAA template card
-  -> templateId route
-  -> default configuration created
-  -> optionally load From instance values
-  -> bind geometry / edit parameters
-  -> Preview a ready target
-  -> Save
-  -> enter id/name/version/owner/description
-  -> create immutable instance
-  -> return Home
-```
-
-必要結果：
-
-- Template只能由route決定；不得render selector。
-- From instance只列同template records，只copy values並重設new identity。
-- dirty時啟用離頁與source-replacement protection。
-- complete configuration才可Save；required metadata不完整或save失敗留在dialog顯示error。
-  Flow template／instance的ID由server在create時產生，save dialog不提供ID輸入。
-- Save使用direct create且不得修改source instance；成功後返回Home。
-- Save Draft / From Draft 使用各自種類的 snapshot API；instance draft 限固定 template，正式 Save 成功後刪除來源草稿。
-
-對應驗收：`UI-FIE-001` 至 `UI-FIE-007`。
+驗收依 [UI-FLOW-001 至 008](screens/flow-editor.md)，包含草稿畫布／查看狀態恢復、CAS 409、來源獨立及匯出。
 
 ### Preview 與 Export
 

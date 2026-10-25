@@ -5,7 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from flow_requests import instance_create_payload
+from flow_requests import flow_create_payload, fixture_flow
 from process_flow_api.main import create_app
 from process_flow_geometry_generators import GeometryGeneratorRegistry, register_builtin_generators
 from process_flow_geometry_generators.hbm import HbmGenerator
@@ -71,33 +71,30 @@ class GeometryGeneratorApiTests(unittest.TestCase):
                     [item["id"] for item in bootstrap["geometryGenerators"]], ["hbm"]
                 )
 
-                source = next(
-                    item for item in bootstrap["processFlowInstances"]
-                    if item["processFlowTemplateId"] == "flow_tpl_aaa_demo"
-                )
+                source = fixture_flow(bootstrap)
                 request = copy.deepcopy(source)
                 request["id"] = "flow_inst_registered_generator"
                 request["name"] = "Registered generator instance"
-                request["inputBindings"]["incoming_hbm"] = {
+                request["configuration"]["inputBindings"]["incoming_hbm"] = {
                     "kind": "generator",
                     "generatorId": "hbm",
                     "generatorVersion": 2,
                     "parameters": {},
                 }
-                enabled = client.post("/api/process-flow-instances", json=instance_create_payload(request))
+                enabled = client.post("/api/process-flows", json=flow_create_payload(request))
                 self.assertEqual(enabled.status_code, 201, enabled.text)
                 request["id"] = enabled.json()["id"]
 
                 request["id"] = "flow_inst_unregistered_generator"
-                request["inputBindings"]["incoming_hbm"] = {
+                request["configuration"]["inputBindings"]["incoming_hbm"] = {
                     "kind": "generator",
                     "generatorId": "soc",
                     "generatorVersion": 1,
                     "parameters": {},
                 }
-                disabled = client.post("/api/process-flow-instances", json=instance_create_payload(request))
+                disabled = client.post("/api/process-flows", json=flow_create_payload(request))
                 self.assertEqual(disabled.status_code, 400, disabled.text)
-                self.assertIn("Geometry generator soc version 1 is not available", disabled.json()["message"])
+                self.assertIn("Unknown geometry generator soc v1", disabled.json()["message"])
                 self.assertEqual(
                     client.post(
                         "/api/geometry-generators/soc/preview",

@@ -4,7 +4,7 @@ import copy
 import unittest
 
 from fastapi.testclient import TestClient
-from flow_requests import instance_create_payload
+from flow_requests import flow_create_payload, fixture_flow
 from process_flow_api.geometry_validation import validate_catalog_structure
 from process_flow_api.main import create_app
 from process_flow_api.seed import load_seed_fixtures
@@ -157,12 +157,12 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         saved = response.json()
         bootstrap = self.client.get("/api/bootstrap").json()
-        source = copy.deepcopy(bootstrap["processFlowInstances"][0])
+        source = copy.deepcopy(fixture_flow(bootstrap))
         source["name"] = "Manual JSON flow binding"
-        source["inputBindings"]["incoming_hbm"] = {"kind": "catalog", "geometryId": saved["id"]}
-        response = self.client.post("/api/process-flow-instances", json=instance_create_payload(source))
+        source["configuration"]["inputBindings"]["incoming_hbm"] = {"kind": "catalog", "geometryId": saved["id"]}
+        response = self.client.post("/api/process-flows", json=flow_create_payload(source))
         self.assertEqual(response.status_code, 201, response.text)
-        self.assertEqual(response.json()["inputBindings"]["incoming_hbm"]["geometryId"], saved["id"])
+        self.assertEqual(response.json()["configuration"]["inputBindings"]["incoming_hbm"]["geometryId"], saved["id"])
 
     def test_hbm_and_dram_generator_materializations_can_still_be_saved(self):
         for generator in ("hbm", "dram"):

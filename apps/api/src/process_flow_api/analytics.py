@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 request_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "analytics_request", default=None
 )
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 COMMON_COLUMNS = "request_owner,occurred_at,environment,app_version,server_instance_id,dataset_id,record_version"
 REQUEST_COLUMNS = COMMON_COLUMNS + ",request_id,started_at,method,route,status_code,duration_ms,request_bytes,response_bytes,traffic_kind,completion_state,error_code"
-EVENT_COLUMNS = COMMON_COLUMNS + ",event_id,request_id,operation_id,event_name,phase,outcome,flow_template_id,flow_instance_id,source_kind,duration_ms,error_code,properties_json"
+EVENT_COLUMNS = COMMON_COLUMNS + ",event_id,request_id,operation_id,event_name,phase,outcome,flow_template_id,flow_instance_id,flow_id,flow_revision,source_kind,duration_ms,error_code,properties_json"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS analytics_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS usage_events (
  dataset_id TEXT NOT NULL, record_version INTEGER NOT NULL,
  event_id TEXT PRIMARY KEY, request_id TEXT, operation_id TEXT NOT NULL,
  event_name TEXT NOT NULL, phase TEXT NOT NULL, outcome TEXT,
- flow_template_id TEXT, flow_instance_id TEXT, source_kind TEXT NOT NULL,
+ flow_template_id TEXT, flow_instance_id TEXT, flow_id TEXT, flow_revision INTEGER, source_kind TEXT NOT NULL,
  duration_ms INTEGER, error_code TEXT,
  properties_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(properties_json) AND json_type(properties_json) = 'object'),
  UNIQUE(operation_id, event_name, phase)
@@ -53,6 +53,7 @@ CREATE INDEX IF NOT EXISTS events_time ON usage_events(occurred_at);
 CREATE INDEX IF NOT EXISTS events_name_time ON usage_events(event_name,occurred_at);
 CREATE INDEX IF NOT EXISTS events_owner_time ON usage_events(request_owner,occurred_at);
 CREATE INDEX IF NOT EXISTS events_flow_time ON usage_events(dataset_id,flow_template_id,occurred_at);
+CREATE INDEX IF NOT EXISTS events_process_flow_time ON usage_events(dataset_id,flow_id,flow_revision,occurred_at);
 CREATE INDEX IF NOT EXISTS events_request ON usage_events(request_id);
 """
 
@@ -118,7 +119,7 @@ class AnalyticsRecorder:
         return {"request_owner": "unknown", "occurred_at": utc_timestamp(),
                 "environment": self.environment, "app_version": self.app_version,
                 "server_instance_id": self.server_instance_id,
-                "dataset_id": dataset_id, "record_version": 1}
+                "dataset_id": dataset_id, "record_version": 2}
 
     def start(self) -> None:
         if self._thread is not None:
@@ -142,7 +143,7 @@ class AnalyticsRecorder:
                           event_name=event_name, phase=phase, outcome=outcome,
                           source_kind=origin.get("source_kind", "system"),
                           duration_ms=duration_ms, error_code=error_code)
-            for key in ("flow_template_id", "flow_instance_id"):
+            for key in ("flow_id", "flow_revision"):
                 record[key] = origin.get(key)
             record["properties_json"] = json.dumps(
                 properties if properties is not None else origin.get("properties", {}),
@@ -183,6 +184,13 @@ class AnalyticsRecorder:
             row = connection.execute("SELECT value FROM analytics_metadata WHERE key='schema_version'").fetchone()
             if row is not None and row[0] == "1":
                 self._migrate_v1_to_v2(connection)
+            if row is not None and row[0] in ("1", "2"):
+                with connection:
+                    columns = {column[1] for column in connection.execute("PRAGMA table_info(usage_events)")}
+                    if "flow_id" not in columns:
+                        connection.execute("ALTER TABLE usage_events ADD COLUMN flow_id TEXT")
+                        connection.execute("ALTER TABLE usage_events ADD COLUMN flow_revision INTEGER")
+                    connection.execute("UPDATE analytics_metadata SET value='3' WHERE key='schema_version'")
             elif row is not None and row[0] != str(SCHEMA_VERSION):
                 raise RuntimeError("Unsupported analytics schema version; history preserved")
             connection.executescript(SCHEMA)

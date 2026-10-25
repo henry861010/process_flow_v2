@@ -1,5 +1,5 @@
 import type {
-  EmbeddedGeometry,
+  GeometryDocument,
   GeneratorGeometryBinding,
   GeometryGeneration,
 } from "@/lib/process-flow/types";
@@ -8,7 +8,7 @@ export type GeometryGeneratorMode = "catalog" | "flowInput";
 
 export type GeometryGeneratorDefineResult = {
   binding: GeneratorGeometryBinding;
-  geometry: EmbeddedGeometry;
+  geometry: GeometryDocument;
   suggestedFlowInputName: string;
 };
 
@@ -32,8 +32,8 @@ export function geometryGeneration(
 }
 
 export function generatedGeometryDraft(
-  geometry: Omit<EmbeddedGeometry, "owner" | "description">,
-): EmbeddedGeometry {
+  geometry: Omit<GeometryDocument, "owner" | "description">,
+): GeometryDocument {
   return {
     ...geometry,
     owner: null,

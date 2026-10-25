@@ -1,6 +1,7 @@
+import { selectedRecipe } from "./recipes";
 import type {
   FlowConfiguration,
-  ProcessFlowTemplate,
+  FlowDefinition,
   ProcessStepTemplate,
   SavedFlowEdge,
 } from "./types";
@@ -13,7 +14,7 @@ export type FlowDependencies = {
 };
 
 export function analyzeFlowDependencies(
-  template: ProcessFlowTemplate,
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
   configuration: FlowConfiguration,
   outputStepRefId?: string,
@@ -41,7 +42,7 @@ export function analyzeFlowDependencies(
     stepRefIds.add(stepRefId);
     const ref = refsById.get(stepRefId);
     const step = ref ? templatesById.get(ref.processStepTemplateId) : undefined;
-    const placements = configuration.stepConfigurations[stepRefId]?.parameterValues?.placements;
+    const placements = selectedRecipe(configuration.stepConfigurations[stepRefId])?.parameterValues.placements;
     const zeroPlacements = step?.program === "pnp/pnp" && Array.isArray(placements) && placements.length === 0;
     for (const edge of incoming.get(stepRefId) ?? []) {
       if (zeroPlacements && edge.target.inputPortId === "die_geometry") continue;

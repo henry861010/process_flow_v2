@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import ClientDisconnect
 
-from flow_requests import instance_create_payload
+from flow_requests import flow_create_payload, fixture_flow
 from process_flow_api.analytics import AnalyticsRecorder, consistent_backup, request_context
 from process_flow_api.analytics_cli import main as maintenance
 from process_flow_api.analytics_http import AnalyticsMiddleware
@@ -47,9 +47,8 @@ def request_record(recorder, request_id="request-test"):
 
 def instance_source(client):
     bootstrap = client.get("/api/bootstrap").json()
-    instance = bootstrap["processFlowInstances"][0]
-    template = next(item for item in bootstrap["processFlowTemplates"] if item["id"] == instance["processFlowTemplateId"])
-    return template, instance
+    flow = fixture_flow(bootstrap)
+    return flow, copy.deepcopy(flow)
 
 
 def test_request_routes_owner_cors_and_privacy(service):
@@ -63,14 +62,14 @@ def test_request_routes_owner_cors_and_privacy(service):
     assert response.headers["X-Request-Id"] != "forged-id"
     assert "X-Request-Id" in response.headers["Access-Control-Expose-Headers"]
     client.get("/secret-do-not-store?secret=do-not-store")
-    client.get("/api/process-flow-instances/missing")
+    client.get("/api/process-flows/missing")
     client.get("/api/export-jobs?clientId=secret-do-not-store")
     records = rows(app, "api_requests")
     assert len(records) == 4
     assert all(row["request_owner"] == "unknown" for row in records)
     assert all(row["occurred_at"].endswith("Z") and row["duration_ms"] >= 0 for row in records)
     assert any(row["route"] == "__unmatched__" and row["status_code"] == 404 for row in records)
-    assert any(row["route"] == "/api/process-flow-instances/{instance_id}" for row in records)
+    assert any(row["route"] == "/api/process-flows/{flow_id}" for row in records)
     assert any(row["traffic_kind"] == "polling" for row in records)
     assert "do-not-store" not in json.dumps(records)
     assert not rows(app, "usage_events")
@@ -80,20 +79,20 @@ def test_success_conflict_and_validation_events_do_not_save_body_owner(service):
     app, client = service
     template, source = instance_source(client)
     payload = {**source, "id": "analytics-copy", "name": "Analytics copy", "owner": "resource-owner-not-actor"}
-    created = client.post("/api/process-flow-instances", json=instance_create_payload(payload))
+    created = client.post("/api/process-flows", json=flow_create_payload(payload))
     assert created.status_code == 201
     payload["id"] = created.json()["id"]
-    with mock.patch("process_flow_api.services.generated_flow_instance_id", return_value=created.json()["id"]):
-        assert client.post("/api/process-flow-instances", json=instance_create_payload(payload)).status_code == 409
-    assert client.post("/api/process-flow-instances", json={"owner": "injected-owner"}).status_code == 422
-    events = rows(app, "usage_events", "event_name='flow_instance.create'")
+    with mock.patch("process_flow_api.services.generated_flow_id", return_value=created.json()["id"]):
+        assert client.post("/api/process-flows", json=flow_create_payload(payload)).status_code == 409
+    assert client.post("/api/process-flows", json={"owner": "injected-owner"}).status_code == 422
+    events = rows(app, "usage_events", "event_name='flow.create'")
     assert len(events) == 3
     assert [event["outcome"] for event in events] == ["success", "failure", "failure"]
-    assert events[0]["flow_template_id"] == template["id"]
-    assert events[0]["flow_instance_id"] == created.json()["id"]
+    assert events[0]["flow_revision"] == 1
+    assert events[0]["flow_id"] == created.json()["id"]
     properties = json.loads(events[0]["properties_json"])
-    assert properties["step_count"] == len(template["stepRefs"])
-    assert properties["instance_name"] == payload["name"]
+    assert properties["step_count"] == len(template["definition"]["stepRefs"])
+    assert properties["flow_name"] == payload["name"]
     assert all(event["request_owner"] == "unknown" for event in events)
     serialized = json.dumps(events)
     assert "resource-owner-not-actor" not in serialized
@@ -124,10 +123,10 @@ def test_operation_400_and_500(service):
     app, client = service
     template, source = instance_source(client)
     payload = {**source, "id": "analytics-error"}
-    with mock.patch("process_flow_api.main.create_flow_instance", side_effect=ValueError("secret-body")):
-        assert client.post("/api/process-flow-instances", json=instance_create_payload(payload)).status_code == 400
-    with mock.patch("process_flow_api.main.create_flow_instance", side_effect=RuntimeError("secret-body")):
-        assert client.post("/api/process-flow-instances", json=instance_create_payload(payload)).status_code == 500
+    with mock.patch("process_flow_api.main.create_flow", side_effect=ValueError("secret-body")):
+        assert client.post("/api/process-flows", json=flow_create_payload(payload)).status_code == 400
+    with mock.patch("process_flow_api.main.create_flow", side_effect=RuntimeError("secret-body")):
+        assert client.post("/api/process-flows", json=flow_create_payload(payload)).status_code == 500
     events = rows(app, "usage_events")
     assert [event["error_code"] for event in events] == ["INVALID_INPUT", "INTERNAL_ERROR"]
     assert "secret-body" not in json.dumps(events)
@@ -140,40 +139,36 @@ def test_dataset_rotation_is_transactional_and_survives_reopen(tmp_path):
     store.seed(fixtures)
     dataset = store.dataset_id
     broken = copy.deepcopy(fixtures)
-    broken["processFlowTemplates"].append(broken["processFlowTemplates"][0])
+    broken["processFlows"].append(broken["processFlows"][0])
     with pytest.raises(sqlite3.IntegrityError):
         store.seed(broken, reset=True)
     assert store.dataset_id == dataset
     store.close()
     reopened = SQLiteStore(path)
     assert reopened.dataset_id == dataset
-    assert len(reopened.list_process_flow_templates()) == len(fixtures["processFlowTemplates"])
+    assert len(reopened.list_process_flows()) == len(fixtures["processFlows"])
     reopened.close()
 
 
 def test_preview_context_and_inline_draft_attribution(service):
     app, client = service
     template, source = instance_source(client)
-    target = {"type": "flowInput", "flowInputId": template["flowInputs"][0]["flowInputId"]}
-    config = {"inputBindings": source["inputBindings"], "stepConfigurations": source["stepConfigurations"]}
-    for context in ({"flowTemplateId": template["id"], "flowInstanceId": source["id"]},
-                    {"flowTemplateId": "missing", "flowInstanceId": source["id"]}):
-        payload = {"processFlowTemplateId": template["id"], "target": target,
-                   "configuration": config, "analyticsContext": context}
-        response = client.post("/api/preview-sessions", json=payload)
+    target = {"type": "flowInput", "flowInputId": template["definition"]["flowInputs"][0]["flowInputId"]}
+    for context in ({"flowId": source["id"], "flowRevision": 1}, {"flowId": "missing", "flowRevision": 1}):
+        response = client.post("/api/preview-sessions", json={"flowId": source["id"], "target": target, "analyticsContext": context})
         assert response.status_code == 200, response.text
-    inline = {"flowTemplate": template, "target": target, "configuration": config,
-              "analyticsContext": {"flowTemplateId": template["id"]}}
+    inline = {"flow": {"definition": template["definition"], "configuration": source["configuration"]}, "target": target,
+              "analyticsContext": {"sourceKind": "inline_draft", "flowId": source["id"], "flowRevision": 1}}
     assert client.post("/api/preview-sessions", json=inline).status_code == 200
     events = rows(app, "usage_events", "event_name='flow.preview'")
     assert len(events) == 3
-    assert events[0]["flow_instance_id"] == source["id"]
+    assert events[0]["flow_id"] == source["id"] and events[0]["flow_revision"] == 1
     assert json.loads(events[0]["properties_json"])["context_confirmed"] is True
     assert json.loads(events[1]["properties_json"])["context_confirmed"] is False
     assert json.loads(events[1]["properties_json"])["cache_hit"] is True
-    assert events[1]["flow_instance_id"] is None
-    assert events[2]["source_kind"] == "inline_draft" and events[2]["flow_template_id"] is None
-    assert json.loads(events[2]["properties_json"])["base_flow_template_id"] == template["id"]
+    assert events[1]["flow_id"] == source["id"]  # The actual request still references this saved flow.
+    assert events[2]["source_kind"] == "inline_draft" and events[2]["flow_id"] is None
+    assert json.loads(events[2]["properties_json"])["base_flow_id"] == source["id"]
 
 
 def wait_job(client, job_id):
@@ -190,7 +185,7 @@ def test_exports_lifecycle_results_and_polling(service, tmp_path):
     template, source = instance_source(client)
     payload = {"kind": "json", "clientId": "not-an-actor", "outputPath": str(tmp_path / "export.json"),
                "geometryEntityJson": {"secret": "do-not-store"},
-               "analyticsContext": {"flowTemplateId": template["id"], "flowInstanceId": source["id"]}}
+               "analyticsContext": {"flowId": source["id"], "flowRevision": source["revision"]}}
     accepted = client.post("/api/geometry-preview/export-jobs", json=payload)
     assert accepted.status_code == 200
     job_id = accepted.json()["job"]["jobId"]
@@ -201,7 +196,7 @@ def test_exports_lifecycle_results_and_polling(service, tmp_path):
     assert [event["phase"] for event in events] == ["accepted", "started", "finished"]
     assert events[-1]["outcome"] == "success" and events[-1]["duration_ms"] >= 0
     assert all(event["request_id"] == accepted.headers["X-Request-Id"] for event in events)
-    assert all(event["flow_instance_id"] == source["id"] for event in events)
+    assert all(event["flow_id"] == source["id"] for event in events)
     assert all(event["request_owner"] == "unknown" for event in events)
     assert json.loads(events[-1]["properties_json"])["output_bytes"] > 0
     serialized = json.dumps(events)
@@ -417,3 +412,32 @@ def test_app_restart_preserves_records_dataset_and_unknown_owners(tmp_path):
         assert {row["request_owner"] for row in records} == {"unknown"}
         assert len({row["server_instance_id"] for row in records}) == 2
     second.state.store.close()
+
+@pytest.mark.parametrize('version', [1, 2])
+def test_analytics_upgrade_preserves_legacy_events_and_does_not_invent_flow_revision(tmp_path, version):
+    from contextlib import closing
+    from process_flow_api.analytics import SCHEMA
+    path = tmp_path / 'history.sqlite3'
+    legacy_schema = SCHEMA.split('CREATE INDEX')[0].replace('flow_id TEXT, flow_revision INTEGER, ', '')
+    if version == 1:
+        legacy_schema = legacy_schema.replace('flow_instance_id TEXT, ', 'flow_instance_id TEXT, workspace_id TEXT, ')
+    with closing(sqlite3.connect(path)) as db, db:
+        db.executescript(legacy_schema)
+        db.execute('INSERT INTO analytics_metadata VALUES (?, ?)', ('schema_version', str(version)))
+        record = dict(request_owner='unknown', occurred_at='2026-01-01T00:00:00.000Z', environment='test',
+                      app_version='old', server_instance_id='old', dataset_id='dataset-kept', record_version=1,
+                      event_id='legacy', operation_id='legacy-operation', event_name='flow_instance.create',
+                      phase='finished', outcome='success', flow_template_id='template', flow_instance_id='instance',
+                      source_kind='instance', properties_json='{"kept":true}')
+        if version == 1: record['workspace_id'] = 'workspace-kept'
+        db.execute(f"INSERT INTO usage_events ({','.join(record)}) VALUES ({','.join('?' for _ in record)})", tuple(record.values()))
+    recorder = AnalyticsRecorder(path)
+    with closing(recorder._connect()) as db:
+        db.row_factory = sqlite3.Row
+        row = dict(db.execute('SELECT * FROM usage_events').fetchone())
+        assert db.execute("SELECT value FROM analytics_metadata WHERE key='schema_version'").fetchone()[0] == '3'
+        assert row['event_name'] == 'flow_instance.create'
+        assert row['flow_template_id'] == 'template' and row['flow_instance_id'] == 'instance'
+        assert row['dataset_id'] == 'dataset-kept' and row['record_version'] == 1
+        assert row['flow_id'] is None and row['flow_revision'] is None
+        assert json.loads(row['properties_json']) == ({'kept': True, 'legacy_workspace_id': 'workspace-kept'} if version == 1 else {'kept': True})

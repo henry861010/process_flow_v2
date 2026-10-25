@@ -1,6 +1,6 @@
 ---
 title: Template Editor Toolbar Redesign Evidence
-status: descriptive
+status: historical
 owner: Process Flow UI
 audience:
   - design
@@ -9,10 +9,12 @@ audience:
 last_verified: 2026-10-14
 last_verified_commit: 782194d8
 source_of_truth:
-  - apps/viewer/components/process-flow-template-editor/process-flow-template-editor.tsx
-  - apps/viewer/components/process-flow-save/template-source-dialog.tsx
+  - apps/viewer/components/process-flow-editor/process-flow-editor.tsx
+  - apps/viewer/components/process-flow-save/flow-source-dialog.tsx
   - apps/viewer/components/process-flow-save/save-information-dialog.tsx
 ---
+
+> 歷史 UI 證據：此處的舊路由／資料模型已退場，現行規格見 [Flow Editor](../../screens/flow-editor.md)。
 
 # Template Editor Toolbar Redesign Evidence
 

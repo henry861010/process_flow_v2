@@ -55,8 +55,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | Route | 規格 |
 | --- | --- |
 | `/` | [Home](screens/home.md) |
-| `/flow-template-editor` | [Flow Template Editor](screens/flow-template-editor.md) |
-| `/flow-instance-editor` | [Flow Instance Editor](screens/flow-instance-editor.md) |
+| `/flow-editor` | [Flow Editor](screens/flow-editor.md) |
 | `/geometry-generator?generatorId=<id>` | [Geometry Generator Editor](screens/geometry-generator-editor.md) |
 | `/geometry-editor` | [Geometry JSON Editor](screens/geometry-editor.md) |
 | `/management` | [Management](screens/management.md) |
@@ -88,11 +87,11 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 
 | Route | Canonical entry state | 操作旅程 | Acceptance |
 | --- | --- | --- | --- |
-| `/` | reset 後 Home ready | template card navigation、create routes、reset | `UI-HOME-001` 至 `UI-HOME-005` |
-| `/flow-template-editor` | fresh draft | click-add step、drag catalog geometry、connect、save、preview | `UI-FTE-001` 至 `UI-FTE-005` |
-| `/flow-instance-editor?templateId=flow_tpl_aaa_demo` | blank AAA instance | load source instance、edit、preview、save immutable copy | `UI-FIE-001` 至 `UI-FIE-007` |
+| `/` | reset 後 Home ready | flow card navigation、create routes、reset | `UI-HOME-001` 至 `UI-HOME-005` |
+| `/flow-editor` | fresh flow | click-add step、drag catalog geometry、connect、save、preview | `UI-FLOW-001` 至 `UI-FLOW-008` |
+| `/flow-editor?flowId=flow_inst_aaa_demo_hbm4_alpha` | saved Alpha flow | 候選查看／採用、更新／另存、草稿恢復、409 | `UI-FLOW-001` 至 `UI-FLOW-008` |
 | `/geometry-generator?generatorId=<id>` | generator defaults | preview、download、Save to DB | `UI-GEN-001` 至 `UI-GEN-003` |
-| `/management` | bootstrap ready | inspect resources、edit flow-template metadata/defaults、edit process-step settings、open authoring routes | `UI-MGMT-001` 至 `UI-MGMT-005` |
+| `/management` | bootstrap ready | inspect flows/drafts/geometries、open Flow Editor、edit process-step settings | `UI-MGMT-001` 至 `UI-MGMT-005` |
 | `/dashboard` | active export snapshot | all-client counts、stage/detail/elapsed、FIFO queue、refresh/stale recovery | `UI-DASH-001` 至 `UI-DASH-008` |
 | `/cad-viewer` | demo workbench | import、section、camera、reset | `UI-CAD-001` 至 `UI-CAD-006` |
 | Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |
@@ -131,8 +130,7 @@ Visual regression 的預設資料狀態稱為 `ui-golden`：
 資料來源固定為：
 
 - `apps/api/src/process_flow_api/fixtures/geometries.json`
-- `apps/api/src/process_flow_api/fixtures/process-flow-templates.json`
-- `apps/api/src/process_flow_api/fixtures/process-flow-instances.json`
+- `apps/api/src/process_flow_api/fixtures/process-flows.json`
 - `apps/api/src/process_flow_api/fixtures/process-step-templates.json`
 
 每次 visual run 開始前以 POC reset 還原資料；reset 完成後才開始 screenshot。
@@ -158,7 +156,7 @@ color scheme `light`、locale `en-US`：
 
 | ID | 舊說法或模糊處 | Normative baseline | 實作狀態 |
 | --- | --- | --- | --- |
-| `UI-CONFLICT-001` | Preview 只由 Instance Editor 開啟。 | Template Editor 與 Instance Editor 都 MUST 支援 Geometry Preview。 | 已符合。 |
+| `UI-CONFLICT-001` | Preview 只由 Instance Editor 開啟。 | 統一 Flow Editor MUST 支援 Geometry Preview。 | 已符合。 |
 | `UI-CONFLICT-002` | View-mode node 必須雙擊。 | Screen-level primary behavior 是單擊 node 開啟 editor；shared node 的雙擊 handler 僅為 legacy fallback。 | 已符合。 |
 | `UI-CONFLICT-003` | Standalone CAD Reset 一律切回 ISO。 | Reset 清除 imported model/error 並 fit camera，但保留目前 `cameraView`。 | 已符合現行；若要改 UX 需另立決策。 |
 | `UI-CONFLICT-004` | Feature defaults 是 `1.00x / 1.00x / 42% / 2,000`。 | `Density scale 0.40x`、`Glyph size 1.00x`、`Opacity 60%`、`Max instances 10,000`。 | 已符合。 |

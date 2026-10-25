@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { disabledStepsForNewFlow, isTemplateEnabled } from "./template-availability";
-import type { ProcessFlowTemplate, ProcessStepTemplate } from "./types";
+import type { FlowDefinition, ProcessStepTemplate } from "./types";
 
 const step: ProcessStepTemplate = {
   schemaVersion: 2, status: "enabled", id: "step", name: "Step", version: "V0",
   owner: "test", category: "test", program: "layer/molding", description: "",
   inputPorts: [], outputPorts: [], parameterDefinitions: [],
 };
-const flow: ProcessFlowTemplate = {
-  schemaVersion: 2, status: "enabled", id: "flow", name: "Flow", version: "V0",
+const flow: FlowDefinition = {
+
   flowInputs: [], flowEdges: [], stepRefs: [{ stepRefId: "a", processStepTemplateId: "step" }],
 };
 
 describe("template availability", () => {
   it("allows legacy templates but rejects disabled or absent templates", () => {
     expect(isTemplateEnabled({})).toBe(true);
-    expect(isTemplateEnabled(flow)).toBe(true);
-    expect(isTemplateEnabled({ ...flow, status: "disabled" })).toBe(false);
+    expect(isTemplateEnabled(step)).toBe(true);
+    expect(isTemplateEnabled({ ...step, status: "disabled" })).toBe(false);
     expect(isTemplateEnabled(null)).toBe(false);
     expect(isTemplateEnabled(undefined)).toBe(false);
   });

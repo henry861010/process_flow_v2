@@ -1,69 +1,22 @@
-import type { EditorDraftSummary } from "./types";
-import {
-  deleteEditorDraft,
-  deleteGeometry,
-  deleteProcessFlowInstance,
-  deleteProcessFlowTemplate,
-  listEditorDrafts,
-  loadBootstrap,
-  type BootstrapPayload,
-} from "@/lib/process-flow-api";
-
-export type ManagementData = BootstrapPayload & {
-  processFlowTemplateDrafts: EditorDraftSummary[];
-  processFlowInstanceDrafts: EditorDraftSummary[];
-};
-
+import type { FlowDraftSummary, ProcessFlow } from "./types";
+import { deleteFlowDraft, deleteGeometry, deleteProcessFlow, listFlowDrafts, loadBootstrap, type BootstrapPayload } from "@/lib/process-flow-api";
+export type ManagementData = BootstrapPayload & { flowDrafts: FlowDraftSummary[] };
 export type ManagementDeletion =
-  | { collection: "processFlowTemplates" | "processFlowInstances" | "geometries"; resource: { id: string; name: string } }
-  | { collection: "processFlowTemplateDrafts" | "processFlowInstanceDrafts"; resource: EditorDraftSummary };
-
-export function managementDataFromBootstrap(payload: BootstrapPayload): ManagementData {
-  return { ...payload, processFlowTemplateDrafts: [], processFlowInstanceDrafts: [] };
-}
-
-function newestFirst(drafts: EditorDraftSummary[]) {
-  return drafts.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || a.id.localeCompare(b.id));
-}
-
+  | { collection: "processFlows"; resource: ProcessFlow }
+  | { collection: "geometries"; resource: { id: string; name: string } }
+  | { collection: "flowDrafts"; resource: FlowDraftSummary };
+export function managementDataFromBootstrap(payload: BootstrapPayload): ManagementData { return { ...payload, flowDrafts: [] }; }
 export async function loadManagementData(): Promise<ManagementData> {
-  const [payload, templateDrafts] = await Promise.all([
-    loadBootstrap(),
-    listEditorDrafts("template", {}),
-  ]);
-  const instanceDrafts = await Promise.all(payload.processFlowTemplates.map((template) =>
-    listEditorDrafts("instance", { templateId: template.id }),
-  ));
-  return {
-    ...payload,
-    processFlowTemplateDrafts: newestFirst(templateDrafts),
-    processFlowInstanceDrafts: newestFirst(instanceDrafts.flat()),
-  };
+  const [payload, flowDrafts] = await Promise.all([loadBootstrap(), listFlowDrafts()]);
+  return { ...payload, flowDrafts };
 }
-
-export async function deleteManagementResource(target: ManagementDeletion): Promise<void> {
-  const { resource } = target;
+export async function deleteManagementResource(target: ManagementDeletion) {
   switch (target.collection) {
-    case "processFlowTemplates": return deleteProcessFlowTemplate(resource.id);
-    case "processFlowInstances": return deleteProcessFlowInstance(resource.id);
-    case "geometries": return deleteGeometry(resource.id);
-    case "processFlowTemplateDrafts": return deleteEditorDraft("template", target.resource);
-    case "processFlowInstanceDrafts": {
-      if (!target.resource.processFlowTemplateId) throw new Error("Instance draft is missing its template ID. Reload the page.");
-      return deleteEditorDraft("instance", target.resource, target.resource.processFlowTemplateId);
-    }
+    case "processFlows": return deleteProcessFlow(target.resource);
+    case "geometries": return deleteGeometry(target.resource.id);
+    case "flowDrafts": return deleteFlowDraft(target.resource);
   }
 }
-
 export function removeManagementResource(data: ManagementData, target: ManagementDeletion): ManagementData {
-  const updated = {
-    ...data,
-    [target.collection]: data[target.collection].filter((item) => item.id !== target.resource.id),
-  };
-  if (target.collection === "processFlowTemplates") {
-    updated.processFlowInstanceDrafts = data.processFlowInstanceDrafts.filter((draft) =>
-      draft.processFlowTemplateId !== target.resource.id,
-    );
-  }
-  return updated;
+  return { ...data, [target.collection]: data[target.collection].filter((item) => item.id !== target.resource.id) };
 }

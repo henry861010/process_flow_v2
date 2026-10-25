@@ -83,25 +83,9 @@ Canonical structure wrapper：
 Persisted catalog id MUST non-null。Preview download MAY 使用 `id: null`，但在匯入 catalog
 時 server MUST 生成符合 Process Flow identifier grammar 的新 id。
 
-## 3. EmbeddedGeometry
+## 3. GeometryDocument
 
-`EmbeddedGeometry` 只存在於 `FlowConfiguration.embeddedGeometries`，shape 等同
-`GeometryEntity` metadata + structure，但 MUST NOT 有 catalog `id`。Map key 是
-`localId` identity。
-
-Embedded geometry MAY省略`adaptationContract`；PnP runtime對Box-only或single-loop polygon
-structure選擇default。同一batch可混合rectangle與polygon target；default `box-rescale@1`會把
-所有root direct Box features替換成exact target polygon，children不rescale並跟placement做rigid
-transform。PnP會將absolute polygon暫時轉入以bounds lower-left為原點的adapter frame，再以
-absolute bounds center放回global XY；突出children不改變target alignment。
-Backend HBM/DRAM generator產生的geometry MUST明確包含generation與contract。
-
-Commit MUST：
-
-1. materialize only referenced local ids；
-2. 每個 referenced local id 建立 exactly one immutable `GeometryEntity`；
-3. 將所有該 local id bindings 改寫成同一 catalog id；
-4. 正式儲存成功後，在同一 transaction 刪除來源 editor draft。
+`GeometryDocument` 是無 catalog ID 的 geometry envelope，供 generator／preview 回傳幾何內容。`GeometryEntity` 在相同內容上加入 catalog ID。Flow configuration 只支援 catalog 或 generator binding，不保存 embedded geometry。舊草稿 embedded 資料僅由 schema 14 migration 轉為 catalog。
 
 ## 4. GeometryStructure
 

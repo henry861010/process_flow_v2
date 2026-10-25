@@ -145,32 +145,25 @@ export type StepRef = {
   stepRefId: string;
   stepLabel?: string;
   processStepTemplateId: string;
-  parameterDefaults?: Record<string, unknown>;
 };
 
-export type ProcessFlowTemplate = {
-  schemaVersion: 2;
-  status: TemplateStatus;
-  id: string;
-  name: string;
-  version: string;
-  description?: string;
-  owner?: string;
+export type FlowDefinition = {
   flowInputs: FlowInputDefinition[];
   stepRefs: StepRef[];
   flowEdges: SavedFlowEdge[];
 };
-
-export type ProcessFlowTemplateCreate = Omit<ProcessFlowTemplate, "id">;
+export type FlowOrigin = { flowId: string; revision: number };
+export type FlowContent = { definition: FlowDefinition; configuration: FlowConfiguration };
+export type ProcessFlow = FlowContent & {
+  schemaVersion: 3; id: string; name: string; version: string; owner: string;
+  description: string; revision: number; origin?: FlowOrigin;
+};
+export type ProcessFlowCreate = Omit<ProcessFlow, "id" | "revision">;
+export type ProcessFlowUpdate = ProcessFlowCreate & { revision: number };
 
 export type CatalogGeometryBinding = {
   kind: "catalog";
   geometryId: string;
-};
-
-export type EmbeddedGeometryBinding = {
-  kind: "embedded";
-  localId: string;
 };
 
 export type GeneratorGeometryBinding = {
@@ -182,11 +175,14 @@ export type GeneratorGeometryBinding = {
 
 export type GeometryBinding =
   | CatalogGeometryBinding
-  | EmbeddedGeometryBinding
   | GeneratorGeometryBinding;
 
+export type RecipeCandidate = {
+  recipeId: string; name: string; description: string; parameterValues: Record<string, unknown>;
+};
 export type StepConfiguration = {
-  parameterValues: Record<string, unknown>;
+  recipeCandidates: RecipeCandidate[];
+  selectedRecipeId: string | null;
 };
 
 export type GeometryGeneration = {
@@ -201,7 +197,7 @@ export type GeometryAdaptationContract = {
   parameters?: Record<string, unknown>;
 };
 
-export type EmbeddedGeometry = {
+export type GeometryDocument = {
   name: string;
   entityType: string;
   category?: string | null;
@@ -222,35 +218,6 @@ export type EmbeddedGeometry = {
 export type FlowConfiguration = {
   inputBindings: Record<string, GeometryBinding>;
   stepConfigurations: Record<string, StepConfiguration>;
-  embeddedGeometries: Record<string, EmbeddedGeometry>;
-};
-
-export type ProcessFlowInstance = {
-  schemaVersion: 2;
-  id: string;
-  name: string;
-  version: string;
-  owner: string;
-  description: string;
-  processFlowTemplateId: string;
-  inputBindings: Record<string, CatalogGeometryBinding | GeneratorGeometryBinding>;
-  stepConfigurations: Record<string, StepConfiguration>;
-};
-
-export type ProcessFlowInstanceCreate = Omit<
-  ProcessFlowInstance,
-  "id" | "inputBindings"
-> &
-  FlowConfiguration;
-
-export type ProcessFlowInstanceForNewTemplateCreate = Omit<
-  ProcessFlowInstanceCreate,
-  "processFlowTemplateId"
->;
-
-export type TemplateInstanceCreateRequest = {
-  processFlowTemplate: ProcessFlowTemplateCreate;
-  processFlowInstance: ProcessFlowInstanceForNewTemplateCreate;
 };
 
 export type GeometryEntity = {
@@ -296,23 +263,20 @@ export type TemplateLayout = {
 };
 
 export type EditorMetadata = { name: string; version: string; owner: string; description: string };
-export type InstanceEditorDraftState = { metadata: EditorMetadata; configuration: FlowConfiguration };
-export type TemplateDraftNode =
+export type FlowDraftNode =
   | { id: string; kind: "flowInput"; position: { x: number; y: number }; definition: FlowInputDefinition }
   | { id: string; kind: "processStep"; position: { x: number; y: number }; stepRef: StepRef };
-export type TemplateEditorDraftState = InstanceEditorDraftState & {
-  nodes: TemplateDraftNode[];
+export type FlowDraftState = {
+  metadata: EditorMetadata; configuration: FlowConfiguration;
+  nodes: FlowDraftNode[];
   edges: Array<{ id: string; source: string; target: string; sourceHandle: string | null; targetHandle: string | null }>;
   viewport: { x: number; y: number; zoom: number };
+  editingRecipeIds: Record<string, string>;
 };
-type EditorDraftRecord<State> = {
-  schemaVersion: 1; id: string; user: string; name: string; revision: number;
-  createdAt: string; updatedAt: string; state: State;
+export type FlowDraft = {
+  schemaVersion: 2; id: string; user: string; name: string; revision: number;
+  createdAt: string; updatedAt: string; state: FlowDraftState;
+  target?: FlowOrigin; origin?: FlowOrigin;
 };
-export type TemplateEditorDraft = EditorDraftRecord<TemplateEditorDraftState>;
-export type InstanceEditorDraft = EditorDraftRecord<InstanceEditorDraftState> & { processFlowTemplateId: string };
-export type EditorDraft = TemplateEditorDraft | InstanceEditorDraft;
-export type EditorDraftSummary = Omit<EditorDraft, "state"> & { processFlowTemplateId?: string };
-export type EditorDraftCreate =
-  | Pick<TemplateEditorDraft, "schemaVersion" | "user" | "name" | "state">
-  | Pick<InstanceEditorDraft, "schemaVersion" | "user" | "name" | "state" | "processFlowTemplateId">;
+export type FlowDraftSummary = Omit<FlowDraft, "state">;
+export type FlowDraftCreate = Pick<FlowDraft, "schemaVersion" | "user" | "name" | "state" | "target" | "origin">;

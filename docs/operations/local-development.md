@@ -111,7 +111,7 @@ origin；不可把正式 build 指向訪客電腦的 localhost。沿用 static e
 
 | Variable | Component | Default | Notes |
 | --- | --- | --- | --- |
-| `PROCESS_FLOW_API_DB_PATH` | API | `apps/api/.data/process-flow.sqlite3` | SQLite path；parent 自動建立 |
+| `PROCESS_FLOW_API_DB_PATH` | API | 設定的 process-flow.sqlite3（PROCESS_FLOW_API_DB_PATH） | SQLite path；parent 自動建立 |
 | `PROCESS_FLOW_API_CORS_ORIGINS` | API | localhost/127.0.0.1 ports 3000/3001 | Comma-separated exact origins |
 | `GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` | API sync preview | `30` | 只適用 synchronous CAD preview helper |
 | `EXPORT_MAX_CONCURRENT_JOBS` | API export jobs | `3` | Preferred queue concurrency variable |

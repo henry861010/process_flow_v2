@@ -27,7 +27,7 @@ export function EditorShellHeader({
   onStartFrom,
   onSave,
 }: {
-  editor: "template" | "instance";
+  editor: "flow";
   subtitle: string;
   busy: boolean;
   sourceDisabled: boolean;
@@ -37,8 +37,8 @@ export function EditorShellHeader({
   onStartFrom: () => void;
   onSave: () => void;
 }) {
-  const Icon = editor === "template" ? Workflow : GitBranch;
-  const title = editor === "template" ? "Template Editor" : "Instance Editor";
+  const Icon = Workflow;
+  const title = "Flow Editor";
   return (
     <header className="shrink-0 border-b bg-white px-4 py-3 sm:px-5">
       <div className="flex min-h-10 flex-wrap items-center justify-between gap-x-6 gap-y-3">
@@ -112,4 +112,3 @@ export function EditorStatusBar({
     </div>
   );
 }
-

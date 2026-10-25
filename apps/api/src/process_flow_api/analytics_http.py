@@ -16,13 +16,10 @@ from .analytics import current_origin, request_context, request_owner, utc_times
 from .repository import DuplicateItemError, NotFoundError, ResourceConflictError
 
 OPERATIONS = {
-    ("POST", "/api/process-flow-templates"): "flow_template.create",
-    ("PUT", "/api/process-flow-templates/{template_id}"): "flow_template.update",
-    ("DELETE", "/api/process-flow-templates/{template_id}"): "flow_template.delete",
-    ("POST", "/api/process-flow-template-instances"): "flow_template.create",
-    ("POST", "/api/process-flow-instances"): "flow_instance.create",
-    ("DELETE", "/api/process-flow-instances/{instance_id}"): "flow_instance.delete",
-    ("POST", "/api/process-flow-instances/{instance_id}/execute"): "flow_instance.execute",
+    ("POST", "/api/process-flows"): "flow.create",
+    ("PUT", "/api/process-flows/{flow_id}"): "flow.update",
+    ("DELETE", "/api/process-flows/{flow_id}"): "flow.delete",
+    ("POST", "/api/process-flows/{flow_id}/execute"): "flow.execute",
     ("POST", "/api/geometry-preview"): "flow.preview",
     ("POST", "/api/preview-sessions"): "flow.preview",
     ("POST", "/api/geometry-preview/step"): "geometry.preview",
@@ -40,12 +37,9 @@ OPERATIONS = {
     ("POST", "/api/process-step-templates"): "step_template.create",
     ("PUT", "/api/process-step-templates/{template_id}"): "step_template.update",
 }
-for _kind in ("template", "instance"):
-    _base = f"/api/process-flow-{_kind}-drafts"
-    for _method, _suffix, _action in (("POST", "", "create"), ("PUT", "/{draft_id}", "update"),
-                                      ("DELETE", "/{draft_id}", "delete"), ("POST", "/{draft_id}/commit", "commit")):
-        OPERATIONS[(_method, _base + _suffix)] = f"{_kind}_draft.{_action}"
-
+for _method, _suffix, _action in (("POST", "", "create"), ("PUT", "/{draft_id}", "update"),
+                                  ("DELETE", "/{draft_id}", "delete"), ("POST", "/{draft_id}/commit", "commit")):
+    OPERATIONS[(_method, "/api/process-flow-drafts" + _suffix)] = f"flow_draft.{_action}"
 
 
 def value(obj: Any, key: str, default: Any = None) -> Any:
@@ -59,11 +53,12 @@ def text_value(obj: Any) -> str | None:
 def flow_summary(template: Any) -> dict[str, Any]:
     if template is None:
         return {}
-    steps = value(template, "stepRefs", [])
+    definition = value(template, "definition", {})
+    steps = value(definition, "stepRefs", [])
     return {"flow_name": (value(template, "name", "") or "")[:256],
             "flow_version": (value(template, "version", "") or "")[:256],
-            "step_count": len(steps), "edge_count": len(value(template, "flowEdges", [])),
-            "input_count": len(value(template, "flowInputs", [])),
+            "step_count": len(steps), "edge_count": len(value(definition, "flowEdges", [])),
+            "input_count": len(value(definition, "flowInputs", [])),
             "step_template_ids": sorted({identifier for step in steps
                 if (identifier := text_value(value(step, "processStepTemplateId")))})[:256]}
 
@@ -72,7 +67,7 @@ def configuration_summary(configuration: Any) -> dict[str, Any]:
     if configuration is None:
         return {}
     bindings = value(configuration, "inputBindings", {})
-    counts = {kind: 0 for kind in ("catalog", "embedded", "generator")}
+    counts = {kind: 0 for kind in ("catalog", "generator")}
     generators: set[tuple[str, int]] = set()
     for binding in bindings.values():
         kind = value(binding, "kind")
@@ -84,7 +79,7 @@ def configuration_summary(configuration: Any) -> dict[str, Any]:
             if identifier and isinstance(version, int):
                 generators.add((identifier, version))
     configurations = value(configuration, "stepConfigurations", {})
-    return {"configured_step_count": sum(bool(value(step, "parameterValues", {}))
+    return {"configured_step_count": sum(bool(value(step, "selectedRecipeId"))
                                           for step in configurations.values()),
             "binding_counts": counts,
             "generators": [{"id": identifier, "version": version}
@@ -114,62 +109,33 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
     body = arguments.get("body")
     properties: dict[str, Any] = {}
     result: dict[str, Any] = {"source_kind": "system", "properties": properties}
-    template = instance = None
+    flow = None
     if "-drafts" in route:
-        kind = "template" if "template-drafts" in route else "instance"
         identifier = arguments.get("draft_id")
-        draft = store.get_editor_draft(kind, identifier) if identifier else body
-        result["source_kind"] = f"{kind}_draft"
-        result["flow_template_id"] = text_value(value(draft, "processFlowTemplateId"))
-        properties.update(draft_id=identifier, draft_kind=kind, revision=value(draft, "revision"),
+        draft = store.get_flow_draft(identifier) if identifier else body
+        result["source_kind"] = "inline_draft"
+        properties.update(draft_id=identifier, revision=value(draft, "revision"),
                           draft_name=(value(draft, "name", "") or "")[:256])
         if route.endswith("/commit"):
-            payload = value(body, "processFlowTemplate" if kind == "template" else "processFlowInstance")
-            template = payload if kind == "template" else store.get_process_flow_template(value(payload, "processFlowTemplateId"))
-            properties.update(flow_summary(template))
-            instance = value(body, "processFlowInstance")
-            if instance is not None:
-                properties.update(configuration_summary(instance))
-                properties.update(instance_name=(value(instance, "name", "") or "")[:256],
-                                  instance_version=text_value(value(instance, "version")))
-        return result
-    if "/process-flow-template" in route:
-        template = value(body, "processFlowTemplate", body)
-        result["source_kind"] = "template"
-        if route.endswith("/{template_id}"):
-            template = body or store.get_process_flow_template(arguments.get("template_id"))
-        result["flow_template_id"] = text_value(value(template, "id"))
-        if route == "/api/process-flow-template-instances":
-            instance = value(body, "processFlowInstance")
-    elif "/process-flow-instances" in route:
-        instance = store.get_process_flow_instance(arguments.get("instance_id")) if arguments.get("instance_id") else body
-        result["source_kind"] = "instance"
-    if instance is not None:
-        result["flow_instance_id"] = text_value(value(instance, "id"))
-        properties.update(instance_name=(value(instance, "name", "") or "")[:256],
-                          instance_version=text_value(value(instance, "version")))
-    resource = instance
-    if resource is not None:
-        identifier = text_value(value(resource, "processFlowTemplateId"))
-        if template is None and identifier:
-            template = store.get_process_flow_template(identifier)
-        if template is not None:
-            result["flow_template_id"] = text_value(value(template, "id"))
-        properties.update(configuration_summary(resource))
+            flow = value(body, "flow")
+    elif "/process-flows" in route:
+        flow = store.get_process_flow(arguments["flow_id"]) if arguments.get("flow_id") else body
+        result.update(source_kind="flow", flow_id=text_value(value(flow, "id")),
+                      flow_revision=value(flow, "revision"))
     if route in ("/api/geometry-preview", "/api/preview-sessions"):
-        inline = value(body, "flowTemplate")
-        identifier = text_value(value(body, "processFlowTemplateId"))
-        template = inline if inline is not None else store.get_process_flow_template(identifier) if identifier else None
-        result["source_kind"] = "inline_draft" if inline is not None else "template"
-        # Inline topology is never attributed to a saved template merely by its id.
-        result["flow_template_id"] = text_value(value(template, "id")) if inline is None else None
-        properties.update(configuration_summary(value(body, "configuration")))
+        inline = value(body, "flow")
+        identifier = text_value(value(body, "flowId"))
+        flow = inline if inline is not None else store.get_process_flow(identifier) if identifier else None
+        result["source_kind"] = "inline_draft" if inline is not None else "flow"
+        if inline is None:
+            result.update(flow_id=text_value(value(flow, "id")), flow_revision=value(flow, "revision"))
         target = value(body, "target")
         properties.update(target_kind=text_value(value(target, "type")),
                           target_step_ref_id=text_value(value(target, "stepRefId")),
                           target_flow_input_id=text_value(value(target, "flowInputId")),
                           target_port_id=text_value(value(target, "outputPortId")))
-    properties.update(flow_summary(template))
+    properties.update(flow_summary(flow))
+    properties.update(configuration_summary(value(flow, "configuration")))
     if route.startswith("/api/geometry") or route.startswith("/api/mesh-control"):
         if result["source_kind"] == "system":
             result["source_kind"] = "geometry"
@@ -198,38 +164,27 @@ def usage_summary(store: Any, route: str, arguments: dict[str, Any]) -> dict[str
         properties["export_format"] = value(body, "kind", "cdb")
     context = value(body, "analyticsContext")
     if context is not None:
-        apply_context(store, context, result, expected_template_id=text_value(value(body, "processFlowTemplateId")))
+        apply_context(store, context, result, expected_flow_id=text_value(value(body, "flowId")))
     return result
 
 
-def apply_context(store: Any, context: Any, result: dict[str, Any], *, expected_template_id: str | None = None) -> None:
-    """Only retain existing, mutually consistent references. Context is attribution,
-    not proof that a draft or exported geometry equals the saved resource.
-    """
-    if value(context, "sourceKind") == "inline_draft":
-        result["source_kind"] = "inline_draft"
-        identifier = result.pop("flow_template_id", None)
-        if identifier:
-            result["properties"]["base_flow_template_id"] = identifier
-    instance_id = text_value(value(context, "flowInstanceId"))
-    template_id = text_value(value(context, "flowTemplateId"))
-    instance = store.get_process_flow_instance(instance_id) if instance_id else None
-    candidates = {identifier for identifier in (template_id,
-        value(instance, "processFlowTemplateId")) if identifier}
-    confirmed = (not instance_id or instance is not None) and len(candidates) == 1
-    template = store.get_process_flow_template(next(iter(candidates))) if confirmed else None
-    if (template is None or (expected_template_id and expected_template_id != template["id"])
-            or (result.get("flow_template_id") and result["flow_template_id"] != template["id"])):
+def apply_context(store: Any, context: Any, result: dict[str, Any], *, expected_flow_id: str | None = None) -> None:
+    """Attribution does not imply an edited draft equals a saved flow."""
+    identifier = text_value(value(context, "flowId"))
+    revision = value(context, "flowRevision")
+    flow = store.get_process_flow(identifier) if identifier else None
+    if (flow is None or revision != flow["revision"] or
+            (expected_flow_id and identifier != expected_flow_id) or
+            (result.get("flow_id") and identifier != result["flow_id"])):
         result["properties"]["context_confirmed"] = False
         return
     result["properties"]["context_confirmed"] = True
-    if result["source_kind"] == "inline_draft":
-        result["properties"]["base_flow_template_id"] = template["id"]
+    if value(context, "sourceKind") == "inline_draft":
+        result["source_kind"] = "inline_draft"
+        result["properties"].update(base_flow_id=identifier, base_flow_revision=revision)
     else:
-        result.update(flow_template_id=template["id"],
-                      flow_instance_id=instance_id)
-        result["source_kind"] = "instance" if instance else "template"
-        result["properties"].update(flow_summary(template))
+        result.update(flow_id=identifier, flow_revision=revision, source_kind="flow")
+        result["properties"].update(flow_summary(flow))
 
 
 class AnalyticsRoute(APIRoute):
@@ -259,9 +214,6 @@ class AnalyticsRoute(APIRoute):
                         recorder.event(current_origin() or {}, event_name=event_name, outcome="failure",
                                        duration_ms=int((time.monotonic() - started) * 1000),
                                        error_code="REQUEST_INTERRUPTED" if isinstance(error, asyncio.CancelledError) else error_code(error))
-                        if path == "/api/process-flow-template-instances":
-                            recorder.event(current_origin() or {}, event_name="flow_instance.create", outcome="failure",
-                                           error_code=error_code(error))
                     raise
                 try:
                     self._finish(recorder, context, path, event_name, summary, result, started)
@@ -279,12 +231,8 @@ class AnalyticsRoute(APIRoute):
         if event_name == "export":
             return  # The manager records accepted/started/finished against the job id.
         properties = summary["properties"]
-        if event_name == "flow_template.create":
-            template = value(result, "processFlowTemplate", result)
-            summary["flow_template_id"] = text_value(value(template, "id"))
-        if event_name == "flow_instance.create" or path == "/api/process-flow-template-instances":
-            instance = value(result, "processFlowInstance", result)
-            summary["flow_instance_id"] = text_value(value(instance, "id"))
+        if event_name in ("flow.create", "flow.update", "flow_draft.commit"):
+            summary.update(flow_id=text_value(value(result, "id")), flow_revision=value(result, "revision"))
         if event_name == "generator.preview":
             properties["generator_version"] = value(result, "generatorVersion")
             if value(result, "valid") is False:
@@ -305,21 +253,11 @@ class AnalyticsRoute(APIRoute):
             if action in ("create", "update"):
                 properties.update(draft_id=value(result, "id"), revision=value(result, "revision"))
             if action == "commit":
-                resource = value(result, "processFlowTemplate", result) if kind == "template" else result
-                summary[f"flow_{kind}_id"] = text_value(value(resource, "id"))
-                combined_instance = value(result, "processFlowInstance")
-                if combined_instance is not None:
-                    summary["flow_instance_id"] = text_value(value(combined_instance, "id"))
-                recorder.event(current_origin() or {}, event_name=f"flow_{kind}.create", outcome="success")
-                if combined_instance is not None:
-                    recorder.event(current_origin() or {}, event_name="flow_instance.create", outcome="success")
+                recorder.event(current_origin() or {}, event_name="flow.update" if value(result, "revision", 1) > 1 else "flow.create", outcome="success")
         if event_name in ("data.reset", "data.import"):
             properties["new_dataset_id"] = context["store"].dataset_id
         recorder.event(current_origin() or {}, event_name=event_name, outcome="success",
                        duration_ms=int((time.monotonic() - started) * 1000))
-        if path == "/api/process-flow-template-instances":
-            summary["source_kind"] = "instance"
-            recorder.event(current_origin() or {}, event_name="flow_instance.create", outcome="success")
 
     def get_route_handler(self) -> Any:
         original = super().get_route_handler()
@@ -334,9 +272,6 @@ class AnalyticsRoute(APIRoute):
                     context["usage"] = {"source_kind": "system", "properties": {}}
                     context["recorder"].event(current_origin() or {}, event_name=name,
                                                outcome="failure", error_code="VALIDATION_ERROR")
-                    if self.path == "/api/process-flow-template-instances":
-                        context["recorder"].event(current_origin() or {}, event_name="flow_instance.create",
-                                                   outcome="failure", error_code="VALIDATION_ERROR")
                 raise
         return handler
 

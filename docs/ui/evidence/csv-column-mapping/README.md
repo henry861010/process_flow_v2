@@ -1,6 +1,6 @@
 ---
 title: CSV Column Mapping Browser Evidence
-status: descriptive
+status: historical
 owner: Process Flow UI
 audience:
   - frontend
@@ -14,6 +14,8 @@ verified_against:
   - apps/viewer/components/process-flow-parameters/repeatable-group-csv-import.tsx
   - apps/viewer/lib/process-flow/repeatable-group-csv.test.ts
 ---
+
+> 歷史 UI 證據：此處的舊路由／資料模型已退場，現行規格見 [Flow Editor](../../screens/flow-editor.md)。
 
 # CSV 欄位對應檢閱
 

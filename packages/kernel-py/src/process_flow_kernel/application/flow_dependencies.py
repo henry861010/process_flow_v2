@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from .recipes import selected_parameter_values
 from .flow_validation import FlowGraphAnalysis
 
 
@@ -37,7 +38,7 @@ def analyze_flow_dependencies(
             raise ValueError(f"Preview stepRefId not found: {step_ref_id}")
         included.add(step_ref_id)
         template = analysis.step_templates_by_ref_id[step_ref_id]
-        placements = configurations.get(step_ref_id, {}).get("parameterValues", {}).get(
+        placements = selected_parameter_values(configurations.get(step_ref_id, {}), step_ref_id=step_ref_id).get(
             "placements"
         )
         zero_placements = (

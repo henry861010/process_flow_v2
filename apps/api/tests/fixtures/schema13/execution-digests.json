@@ -1,0 +1,9 @@
+{
+  "sourceCommit": "7d49bf0b",
+  "algorithm": "sha256:sorted-compact-json",
+  "instances": {
+    "flow_inst_aaa_demo_hbm4_alpha": "e59b09367aaee2da2a03e6497e2ed477dbcf7b445304c7c1f975aefee9de9407",
+    "flow_inst_aaa_demo_hbm4_beta": "3f0b3e71d9b14a3074d26ec5392f94197623d05748c477b743f9bf021de7209a",
+    "flow_inst_dual_bump_demo": "c7d154a87886abd32117657455ab8295264f9cc329734b66a38b49d6a8c1c9ae"
+  }
+}

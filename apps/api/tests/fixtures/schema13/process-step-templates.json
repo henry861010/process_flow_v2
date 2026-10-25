@@ -1,0 +1,1133 @@
+[
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_molding",
+    "version": "V0.0.0",
+    "name": "molding",
+    "category": "layer",
+    "program": "layer/molding",
+    "description": "封膠成型（Molding）：代表以封膠材料包覆封裝內的元件，提供保護與結構支撐的製程。模型會依目前製程的平面範圍，在目前製程表面向上新增指定材料與厚度的封膠層，並將後續製程表面移至新層頂部。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by molding. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "material",
+        "description": "Molding material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null,
+        "defaultValue": "EMC-G700"
+      },
+      {
+        "id": "thickness",
+        "name": "thickness",
+        "description": "Molding thickness deposited from the current process cursor plane.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        },
+        "defaultValue": 180
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_pnp",
+    "version": "V0.0.0",
+    "name": "PnP",
+    "category": "PnP",
+    "program": "pnp/pnp",
+    "description": "取放與定位（Pick and Place，PnP）：將晶片或封裝元件放到主結構的指定位置，建立後續組裝的配置。模型會依每筆目標區域與元件的尺寸調整規則產生元件，再定位到主結構上；若元件底部有凸塊，會對齊並接觸主結構上可配對的凸塊，否則底部對齊目前製程表面。此步完成放置，凸塊接合需由後續 MR joint 或 TCB joint 完成。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "die_geometry",
+        "name": "die_geometry",
+        "description": "Component geometry whose adaptation contract determines target-region materialization.",
+        "dataType": "geometry",
+        "role": "auxiliary",
+        "required": true
+      },
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main package geometry state that receives placed component child scopes.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by adaptive placement.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "placements",
+        "name": "placements",
+        "description": "Absolute target region for every component instance; pose is fixed at zero and anchor is fixed at center.",
+        "valueType": "placements",
+        "controlType": "placementList",
+        "selectionMode": null,
+        "unit": "um"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_ecl",
+    "version": "V0.0.0",
+    "name": "ECL",
+    "category": "layer",
+    "program": "layer/ecl",
+    "description": "ECL 成層：在目前製程表面新增一層指定材料，代表製程堆疊中的 ECL 材料層。模型會依目前製程的平面範圍，將邊緣向內退縮指定的保留距離（koz）後，向上建立指定厚度（thk）的材料層，並將後續製程表面移至新層頂部。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by ECL. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "material",
+        "description": "ECL material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive ECL thickness deposited from the current process cursor plane.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance applied as an inward XY inset from the process footprint.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_daf",
+    "version": "V0.0.0",
+    "name": "DAF",
+    "category": "layer",
+    "program": "layer/daf",
+    "description": "晶片黏著膜成層（Die Attach Film，DAF）：代表在晶片與基板或另一顆晶片之間加入黏著膜，供後續貼合與堆疊使用。模型會依目前製程的平面範圍，在整體結構最上方新增指定材料與厚度的 DAF 層，並將後續製程表面移至新層頂部。此步只建立黏著膜層，元件放置與載板貼合由各自的步驟完成。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state that receives the DAF layer. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "DAF material",
+        "description": "DAF material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "DAF thk",
+        "description": "Positive DAF thickness deposited on the full geometry top.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_fow",
+    "version": "V0.0.0",
+    "name": "FOW",
+    "category": "layer",
+    "program": "layer/fow",
+    "description": "覆線黏著膜成層（Film Over Wire，FOW）：代表堆疊晶片時，用於包覆下層焊線並黏接上層晶片的膜層。模型會依目前製程的平面範圍，在整體結構最上方新增指定材料與厚度的 FOW 層，並將後續製程表面移至新層頂部；目前以材料層表示，不模擬焊線包覆細節。後續 Debond 會保留此層。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state that receives the FOW layer. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "FOW material",
+        "description": "FOW material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "FOW thk",
+        "description": "Positive FOW thickness deposited on the full geometry top.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_rdl",
+    "version": "V0.0.0",
+    "name": "RDL layer",
+    "category": "layer",
+    "program": "layer/rdl",
+    "description": "重佈線層製作（Redistribution Layer，RDL）：代表以絕緣介電層、垂直導通孔與平面導線重新分配晶片的電性連接位置，供後續凸塊或其他元件連接。模型會依設定順序逐層增加堆疊厚度，在奇數層建立介電層與向下導通孔，在偶數層建立平面導線與介電層；各層的材料、厚度與導體密度由 layers 指定。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by RDL. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "layers",
+        "name": "layers",
+        "description": "RDL layer stack. Odd-numbered layers create downward via features after dielectric deposit; even-numbered layers create circuit features before dielectric deposit.",
+        "valueType": "fieldGroupArray",
+        "controlType": "repeater",
+        "selectionMode": null,
+        "unit": null,
+        "repeatDefinition": {
+          "itemNameTemplate": "RDL layer {{index}}",
+          "indexBase": 1,
+          "minItems": 1,
+          "itemParameterDefinitions": [
+            {
+              "id": "Dielectric",
+              "name": "Dielectric",
+              "description": "Dielectric material name or material entity id.",
+              "valueType": "materialRef",
+              "controlType": "text",
+              "selectionMode": null,
+              "unit": null
+            },
+            {
+              "id": "Conductivity",
+              "name": "Conductivity",
+              "description": "Conductivity material name or material entity id.",
+              "valueType": "materialRef",
+              "controlType": "text",
+              "selectionMode": null,
+              "unit": null
+            },
+            {
+              "id": "thk",
+              "name": "thk",
+              "description": "Positive thickness for this dielectric layer and its conductivity feature envelope.",
+              "valueType": "float",
+              "controlType": "number",
+              "selectionMode": null,
+              "unit": "um",
+              "validation": {
+                "min": 0,
+                "exclusiveMin": true
+              }
+            },
+            {
+              "id": "density",
+              "name": "density",
+              "description": "Conductivity feature density recorded as a 0 to 100 percentage value.",
+              "valueType": "float",
+              "controlType": "number",
+              "selectionMode": null,
+              "unit": null,
+              "validation": {
+                "min": 0,
+                "max": 100
+              }
+            }
+          ]
+        },
+        "defaultValue": {
+          "items": [
+            {
+              "itemId": "layers_item_1",
+              "index": 1,
+              "values": {
+                "Dielectric": "PI-2611",
+                "Conductivity": "Cu",
+                "thk": 8,
+                "density": 62
+              }
+            },
+            {
+              "itemId": "layers_item_2",
+              "index": 2,
+              "values": {
+                "Dielectric": "PI-2611",
+                "Conductivity": "Cu",
+                "thk": 6,
+                "density": 48
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_grinding",
+    "version": "V0.0.0",
+    "name": "Grinding",
+    "category": "grinding",
+    "program": "grinding/grinding",
+    "description": "研磨減薄（Grinding）：代表從結構表面移除材料，以降低厚度或露出下方結構的製程。模型會從整體結構最高處向下移除指定厚度（thk），將超過研磨後高度的材料與特徵截短或移除；平面尺寸維持不變。thk 是要移除的厚度，並非研磨後的剩餘厚度。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by grinding. The operation uses the full geometry top, not cursorZ.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive grinding thickness removed downward from the highest Z in the full geometry tree.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_saw",
+    "version": "V0.0.0",
+    "name": "saw",
+    "category": "saw",
+    "program": "saw/saw",
+    "description": "切割分離（Saw／Dicing）：代表從晶圓、面板或較大結構中切出所需晶片或封裝單元的製程。模型會保留左下角與右上角座標所指定的 XY 矩形，裁除該範圍外的材料、特徵與子元件，並將後續製程的平面範圍更新為此矩形。此步以保留區域表示切割結果，不模擬刀具路徑或切割道寬度。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by saw. The operation keeps only geometry inside the retained XY rectangle.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "bottomLeftX",
+        "name": "bottomLeftX",
+        "description": "Retained rectangle lower-left X coordinate.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      },
+      {
+        "id": "bottomLeftY",
+        "name": "bottomLeftY",
+        "description": "Retained rectangle lower-left Y coordinate.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      },
+      {
+        "id": "topRightX",
+        "name": "topRightX",
+        "description": "Retained rectangle upper-right X coordinate.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      },
+      {
+        "id": "topRightY",
+        "name": "topRightY",
+        "description": "Retained rectangle upper-right Y coordinate.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_debond",
+    "version": "V0.0.0",
+    "name": "Debond",
+    "category": "carrier",
+    "program": "carrier/debond",
+    "description": "載板解鍵合（Debond）：代表完成暫時支撐用途後，將載板與產品結構分離的製程。模型會移除整體結構最上方唯一的載板；若其底面連接一層形狀與平面範圍相同的 DAF，也會一併移除，未連接的 DAF 與 FOW 則保留。執行前須讓目標載板位於最上方；若位置或配對不符合條件，會回報錯誤。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by debond. Exactly one carrier body in the full tree must reach the geometry top; a touching DAF is optional and must have the same primitive type and XY footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": []
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_carrier_bond",
+    "version": "V0.0.0",
+    "name": "Carrier Bond",
+    "category": "carrier",
+    "program": "carrier/bond",
+    "description": "載板鍵合（Carrier Bond）：代表將晶圓或封裝結構貼合到暫時載板，提供後續研磨、翻面或成層時所需的支撐。模型會將輸入載板的材料層堆疊到主結構最上方，保留載板及其附帶 DAF 等材料層的身分，並將後續製程表面移至貼合後的頂部；載板輸入須包含 carrier 材料層。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main geometry state that receives bonded carrier direct root bodies.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      },
+      {
+        "portId": "carrier_geometry",
+        "name": "carrier_geometry",
+        "description": "Carrier geometry state. Only root direct bodies are copied and their keys are preserved. At least one direct body must use key carrier; additional bodies may use other registered keys.",
+        "dataType": "geometry",
+        "role": "auxiliary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": []
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_flip",
+    "version": "V0.0.0",
+    "name": "Flip",
+    "category": "flip",
+    "program": "flip/flip",
+    "description": "結構翻面（Flip）：代表將晶片、晶圓或封裝上下翻轉，讓另一面朝向後續加工或組裝方向；例如將晶片凸塊面朝下以供 PnP 放置。模型會反轉整個結構的上下位置及導通孔、凸塊的方向，再平移結構使最低處回到 Z=0，並重新設定後續製程表面。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by Flip. The operation mirrors the full geometry tree but derives the output cursor only from direct root bodies.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": []
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_under_fill",
+    "version": "V0.0.0",
+    "name": "Under Fill",
+    "category": "UF",
+    "program": "uf/under_fill",
+    "description": "底部填膠（Underfill）：代表在晶片與主結構之間的凸塊接合區填入膠材，以支撐接點並分散應力。模型會在元件的凸塊高度範圍建立填膠材料，並填補相鄰元件之間不超過指定距離（gap）的平面間隙；元件間填膠的高度由 thk 指定。此步新增填膠結構，後續製程表面高度維持不變。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main package geometry state containing root child die scopes to be underfilled.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "material",
+        "description": "Underfill material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive root die-to-die gap fill height deposited from cursorZ.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "gap",
+        "name": "gap",
+        "description": "Maximum die-to-die XY gap distance that underfill is allowed to fill.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_ubump_formation",
+    "version": "V0.0.0",
+    "name": "Micro Bump",
+    "category": "bump",
+    "program": "bump/uBump_formation",
+    "description": "微凸塊成形（Micro Bump）：代表在晶片、晶圓或封裝表面形成細間距互連凸塊，供晶片堆疊或高密度接合使用。模型會在目前製程表面上方建立指定材料、厚度與密度的凸塊特徵區域，記錄邊緣保留距離（koz），並視為已完成單側回焊成形。與另一側凸塊的接合由後續 Joint 步驟完成。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Die, wafer, or panel geometry state consumed by micro bump formation. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "material",
+        "description": "Micro bump material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null,
+        "defaultValue": "Cu/Ni/SnAg"
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive micro bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        },
+        "defaultValue": 28
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "Micro bump density recorded as a 0 to 100 percentage value.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        },
+        "defaultValue": 42
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance recorded on generated micro bump features for downstream keep-out handling.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        },
+        "defaultValue": 0
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_bga_bump_formation",
+    "version": "V0.0.0",
+    "name": "BGA Bump",
+    "category": "bump",
+    "program": "bump/bga_bump_formation",
+    "description": "球柵陣列凸塊成形（Ball Grid Array，BGA）：代表形成封裝對外連接所用的焊球陣列，供後續與基板或電路板組裝。模型會在目前製程表面上方建立指定材料、厚度與密度的 BGA 凸塊特徵區域，記錄邊緣保留距離（koz），並視為已完成單側回焊成形；此步以整體特徵區域表示焊球分布，不逐顆建立焊球。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Die, wafer, or panel geometry state consumed by BGA bump formation. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "material",
+        "description": "BGA bump material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null,
+        "defaultValue": "SAC305"
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive BGA bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        },
+        "defaultValue": 240
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "BGA bump density recorded as a 0 to 100 percentage value.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        },
+        "defaultValue": 36
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance recorded on generated BGA bump features for downstream keep-out handling.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        },
+        "defaultValue": 0
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_c4_bump_formation",
+    "version": "V0.0.0",
+    "name": "C4 Bump",
+    "category": "bump",
+    "program": "bump/c4_bump_formation",
+    "description": "覆晶凸塊成形（Controlled Collapse Chip Connection，C4）：代表在晶片或封裝表面形成覆晶接合所用的焊料凸塊，供後續連接基板或其他互連結構。模型會在目前製程表面上方建立指定材料、厚度與密度的 C4 凸塊特徵區域，記錄邊緣保留距離（koz），並視為已完成單側回焊成形。此步建立凸塊，實際組裝接合由後續 Joint 步驟表示。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Die, wafer, or panel geometry state consumed by C4 bump formation. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "material",
+        "description": "C4 bump material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null,
+        "defaultValue": "SAC305"
+      },
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive C4 bump thickness. The bump bottom is aligned to cursorZ and extends upward.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        },
+        "defaultValue": 65
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "C4 bump density recorded as a 0 to 100 percentage value.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        },
+        "defaultValue": 58
+      },
+      {
+        "id": "koz",
+        "name": "koz",
+        "description": "Keep out zone distance recorded on generated C4 bump features for downstream keep-out handling.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0
+        },
+        "defaultValue": 0
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_tmv",
+    "version": "V0.0.0",
+    "name": "tmv",
+    "category": "tmv",
+    "program": "tmv/tmv",
+    "description": "通模導通孔製作（Through Mold Via，TMV）：代表在封膠區形成垂直導電通道，供封裝上下層或堆疊封裝之間互連。模型會依目前製程的平面範圍，在目前製程表面上方建立指定材料、厚度與密度的向上導通孔特徵區域；此步以導通孔特徵表示結果，不模擬鑽孔或鍍填流程，後續製程表面高度維持不變。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Geometry state consumed by TMV formation. The state must already carry a process footprint.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "thk",
+        "name": "thk",
+        "description": "Positive TMV thickness. The via bottom is aligned to cursorZ and extends upward without advancing the cursor.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      },
+      {
+        "id": "material",
+        "name": "material",
+        "description": "TMV material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "density",
+        "name": "density",
+        "description": "TMV density recorded as a 0 to 100 percentage value.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": null,
+        "validation": {
+          "min": 0,
+          "max": 100
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_frame_mount",
+    "version": "V0.0.0",
+    "name": "Frame Mount",
+    "category": "frame",
+    "program": "frame/mount",
+    "description": "框架上片（Frame Mount）：代表將晶圓或封裝結構固定到框架膠帶等支撐材料上，供後續搬運或切割使用。模型會將輸入的單一 frame 材料層貼到主結構最上方，並將後續製程表面移至該層頂部；實際支撐形狀由 frame_geometry 決定，例如目前 fixture 使用框架膠帶。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state that receives the mounted frame body at its full geometry top.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      },
+      {
+        "portId": "frame_geometry",
+        "name": "frame_geometry",
+        "description": "Frame geometry containing exactly one root-direct body keyed frame and no other geometry.",
+        "dataType": "geometry",
+        "role": "auxiliary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": []
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_frame_demount",
+    "version": "V0.0.0",
+    "name": "Frame Demount",
+    "category": "frame",
+    "program": "frame/demount",
+    "description": "框架卸片（Frame Demount）：代表支撐用途完成後，將產品與框架膠帶等支撐材料分離的製程。模型會移除整體結構最上方唯一的 frame 材料層，並將後續製程表面更新到剩餘結構的頂部。執行前須讓目標 frame 層位於最上方；若沒有符合條件的層或同時有多個候選層，會回報錯誤。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Complete geometry state consumed by frame demount. Exactly one frame body in the full tree must reach the geometry top.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": []
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_mr_joint",
+    "version": "V0.0.0",
+    "name": "MR joint",
+    "category": "joint",
+    "program": "joint/mr_joint",
+    "owner": "integration.platform",
+    "description": "整體回焊接合（Mass Reflow，MR）：代表 PnP 放置後，透過回焊讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合，並調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height。目前 MR 與 TCB 使用相同的幾何接合模型，不模擬溫度歷程。",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Assembly after PnP, with contacting reflowed bumps on both sides.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Assembly with joined child bumps and adjusted child heights.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "bump_joined_height",
+        "name": "Bump joined height",
+        "description": "Total main-surface-to-die-body gap after joint, not an added upper-bump thickness.",
+        "valueType": "float",
+        "controlType": "number",
+        "required": true,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_tcb_joint",
+    "version": "V0.0.0",
+    "name": "TCB joint",
+    "category": "joint",
+    "program": "joint/tcb_joint",
+    "owner": "integration.platform",
+    "description": "熱壓接合（Thermocompression Bonding，TCB）：代表 PnP 放置後，透過加熱與施壓讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合，並調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height。目前 TCB 與 MR 使用相同的幾何接合模型，不模擬溫度或壓力歷程。",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Assembly after PnP, with contacting reflowed bumps on both sides.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Assembly with joined child bumps and adjusted child heights.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "bump_joined_height",
+        "name": "Bump joined height",
+        "description": "Total main-surface-to-die-body gap after joint, not an added upper-bump thickness.",
+        "valueType": "float",
+        "controlType": "number",
+        "required": true,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  }
+]

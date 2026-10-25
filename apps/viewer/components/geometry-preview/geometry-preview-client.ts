@@ -4,8 +4,7 @@ import {
   processFlowApiBaseUrl,
 } from "@/lib/process-flow-api";
 import type {
-  FlowConfiguration,
-  ProcessFlowTemplate,
+  FlowContent,
 } from "@/lib/process-flow/types";
 
 export type GeometryPreviewTarget =
@@ -13,17 +12,16 @@ export type GeometryPreviewTarget =
   | { type: "stepOutput"; stepRefId: string; outputPortId?: string };
 
 export type AnalyticsContext = {
-  flowTemplateId?: string;
-  flowInstanceId?: string;
-  sourceKind?: "template" | "instance" | "inline_draft" | "geometry";
+  flowId?: string;
+  flowRevision?: number;
+  sourceKind?: "flow" | "inline_draft" | "geometry";
 };
 
 export type GeometryPreviewRequest = {
   target: GeometryPreviewTarget;
   sourceLabel?: string | null;
-  flowTemplate?: ProcessFlowTemplate;
-  processFlowTemplateId?: string;
-  configuration: FlowConfiguration;
+  flow?: FlowContent;
+  flowId?: string;
   analyticsContext?: AnalyticsContext;
 };
 

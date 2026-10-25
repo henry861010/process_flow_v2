@@ -20,11 +20,9 @@ from process_flow_kernel import (
     TYPE_TARGET,
     Via,
     classify_polygon_loops,
-    flow_default_values_for_step_template,
     normalize_geometry_structure,
     stable_id,
     validate_flow_graph,
-    validate_flow_parameter_defaults,
     validate_parameter_default_values,
 )
 from process_flow_steps.layer.daf import execute as execute_daf
@@ -1166,23 +1164,6 @@ class FlowCompilerTests(unittest.TestCase):
             "test-die",
         )
 
-    def test_compiler_resolves_catalog_and_embedded_inputs(self):
-        template = pnp_template()
-        steps = {item["id"]: item for item in [pnp_step_template()]}
-        configuration = pnp_configuration()
-        configuration["inputBindings"]["incoming_die"] = {
-            "kind": "embedded",
-            "localId": "draft_die",
-        }
-        configuration["embeddedGeometries"] = {
-            "draft_die": geometry_entity("draft_die", die_geometry(), include_id=False)
-        }
-
-        plan = compiler().compile(template, configuration, steps)
-
-        self.assertEqual(set(plan.external_geometries), {"incoming_main", "incoming_die"})
-        self.assertEqual(plan.steps[0].geometry_inputs["die_geometry"].kind, "external")
-        self.assertEqual(plan.external_geometries["incoming_die"]["root"]["key"], "hbm")
 
     def test_compiler_enforces_exact_descendant_and_sibling_geometry_categories(self):
         template = single_step_template()
@@ -1323,44 +1304,15 @@ class FlowCompilerTests(unittest.TestCase):
             ]
         )
         validate_parameter_default_values(step_template)
-        self.assertEqual(
-            flow_default_values_for_step_template(step_template),
-            {
-                "material": "EMC",
-                "thickness": 25,
-                "count": 0,
-                "enabled": False,
-            },
-        )
 
         step_template["parameterDefinitions"][1]["defaultValue"] = -1
         with self.assertRaisesRegex(ValueError, "defaultValue"):
             validate_parameter_default_values(step_template)
 
-    def test_flow_parameter_defaults_reject_collections_and_unknown_ids(self):
-        template = single_step_template()
-        step_template = molding_step_template()
-        template["stepRefs"][0]["parameterDefaults"] = {"thickness": 25}
-        validate_flow_parameter_defaults(template, {"step_molding": step_template})
-
-        template["stepRefs"][0]["parameterDefaults"] = {"unknown": 1}
-        with self.assertRaisesRegex(ValueError, "Unknown parameter default"):
-            validate_flow_parameter_defaults(template, {"step_molding": step_template})
-
-        collection_step = copy.deepcopy(step_template)
-        collection_step["parameterDefinitions"] = [
-            parameter("items", "string[]")
-        ]
-        template["stepRefs"][0]["parameterDefaults"] = {"items": []}
-        with self.assertRaisesRegex(ValueError, "scalar valueType"):
-            validate_flow_parameter_defaults(
-                template,
-                {"step_molding": collection_step},
-            )
 
     def test_compiler_rejects_unknown_parameter(self):
         configuration = single_step_configuration()
-        configuration["stepConfigurations"]["molding"]["parameterValues"]["unknown"] = 1
+        configuration["stepConfigurations"]["molding"]["recipeCandidates"][0]["parameterValues"]["unknown"] = 1
         with self.assertRaisesRegex(ValueError, "Unknown parameter"):
             compiler().compile(
                 single_step_template(),
@@ -1370,7 +1322,7 @@ class FlowCompilerTests(unittest.TestCase):
 
     def test_compiler_rejects_non_finite_numeric_parameter(self):
         configuration = single_step_configuration()
-        configuration["stepConfigurations"]["molding"]["parameterValues"][
+        configuration["stepConfigurations"]["molding"]["recipeCandidates"][0]["parameterValues"][
             "thickness"
         ] = float("nan")
         with self.assertRaisesRegex(ValueError, "must be a number"):
@@ -1390,7 +1342,7 @@ class FlowCompilerTests(unittest.TestCase):
             "pose": {"x": 0, "y": 0, "rotationZ": 0},
             "anchor": "center",
         }
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
+        configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = [
             placement,
             placement,
         ]
@@ -1410,7 +1362,7 @@ class FlowCompilerTests(unittest.TestCase):
 
     def test_compiler_rejects_placement_rectangle_without_positive_area(self):
         configuration = pnp_configuration()
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
+        configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = [
             {
                 "targetRegion": {
                     "type": "rectangle",
@@ -1433,7 +1385,7 @@ class FlowCompilerTests(unittest.TestCase):
 
     def test_compiler_rejects_legacy_rectangle_target_shape(self):
         configuration = pnp_configuration()
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [
+        configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = [
             {
                 "targetRegion": {"type": "rectangle", "width": 10, "height": 12},
                 "pose": {"x": 0, "y": 0, "rotationZ": 0},
@@ -1461,7 +1413,7 @@ class FlowCompilerTests(unittest.TestCase):
             "anchor": "center",
         }
         configuration = pnp_configuration()
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [placement]
+        configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = [placement]
 
         with self.assertRaisesRegex(ValueError, "rotationZ is required"):
             compiler().compile(
@@ -1497,7 +1449,7 @@ class FlowCompilerTests(unittest.TestCase):
             "anchor": "center",
         }
         configuration = pnp_configuration()
-        configuration["stepConfigurations"]["pnp"]["parameterValues"]["placements"] = [placement]
+        configuration["stepConfigurations"]["pnp"]["recipeCandidates"][0]["parameterValues"]["placements"] = [placement]
 
         with self.assertRaisesRegex(ValueError, "points must be unique"):
             compiler().compile(
@@ -1514,12 +1466,11 @@ class FlowCompilerTests(unittest.TestCase):
                 {"step_pnp": pnp_step_template()},
             )
 
-    def test_draft_validation_allows_incomplete_repeater_items(self):
+    def test_partial_configuration_allows_missing_repeater_values(self):
         configuration = {
             "inputBindings": {},
             "stepConfigurations": {
-                "rdl": {
-                    "parameterValues": {
+                "rdl": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {
                         "layers": {
                             "items": [
                                 {
@@ -1528,16 +1479,14 @@ class FlowCompilerTests(unittest.TestCase):
                                     "values": {
                                         "Dielectric": "",
                                         "Conductivity": "",
-                                        "thk": "",
-                                        "density": "",
+
                                     },
                                 }
                             ]
                         }
-                    }
-                }
+                    }}], "selectedRecipeId": "r1"}
             },
-            "embeddedGeometries": {},
+
         }
 
         compiler().validate_configuration(
@@ -1844,8 +1793,8 @@ class KernelExecutionTests(unittest.TestCase):
             "kind": "catalog", "geometryId": "geom_carrier",
         }
         configuration["stepConfigurations"].update({
-            "carrier_bond": {"parameterValues": {}},
-            "debond": {"parameterValues": {}},
+            "carrier_bond": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"},
+            "debond": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"},
         })
         plan = FlowCompiler(catalog).compile(template, configuration, {
             "step_fow": fow_step_template(),
@@ -1936,7 +1885,7 @@ class KernelExecutionTests(unittest.TestCase):
 
     def test_material_instances_strip_external_suffix_and_allocate_next_name(self):
         configuration = single_step_configuration()
-        configuration["stepConfigurations"]["molding"]["parameterValues"]["material"] = "Poly"
+        configuration["stepConfigurations"]["molding"]["recipeCandidates"][0]["parameterValues"]["material"] = "Poly"
         catalog = InMemoryGeometryCatalog(
             [geometry_entity("geom_main", main_geometry(material="Poly_dup7"))]
         )
@@ -2325,9 +2274,9 @@ def single_step_configuration():
     return {
         "inputBindings": {"incoming_main": {"kind": "catalog", "geometryId": "geom_main"}},
         "stepConfigurations": {
-            "molding": {"parameterValues": {"material": "EMC-A", "thickness": 5}}
+            "molding": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "EMC-A", "thickness": 5}}], "selectedRecipeId": "r1"}
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2350,10 +2299,10 @@ def ecl_molding_configuration():
     return {
         "inputBindings": {"incoming_main": {"kind": "catalog", "geometryId": "geom_main"}},
         "stepConfigurations": {
-            "ecl": {"parameterValues": {"material": "ECL-A", "thk": 4, "koz": 5}},
-            "molding": {"parameterValues": {"material": "EMC-A", "thickness": 2}},
+            "ecl": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "ECL-A", "thk": 4, "koz": 5}}], "selectedRecipeId": "r1"},
+            "molding": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "EMC-A", "thickness": 2}}], "selectedRecipeId": "r1"},
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2378,14 +2327,10 @@ def tmv_molding_configuration():
             "incoming_main": {"kind": "catalog", "geometryId": "geom_main"}
         },
         "stepConfigurations": {
-            "tmv": {
-                "parameterValues": {"thk": 4, "material": "Cu", "density": 60}
-            },
-            "molding": {
-                "parameterValues": {"material": "EMC-A", "thickness": 2}
-            },
+            "tmv": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"thk": 4, "material": "Cu", "density": 60}}], "selectedRecipeId": "r1"},
+            "molding": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "EMC-A", "thickness": 2}}], "selectedRecipeId": "r1"},
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2458,9 +2403,9 @@ def fow_configuration():
             "incoming_main": {"kind": "catalog", "geometryId": "geom_main"},
         },
         "stepConfigurations": {
-            "fow": {"parameterValues": {"material": "FOW-A", "thk": 3}},
+            "fow": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "FOW-A", "thk": 3}}], "selectedRecipeId": "r1"},
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2479,9 +2424,9 @@ def daf_configuration():
             "incoming_main": {"kind": "catalog", "geometryId": "geom_main"}
         },
         "stepConfigurations": {
-            "daf": {"parameterValues": {"material": "DAF-A", "thk": 3}}
+            "daf": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "DAF-A", "thk": 3}}], "selectedRecipeId": "r1"}
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2516,9 +2461,9 @@ def carrier_bond_configuration():
             },
         },
         "stepConfigurations": {
-            "carrier_bond": {"parameterValues": {}}
+            "carrier_bond": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"}
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2543,9 +2488,7 @@ def daf_carrier_bond_template():
 
 def daf_carrier_bond_configuration():
     configuration = carrier_bond_configuration()
-    configuration["stepConfigurations"]["daf"] = {
-        "parameterValues": {"material": "DAF-A", "thk": 3}
-    }
+    configuration["stepConfigurations"]["daf"] = {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {"material": "DAF-A", "thk": 3}}], "selectedRecipeId": "r1"}
     return configuration
 
 
@@ -2575,7 +2518,7 @@ def daf_carrier_bond_debond_template():
 
 def daf_carrier_bond_debond_configuration():
     configuration = daf_carrier_bond_configuration()
-    configuration["stepConfigurations"]["debond"] = {"parameterValues": {}}
+    configuration["stepConfigurations"]["debond"] = {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"}
     return configuration
 
 
@@ -2598,8 +2541,7 @@ def pnp_configuration():
             "incoming_die": {"kind": "catalog", "geometryId": "geom_die"},
         },
         "stepConfigurations": {
-            "pnp": {
-                "parameterValues": {
+            "pnp": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {
                     "placements": [
                         {
                             "targetRegion": {
@@ -2624,10 +2566,9 @@ def pnp_configuration():
                             "anchor": "center",
                         },
                     ]
-                }
-            }
+                }}], "selectedRecipeId": "r1"}
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2644,8 +2585,7 @@ def rdl_configuration():
     return {
         "inputBindings": {"incoming_main": {"kind": "catalog", "geometryId": "geom_main"}},
         "stepConfigurations": {
-            "rdl": {
-                "parameterValues": {
+            "rdl": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {
                     "layers": {
                         "items": [
                             {
@@ -2670,10 +2610,9 @@ def rdl_configuration():
                             },
                         ]
                     }
-                }
-            }
+                }}], "selectedRecipeId": "r1"}
         },
-        "embeddedGeometries": {},
+
     }
 
 
@@ -2698,17 +2637,15 @@ def flip_bump_configuration():
             "incoming_dram": {"kind": "catalog", "geometryId": "geom_dram"}
         },
         "stepConfigurations": {
-            "flip": {"parameterValues": {}},
-            "bga_bump": {
-                "parameterValues": {
+            "flip": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {}}], "selectedRecipeId": "r1"},
+            "bga_bump": {"recipeCandidates": [{"recipeId": "r1", "name": "Recipe 1", "description": "", "parameterValues": {
                     "material": "SnAg",
                     "thk": 25,
                     "density": 60,
                     "koz": 0,
-                }
-            },
+                }}], "selectedRecipeId": "r1"},
         },
-        "embeddedGeometries": {},
+
     }
 
 

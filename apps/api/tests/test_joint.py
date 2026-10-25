@@ -108,7 +108,7 @@ class JointConsumerTests(unittest.TestCase):
                     self.assertTrue(bumps)
                     self.assertTrue(all("joint" not in step["program"] for step in bumps))
                     self.assertEqual(client.get("/api/process-step-templates/step_tpl_bump_joint").status_code, 404)
-                    response = client.post("/api/process-flow-instances/flow_inst_dual_bump_demo/execute")
+                    response = client.post("/api/process-flows/flow_inst_dual_bump_demo/execute")
                     self.assertEqual(response.status_code, 200, response.text)
                     root = response.json()["geometryStructure"]["root"]
                     self.assertEqual(root["bumps"][0]["stage"], "reflowed")

@@ -64,15 +64,8 @@ canonical payload 必須使用 materialized value。
 | `defaultValue` | value matching `valueType` | no | none | Step-authoring 起始值；MUST 符合本文件所有 value/validation 規則，且不得是 `null` 或空字串。 |
 
 `defaultValue` 適用於 scalar、array、`placements` 與 recursive `fieldGroupArray`，但只會被
-複製到 authoring draft；compiler 不會隱式補值。Flow-level
-`StepRef.parameterDefaults` 是另一個 scalar-only snapshot：只允許 `string`、`integer`、
-`float`、`boolean`、`materialRef`。Collection 與 placement parameters 不得保存 flow default。
-
-Parameter ids、nested item parameter ids 與 repeat `itemId` MUST 符合：
-
-```text
-^[A-Za-z][A-Za-z0-9_.-]*$
-```
+複製到 authoring draft；compiler 不會隱式補值。
+實際參數只存在於站點 recipeCandidates 的 parameterValues。新增站點／候選時複製明確的 step defaults；之後不再隱式補值。正式 flow 可缺 required 欄位，但每組候選已提供的值仍須符合型別；草稿可暫存無效值。
 
 ## 3. ValueType
 

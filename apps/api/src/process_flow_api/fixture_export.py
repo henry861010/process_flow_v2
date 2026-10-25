@@ -12,11 +12,10 @@ from process_flow_kernel import validate_geometry_semantic_keys
 
 from .models import (
     GeometryEntity,
-    ProcessFlowInstance,
-    ProcessFlowTemplate,
+    ProcessFlow,
     ProcessStepTemplate,
 )
-from .seed import FIXTURE_FILES
+from .seed import FIXTURE_FILES, validate_fixtures
 
 MAX_ARCHIVE_BYTES = 25 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
@@ -45,8 +44,7 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
 
     models = {
         "processStepTemplates": ProcessStepTemplate,
-        "processFlowTemplates": ProcessFlowTemplate,
-        "processFlowInstances": ProcessFlowInstance,
+        "processFlows": ProcessFlow,
         "geometries": GeometryEntity,
     }
     result: dict[str, list[dict[str, Any]]] = {}
@@ -56,7 +54,7 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
             if len(entries) != len(FIXTURE_FILES) or {
                 entry.filename for entry in entries
             } != set(FIXTURE_FILES.values()):
-                raise ValueError("Fixture ZIP must contain exactly the four exported JSON files")
+                raise ValueError("Fixture ZIP must contain exactly the three exported JSON files")
             if sum(entry.file_size for entry in entries) > MAX_UNCOMPRESSED_BYTES:
                 raise ValueError("Fixture ZIP exceeds the 100 MB expanded size limit")
             for key, filename in FIXTURE_FILES.items():
@@ -79,16 +77,19 @@ def load_fixture_archive(content: bytes) -> dict[str, list[dict[str, Any]]]:
                     if item_id in ids:
                         raise ValueError(f"{filename} contains duplicate id: {item_id}")
                     ids.add(item_id)
-                    if key in {"processFlowTemplates", "processFlowInstances"}:
+                    if key == "processFlows":
+                        item = validated.payload()
+                        items[index] = item
                         identity = (item["name"], item["version"])
                         if identity in identities:
                             raise ValueError(f"{filename} contains duplicate name and version: {identity!r}")
                         identities.add(identity)
-                    if key in {"processStepTemplates", "processFlowTemplates"}:
+                    if key == "processStepTemplates":
                         item["status"] = validated.status
                     if key == "geometries":
                         validate_geometry_semantic_keys(item["structure"])
                 result[key] = items
     except (zipfile.BadZipFile, EOFError, RuntimeError, zlib.error) as error:
         raise ValueError("Invalid fixture ZIP") from error
+    validate_fixtures(result)
     return result

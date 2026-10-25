@@ -10,66 +10,17 @@ from .execution_plan import ExecutionPlan, PlannedGeometryInput, PlannedStep
 from .geometry_artifact import GeometryArtifact
 from .flow_dependencies import analyze_flow_dependencies
 from .flow_validation import analyze_flow_graph
+from .recipes import selected_recipe, selected_parameter_values
 from .resource_resolution import GeometryCatalogResolver, GeometryGeneratorResolver
 from ..serialization.schema import normalize_geometry_structure
 
 
 _MISSING = object()
-FLOW_DEFAULT_VALUE_TYPES = frozenset(
-    {"string", "integer", "float", "boolean", "materialRef"}
-)
-
-
-def flow_default_values_for_step_template(step_template: Mapping[str, Any]) -> dict[str, Any]:
-    """Return the scalar definition defaults that may be snapshotted by a flow."""
-
-    return {
-        definition["id"]: copy.deepcopy(definition["defaultValue"])
-        for definition in step_template.get("parameterDefinitions", [])
-        if definition.get("valueType") in FLOW_DEFAULT_VALUE_TYPES
-        and "defaultValue" in definition
-    }
-
-
 def validate_parameter_default_values(step_template: Mapping[str, Any]) -> None:
     _validate_parameter_definition_defaults(
         step_template.get("parameterDefinitions", []),
         f"ProcessStepTemplate {step_template.get('id')}.parameterDefinitions",
     )
-
-
-def validate_flow_parameter_defaults(process_flow_template, step_templates) -> None:
-    analysis = analyze_flow_graph(process_flow_template, step_templates)
-    for step_ref_id, step_ref in analysis.step_refs_by_id.items():
-        if "parameterDefaults" not in step_ref:
-            continue
-        defaults = step_ref["parameterDefaults"]
-        if not isinstance(defaults, Mapping):
-            raise ValueError(
-                f"ProcessFlowTemplate step {step_ref_id} parameterDefaults must be an object"
-            )
-        definitions = {
-            definition["id"]: definition
-            for definition in analysis.step_templates_by_ref_id[step_ref_id].get(
-                "parameterDefinitions", []
-            )
-        }
-        unknown = set(defaults) - set(definitions)
-        if unknown:
-            raise ValueError(
-                f"Unknown parameter default for step {step_ref_id}: {sorted(unknown)[0]}"
-            )
-        for parameter_id, value in defaults.items():
-            definition = definitions[parameter_id]
-            if definition.get("valueType") not in FLOW_DEFAULT_VALUE_TYPES:
-                raise ValueError(
-                    f"Flow default for {step_ref_id}.{parameter_id} must use a scalar valueType"
-                )
-            _validate_present_default_value(
-                definition,
-                value,
-                f"Flow default for {step_ref_id}.{parameter_id}",
-            )
 
 
 class FlowCompiler:
@@ -85,7 +36,7 @@ class FlowCompiler:
 
     def validate_configuration(
         self,
-        process_flow_template: Mapping[str, Any],
+        definition: Mapping[str, Any],
         configuration: Mapping[str, Any],
         step_templates,
         *,
@@ -93,7 +44,7 @@ class FlowCompiler:
         included_step_ref_ids: set[str] | None = None,
         resolve_resources: bool = False,
     ) -> None:
-        analysis = analyze_flow_graph(process_flow_template, step_templates)
+        analysis = analyze_flow_graph(definition, step_templates)
         _validate_configuration_keys(configuration, analysis)
         dependencies = analyze_flow_dependencies(analysis, configuration, included_step_ref_ids)
         included = dependencies.step_ref_ids
@@ -106,7 +57,6 @@ class FlowCompiler:
 
         used_flow_input_ids = dependencies.flow_input_ids
         bindings = configuration.get("inputBindings", {})
-        embedded_geometries = configuration.get("embeddedGeometries", {})
         for flow_input_id in used_flow_input_ids:
             binding = bindings.get(flow_input_id, _MISSING)
             if binding is _MISSING:
@@ -117,24 +67,31 @@ class FlowCompiler:
                 ):
                     raise ValueError(f"Missing input binding: {flow_input_id}")
                 continue
-            _validate_binding_shape(flow_input_id, binding, embedded_geometries)
+            _validate_binding_shape(flow_input_id, binding)
             if resolve_resources:
                 self._resolve_binding(
                     flow_input_id,
                     analysis.flow_inputs_by_id[flow_input_id],
                     binding,
-                    embedded_geometries,
                 )
+
+    def validate_authoring(self, definition, configuration, step_templates) -> None:
+        analysis = analyze_flow_graph(definition, step_templates)
+        _validate_configuration_keys(configuration, analysis)
+        for step_ref_id, step_configuration in configuration.get("stepConfigurations", {}).items():
+            definitions = analysis.step_templates_by_ref_id[step_ref_id].get("parameterDefinitions", [])
+            for recipe in step_configuration.get("recipeCandidates", []):
+                _normalize_parameter_values(definitions, recipe.get("parameterValues", {}), require_complete=False)
 
     def compile(
         self,
-        process_flow_template: Mapping[str, Any],
+        definition: Mapping[str, Any],
         configuration: Mapping[str, Any],
         step_templates,
         *,
         output_step_ref_id: str | None = None,
     ) -> ExecutionPlan:
-        analysis = analyze_flow_graph(process_flow_template, step_templates)
+        analysis = analyze_flow_graph(definition, step_templates)
         _validate_configuration_keys(configuration, analysis)
         dependencies = analyze_flow_dependencies(
             analysis,
@@ -143,7 +100,7 @@ class FlowCompiler:
         )
         included = dependencies.step_ref_ids
         self.validate_configuration(
-            process_flow_template,
+            definition,
             configuration,
             step_templates,
             require_complete=True,
@@ -152,7 +109,6 @@ class FlowCompiler:
         )
 
         bindings = configuration.get("inputBindings", {})
-        embedded_geometries = configuration.get("embeddedGeometries", {})
         external_geometries = {}
         for flow_input_id in dependencies.flow_input_ids:
             if flow_input_id not in bindings:
@@ -161,7 +117,6 @@ class FlowCompiler:
                 flow_input_id,
                 analysis.flow_inputs_by_id[flow_input_id],
                 bindings[flow_input_id],
-                embedded_geometries,
             )
 
         step_configurations = configuration.get("stepConfigurations", {})
@@ -171,7 +126,7 @@ class FlowCompiler:
                 continue
             step_ref = analysis.step_refs_by_id[step_ref_id]
             step_template = analysis.step_templates_by_ref_id[step_ref_id]
-            raw_values = step_configurations.get(step_ref_id, {}).get("parameterValues", {})
+            raw_values = selected_parameter_values(step_configurations.get(step_ref_id, {}), required=True, step_ref_id=step_ref_id)
             values = _normalize_parameter_values(
                 step_template.get("parameterDefinitions", []),
                 raw_values,
@@ -224,12 +179,12 @@ class FlowCompiler:
 
     def resolve_flow_input(
         self,
-        process_flow_template: Mapping[str, Any],
+        definition: Mapping[str, Any],
         configuration: Mapping[str, Any],
         step_templates,
         flow_input_id: str,
     ) -> Mapping[str, Any]:
-        analysis = analyze_flow_graph(process_flow_template, step_templates)
+        analysis = analyze_flow_graph(definition, step_templates)
         flow_input = analysis.flow_inputs_by_id.get(flow_input_id)
         if flow_input is None:
             raise ValueError(f"Flow input not found: {flow_input_id}")
@@ -240,18 +195,15 @@ class FlowCompiler:
             flow_input_id,
             flow_input,
             binding,
-            configuration.get("embeddedGeometries", {}),
         ).structure
 
-    def _resolve_binding(self, flow_input_id, flow_input, binding, embedded_geometries):
-        _validate_binding_shape(flow_input_id, binding, embedded_geometries)
+    def _resolve_binding(self, flow_input_id, flow_input, binding):
+        _validate_binding_shape(flow_input_id, binding)
         if binding["kind"] == "catalog":
             geometry_id = binding["geometryId"]
             geometry = self._geometry_catalog.get_geometry(geometry_id)
             if geometry is None:
                 raise ValueError(f"Geometry entity not found: {geometry_id}")
-        elif binding["kind"] == "embedded":
-            geometry = embedded_geometries[binding["localId"]]
         else:
             if self._geometry_generator_resolver is None:
                 raise ValueError(f"Geometry generator resolver is unavailable for {flow_input_id}")
@@ -273,7 +225,6 @@ class FlowCompiler:
         _validate_geometry_constraints(flow_input, geometry)
         source_geometry_id = (
             binding["geometryId"] if binding["kind"] == "catalog"
-            else binding["localId"] if binding["kind"] == "embedded"
             else None
         )
         return GeometryArtifact.from_entity(
@@ -287,13 +238,12 @@ def _validate_configuration_keys(configuration, analysis):
         raise ValueError("Flow configuration must be an object")
     input_bindings = configuration.get("inputBindings", {})
     step_configurations = configuration.get("stepConfigurations", {})
-    embedded_geometries = configuration.get("embeddedGeometries", {})
     if not isinstance(input_bindings, Mapping):
         raise ValueError("inputBindings must be an object")
     if not isinstance(step_configurations, Mapping):
         raise ValueError("stepConfigurations must be an object")
-    if not isinstance(embedded_geometries, Mapping):
-        raise ValueError("embeddedGeometries must be an object")
+    if set(configuration) - {"inputBindings", "stepConfigurations"}:
+        raise ValueError("Unsupported flow configuration fields")
     unknown_inputs = set(input_bindings) - set(analysis.flow_inputs_by_id)
     if unknown_inputs:
         raise ValueError(f"Unknown flow input binding: {sorted(unknown_inputs)[0]}")
@@ -303,17 +253,16 @@ def _validate_configuration_keys(configuration, analysis):
     for step_ref_id, step_configuration in step_configurations.items():
         if not isinstance(step_configuration, Mapping):
             raise ValueError(f"Step {step_ref_id} configuration must be an object")
-        if not isinstance(step_configuration.get("parameterValues", {}), Mapping):
-            raise ValueError(f"Step {step_ref_id} parameterValues must be an object")
+        selected_recipe(step_configuration, step_ref_id=step_ref_id)
     for flow_input_id, binding in input_bindings.items():
-        _validate_binding_shape(flow_input_id, binding, embedded_geometries)
+        _validate_binding_shape(flow_input_id, binding)
 
 
 def _validate_step_configurations(configuration, analysis, included, *, require_complete):
     step_configurations = configuration.get("stepConfigurations", {})
     for step_ref_id in included:
         step_template = analysis.step_templates_by_ref_id[step_ref_id]
-        values = step_configurations.get(step_ref_id, {}).get("parameterValues", {})
+        values = selected_parameter_values(step_configurations.get(step_ref_id, {}), required=require_complete, step_ref_id=step_ref_id)
         if not isinstance(values, Mapping):
             raise ValueError(f"Step {step_ref_id} parameterValues must be an object")
         _normalize_parameter_values(
@@ -358,11 +307,13 @@ def _normalize_parameter_values(definitions, values, *, require_complete):
     for parameter_id, definition in definitions_by_id.items():
         value = values.get(parameter_id, _MISSING)
         required = definition.get("required", True)
-        if value is _MISSING or _is_empty_value(value):
+        if value is _MISSING:
             if require_complete and required:
                 raise ValueError(f"Missing required parameter: {parameter_id}")
-            normalized[parameter_id] = None if value is _MISSING else value
+            normalized[parameter_id] = None
             continue
+        if require_complete and required and _is_empty_value(value):
+            raise ValueError(f"Missing required parameter: {parameter_id}")
         normalized[parameter_id] = _normalize_parameter_value(
             definition,
             value,
@@ -720,7 +671,7 @@ def _json_scalar_equal(left, right):
     return type(left) is type(right) and left == right
 
 
-def _validate_binding_shape(flow_input_id, binding, embedded_geometries):
+def _validate_binding_shape(flow_input_id, binding):
     if not isinstance(binding, Mapping):
         raise ValueError(f"Input binding {flow_input_id} must be an object")
     kind = binding.get("kind")
@@ -728,13 +679,6 @@ def _validate_binding_shape(flow_input_id, binding, embedded_geometries):
         geometry_id = binding.get("geometryId")
         if not isinstance(geometry_id, str) or not geometry_id.strip():
             raise ValueError(f"Catalog binding {flow_input_id} requires geometryId")
-        return
-    if kind == "embedded":
-        local_id = binding.get("localId")
-        if not isinstance(local_id, str) or not local_id.strip():
-            raise ValueError(f"Embedded binding {flow_input_id} requires localId")
-        if local_id not in embedded_geometries:
-            raise ValueError(f"Embedded geometry not found: {local_id}")
         return
     if kind == "generator":
         generator_id = binding.get("generatorId")

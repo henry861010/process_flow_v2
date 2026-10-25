@@ -1,24 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  ApiRequestError,
-  commitInstanceEditorDraft,
-  commitTemplateEditorDraft,
-  commitTemplateInstanceEditorDraft,
-  createProcessFlowInstance,
-  createProcessFlowTemplate,
-  createProcessFlowTemplateInstance,
-  deleteGeometry,
-  deleteProcessFlowInstance,
-  deleteProcessFlowTemplate,
-  createGeometry,
-  getEditorDraft,
-  listEditorDrafts,
-  saveEditorDraft,
-  deleteEditorDraft,
-  exportProcessStepTemplates,
-  importProcessStepTemplates,
-} from "./process-flow-api";
-
+import { ApiRequestError, commitFlowDraft, createProcessFlow, updateProcessFlow, deleteProcessFlow,
+  createGeometry, deleteGeometry, getFlowDraft, listFlowDrafts, saveFlowDraft, deleteFlowDraft,
+  exportProcessStepTemplates, importProcessStepTemplates } from "./process-flow-api";
+import type { FlowDraftCreate, ProcessFlowCreate } from "./process-flow/types";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("step template JSON transfer", () => {
@@ -71,34 +55,6 @@ describe("step template JSON transfer", () => {
   });
 });
 
-describe("editor draft requests", () => {
-  it("scopes instance listing and recovery to the selected template", async () => {
-    const fetch = vi.fn().mockImplementation(async () => new Response("[]"));
-    vi.stubGlobal("fetch", fetch);
-    await listEditorDrafts("instance", { templateId: "template/id", user: "engineer", search: "progress" });
-    await getEditorDraft("instance", "draft/id", "template/id");
-    expect(fetch.mock.calls[0][0]).toContain("processFlowTemplateId=template%2Fid");
-    expect(fetch.mock.calls[0][0]).toContain("user=engineer&search=progress");
-    expect(fetch.mock.calls[1][0]).toContain("draft%2Fid?processFlowTemplateId=template%2Fid");
-  });
-  it("updates the original revision or creates a separate draft, and checks revision on delete", async () => {
-    const fetch = vi.fn().mockImplementation(async () => new Response("{}"));
-    vi.stubGlobal("fetch", fetch);
-    const body = { schemaVersion: 1 as const, user: "user", name: "draft", processFlowTemplateId: "template", state: {
-      metadata: { name: "", version: "", owner: "", description: "" },
-      configuration: { inputBindings: {}, stepConfigurations: {}, embeddedGeometries: {} },
-    } };
-    await saveEditorDraft("instance", body, { id: "original", revision: 3 });
-    await saveEditorDraft("instance", body);
-    expect(fetch.mock.calls[0][1].method).toBe("PUT");
-    expect(JSON.parse(fetch.mock.calls[0][1].body).revision).toBe(3);
-    expect(fetch.mock.calls[1][1].method).toBe("POST");
-    expect(JSON.parse(fetch.mock.calls[1][1].body)).not.toHaveProperty("revision");
-    await deleteEditorDraft("instance", { id: "original", revision: 4 } as never, "template");
-    expect(fetch.mock.calls[2][0]).toContain("processFlowTemplateId=template&revision=4");
-  });
-});
-
 describe("manual geometry creation requests", () => {
   const request = {
     name: "Custom die", entityType: "die", owner: "engineering", dim: "", structureFormat: "standard",
@@ -121,119 +77,34 @@ describe("manual geometry creation requests", () => {
   });
 });
 
-describe("resource deletion requests", () => {
-  it.each([
-    [deleteProcessFlowTemplate, "process-flow-templates"],
-    [deleteProcessFlowInstance, "process-flow-instances"],
-    [deleteGeometry, "geometries"],
-  ] as const)("handles empty 204 responses and encodes ids (%s)", async (remove, collection) => {
-    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(remove("id/with space")).resolves.toBeUndefined();
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining(`/api/${collection}/id%2Fwith%20space`),
-      expect.objectContaining({ method: "DELETE" }),
-    );
+
+describe("unified flow transport", () => {
+  const flow: ProcessFlowCreate = { schemaVersion: 3, name: "Flow", version: "v1", owner: "RD", description: "",
+    definition: { flowInputs: [], stepRefs: [], flowEdges: [] }, configuration: { inputBindings: {}, stepConfigurations: {} } };
+  it("uses one CRUD resource and carries revision for update and delete", async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ ...flow, id: "f", revision: 1 })); vi.stubGlobal("fetch", fetch);
+    await createProcessFlow(flow); await updateProcessFlow("f", { ...flow, revision: 4 }); await deleteProcessFlow({ id: "f", revision: 4 });
+    expect(fetch.mock.calls.map((call) => [call[0], call[1].method])).toEqual([
+      [expect.stringContaining("/api/process-flows"), "POST"], [expect.stringContaining("/api/process-flows/f"), "PUT"], [expect.stringContaining("/api/process-flows/f?revision=4"), "DELETE"]]);
+    expect(JSON.parse(fetch.mock.calls[1][1].body).revision).toBe(4);
   });
-
-  it.each([404, 409, 500])("preserves server error messages and status %s", async (status) => {
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () =>
-      new Response(JSON.stringify({ message: "Resource is referenced by a new instance" }), { status }),
-    ));
-    for (const remove of [deleteProcessFlowTemplate, deleteProcessFlowInstance, deleteGeometry]) {
-      const result = remove("resource");
-      await expect(result).rejects.toBeInstanceOf(ApiRequestError);
-      await expect(result).rejects.toMatchObject({ status, message: "Resource is referenced by a new instance" });
-    }
+  it("commits the current content and target revision in a single request", async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ id: "f" })); vi.stubGlobal("fetch", fetch);
+    await commitFlowDraft({ id: "draft", revision: 2 }, flow, { flowId: "f", revision: 8 });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, flow, target: { flowId: "f", revision: 8 } });
   });
-});
-
-
-describe("server-generated flow IDs", () => {
-  const template = {
-    schemaVersion: 2 as const, status: "enabled" as const,
-    name: "Template", version: "V0", owner: "test", description: "",
-    flowInputs: [], stepRefs: [], flowEdges: [],
-  };
-  const instance = {
-    schemaVersion: 2 as const, name: "Instance", version: "V0", owner: "test", description: "",
-    inputBindings: {}, stepConfigurations: {}, embeddedGeometries: {},
-  };
-
-  it("sends create metadata and returns the assigned template ID", async () => {
-    const saved = { ...template, id: "ecfcf14f6268494aaf405806789a87e1" };
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(createProcessFlowTemplate(template)).resolves.toEqual(saved);
-    const body = JSON.parse(fetch.mock.calls[0][1].body);
-    expect(body).toEqual(template);
-    expect(body).not.toHaveProperty("id");
-  });
-
-  it("keeps the selected template reference while accepting the assigned instance ID", async () => {
-    const request = { ...instance, processFlowTemplateId: "existing-template" };
-    const saved = { ...request, id: "7e2adea78dd7496db50910936f6ccc4b" };
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(createProcessFlowInstance(request)).resolves.toEqual(saved);
-    const body = JSON.parse(fetch.mock.calls[0][1].body);
-    expect(body).toEqual(request);
-    expect(body).not.toHaveProperty("id");
-  });
-
-  it("creates template and instance without caller-owned identity or relationship", async () => {
-    const request = { processFlowTemplate: template, processFlowInstance: instance };
-    const saved = {
-      processFlowTemplate: { ...template, id: "ecfcf14f6268494aaf405806789a87e1" },
-      processFlowInstance: { ...instance, id: "7e2adea78dd7496db50910936f6ccc4b", processFlowTemplateId: "ecfcf14f6268494aaf405806789a87e1" },
-    };
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(createProcessFlowTemplateInstance(request)).resolves.toEqual(saved);
-    const body = JSON.parse(fetch.mock.calls[0][1].body);
-    expect(body).toEqual(request);
-    expect(body.processFlowTemplate).not.toHaveProperty("id");
-    expect(body.processFlowInstance).not.toHaveProperty("id");
-    expect(body.processFlowInstance).not.toHaveProperty("processFlowTemplateId");
-  });
-
-  it("commits an instance draft using current values and its revision", async () => {
-    const request = { ...instance, processFlowTemplateId: "template" };
-    const saved = { ...request, id: "assigned" };
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(commitInstanceEditorDraft({ id: "draft", revision: 2 }, request)).resolves.toEqual(saved);
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, processFlowInstance: request });
-  });
-
-  it("commits a template with its instance in one revision-checked request", async () => {
-    const request = { processFlowTemplate: template, processFlowInstance: instance };
-    const saved = {
-      processFlowTemplate: { ...template, id: "assigned-template" },
-      processFlowInstance: { ...instance, id: "assigned-instance", processFlowTemplateId: "assigned-template" },
-    };
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(commitTemplateInstanceEditorDraft({ id: "draft/id", revision: 4 }, request)).resolves.toEqual(saved);
-    expect(fetch.mock.calls[0][0]).toContain("/api/process-flow-template-drafts/draft%2Fid/commit");
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 4, ...request });
+  it("propagates conflicts without retries or fallback writes", async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ detail: "Revision conflict" }, { status: 409 })); vi.stubGlobal("fetch", fetch);
+    await expect(commitFlowDraft({ id: "draft", revision: 1 }, flow)).rejects.toMatchObject({ status: 409, message: "Revision conflict" });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
-
-  it("keeps the template-only draft request and response compatible", async () => {
-    const saved = { ...template, id: "assigned-template" };
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(saved), { status: 201 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(commitTemplateEditorDraft({ id: "draft", revision: 2 }, template)).resolves.toEqual(saved);
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, processFlowTemplate: template });
-  });
-
-  it("preserves a combined draft conflict for display without falling back to separate creates", async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Draft changed" }), { status: 409 }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(commitTemplateInstanceEditorDraft({ id: "draft", revision: 2 }, {
-      processFlowTemplate: template, processFlowInstance: instance,
-    })).rejects.toMatchObject({ status: 409, message: "Draft changed" });
-    expect(fetch).toHaveBeenCalledTimes(1);
+  it("lists drafts across all flows and preserves target and UI state on save", async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({})); vi.stubGlobal("fetch", fetch);
+    const body: FlowDraftCreate = { schemaVersion: 2, user: "RD", name: "draft", target: { flowId: "f", revision: 3 },
+      state: { metadata: flow, configuration: flow.configuration, nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, editingRecipeIds: { a: "r2" } } };
+    await listFlowDrafts({ user: "RD" }); await getFlowDraft("draft"); await saveFlowDraft(body, { id: "draft", revision: 2 }); await deleteFlowDraft({ id: "draft", revision: 3 });
+    expect(fetch.mock.calls[0][0]).toContain("/api/process-flow-drafts?user=RD");
+    expect(JSON.parse(fetch.mock.calls[2][1].body)).toEqual({ ...body, revision: 2 });
+    expect(fetch.mock.calls[3][0]).toContain("?revision=3");
   });
 });

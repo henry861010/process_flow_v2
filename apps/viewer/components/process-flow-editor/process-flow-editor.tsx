@@ -56,18 +56,19 @@ import { StepTemplateHoverPreview, StepTemplatePreviewProvider } from "@/compone
 import {
   SaveInformationDialog,
   type SaveInformationMode,
-  type TemplateSaveInformation,
+  type FlowSaveInformation,
 } from "@/components/process-flow-save/save-information-dialog";
 import {
   ProcessFlowGraph,
   type ProcessFlowGraphEdgeData,
   type ProcessFlowGraphNodeData,
 } from "@/components/process-flow-graph/process-flow-graph";
+import { useEditorDialogFocus } from "@/components/process-flow-save/editor-dialog";
 import { useEditorDrafts } from "@/components/process-flow-save/editor-draft-controls";
 import { EditorShellHeader, EditorStatusBar } from "@/components/process-flow-save/editor-shell-header";
-import { TemplateSourceDialog } from "@/components/process-flow-save/template-source-dialog";
-import { validateTemplateDraftState } from "@/lib/process-flow/editor-drafts";
-import { commitTemplateEditorDraft, commitTemplateInstanceEditorDraft } from "@/lib/process-flow-api";
+import { FlowSourceDialog } from "@/components/process-flow-save/flow-source-dialog";
+import { validateFlowDraftState } from "@/lib/process-flow/editor-drafts";
+import { commitFlowDraft, getProcessFlow, ApiRequestError } from "@/lib/process-flow-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
@@ -90,28 +91,24 @@ import {
 } from "@/lib/process-flow/readiness-presentation";
 import { analyzeFlowDependencies } from "@/lib/process-flow/dependencies";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
-import { createDefaultParameterValues } from "@/lib/process-flow/parameter-values";
-import { buildTemplatePayload } from "@/lib/process-flow/template-builder";
-import { validateInstanceIdentity } from "@/lib/process-flow/instance-editor";
-import {
-  buildTemplateInstanceCreate,
-  flowConfigurationIssues,
-  instanceMetadataForTemplate,
-} from "@/lib/process-flow/template-editor-save";
+import { createStepConfiguration, createRecipe, copyRecipe, removeRecipe } from "@/lib/process-flow/recipes";
+
+
+import { flowConfigurationIssues, flowAuthoringIssues } from "@/lib/process-flow/flow-editor-save";
 import type {
   FlowConfiguration,
-  TemplateEditorDraftState,
+  FlowDraftState,
   FlowInputDefinition,
   GeometryEntity,
   GeometryBinding,
-  ProcessFlowTemplate,
+  ProcessFlow, FlowDefinition, FlowOrigin, StepConfiguration, RecipeCandidate,
   ProcessStepTemplate,
   SavedFlowEdge,
   StepRef,
 } from "@/lib/process-flow/types";
 import { clone, normalizeStepLabel } from "@/lib/process-flow/utils";
 import { disabledStepsForNewFlow, isTemplateEnabled } from "@/lib/process-flow/template-availability";
-import { createProcessFlowTemplate, createProcessFlowTemplateInstance, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
+import { createProcessFlow, updateProcessFlow, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const STEP_TEMPLATE_DRAG_TYPE = "application/process-step-template-v2";
@@ -124,8 +121,8 @@ const selectClass =
 const textareaClass =
   "min-h-[72px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted";
 
-type TemplateMetadata = TemplateSaveInformation;
-type TemplateSaveMode = Extract<SaveInformationMode, "template" | "template-and-instance">;
+type FlowMetadata = FlowSaveInformation;
+type FlowSaveMode = SaveInformationMode;
 
 type FlowInputNodeData = ProcessFlowGraphNodeData & {
   nodeKind: "flowInput";
@@ -150,7 +147,7 @@ type EditableFlowInputPatch = Partial<
   >
 >;
 
-type TemplateAnalysis = {
+type FlowAnalysis = {
   error: string | null;
   missingPortKeys: Set<string>;
   hasCycle: boolean;
@@ -160,23 +157,23 @@ type PreviewAvailability =
   | { ok: true }
   | { ok: false; reason: string };
 
-export function ProcessFlowTemplateEditor() {
+export function ProcessFlowEditor() {
   return (
     <ReactFlowProvider>
       <FlowGdsFileProvider>
-        <ProcessFlowTemplateEditorInner />
+        <ProcessFlowEditorInner />
       </FlowGdsFileProvider>
     </ReactFlowProvider>
   );
 }
 
-function ProcessFlowTemplateEditorInner() {
+function ProcessFlowEditorInner() {
   const flowGds = useFlowGdsFile();
   const router = useRouter();
   const reactFlow = useReactFlow<FlowNode, FlowEdge>();
   const [hydrated, setHydrated] = React.useState(false);
   const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>([]);
-  const [flowTemplates, setFlowTemplates] = React.useState<ProcessFlowTemplate[]>([]);
+  const [flows, setFlows] = React.useState<ProcessFlow[]>([]);
   const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
   const [generatorDefinitions, setGeneratorDefinitions] = React.useState<GeometryGeneratorDefinition[]>([]);
   const templateLibraryGenerators = generatorsForPlacement(generatorDefinitions, "templateGeometryLibrary");
@@ -185,9 +182,11 @@ function ProcessFlowTemplateEditorInner() {
     definition: GeometryGeneratorDefinition;
     initialParameters?: Record<string, unknown>;
   } | null>(null);
-  const [metadata, setMetadata] = React.useState<TemplateMetadata>(newMetadata());
-  const [instanceMetadataOverrides, setInstanceMetadataOverrides] = React.useState<Partial<TemplateMetadata>>({});
-  const instanceMetadata = instanceMetadataForTemplate(metadata, instanceMetadataOverrides);
+  const [metadata, setMetadata] = React.useState<FlowMetadata>(newMetadata());
+  const [target, setTarget] = React.useState<FlowOrigin | undefined>();
+  const [origin, setOrigin] = React.useState<FlowOrigin | undefined>();
+  const [editingRecipeIds, setEditingRecipeIds] = React.useState<Record<string, string>>({});
+  const [conflict, setConflict] = React.useState(false);
   const [configuration, setConfiguration] = React.useState<FlowConfiguration>(emptyConfiguration());
   const [nodes, setNodes] = React.useState<FlowNode[]>([]);
   const [edges, setEdges] = React.useState<FlowEdge[]>([]);
@@ -195,13 +194,13 @@ function ProcessFlowTemplateEditorInner() {
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
   const [pickerNodeId, setPickerNodeId] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
-  const [savedTemplate, setSavedTemplate] = React.useState<ProcessFlowTemplate | null>(null);
-  const [busyAction, setBusyAction] = React.useState<TemplateSaveMode | null>(null);
+  const [savedFlow, setSavedFlow] = React.useState<ProcessFlow | null>(null);
+  const [busyAction, setBusyAction] = React.useState<FlowSaveMode | null>(null);
   const savingRef = React.useRef(false);
   const [saveDialogMode, setSaveDialogMode] = React.useState<
-    TemplateSaveMode | null
+    FlowSaveMode | null
   >(null);
-  const [preferredSaveMode, setPreferredSaveMode] = React.useState<TemplateSaveMode>("template-and-instance");
+  const [preferredSaveMode, setPreferredSaveMode] = React.useState<FlowSaveMode>("save");
   const [sourceOpen, setSourceOpen] = React.useState(false);
   const [requirementsOpen, setRequirementsOpen] = React.useState(false);
   const [saveDialogError, setSaveDialogError] = React.useState<string | null>(null);
@@ -221,7 +220,7 @@ function ProcessFlowTemplateEditorInner() {
       .then((payload) => {
         if (!active) return;
         setStepTemplates(payload.processStepTemplates);
-        setFlowTemplates(payload.processFlowTemplates);
+        setFlows(payload.processFlows);
         setGeometries(payload.geometries);
         setGeneratorDefinitions(payload.geometryGenerators);
       })
@@ -242,22 +241,24 @@ function ProcessFlowTemplateEditorInner() {
 
   const [draftViewport, setDraftViewport] = React.useState({ x: 0, y: 0, zoom: 1 });
   const [graphInteractionKey, setGraphInteractionKey] = React.useState(0);
-  const editorDraftState = React.useMemo<TemplateEditorDraftState>(() => ({
-    metadata, configuration,
+  const cleanLoadedFlow = React.useRef(false);
+  const editorDraftState = React.useMemo<FlowDraftState>(() => ({
+    metadata, configuration, editingRecipeIds,
     nodes: nodes.map((node) => isFlowInputNode(node)
       ? { id: node.id, kind: "flowInput", position: node.position, definition: node.data.definition }
       : { id: node.id, kind: "processStep", position: node.position, stepRef: node.data.stepRef }),
     edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target,
       sourceHandle: edge.sourceHandle ?? null, targetHandle: edge.targetHandle ?? null })),
     viewport: draftViewport,
-  }), [metadata, configuration, nodes, edges, draftViewport]);
+  }), [metadata, configuration, editingRecipeIds, nodes, edges, draftViewport]);
+  React.useEffect(() => { setMessage(null); }, [editorDraftState]);
   const drafts = useEditorDrafts({
-    kind: "template", state: editorDraftState, enabled: hydrated, modern: true,
-    saveDisabled: savedTemplate !== null, busy: busyAction !== null,
+    state: editorDraftState, target, origin, enabled: hydrated, modern: true,
+    saveDisabled: false, busy: busyAction !== null,
     onLoad(draft) {
-      if (!("nodes" in draft.state)) throw new Error("This is not a template draft.");
+      if (!("nodes" in draft.state)) throw new Error("This is not a flow draft.");
       const state = structuredClone(draft.state);
-      validateTemplateDraftState(state, stepTemplates);
+      validateFlowDraftState(state, stepTemplates);
       state.edges = state.edges.map((edge) => ({ ...edge, sourceHandle: edge.sourceHandle ?? null, targetHandle: edge.targetHandle ?? null }));
       const restoredNodes = state.nodes.map<FlowNode>((node) => node.kind === "flowInput"
         ? { id: node.id, type: "flowInput", position: node.position, data: { nodeKind: "flowInput", definition: node.definition } }
@@ -268,43 +269,56 @@ function ProcessFlowTemplateEditorInner() {
         markerEnd: { type: MarkerType.ArrowClosed }, data: emptyEdgeData() }));
       flowGds?.clearFile();
       setMetadata(state.metadata);
-      setInstanceMetadataOverrides({});
+      setTarget(draft.target); setOrigin(draft.origin); setEditingRecipeIds(state.editingRecipeIds ?? {});
       setSaveDialogMode(null); setSaveDialogError(null);
-      setPreferredSaveMode("template-and-instance"); setRequirementsOpen(false);
+      setPreferredSaveMode("save"); setRequirementsOpen(false);
       setConfiguration(state.configuration);
       setNodes(restoredNodes);
       setGraphInteractionKey((current) => current + 1);
       setEdges(restoredEdges);
       setDraftViewport(state.viewport);
-      setSavedTemplate(null);
+      setSavedFlow(flows.find((flow) => flow.id === draft.target?.flowId) ?? null);
       setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null);
       setGeneratorEditor(null); setPreview(null); setMessage(null);
       requestAnimationFrame(() => { void reactFlow.setViewport(state.viewport); });
+      window.history.replaceState(null, "", `/flow-editor?draftId=${encodeURIComponent(draft.id)}`);
       return state;
     },
   });
-  const topologyLocked = savedTemplate !== null;
+  const markDraftClean = drafts.markClean;
+  React.useEffect(() => {
+    if (!cleanLoadedFlow.current) return;
+    cleanLoadedFlow.current = false;
+    const loadedState = editorDraftState;
+    requestAnimationFrame(() => {
+      void reactFlow.fitView({ padding: 0.18, duration: 0 }).then(() => {
+        markDraftClean({ ...loadedState, viewport: reactFlow.getViewport() });
+      });
+    });
+  }, [editorDraftState, markDraftClean, reactFlow]);
+  const topologyLocked = false;
   const editingLocked = topologyLocked || busyAction !== null;
   const generated = useGeneratorBindingGeometries(configuration);
   const resolvedGeometries = [...geometries, ...generated.geometries];
-  const draftTemplate = React.useMemo(
-    () => buildTemplate(metadata, nodes, edges, configuration),
-    [configuration, edges, metadata, nodes],
+  const draftDefinition = React.useMemo(
+    () => buildDefinition(nodes, edges),
+    [edges, nodes],
   );
   const analysis = React.useMemo(
-    () => analyzeTemplate(draftTemplate, stepTemplates),
-    [draftTemplate, stepTemplates],
+    () => analyzeDefinition(draftDefinition, stepTemplates),
+    [draftDefinition, stepTemplates],
   );
-  const disabledSteps = disabledStepsForNewFlow(draftTemplate, stepTemplates);
+  const previousRefs = new Set((savedFlow?.definition.stepRefs ?? []).map((ref) => `${ref.stepRefId}:${ref.processStepTemplateId}`));
+  const disabledSteps = disabledStepsForNewFlow({ ...draftDefinition, stepRefs: draftDefinition.stepRefs.filter((ref) => (!target || saveDialogMode === "save-as") || !previousRefs.has(`${ref.stepRefId}:${ref.processStepTemplateId}`)) }, stepTemplates);
+  const authoringIssues = flowAuthoringIssues(draftDefinition, stepTemplates, configuration);
   const availabilityError = !topologyLocked && disabledSteps.length > 0
     ? `Cannot save a new flow with disabled steps: ${disabledSteps.map((step) => step.name).join(", ")}. Remove or replace them.`
     : null;
-  const canSaveTemplate =
-    hydrated && !topologyLocked && !busyAction && !drafts.busy && !analysis.error && !availabilityError;
-  const configurationComplete = isConfigurationComplete(draftTemplate, stepTemplates, configuration, resolvedGeometries);
-  const canSaveTemplateInstance = canSaveTemplate && configurationComplete;
-  const instanceConfigurationIssues = !analysis.error && !configurationComplete
-    ? flowConfigurationIssues(draftTemplate, stepTemplates, configuration, resolvedGeometries)
+  const canSaveFlow =
+    hydrated && !topologyLocked && !busyAction && !drafts.busy && !analysis.error && !availabilityError && authoringIssues.length === 0;
+  const configurationComplete = isConfigurationComplete(draftDefinition, stepTemplates, configuration, resolvedGeometries);
+  const executionIssues = !analysis.error && !configurationComplete
+    ? flowConfigurationIssues(draftDefinition, stepTemplates, configuration, resolvedGeometries)
     : [];
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
   const editingStepPreviewAvailability =
@@ -312,7 +326,7 @@ function ProcessFlowTemplateEditorInner() {
       ? previewAvailabilityFromReadiness(
           getStepExecutionReadiness(
             editingNode.data.stepRef.stepRefId,
-            draftTemplate,
+            draftDefinition,
             stepTemplates,
             configuration,
             resolvedGeometries,
@@ -321,7 +335,7 @@ function ProcessFlowTemplateEditorInner() {
       : null;
   const pickerNode = nodes.find((node): node is FlowInputNode => node.id === pickerNodeId && isFlowInputNode(node)) ?? null;
 
-  const dependencies = analyzeFlowDependencies(draftTemplate, stepTemplates, configuration);
+  const dependencies = analyzeFlowDependencies(draftDefinition, stepTemplates, configuration);
 
   const displayNodes: FlowNode[] = nodes.map((node) => {
         if (isFlowInputNode(node)) {
@@ -332,7 +346,7 @@ function ProcessFlowTemplateEditorInner() {
           );
           const connected = edges.some((edge) => edge.source === node.id);
           const readiness = getFlowInputReadiness(
-            draftTemplate,
+            draftDefinition,
             stepTemplates,
             configuration,
             resolvedGeometries,
@@ -367,13 +381,13 @@ function ProcessFlowTemplateEditorInner() {
 
         const readiness = getStepConfigurationReadiness(
           node.data.stepRef.stepRefId,
-          draftTemplate,
+          draftDefinition,
           stepTemplates,
           configuration,
           resolvedGeometries,
         );
         const previewAvailability = previewAvailabilityFromReadiness(
-          getStepExecutionReadiness(node.data.stepRef.stepRefId, draftTemplate, stepTemplates, configuration, resolvedGeometries),
+          getStepExecutionReadiness(node.data.stepRef.stepRefId, draftDefinition, stepTemplates, configuration, resolvedGeometries),
         );
         const terminal = !edges.some(
           (edge) => edge.source === node.id && getEdgeSourceKind(edge, nodes) === "stepOutput",
@@ -426,14 +440,14 @@ function ProcessFlowTemplateEditorInner() {
         const sourceReadiness = sourceStep
           ? getStepConfigurationReadiness(
               sourceStep.data.stepRef.stepRefId,
-              draftTemplate,
+              draftDefinition,
               stepTemplates,
               configuration,
               resolvedGeometries,
             )
           : sourceNode && isFlowInputNode(sourceNode)
             ? getFlowInputReadiness(
-                draftTemplate,
+                draftDefinition,
                 stepTemplates,
                 configuration,
                 resolvedGeometries,
@@ -444,7 +458,7 @@ function ProcessFlowTemplateEditorInner() {
           ? previewAvailabilityFromReadiness(
               getStepExecutionReadiness(
                 sourceStep.data.stepRef.stepRefId,
-                draftTemplate,
+                draftDefinition,
                 stepTemplates,
                 configuration,
                 resolvedGeometries,
@@ -473,20 +487,14 @@ function ProcessFlowTemplateEditorInner() {
         };
       });
 
-  function updateMetadata(patch: Partial<TemplateMetadata>) {
+  function updateMetadata(patch: Partial<FlowMetadata>) {
     if (topologyLocked || savingRef.current) return;
     setMetadata((current) => ({ ...current, ...patch }));
     setSaveDialogError(null);
     setMessage(null);
   }
 
-  function updateInstanceMetadata(patch: Partial<TemplateMetadata>) {
-    if (savingRef.current) return;
-    setInstanceMetadataOverrides((current) => ({ ...current, ...patch }));
-    setSaveDialogError(null);
-  }
-
-  function openSaveDialog(mode: TemplateSaveMode) {
+  function openSaveDialog(mode: FlowSaveMode) {
     if (savingRef.current) return;
     setEditingNodeId(null); setPickerNodeId(null); setGeneratorEditor(null); setPreview(null);
     setSaveDialogError(null);
@@ -500,32 +508,43 @@ function ProcessFlowTemplateEditorInner() {
     setSaveDialogError(null);
   }
 
-  async function loadTemplateAsCopy(templateId: string) {
+  function applyFlow(flow: ProcessFlow, asCopy: boolean) {
+    const missing = flow.definition.stepRefs.filter((ref) => !stepTemplates.some((step) => step.id === ref.processStepTemplateId));
+    if (missing.length) throw new Error(`Missing step templates: ${missing.map((ref) => ref.processStepTemplateId).join(", ")}`);
+    const graph = graphFromDefinition(flow.definition, stepTemplates);
+    cleanLoadedFlow.current = !asCopy;
+    flowGds?.clearFile(); drafts.detach();
+    setMetadata({ name: asCopy ? `${flow.name} copy` : flow.name, version: flow.version, owner: flow.owner, description: flow.description });
+    setConfiguration(structuredClone(flow.configuration)); setEditingRecipeIds({});
+    setTarget(asCopy ? undefined : { flowId: flow.id, revision: flow.revision });
+    setOrigin(asCopy ? { flowId: flow.id, revision: flow.revision } : flow.origin);
+    setSavedFlow(asCopy ? null : flow);
+    setNodes(graph.nodes); setEdges(graph.edges); setGraphInteractionKey((key) => key + 1);
+    setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null); setGeneratorEditor(null); setPreview(null);
+    setSaveDialogMode(null); setSaveDialogError(null); setConflict(false); setMessage(null);
+    setPreferredSaveMode("save");
+    window.history.replaceState(null, "", `/flow-editor?flowId=${encodeURIComponent(flow.id)}${asCopy ? "&copy=1" : ""}`);
+    if (asCopy) requestAnimationFrame(() => reactFlow.fitView({ padding: 0.18, duration: 0 }));
+  }
+  async function loadFlowSource(flowId: string, asCopy = false) {
     if (savingRef.current || drafts.busy) return false;
-    const template = flowTemplates.find((item) => item.id === templateId);
-    if (!template) throw new Error("This template is no longer available.");
-    const missing = template.stepRefs.filter((ref) => !stepTemplates.some((step) => step.id === ref.processStepTemplateId));
-    if (missing.length) throw new Error(`Missing process step templates: ${missing.map((ref) => ref.processStepTemplateId).join(", ")}.`);
-    // Resolve dependencies before replacing any working editor state.
-    const graph = graphFromTemplate(template, stepTemplates);
-    const nextConfiguration = createEmptyFlowConfiguration(template, stepTemplates);
-    if (!await drafts.confirmReplaceAsync(`Use template "${template.name}" to start a new flow?`)) return false;
-    drafts.detach();
-    setInstanceMetadataOverrides({});
-    flowGds?.clearFile();
-    setMetadata({
-      name: template.name, version: template.version,
-      description: template.description ?? "", owner: template.owner ?? "",
-    });
-    setNodes(graph.nodes); setEdges(graph.edges); setConfiguration(nextConfiguration);
-    setGraphInteractionKey((current) => current + 1);
-    setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null);
-    setGeneratorEditor(null); setPreview(null); setSavedTemplate(null);
-    setSaveDialogMode(null); setSaveDialogError(null);
-    setPreferredSaveMode("template-and-instance"); setRequirementsOpen(false); setMessage(null);
-    requestAnimationFrame(() => reactFlow.fitView({ padding: 0.18, duration: 250 }));
+    const flow = await getProcessFlow(flowId);
+    if (!await drafts.confirmReplaceAsync(`Open flow "${flow.name}"?`)) return false;
+    applyFlow(flow, asCopy);
     return true;
   }
+  const entryLoaded = React.useRef(false);
+  // Entry URLs load once after bootstrap, using the current source/draft handlers.
+  const entryActions = React.useRef({ loadFlowSource, loadDraft: drafts.load });
+  entryActions.current = { loadFlowSource, loadDraft: drafts.load };
+  React.useEffect(() => {
+    if (!hydrated || !stepTemplates.length || entryLoaded.current) return;
+    entryLoaded.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const flowId = params.get("flowId"); const draftId = params.get("draftId");
+    if (flowId) void entryActions.current.loadFlowSource(flowId, params.get("copy") === "1").catch((error) => setMessage({ kind: "error", text: String(error) }));
+    else if (draftId) void entryActions.current.loadDraft({ id: draftId });
+  }, [hydrated, stepTemplates]);
 
   async function navigateHome() {
     if (savingRef.current || drafts.busy) return;
@@ -536,7 +555,7 @@ function ProcessFlowTemplateEditorInner() {
 
   function arrangeFlow() {
     if (nodes.length === 0 || savingRef.current) return;
-    const layout = computeTemplateLayout(draftTemplate, stepTemplates);
+    const layout = computeTemplateLayout(draftDefinition, stepTemplates);
     setNodes((current) =>
       current.map((node) => {
         const position = isFlowInputNode(node)
@@ -563,7 +582,7 @@ function ProcessFlowTemplateEditorInner() {
     if (!geometryConstraints) {
       setMessage({
         kind: "error",
-        text: `Geometry ${source.geometry.id} needs a category before it can define a template input.`,
+        text: `Geometry ${source.geometry.id} needs a category before it can define a flow input.`,
       });
       return;
     }
@@ -629,11 +648,7 @@ function ProcessFlowTemplateEditorInner() {
       ...current,
       stepConfigurations: {
         ...current.stepConfigurations,
-        [stepRefId]: {
-          parameterValues: createDefaultParameterValues(
-            template.parameterDefinitions,
-          ),
-        },
+        [stepRefId]: createStepConfiguration(template.parameterDefinitions),
       },
     }));
     setSelectedNodeId(node.id);
@@ -651,22 +666,14 @@ function ProcessFlowTemplateEditorInner() {
     setSelectedNodeId((current) => (current === nodeId ? null : current));
     setEditingNodeId((current) => (current === nodeId ? null : current));
     if (!node) return;
+    if (isStepNode(node)) setEditingRecipeIds((current) => {
+      const next = { ...current }; delete next[node.data.stepRef.stepRefId]; return next;
+    });
     setConfiguration((current) => {
       if (isFlowInputNode(node)) {
         const nextBindings = { ...current.inputBindings };
-        const deletedBinding = nextBindings[node.data.definition.flowInputId];
         delete nextBindings[node.data.definition.flowInputId];
-        if (deletedBinding?.kind !== "embedded") {
-          return { ...current, inputBindings: nextBindings };
-        }
-        const embeddedGeometries = { ...current.embeddedGeometries };
-        const stillReferenced = Object.values(nextBindings).some(
-          (binding) =>
-            binding.kind === "embedded" &&
-            binding.localId === deletedBinding.localId,
-        );
-        if (!stillReferenced) delete embeddedGeometries[deletedBinding.localId];
-        return { ...current, inputBindings: nextBindings, embeddedGeometries };
+        return { ...current, inputBindings: nextBindings };
       }
       const nextStepConfigurations = { ...current.stepConfigurations };
       delete nextStepConfigurations[node.data.stepRef.stepRefId];
@@ -684,6 +691,26 @@ function ProcessFlowTemplateEditorInner() {
     const accepted = topologyLocked
       ? changes.filter((change) => change.type === "select")
       : changes;
+    const removed = new Set(accepted.filter((change) => change.type === "remove").map((change) => change.id));
+    if (removed.size) {
+      setEditingRecipeIds((current) => {
+        const next = { ...current };
+        for (const node of nodes.filter((node) => removed.has(node.id))) {
+          if (isStepNode(node)) delete next[node.data.stepRef.stepRefId];
+        }
+        return next;
+      });
+      setConfiguration((current) => {
+        const next = structuredClone(current);
+        for (const node of nodes.filter((node) => removed.has(node.id))) {
+          if (isFlowInputNode(node)) delete next.inputBindings[node.data.definition.flowInputId];
+          else delete next.stepConfigurations[node.data.stepRef.stepRefId];
+        }
+        return next;
+      });
+      setEdges((current) => current.filter((edge) => !removed.has(edge.source) && !removed.has(edge.target)));
+      if (editingNodeId && removed.has(editingNodeId)) setEditingNodeId(null);
+    }
     setNodes((current) => applyNodeChanges(accepted, current));
   }
 
@@ -846,15 +873,9 @@ function ProcessFlowTemplateEditorInner() {
     }
   }
 
-  function setStepParameterValues(node: StepNode, parameterValues: Record<string, unknown>) {
+  function changeStepConfiguration(stepRefId: string, value: StepConfiguration) {
     if (savingRef.current) return;
-    setConfiguration((current) => ({
-      ...current,
-      stepConfigurations: {
-        ...current.stepConfigurations,
-        [node.data.stepRef.stepRefId]: { parameterValues },
-      },
-    }));
+    setConfiguration((current) => ({ ...current, stepConfigurations: { ...current.stepConfigurations, [stepRefId]: value } }));
   }
 
   function openFlowInputPreview(node: FlowInputNode) {
@@ -872,10 +893,8 @@ function ProcessFlowTemplateEditorInner() {
       request: {
         target: { type: "flowInput", flowInputId: node.data.definition.flowInputId },
         sourceLabel: node.data.definition.name,
-        ...(savedTemplate
-          ? { processFlowTemplateId: savedTemplate.id }
-          : { flowTemplate: draftTemplate }),
-        configuration,
+        flow: { definition: draftDefinition, configuration },
+        analyticsContext: { sourceKind: "inline_draft", ...(target ? { flowId: target.flowId, flowRevision: target.revision } : {}) },
       },
     });
   }
@@ -893,55 +912,37 @@ function ProcessFlowTemplateEditorInner() {
           outputPortId: "result_geometry",
         },
         sourceLabel: stepLabel(node),
-        ...(savedTemplate
-          ? { processFlowTemplateId: savedTemplate.id }
-          : { flowTemplate: draftTemplate }),
-        configuration,
+        flow: { definition: draftDefinition, configuration },
+        analyticsContext: { sourceKind: "inline_draft", ...(target ? { flowId: target.flowId, flowRevision: target.revision } : {}) },
       },
     });
   }
 
-  async function saveTemplate() {
-    if (!saveDialogMode || savingRef.current || !canSaveTemplate) return;
-    const combined = saveDialogMode === "template-and-instance";
-    if (combined && !canSaveTemplateInstance) {
-      setSaveDialogError("Complete the instance configuration before saving.");
-      return;
-    }
-    const validationError = validateTemplateSaveInformation(metadata)
-      ?? (combined ? validateInstanceIdentity(instanceMetadata) : null);
-    if (validationError) {
-      setSaveDialogError(validationError);
-      return;
-    }
+  async function saveFlow() {
+    if (!saveDialogMode || savingRef.current || !canSaveFlow) return;
+    const validationError = validateFlowSaveInformation(metadata);
+    if (validationError) { setSaveDialogError(validationError); return; }
     const captured = structuredClone(editorDraftState);
-    const request = buildTemplateInstanceCreate(draftTemplate, instanceMetadata, captured.configuration);
-    savingRef.current = true;
-    setBusyAction(saveDialogMode);
-    setSaveDialogError(null);
-    setMessage(null);
+    const updateTarget = saveDialogMode === "save" ? target : undefined;
+    const nextOrigin = saveDialogMode === "save-as" && target ? target : origin;
+    const request = { schemaVersion: 3 as const, ...metadata, definition: draftDefinition,
+      configuration: captured.configuration, ...(nextOrigin ? { origin: nextOrigin } : {}) };
+    savingRef.current = true; setBusyAction(saveDialogMode); setSaveDialogError(null); setConflict(false);
     try {
-      const saved = combined
-        ? (drafts.active
-            ? await commitTemplateInstanceEditorDraft(drafts.active, request)
-            : await createProcessFlowTemplateInstance(request)).processFlowTemplate
-        : drafts.active
-          ? await commitTemplateEditorDraft(drafts.active, request.processFlowTemplate)
-          : await createProcessFlowTemplate(request.processFlowTemplate);
-      drafts.detach();
-      drafts.markClean(captured);
-      setSavedTemplate(saved);
-      setFlowTemplates((current) => [...current, saved]);
-      setSaveDialogMode(null);
-      router.push("/");
+      const saved = drafts.active
+        ? await commitFlowDraft(drafts.active, request, updateTarget)
+        : updateTarget ? await updateProcessFlow(updateTarget.flowId, { ...request, revision: updateTarget.revision })
+          : await createProcessFlow(request);
+      drafts.detach(); drafts.markClean(captured);
+      setSavedFlow(saved); setTarget({ flowId: saved.id, revision: saved.revision }); setOrigin(saved.origin);
+      setPreferredSaveMode("save");
+      setFlows((current) => [...current.filter((flow) => flow.id !== saved.id), saved]);
+      setSaveDialogMode(null); setMessage({ kind: "success", text: `Saved ${saved.name} · revision ${saved.revision}` });
+      window.history.replaceState(null, "", `/flow-editor?flowId=${encodeURIComponent(saved.id)}`);
     } catch (error) {
-      setSaveDialogError(
-        error instanceof Error ? error.message : "Unable to save flow.",
-      );
-    } finally {
-      savingRef.current = false;
-      setBusyAction(null);
-    }
+      setConflict(error instanceof ApiRequestError && error.status === 409);
+      setSaveDialogError(error instanceof Error ? error.message : "Unable to save flow.");
+    } finally { savingRef.current = false; setBusyAction(null); }
   }
 
   function handleFileExportJobCreated(job: FileExportJob) {
@@ -949,30 +950,31 @@ function ProcessFlowTemplateEditorInner() {
     setFileExportJobsRefreshKey((current) => current + 1);
   }
 
-  const blockingIssues = [analysis.error, availabilityError].filter((issue): issue is string => Boolean(issue));
+  const blockingIssues = [analysis.error, availabilityError, ...authoringIssues].filter((issue): issue is string => Boolean(issue));
   const configurationIssues = !analysis.error && !configurationComplete
-    ? (instanceConfigurationIssues.length ? instanceConfigurationIssues : ["Check the instance configuration for invalid input or step settings."])
+    ? (executionIssues.length ? executionIssues : ["Check the flow configuration for invalid input or step settings."])
     : [];
   const flowIssues = [...blockingIssues, ...configurationIssues];
   const progressStatus = busyAction || drafts.saving ? "Saving…"
     : drafts.dirty ? "Unsaved changes"
     : drafts.lastSavedAt ? `Draft saved · ${new Date(drafts.lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    : target ? `Saved flow · revision ${target.revision}`
     : "Not saved";
   const flowName = drafts.active?.name || metadata.name.trim() || "Untitled flow";
 
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground lg:h-screen lg:min-h-[760px] lg:overflow-hidden">
-      <EditorShellHeader editor="template" subtitle={flowName}
+      <EditorShellHeader editor="flow" subtitle={flowName}
         busy={busyAction !== null || drafts.busy}
         sourceDisabled={!hydrated || topologyLocked || drafts.busy}
-        saveDisabled={!hydrated || topologyLocked || busyAction !== null || drafts.busy}
+        saveDisabled={!canSaveFlow}
         draftControl={drafts.saveControl}
         onHome={() => void navigateHome()}
         onStartFrom={() => setSourceOpen(true)}
         onSave={() => openSaveDialog(preferredSaveMode)} />
       <EditorStatusBar progress={progressStatus}
         saving={Boolean(busyAction || drafts.saving)}
-        saved={!drafts.dirty && Boolean(drafts.lastSavedAt)}
+        saved={!drafts.dirty && Boolean(drafts.lastSavedAt || target)}
         issueCount={flowIssues.length}
         issueKind={blockingIssues.length ? "Flow" : "Configuration"}
         expanded={requirementsOpen}
@@ -1117,8 +1119,8 @@ function ProcessFlowTemplateEditorInner() {
         </aside>
       </section>
 
-      {sourceOpen ? <TemplateSourceDialog templates={flowTemplates} drafts={drafts}
-        onUseTemplate={loadTemplateAsCopy} onClose={() => setSourceOpen(false)} /> : null}
+      {sourceOpen ? <FlowSourceDialog flows={flows} drafts={drafts}
+        onUseFlow={loadFlowSource} onClose={() => setSourceOpen(false)} /> : null}
       {drafts.dialogs}
       {saveDialogMode ? (
         <SaveInformationDialog
@@ -1126,14 +1128,15 @@ function ProcessFlowTemplateEditorInner() {
           onModeChange={(mode) => { setPreferredSaveMode(mode); setSaveDialogMode(mode); setSaveDialogError(null); }}
           blockingIssues={blockingIssues}
           configurationIssues={configurationIssues}
-          template={metadata}
-          instance={instanceMetadata}
+          metadata={metadata}
+          hasTarget={Boolean(target)}
+          conflict={conflict}
+          onReload={() => { if (target) void loadFlowSource(target.flowId).catch((error) => setSaveDialogError(String(error))); }}
           error={saveDialogError}
           submitting={busyAction !== null}
-          onTemplateChange={updateMetadata}
-          onInstanceChange={updateInstanceMetadata}
+          onChange={updateMetadata}
           onClose={closeSaveDialog}
-          onSubmit={saveTemplate}
+          onSubmit={saveFlow}
         />
       ) : null}
 
@@ -1153,9 +1156,9 @@ function ProcessFlowTemplateEditorInner() {
           onStepLabelChange={(label) =>
             isStepNode(editingNode) && updateStepLabel(editingNode, label)
           }
-          onStepValuesChange={(values) =>
-            isStepNode(editingNode) && setStepParameterValues(editingNode, values)
-          }
+          editingRecipeId={isStepNode(editingNode) ? editingRecipeIds[editingNode.data.stepRef.stepRefId] : undefined}
+          onEditingRecipeChange={(id) => { if (isStepNode(editingNode)) setEditingRecipeIds((current) => ({ ...current, [editingNode.data.stepRef.stepRefId]: id })); }}
+          onStepConfigurationChange={(value) => { if (isStepNode(editingNode)) changeStepConfiguration(editingNode.data.stepRef.stepRefId, value); }}
           onPickGeometry={() =>
             isFlowInputNode(editingNode) && setPickerNodeId(editingNode.id)
           }
@@ -1339,7 +1342,7 @@ function NodeEditorDialog({
   onClose,
   onFlowInputChange,
   onStepLabelChange,
-  onStepValuesChange,
+  editingRecipeId, onEditingRecipeChange, onStepConfigurationChange,
   onPickGeometry,
   onPreviewFlowInput,
   stepPreviewAvailability,
@@ -1355,20 +1358,15 @@ function NodeEditorDialog({
   onClose: () => void;
   onFlowInputChange: (patch: EditableFlowInputPatch) => void;
   onStepLabelChange: (label: string) => void;
-  onStepValuesChange: (values: Record<string, unknown>) => void;
+  editingRecipeId?: string; onEditingRecipeChange: (id: string) => void; onStepConfigurationChange: (value: StepConfiguration) => void;
   onPickGeometry: () => void;
   onPreviewFlowInput: () => void;
   stepPreviewAvailability: PreviewAvailability | null;
   onPreviewStep: () => void;
   onDelete: () => void;
 }) {
-  React.useEffect(() => {
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
-  }, [onClose]);
+  const panel = React.useRef<HTMLElement>(null);
+  useEditorDialogFocus(panel, onClose, false);
 
   const title = isFlowInputNode(node)
     ? geometryInputDisplayName(node.data.definition.name)
@@ -1380,7 +1378,7 @@ function NodeEditorDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
-      <section className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(920px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
+      <section ref={panel} role="dialog" aria-modal="true" aria-label="Edit flow node" tabIndex={-1} className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(920px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
         <header className="flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold">{title}</h2>
@@ -1417,7 +1415,9 @@ function NodeEditorDialog({
               topologyLocked={topologyLocked}
               configuration={configuration}
               onLabelChange={onStepLabelChange}
-              onValuesChange={onStepValuesChange}
+              editingRecipeId={editingRecipeId}
+              onEditingRecipeChange={onEditingRecipeChange}
+              onConfigurationChange={onStepConfigurationChange}
               previewAvailability={
                 stepPreviewAvailability ?? {
                   ok: false,
@@ -1562,7 +1562,7 @@ function StepInspector({
   topologyLocked,
   configuration,
   onLabelChange,
-  onValuesChange,
+  editingRecipeId, onEditingRecipeChange, onConfigurationChange,
   previewAvailability,
   onPreview,
   onDelete,
@@ -1571,13 +1571,24 @@ function StepInspector({
   topologyLocked: boolean;
   configuration: FlowConfiguration;
   onLabelChange: (label: string) => void;
-  onValuesChange: (values: Record<string, unknown>) => void;
+  editingRecipeId?: string; onEditingRecipeChange: (id: string) => void; onConfigurationChange: (value: StepConfiguration) => void;
   previewAvailability: PreviewAvailability;
   onPreview: () => void;
   onDelete: () => void;
 }) {
-  const values =
-    configuration.stepConfigurations[node.data.stepRef.stepRefId]?.parameterValues ?? {};
+  const config = configuration.stepConfigurations[node.data.stepRef.stepRefId] ?? { recipeCandidates: [], selectedRecipeId: null };
+  const editing = config.recipeCandidates.find((recipe) => recipe.recipeId === editingRecipeId)
+    ?? config.recipeCandidates.find((recipe) => recipe.recipeId === config.selectedRecipeId)
+    ?? config.recipeCandidates[0];
+  function changeRecipe(patch: Partial<RecipeCandidate>) {
+    if (!editing) return;
+    onConfigurationChange({ ...config, recipeCandidates: config.recipeCandidates.map((recipe) => recipe.recipeId === editing.recipeId ? { ...recipe, ...patch } : recipe) });
+  }
+  function addRecipe(copy = false) {
+    const recipe = copy && editing ? copyRecipe(editing) : createRecipe(node.data.stepTemplate.parameterDefinitions, `Recipe ${config.recipeCandidates.length + 1}`);
+    onConfigurationChange({ ...config, recipeCandidates: [...config.recipeCandidates, recipe] });
+    onEditingRecipeChange(recipe.recipeId);
+  }
   return (
     <section className="p-4">
       <div className="mb-4 flex items-center justify-between gap-2">
@@ -1625,13 +1636,26 @@ function StepInspector({
         <StepTemplateDetails template={node.data.stepTemplate} />
       </div>
 
-      <div className="mt-5 border-t pt-4">
-        <div className="mb-3 text-sm font-semibold">Parameters</div>
-        <ParameterValueEditor
-          definitions={node.data.stepTemplate.parameterDefinitions}
-          values={values}
-          onChange={onValuesChange}
-        />
+      <div className="mt-5 space-y-3 border-t pt-4">
+        <p className="text-sm" role="status">Adopted recipe: <strong>{config.recipeCandidates.find((recipe) => recipe.recipeId === config.selectedRecipeId)?.name ?? "None selected"}</strong></p>
+        <FormField label="Currently editing">
+          <select className={selectClass} value={editing?.recipeId ?? ""} onChange={(event) => onEditingRecipeChange(event.target.value)}>
+            {!editing ? <option value="">No candidates</option> : null}
+            {config.recipeCandidates.map((recipe) => <option key={recipe.recipeId} value={recipe.recipeId}>{recipe.name}{recipe.recipeId === config.selectedRecipeId ? " · adopted" : ""}</option>)}
+          </select>
+        </FormField>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => addRecipe()}>Add recipe</Button>
+          <Button size="sm" variant="outline" disabled={!editing} onClick={() => addRecipe(true)}>Copy recipe</Button>
+          <Button size="sm" disabled={!editing || editing.recipeId === config.selectedRecipeId} onClick={() => editing && onConfigurationChange({ ...config, selectedRecipeId: editing.recipeId })}>Adopt this recipe</Button>
+          <Button size="sm" variant="outline" disabled={!editing} onClick={() => editing && onConfigurationChange(removeRecipe(config, editing.recipeId))}>Delete recipe</Button>
+        </div>
+        {editing ? <>
+          <FormField label="Recipe name" required><input className={inputClass} value={editing.name} onChange={(event) => changeRecipe({ name: event.target.value })} /></FormField>
+          <FormField label="Recipe description"><textarea className={textareaClass} value={editing.description} onChange={(event) => changeRecipe({ description: event.target.value })} /></FormField>
+          <p className="text-xs text-muted-foreground">Preview uses the adopted recipe. Editing another candidate does not adopt it.</p>
+          <ParameterValueEditor definitions={node.data.stepTemplate.parameterDefinitions} values={editing.parameterValues} onChange={(parameterValues) => changeRecipe({ parameterValues })} />
+        </> : <p className="text-sm text-muted-foreground">Add a candidate to begin configuring this step.</p>}
       </div>
     </section>
   );
@@ -1664,18 +1688,13 @@ function GeometryPickerDialog({
   const matchingGenerators = generatorsForFlowInput(generatorDefinitions, flowInput);
   const canEditCurrentGenerator = canEditGeneratorBinding(generatorDefinitions, selectedBinding);
 
-  React.useEffect(() => {
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
-  }, [onClose]);
+  const panel = React.useRef<HTMLElement>(null);
+  useEditorDialogFocus(panel, onClose, false);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
-      <section className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(820px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
+      <section ref={panel} role="dialog" aria-modal="true" aria-label="Choose geometry source" tabIndex={-1} className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(820px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
         <header className="flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold">Choose geometry source</h2>
@@ -1761,20 +1780,11 @@ function FormField({
   );
 }
 
-function buildTemplate(
-  metadata: TemplateMetadata,
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  configuration: FlowConfiguration,
-): ProcessFlowTemplate {
-  return buildTemplatePayload(
-    { ...metadata, id: "" },
-    nodes.filter(isFlowInputNode).map((node) => node.data.definition),
-    nodes.filter(isStepNode).map((node) => ({
-      ref: node.data.stepRef,
-      template: node.data.stepTemplate,
-    })),
-    edges.flatMap((edge) => {
+function buildDefinition(nodes: FlowNode[], edges: FlowEdge[]): FlowDefinition {
+  return {
+    flowInputs: nodes.filter(isFlowInputNode).map((node) => structuredClone(node.data.definition)),
+    stepRefs: nodes.filter(isStepNode).map((node) => structuredClone(node.data.stepRef)),
+    flowEdges: edges.flatMap((edge) => {
       const sourceNode = nodes.find((node) => node.id === edge.source);
       const targetNode = nodes.find((node): node is StepNode => node.id === edge.target && isStepNode(node));
       if (!sourceNode || !targetNode || !edge.targetHandle) return [];
@@ -1799,12 +1809,11 @@ function buildTemplate(
         } satisfies SavedFlowEdge,
       ];
     }),
-    configuration,
-  );
+  };
 }
 
-function graphFromTemplate(
-  template: ProcessFlowTemplate,
+function graphFromDefinition(
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const layout = computeTemplateLayout(template, stepTemplates);
@@ -1814,7 +1823,6 @@ function graphFromTemplate(
 
   template.flowInputs.forEach((definition) => {
     const clonedDefinition = clone(definition);
-    clonedDefinition.name = geometryInputDisplayName(clonedDefinition.name);
     flowInputNodeById.set(definition.flowInputId, {
       id: internalId("flow-input"),
       type: "flowInput",
@@ -1861,10 +1869,10 @@ function graphFromTemplate(
   return { nodes, edges };
 }
 
-function analyzeTemplate(
-  template: ProcessFlowTemplate,
+function analyzeDefinition(
+  template: FlowDefinition,
   stepTemplates: ProcessStepTemplate[],
-): TemplateAnalysis {
+): FlowAnalysis {
   const missingPortKeys = new Set<string>();
   if (template.flowInputs.length === 0) {
     return { error: "Add at least one geometry input.", missingPortKeys, hasCycle: false };
@@ -2005,7 +2013,7 @@ function previewAvailabilityFromReadiness(
     : { ok: false, reason: readiness.reason };
 }
 
-function templateHasCycle(template: ProcessFlowTemplate) {
+function templateHasCycle(template: FlowDefinition) {
   const adjacency = new Map<string, string[]>();
   template.flowEdges.forEach((edge) => {
     if (edge.source.kind !== "stepOutput") return;
@@ -2060,7 +2068,7 @@ function getEdgeSourceKind(edge: FlowEdge, nodes: FlowNode[]) {
   return source && isStepNode(source) ? "stepOutput" : "flowInput";
 }
 
-function newMetadata(): TemplateMetadata {
+function newMetadata(): FlowMetadata {
   return {
     name: "",
     version: "V0.0.0",
@@ -2070,7 +2078,7 @@ function newMetadata(): TemplateMetadata {
 }
 
 function emptyConfiguration(): FlowConfiguration {
-  return { inputBindings: {}, stepConfigurations: {}, embeddedGeometries: {} };
+  return { inputBindings: {}, stepConfigurations: {} };
 }
 
 function isFlowInputNode(node: FlowNode): node is FlowInputNode {
@@ -2130,11 +2138,11 @@ function validIdentifier(value: string) {
   return /^[A-Za-z][A-Za-z0-9_.-]*$/.test(value);
 }
 
-function validateTemplateSaveInformation(
-  metadata: TemplateMetadata,
+function validateFlowSaveInformation(
+  metadata: FlowMetadata,
 ) {
   const requiredFields: Array<[string, string]> = [
-    ["Template name", metadata.name],
+    ["Flow name", metadata.name],
     ["Version", metadata.version],
     ["Owner", metadata.owner],
   ];

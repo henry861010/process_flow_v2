@@ -1,0 +1,1223 @@
+[
+  {
+    "definition": {
+      "flowInputs": [
+        {
+          "flowInputId": "incoming_panel",
+          "name": "Incoming panel",
+          "description": "External geometry supplied by the process flow instance.",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "panel"
+            ],
+            "categories": [
+              "carrier.panel"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        },
+        {
+          "flowInputId": "incoming_hbm",
+          "name": "Incoming HBM",
+          "description": "External geometry supplied by the process flow instance.",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "die"
+            ],
+            "categories": [
+              "die.hbm"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        }
+      ],
+      "stepRefs": [
+        {
+          "stepRefId": "pnp_hbm",
+          "stepLabel": "PnP",
+          "processStepTemplateId": "step_tpl_pnp"
+        },
+        {
+          "stepRefId": "mold_cap",
+          "stepLabel": "molding",
+          "processStepTemplateId": "step_tpl_molding"
+        },
+        {
+          "stepRefId": "rdl_build",
+          "stepLabel": "RDL layer",
+          "processStepTemplateId": "step_tpl_rdl"
+        },
+        {
+          "stepRefId": "c4_bump",
+          "stepLabel": "C4 Bump",
+          "processStepTemplateId": "step_tpl_c4_bump_formation"
+        }
+      ],
+      "flowEdges": [
+        {
+          "edgeId": "edge_aaa_panel_to_pnp_main",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_panel"
+          },
+          "target": {
+            "stepRefId": "pnp_hbm",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_hbm_to_pnp_die",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_hbm"
+          },
+          "target": {
+            "stepRefId": "pnp_hbm",
+            "inputPortId": "die_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_pnp_to_mold",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "pnp_hbm",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "mold_cap",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_mold_to_rdl",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "mold_cap",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "rdl_build",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_rdl_to_c4",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "rdl_build",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "c4_bump",
+            "inputPortId": "main_geometry"
+          }
+        }
+      ]
+    },
+    "configuration": {
+      "inputBindings": {},
+      "stepConfigurations": {
+        "pnp_hbm": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {}
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "mold_cap": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "EMC-G700",
+                "thickness": 180
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "rdl_build": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {}
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "c4_bump": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "SAC305",
+                "thk": 65,
+                "density": 58,
+                "koz": 18
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        }
+      }
+    },
+    "schemaVersion": 3,
+    "name": "AAA Demo",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Demo AAA style package flow with die placement, molding, RDL, and C4 bump formation.",
+    "revision": 1,
+    "id": "flow_tpl_aaa_demo"
+  },
+  {
+    "definition": {
+      "flowInputs": [
+        {
+          "flowInputId": "incoming_main",
+          "name": "Incoming wafer or panel",
+          "description": "",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "wafer",
+              "panel"
+            ],
+            "categories": [
+              "carrier.wafer",
+              "carrier.panel"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        },
+        {
+          "flowInputId": "incoming_die",
+          "name": "Incoming die",
+          "description": "",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "die"
+            ],
+            "categories": [
+              "die.hbm",
+              "die.dram",
+              "die.soic",
+              "die.cpo"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        }
+      ],
+      "stepRefs": [
+        {
+          "stepRefId": "main_bump",
+          "stepLabel": "Main bump formation",
+          "processStepTemplateId": "step_tpl_c4_bump_formation"
+        },
+        {
+          "stepRefId": "die_bump",
+          "stepLabel": "Die bump formation",
+          "processStepTemplateId": "step_tpl_c4_bump_formation"
+        },
+        {
+          "stepRefId": "die_flip",
+          "stepLabel": "Die bump facing down",
+          "processStepTemplateId": "step_tpl_flip"
+        },
+        {
+          "stepRefId": "pnp",
+          "stepLabel": "PnP contact",
+          "processStepTemplateId": "step_tpl_pnp"
+        },
+        {
+          "stepRefId": "joint",
+          "stepLabel": "MR joint",
+          "processStepTemplateId": "step_tpl_mr_joint"
+        }
+      ],
+      "flowEdges": [
+        {
+          "edgeId": "edge_dual_main_bump",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_main"
+          },
+          "target": {
+            "stepRefId": "main_bump",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_die_bump",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_die"
+          },
+          "target": {
+            "stepRefId": "die_bump",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_die_flip",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "die_bump",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "die_flip",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_main_pnp",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "main_bump",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "pnp",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_die_pnp",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "die_flip",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "pnp",
+            "inputPortId": "die_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_pnp_joint",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "pnp",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "joint",
+            "inputPortId": "main_geometry"
+          }
+        }
+      ]
+    },
+    "configuration": {
+      "inputBindings": {},
+      "stepConfigurations": {
+        "main_bump": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "SnAg",
+                "thk": 20,
+                "density": 40,
+                "koz": 0
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "die_bump": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "SnAg",
+                "thk": 15,
+                "density": 80,
+                "koz": 0
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "die_flip": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {}
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "pnp": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {}
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "joint": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "bump_joined_height": 25
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        }
+      }
+    },
+    "schemaVersion": 3,
+    "name": "Dual-side Bump Study",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Independent wafer and die bump formation, die flip, PnP contact, and explicit MR joint using envelope footprints.",
+    "revision": 1,
+    "id": "flow_tpl_dual_bump_demo"
+  },
+  {
+    "definition": {
+      "flowInputs": [
+        {
+          "flowInputId": "incoming_panel",
+          "name": "Incoming panel",
+          "description": "External geometry supplied by the process flow instance.",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "panel"
+            ],
+            "categories": [
+              "carrier.panel"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        },
+        {
+          "flowInputId": "incoming_hbm",
+          "name": "Incoming HBM",
+          "description": "External geometry supplied by the process flow instance.",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "die"
+            ],
+            "categories": [
+              "die.hbm"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        }
+      ],
+      "stepRefs": [
+        {
+          "stepRefId": "pnp_hbm",
+          "stepLabel": "PnP",
+          "processStepTemplateId": "step_tpl_pnp"
+        },
+        {
+          "stepRefId": "mold_cap",
+          "stepLabel": "molding",
+          "processStepTemplateId": "step_tpl_molding"
+        },
+        {
+          "stepRefId": "rdl_build",
+          "stepLabel": "RDL layer",
+          "processStepTemplateId": "step_tpl_rdl"
+        },
+        {
+          "stepRefId": "c4_bump",
+          "stepLabel": "C4 Bump",
+          "processStepTemplateId": "step_tpl_c4_bump_formation"
+        }
+      ],
+      "flowEdges": [
+        {
+          "edgeId": "edge_aaa_panel_to_pnp_main",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_panel"
+          },
+          "target": {
+            "stepRefId": "pnp_hbm",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_hbm_to_pnp_die",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_hbm"
+          },
+          "target": {
+            "stepRefId": "pnp_hbm",
+            "inputPortId": "die_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_pnp_to_mold",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "pnp_hbm",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "mold_cap",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_mold_to_rdl",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "mold_cap",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "rdl_build",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_rdl_to_c4",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "rdl_build",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "c4_bump",
+            "inputPortId": "main_geometry"
+          }
+        }
+      ]
+    },
+    "configuration": {
+      "inputBindings": {
+        "incoming_panel": {
+          "kind": "catalog",
+          "geometryId": "panel_plp_310x310mm_glass"
+        },
+        "incoming_hbm": {
+          "kind": "catalog",
+          "geometryId": "hbm3_8hi"
+        }
+      },
+      "stepConfigurations": {
+        "pnp_hbm": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "placements": [
+                  {
+                    "targetRegion": {
+                      "type": "rectangle",
+                      "bottomLeftX": -760,
+                      "bottomLeftY": -520,
+                      "topRightX": 640,
+                      "topRightY": 480
+                    },
+                    "pose": {
+                      "x": 0,
+                      "y": 0,
+                      "rotationZ": 0
+                    },
+                    "anchor": "center"
+                  },
+                  {
+                    "targetRegion": {
+                      "type": "rectangle",
+                      "bottomLeftX": 760,
+                      "bottomLeftY": -520,
+                      "topRightX": 2160,
+                      "topRightY": 480
+                    },
+                    "pose": {
+                      "x": 0,
+                      "y": 0,
+                      "rotationZ": 0
+                    },
+                    "anchor": "center"
+                  }
+                ]
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "mold_cap": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "EMC-G700",
+                "thickness": 180
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "rdl_build": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "layers": {
+                  "items": [
+                    {
+                      "itemId": "layers_item_1",
+                      "index": 1,
+                      "values": {
+                        "Dielectric": "PI-2611",
+                        "Conductivity": "Cu",
+                        "thk": 8,
+                        "density": 62
+                      }
+                    },
+                    {
+                      "itemId": "layers_item_2",
+                      "index": 2,
+                      "values": {
+                        "Dielectric": "PI-2611",
+                        "Conductivity": "Cu",
+                        "thk": 6,
+                        "density": 48
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "c4_bump": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "SAC305",
+                "thk": 65,
+                "density": 58,
+                "koz": 18
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        }
+      }
+    },
+    "schemaVersion": 3,
+    "name": "HBM4 Alpha Build",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Reference HBM4 alpha process configuration.",
+    "origin": {
+      "flowId": "flow_tpl_aaa_demo",
+      "revision": 1
+    },
+    "revision": 1,
+    "id": "flow_inst_aaa_demo_hbm4_alpha"
+  },
+  {
+    "definition": {
+      "flowInputs": [
+        {
+          "flowInputId": "incoming_panel",
+          "name": "Incoming panel",
+          "description": "External geometry supplied by the process flow instance.",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "panel"
+            ],
+            "categories": [
+              "carrier.panel"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        },
+        {
+          "flowInputId": "incoming_hbm",
+          "name": "Incoming HBM",
+          "description": "External geometry supplied by the process flow instance.",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "die"
+            ],
+            "categories": [
+              "die.hbm"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        }
+      ],
+      "stepRefs": [
+        {
+          "stepRefId": "pnp_hbm",
+          "stepLabel": "PnP",
+          "processStepTemplateId": "step_tpl_pnp"
+        },
+        {
+          "stepRefId": "mold_cap",
+          "stepLabel": "molding",
+          "processStepTemplateId": "step_tpl_molding"
+        },
+        {
+          "stepRefId": "rdl_build",
+          "stepLabel": "RDL layer",
+          "processStepTemplateId": "step_tpl_rdl"
+        },
+        {
+          "stepRefId": "c4_bump",
+          "stepLabel": "C4 Bump",
+          "processStepTemplateId": "step_tpl_c4_bump_formation"
+        }
+      ],
+      "flowEdges": [
+        {
+          "edgeId": "edge_aaa_panel_to_pnp_main",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_panel"
+          },
+          "target": {
+            "stepRefId": "pnp_hbm",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_hbm_to_pnp_die",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_hbm"
+          },
+          "target": {
+            "stepRefId": "pnp_hbm",
+            "inputPortId": "die_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_pnp_to_mold",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "pnp_hbm",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "mold_cap",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_mold_to_rdl",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "mold_cap",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "rdl_build",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_aaa_rdl_to_c4",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "rdl_build",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "c4_bump",
+            "inputPortId": "main_geometry"
+          }
+        }
+      ]
+    },
+    "configuration": {
+      "inputBindings": {
+        "incoming_panel": {
+          "kind": "catalog",
+          "geometryId": "panel_plp_310x310mm_glass"
+        },
+        "incoming_hbm": {
+          "kind": "catalog",
+          "geometryId": "hbm3_8hi"
+        }
+      },
+      "stepConfigurations": {
+        "pnp_hbm": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "placements": [
+                  {
+                    "targetRegion": {
+                      "type": "rectangle",
+                      "bottomLeftX": -820,
+                      "bottomLeftY": -560,
+                      "topRightX": 580,
+                      "topRightY": 440
+                    },
+                    "pose": {
+                      "x": 0,
+                      "y": 0,
+                      "rotationZ": 0
+                    },
+                    "anchor": "center"
+                  },
+                  {
+                    "targetRegion": {
+                      "type": "rectangle",
+                      "bottomLeftX": 0,
+                      "bottomLeftY": -560,
+                      "topRightX": 1400,
+                      "topRightY": 440
+                    },
+                    "pose": {
+                      "x": 0,
+                      "y": 0,
+                      "rotationZ": 0
+                    },
+                    "anchor": "center"
+                  },
+                  {
+                    "targetRegion": {
+                      "type": "rectangle",
+                      "bottomLeftX": 820,
+                      "bottomLeftY": -560,
+                      "topRightX": 2220,
+                      "topRightY": 440
+                    },
+                    "pose": {
+                      "x": 0,
+                      "y": 0,
+                      "rotationZ": 0
+                    },
+                    "anchor": "center"
+                  }
+                ]
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "mold_cap": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "EMC-R920",
+                "thickness": 210
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "rdl_build": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "layers": {
+                  "items": [
+                    {
+                      "itemId": "layers_item_1",
+                      "index": 1,
+                      "values": {
+                        "Dielectric": "ABF-GX92",
+                        "Conductivity": "Cu",
+                        "thk": 10,
+                        "density": 56
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "c4_bump": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "SAC405",
+                "thk": 72,
+                "density": 53,
+                "koz": 20
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        }
+      }
+    },
+    "schemaVersion": 3,
+    "name": "HBM4 Beta Reliability",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "Reliability-focused HBM4 beta process configuration.",
+    "origin": {
+      "flowId": "flow_tpl_aaa_demo",
+      "revision": 1
+    },
+    "revision": 1,
+    "id": "flow_inst_aaa_demo_hbm4_beta"
+  },
+  {
+    "definition": {
+      "flowInputs": [
+        {
+          "flowInputId": "incoming_main",
+          "name": "Incoming wafer or panel",
+          "description": "",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "wafer",
+              "panel"
+            ],
+            "categories": [
+              "carrier.wafer",
+              "carrier.panel"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        },
+        {
+          "flowInputId": "incoming_die",
+          "name": "Incoming die",
+          "description": "",
+          "dataType": "geometry",
+          "required": true,
+          "geometryConstraints": {
+            "entityTypes": [
+              "die"
+            ],
+            "categories": [
+              "die.hbm",
+              "die.dram",
+              "die.soic",
+              "die.cpo"
+            ],
+            "structureFormats": [
+              "standard"
+            ]
+          }
+        }
+      ],
+      "stepRefs": [
+        {
+          "stepRefId": "main_bump",
+          "stepLabel": "Main bump formation",
+          "processStepTemplateId": "step_tpl_c4_bump_formation"
+        },
+        {
+          "stepRefId": "die_bump",
+          "stepLabel": "Die bump formation",
+          "processStepTemplateId": "step_tpl_c4_bump_formation"
+        },
+        {
+          "stepRefId": "die_flip",
+          "stepLabel": "Die bump facing down",
+          "processStepTemplateId": "step_tpl_flip"
+        },
+        {
+          "stepRefId": "pnp",
+          "stepLabel": "PnP contact",
+          "processStepTemplateId": "step_tpl_pnp"
+        },
+        {
+          "stepRefId": "joint",
+          "stepLabel": "MR joint",
+          "processStepTemplateId": "step_tpl_mr_joint"
+        }
+      ],
+      "flowEdges": [
+        {
+          "edgeId": "edge_dual_main_bump",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_main"
+          },
+          "target": {
+            "stepRefId": "main_bump",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_die_bump",
+          "source": {
+            "kind": "flowInput",
+            "flowInputId": "incoming_die"
+          },
+          "target": {
+            "stepRefId": "die_bump",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_die_flip",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "die_bump",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "die_flip",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_main_pnp",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "main_bump",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "pnp",
+            "inputPortId": "main_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_die_pnp",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "die_flip",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "pnp",
+            "inputPortId": "die_geometry"
+          }
+        },
+        {
+          "edgeId": "edge_dual_pnp_joint",
+          "source": {
+            "kind": "stepOutput",
+            "stepRefId": "pnp",
+            "outputPortId": "result_geometry"
+          },
+          "target": {
+            "stepRefId": "joint",
+            "inputPortId": "main_geometry"
+          }
+        }
+      ]
+    },
+    "configuration": {
+      "inputBindings": {
+        "incoming_main": {
+          "kind": "catalog",
+          "geometryId": "wafer_150mm_silicon"
+        },
+        "incoming_die": {
+          "kind": "catalog",
+          "geometryId": "hbm2_4hi"
+        }
+      },
+      "stepConfigurations": {
+        "main_bump": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "SnAg",
+                "thk": 20,
+                "density": 40,
+                "koz": 0
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "die_bump": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "material": "SnAg",
+                "thk": 15,
+                "density": 80,
+                "koz": 0
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "die_flip": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {}
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "pnp": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "placements": [
+                  {
+                    "targetRegion": {
+                      "type": "rectangle",
+                      "bottomLeftX": -18000,
+                      "bottomLeftY": -8000,
+                      "topRightX": -8000,
+                      "topRightY": 8000
+                    },
+                    "pose": {
+                      "x": 0,
+                      "y": 0,
+                      "rotationZ": 0
+                    },
+                    "anchor": "center"
+                  },
+                  {
+                    "targetRegion": {
+                      "type": "polygon",
+                      "points": [
+                        [
+                          8000,
+                          -8000
+                        ],
+                        [
+                          20000,
+                          -8000
+                        ],
+                        [
+                          18000,
+                          8000
+                        ],
+                        [
+                          8000,
+                          8000
+                        ]
+                      ]
+                    },
+                    "pose": {
+                      "x": 0,
+                      "y": 0,
+                      "rotationZ": 0
+                    },
+                    "anchor": "center"
+                  }
+                ]
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        },
+        "joint": {
+          "recipeCandidates": [
+            {
+              "recipeId": "recipe_1",
+              "name": "Recipe 1",
+              "description": "",
+              "parameterValues": {
+                "bump_joined_height": 25
+              }
+            }
+          ],
+          "selectedRecipeId": "recipe_1"
+        }
+      }
+    },
+    "schemaVersion": 3,
+    "name": "Wafer Dual-side Bump Study",
+    "version": "V0.0.0",
+    "owner": "demo.example",
+    "description": "20 um wafer bumps + 15 um die bumps contact at PnP; joint leaves a 25 um total gap.",
+    "origin": {
+      "flowId": "flow_tpl_dual_bump_demo",
+      "revision": 1
+    },
+    "revision": 1,
+    "id": "flow_inst_dual_bump_demo"
+  }
+]
