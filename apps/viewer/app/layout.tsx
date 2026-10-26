@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FileExportJobsProvider } from "@/components/geometry-preview/file-export-jobs-provider";
 import "@xyflow/react/dist/style.css";
 import "./globals.css";
 
@@ -14,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><FileExportJobsProvider>{children}</FileExportJobsProvider></body>
     </html>
   );
 }

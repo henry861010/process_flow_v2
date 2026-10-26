@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isActiveStatus, mergeJob, retainFileExportJobs } from "./file-export-jobs-state";
 
 export function FileExportJobsPanel({
   refreshKey,
@@ -38,6 +39,11 @@ export function FileExportJobsPanel({
   const [expanded, setExpanded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [clock, setClock] = React.useState(() => Date.now());
+  const panelRef = React.useRef<HTMLElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const panelId = React.useId();
+  const titleId = React.useId();
+  const loadVersion = React.useRef(0);
   const [hoveredJob, setHoveredJob] = React.useState<{
     jobId: string;
     top: number;
@@ -49,17 +55,21 @@ export function FileExportJobsPanel({
 
   React.useEffect(() => {
     if (!seedJob) return;
+    loadVersion.current += 1;
     setJobs((current) => mergeJob(current, seedJob));
     setExpanded(true);
   }, [seedJob]);
 
   const loadJobs = React.useCallback(async () => {
     if (!clientId) return;
+    const version = ++loadVersion.current;
     try {
       const nextJobs = await listFileExportJobs(clientId);
-      setJobs(nextJobs);
+      if (version !== loadVersion.current) return;
+      setJobs(retainFileExportJobs(nextJobs));
       setError(null);
     } catch (loadError) {
+      if (version !== loadVersion.current) return;
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -70,7 +80,24 @@ export function FileExportJobsPanel({
 
   React.useEffect(() => {
     void loadJobs();
+    return () => { loadVersion.current += 1; };
   }, [loadJobs, refreshKey]);
+
+  const collapse = React.useCallback(() => {
+    setExpanded(false);
+    setHoveredJob(null);
+  }, []);
+
+  React.useEffect(() => {
+    if (!expanded) return;
+    const onOutsidePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !panelRef.current?.contains(event.target)) {
+        collapse();
+      }
+    };
+    document.addEventListener("pointerdown", onOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", onOutsidePointerDown, true);
+  }, [expanded, collapse]);
 
   React.useEffect(() => {
     if (!clientId) return;
@@ -89,6 +116,7 @@ export function FileExportJobsPanel({
 
   async function cancelJob(job: FileExportJob) {
     if (!clientId || !isCancelableStatus(job.status)) return;
+    loadVersion.current += 1;
     setJobs((current) =>
       current.map((candidate) =>
         candidate.jobId === job.jobId
@@ -133,9 +161,12 @@ export function FileExportJobsPanel({
   if (!expanded) {
     return (
       <button
+        ref={triggerRef}
         type="button"
         className="fixed right-0 top-1/2 z-[80] flex h-16 w-10 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-l-md border border-r-0 bg-white text-muted-foreground shadow-viewport transition hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
         aria-label="Open export requests"
+        aria-expanded={false}
+        aria-controls={panelId}
         title="Open export requests"
         onClick={() => setExpanded(true)}
       >
@@ -153,13 +184,13 @@ export function FileExportJobsPanel({
       <span className="sr-only" aria-live="polite" aria-atomic="true">
         {activityAnnouncement}
       </span>
-      <aside className="fixed right-0 top-1/2 z-[80] flex max-h-[min(78vh,640px)] w-[min(420px,calc(100vw-16px))] -translate-y-1/2 flex-col overflow-hidden rounded-l-md border border-r-0 bg-white shadow-viewport">
+      <aside ref={panelRef} id={panelId} aria-labelledby={titleId} className="fixed right-0 top-1/2 z-[80] flex max-h-[min(78vh,640px)] w-[min(420px,calc(100vw-16px))] -translate-y-1/2 flex-col overflow-hidden rounded-l-md border border-r-0 bg-white shadow-viewport">
         <header className="flex shrink-0 items-center gap-3 border-b bg-muted/30 px-3 py-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground [&_svg]:h-4 [&_svg]:w-4">
             <Download />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold">
+            <span id={titleId} className="block truncate text-sm font-semibold">
               Export requests
             </span>
             <span className="block truncate text-xs text-muted-foreground">
@@ -176,7 +207,13 @@ export function FileExportJobsPanel({
             variant="ghost"
             size="icon-sm"
             title="Collapse"
-            onClick={() => setExpanded(false)}
+            aria-label="Collapse export requests"
+            aria-expanded={true}
+            aria-controls={panelId}
+            onClick={() => {
+              collapse();
+              requestAnimationFrame(() => triggerRef.current?.focus());
+            }}
           >
             <ChevronRight />
           </Button>
@@ -210,7 +247,7 @@ export function FileExportJobsPanel({
         </div>
 
         <footer className="shrink-0 border-t bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
-          Showing the latest 20 requests for this browser.
+          Showing all active requests and the latest 20 finished requests for this browser.
         </footer>
       </aside>
 
@@ -589,15 +626,6 @@ function JobKindIcon({ kind }: { kind: FileExportKind }) {
   if (kind === "json") return <FileJson className={className} />;
   if (kind === "cdb") return <Database className={className} />;
   return <Download className={className} />;
-}
-
-function mergeJob(jobs: FileExportJob[], job: FileExportJob) {
-  const withoutJob = jobs.filter((candidate) => candidate.jobId !== job.jobId);
-  return [job, ...withoutJob].slice(0, 20);
-}
-
-function isActiveStatus(status: FileExportStatus) {
-  return status === "queued" || status === "running" || status === "canceling";
 }
 
 function isCancelableStatus(status: FileExportStatus) {

@@ -360,12 +360,17 @@ class FileExportJobManager:
     async def list_jobs(self, *, client_id: str) -> list[JsonObject]:
         normalized_client_id = _normalize_client_id(client_id)
         async with self._lock:
-            jobs = [
-                job.public_payload(queue_position=self._queue_position_locked(job))
-                for job in reversed(self._jobs.values())
-                if job.client_id == normalized_client_id
-            ]
-        return jobs[: self.retained_jobs_per_client]
+            jobs = []
+            terminal_count = 0
+            for job in sorted(self._jobs.values(), key=lambda job: job.created_at, reverse=True):
+                if job.client_id != normalized_client_id:
+                    continue
+                if job.status in TERMINAL_STATUSES:
+                    terminal_count += 1
+                    if terminal_count > self.retained_jobs_per_client:
+                        continue
+                jobs.append(job.public_payload(queue_position=self._queue_position_locked(job)))
+        return jobs
 
     async def get_job(self, *, job_id: str, client_id: str) -> JsonObject | None:
         normalized_client_id = _normalize_client_id(client_id)

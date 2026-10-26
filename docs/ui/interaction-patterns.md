@@ -143,11 +143,15 @@ Home flow card → 開啟完整 flow → 編輯拓樸／候選 → Save dialog �
 | Geometry Preview | Close、Escape、outside | `foreground/45` | `50` |
 | Save Information | Close、Cancel、Escape、outside when idle | `foreground/40` | `90` |
 | Process Step Edit | Close、Cancel、Escape、outside when idle | `foreground/45` | `90` |
-| Export requests | collapse button | none | `80` |
+| Export requests | collapse button、outside pointerdown | none | `80` |
 | Export form | Cancel、Close、Escape、outside when idle | `foreground/35` | `100` |
 
 開啟 Export form 時不得讓 Preview backdrop click 同時關閉 Preview；form 以 portal + higher
 z-index 隔離。
+
+Export requests在Root Layout常駐一份，所有頁面共用。展開時以capture-phase pointerdown處理外部點擊，
+收回drawer及detail popover但不攔截原事件；清單內操作不收回。收回不取消job、不停止polling；一般polling
+不重新展開，只有使用者開啟或本頁新job建立通知才展開。
 
 ## Loading、empty、error 文案
 

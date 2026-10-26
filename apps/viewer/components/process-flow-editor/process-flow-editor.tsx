@@ -36,8 +36,7 @@ import {
   generatorsForPlacement,
 } from "@/components/geometry-generator/geometry-generator-placements";
 import { useGeneratorBindingGeometries } from "@/components/geometry-generator/use-generator-binding-geometries";
-import { FileExportJobsPanel } from "@/components/geometry-preview/file-export-jobs-panel";
-import type { FileExportJob } from "@/components/geometry-preview/file-export-client";
+import { useFileExportJobs } from "@/components/geometry-preview/file-export-jobs-provider";
 import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
@@ -216,8 +215,7 @@ function ProcessFlowEditorInner() {
   const [geometrySearch, setGeometrySearch] = React.useState("");
   const [stepCategoryPath, setStepCategoryPath] = React.useState<string[]>([]);
   const [stepSearch, setStepSearch] = React.useState("");
-  const [fileExportJobsRefreshKey, setFileExportJobsRefreshKey] = React.useState(0);
-  const [seedFileExportJob, setSeedFileExportJob] = React.useState<FileExportJob | null>(null);
+  const { registerJob } = useFileExportJobs();
 
   React.useEffect(() => {
     let active = true;
@@ -952,11 +950,6 @@ function ProcessFlowEditorInner() {
     } finally { savingRef.current = false; setBusyAction(null); }
   }
 
-  function handleFileExportJobCreated(job: FileExportJob) {
-    setSeedFileExportJob(job);
-    setFileExportJobsRefreshKey((current) => current + 1);
-  }
-
   const blockingIssues = [analysis.error, availabilityError, ...authoringIssues].filter((issue): issue is string => Boolean(issue));
   const configurationIssues = !analysis.error && !configurationComplete
     ? (executionIssues.length ? executionIssues : ["Check the flow configuration for invalid input or step settings."])
@@ -1233,14 +1226,9 @@ function ProcessFlowEditorInner() {
         <GeometryPreviewPanel
           preview={preview}
           onClose={() => setPreview(null)}
-          onFileExportJobCreated={handleFileExportJobCreated}
+          onFileExportJobCreated={registerJob}
         />
       ) : null}
-
-      <FileExportJobsPanel
-        refreshKey={fileExportJobsRefreshKey}
-        seedJob={seedFileExportJob}
-      />
     </main>
   );
 }

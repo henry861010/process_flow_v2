@@ -109,6 +109,43 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(len(payload["jobs"]), 25)
         self.assertEqual([job["queuePosition"] for job in payload["jobs"]], list(range(1, 26)))
 
+    def test_browser_list_retains_all_active_jobs_and_only_latest_terminal_history(self):
+        for index in range(25):
+            self.add_job(f"active-{index}", client="client-a",
+                         status=("queued", "running", "canceling")[index % 3])
+        for index in range(25):
+            self.add_job(f"finished-{index}", client="client-a",
+                         status=("success", "failed", "canceled")[index % 3])
+            self.add_job(f"other-{index}", client="client-b", status="success")
+        self.add_job("other-active", client="client-b")
+
+        response = self.client.get("/api/export-jobs", params={"clientId": "client-a"})
+        self.assertEqual(response.status_code, 200, response.text)
+        jobs = response.json()["jobs"]
+        self.assertEqual([job["jobId"] for job in jobs],
+                         [f"finished-{index}" for index in reversed(range(5, 25))]
+                         + [f"active-{index}" for index in reversed(range(25))])
+        self.assertTrue(all(job["clientId"] == "client-a" for job in jobs))
+        self.assertEqual([job["createdAt"] for job in jobs],
+                         sorted((job["createdAt"] for job in jobs), reverse=True))
+
+    def test_browser_list_sorts_by_creation_and_keeps_recent_terminal_transition(self):
+        old_active = self.add_job("old-active", client="client-a")
+        for index in range(20):
+            self.add_job(f"finished-{index}", client="client-a", status="success")
+        recent = self.add_job("recent", client="client-a", status="running")
+        # Reading must use creation order even if the manager's insertion order differs.
+        self.manager._jobs.move_to_end(old_active.job_id)
+        recent.status = "failed"
+        response = self.client.get("/api/export-jobs", params={"clientId": "client-a"})
+        self.assertEqual(response.status_code, 200, response.text)
+        jobs = response.json()["jobs"]
+        self.assertEqual(len(jobs), 21)
+        self.assertEqual(jobs[0]["jobId"], "recent")
+        self.assertEqual(jobs[0]["status"], "failed")
+        self.assertEqual(jobs[-1]["jobId"], "old-active")
+        self.assertNotIn("finished-0", [job["jobId"] for job in jobs])
+
     def test_target_folder_uses_saved_output_parent_for_all_active_jobs(self):
         for kind in ("cdb", "json", "step"):
             for status in ("queued", "running", "canceling"):

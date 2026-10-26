@@ -14,6 +14,8 @@ source_of_truth:
   - apps/viewer/components/geometry-preview/file-export-dialog.tsx
   - apps/viewer/components/geometry-preview/file-export-mesh-control.ts
   - apps/viewer/components/geometry-preview/file-export-jobs-panel.tsx
+  - apps/viewer/components/geometry-preview/file-export-jobs-provider.tsx
+  - apps/viewer/components/geometry-preview/file-export-jobs-state.ts
 ---
 
 # Export Jobs
@@ -21,7 +23,8 @@ source_of_truth:
 ## 範圍
 
 Ready Geometry Preview可建立`json`、`step`、`cdb` background jobs。Job屬於browser client，
-關閉Preview不取消job；Template與Instance Editor各自常駐同一drawer component。
+關閉Preview不取消job。Root Layout透過`FileExportJobsProvider`常駐唯一drawer，Home、Flow Editor
+與其他頁面共用；頁面切換不重新建立polling。只顯示目前browser client的jobs，不跨client彙整。
 
 Browser client ID存在localStorage `process-flow:export-client-id`；若只有legacy
 `process-flow:cdb-export-client-id` 則一次性 copy 到新 key，兩者皆無才產生 UUID。
@@ -154,12 +157,14 @@ stage沒有可靠total時使用activity bar，不推算整體百分比或ETA。Q
 ## Polling 規則
 
 1. Client ID建立後立即list。
-2. `refreshKey`改變（新job）立即list。
+2. 共用`registerJob(job)`通知新job，立即merge、expand並透過`refreshKey`立即list。
 3. 任一job為queued/running/canceling時每 `1800ms` poll。
 4. 無active jobs時每 `5000ms` poll。
 5. 每次成功replace完整jobs list並清load error；失敗保留舊jobs並顯示error。
 
-UI最多merge/show最新20筆；footer exact copy `Showing the latest 20 requests for this browser.`。
+API與UI保留全部queued/running/canceling jobs，加上最多20筆最近建立的終態紀錄
+（success/failed/canceled）；依createdAt由新到舊排序，依jobId去重。Active jobs不計入20筆上限。
+Footer exact copy `Showing all active requests and the latest 20 finished requests for this browser.`。
 
 ## Drawer 版面
 
@@ -171,6 +176,11 @@ Expanded：fixed right0/top50%、z80、width `min(420px,100vw-16px)`、max-heigh
 `<n> active`或`<n> recent requests`、badge `Running/Idle`、Collapse。Body是唯一vertical scroll。
 
 Empty exact copy：`No export requests` / `Exports created from preview will appear here.`。
+
+初次載入收合，無jobs時仍顯示入口。展開時以document capture-phase `pointerdown`偵測外部點擊：
+點清單外部會收回並清除detail popover，但不preventDefault或stopPropagation，原連結、按鈕與畫布操作
+照常執行。清單內部點擊、捲動與Cancel不收回。收回或unmount移除listener；收回不停止polling，
+一般polling不會自動展開。手動Collapse後focus回到入口，外部點擊收回不搶走原點擊目標的focus。
 
 ## Job row 與詳細資料
 
@@ -191,8 +201,9 @@ Popover top依row rect計算，至少16px且不超viewport。CDB detail顯示建
 
 | Context | Action | Result |
 | --- | --- | --- |
-| New job seed | component收到seedJob | merge到首列、slice20、drawer expand。 |
+| New job seed | registerJob通知component | 依jobId合併、按建立時間排序、保留全部active＋20筆terminal、drawer expand。 |
 | Collapse/expand | chevron command | jobs/polling不變。 |
+| Outside click | 展開時點清單外部 | drawer與detail popover收回，原點擊照常執行，jobs/polling不變。 |
 | Cancel queued/running | Cancel | optimistic canceling -> server state。 |
 | Cancel terminal/canceling | disabled | no request。 |
 | Poll error | none | error block + stale rows保留。 |
@@ -200,6 +211,7 @@ Popover top依row rect計算，至少16px且不超viewport。CDB detail顯示建
 ## 鍵盤、focus 與 ARIA
 
 - Collapsed/Collapse/Cancel是native buttons。
+- Open/Collapse buttons提供`aria-expanded`、`aria-controls`與accessible name，drawer以標題命名。
 - Row透過focus capture顯示details，但row本身非focusable；Cancel取得focus即可觸發。
 - Status text與icon並存，不能只靠animation/color。
 - Job status/stage updates透過polite live region宣告；determinate progress bar提供
@@ -224,3 +236,7 @@ Export form 是 jobs drawer 之外的更高層 modal；提交或關閉 form 不�
 | `UI-EXPORT-008` | running job stage更新 | row顯示stage/message/live elapsed，mobile不依賴popover。 |
 | `UI-EXPORT-009` | reliable current/total | 顯示stage progress與可存取value；無total時不顯示假百分比。 |
 | `UI-EXPORT-010` | queued job | 顯示queue position；開始執行後position消失。 |
+| `UI-EXPORT-011` | Home直接載入或Home ↔ Flow Editor切換 | 只有一份drawer，僅目前browser的jobs持續更新。 |
+| `UI-EXPORT-012` | 展開後點外部連結、按鈕或畫布 | drawer與popover收回，原操作生效；polling不重新展開。 |
+| `UI-EXPORT-013` | 展開後點清單內部、捲動或Cancel | 不自動收回，Cancel沿用既有狀態更新。 |
+| `UI-EXPORT-014` | 超過20筆active與超過20筆terminal | 所有active保留，terminal只保留最新20筆，依建立時間排序且無重複。 |
