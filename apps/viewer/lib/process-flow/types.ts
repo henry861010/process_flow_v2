@@ -276,7 +276,7 @@ export type FlowDraftState = {
 export type FlowDraft = {
   schemaVersion: 2; id: string; user: string; name: string; revision: number;
   createdAt: string; updatedAt: string; state: FlowDraftState;
-  target?: FlowOrigin; origin?: FlowOrigin;
+  origin?: FlowOrigin;
 };
 export type FlowDraftSummary = Omit<FlowDraft, "state">;
-export type FlowDraftCreate = Pick<FlowDraft, "schemaVersion" | "user" | "name" | "state" | "target" | "origin">;
+export type FlowDraftCreate = Pick<FlowDraft, "schemaVersion" | "user" | "name" | "state" | "origin">;

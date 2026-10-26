@@ -47,11 +47,13 @@ source_of_truth:
 - [ ] Step item 可 click-add；Geometry drag-only gap 仍記錄為 `UI-GAP-DRAG-001`。
 - [ ] Edit button／double-click 可開站點面板，單擊供接線使用。
 - [ ] 正式 metadata 於 Save dialog 編輯；保存後仍可修改 topology。
-- [ ] 合法拓樸、未完成 configuration 可保存；無效已提供值或拓樸只能存草稿。
-- [ ] Add／Copy recipe 不改採用，Currently editing 與 Adopted 清楚區分，刪除採用後 null。
-- [ ] 保存／恢復草稿包含畫布、viewport、查看 recipe 與 target revision，讀取不套 defaults。
-- [ ] 正式更新使用 revision；409 保留內容，提供 Reload 與 Save as。
-- [ ] 另存完整複製 configuration，記錄直接來源 revision，來源更新／刪除不連動。
+- [ ] 合法拓樸、未完成 configuration 可正式保存；無效已提供值或拓樸時只有新 flow 能存草稿。
+- [ ] Step details 置頂且直接顯示，不顯示內部 `stepRefId`；其後為 Active recipe 摘要與套用選單。卡片僅列名稱、ID、parameter 名稱，右側 Edit 與卡片本身皆可開編輯視窗，儲存／取消正確，description 不顯示。
+- [ ] Add 位於卡片區右下；Delete 位於各卡片右側且需確認；刪除已套用者改採相鄰候選，最後一張刪除後為 null。
+- [ ] 已套用 placements 只顯示 graph；編輯視窗仍能編輯每筆 placement。
+- [ ] 新 flow 保存／恢復同一份草稿包含畫布、viewport、候選與採用狀態，讀取不套 defaults；正式 Save 後不再提供 Save Draft。
+- [ ] 正式更新使用原 ID 與 revision；409 保留內容，提供取消與確認 Reload。
+- [ ] 既有 flow 與管理頁沒有 Copy、Save As、Save Draft。
 - [ ] ready target 可 Preview；無關 incomplete branch 不阻擋。
 - [ ] commit 成功後才原子刪除來源草稿；失敗保留。
 - [ ] `1024×768` 檢查 right pane 是否裁切，引用 `UI-GAP-RESP-001`。

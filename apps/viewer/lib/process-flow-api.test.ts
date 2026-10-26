@@ -88,19 +88,19 @@ describe("unified flow transport", () => {
       [expect.stringContaining("/api/process-flows"), "POST"], [expect.stringContaining("/api/process-flows/f"), "PUT"], [expect.stringContaining("/api/process-flows/f?revision=4"), "DELETE"]]);
     expect(JSON.parse(fetch.mock.calls[1][1].body).revision).toBe(4);
   });
-  it("commits the current content and target revision in a single request", async () => {
+  it("commits a new flow from a draft in a single request", async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({ id: "f" })); vi.stubGlobal("fetch", fetch);
-    await commitFlowDraft({ id: "draft", revision: 2 }, flow, { flowId: "f", revision: 8 });
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, flow, target: { flowId: "f", revision: 8 } });
+    await commitFlowDraft({ id: "draft", revision: 2 }, flow);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ revision: 2, flow });
   });
   it("propagates conflicts without retries or fallback writes", async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({ detail: "Revision conflict" }, { status: 409 })); vi.stubGlobal("fetch", fetch);
     await expect(commitFlowDraft({ id: "draft", revision: 1 }, flow)).rejects.toMatchObject({ status: 409, message: "Revision conflict" });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
-  it("lists drafts across all flows and preserves target and UI state on save", async () => {
+  it("lists drafts and preserves UI state on save", async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({})); vi.stubGlobal("fetch", fetch);
-    const body: FlowDraftCreate = { schemaVersion: 2, user: "RD", name: "draft", target: { flowId: "f", revision: 3 },
+    const body: FlowDraftCreate = { schemaVersion: 2, user: "RD", name: "draft",
       state: { metadata: flow, configuration: flow.configuration, nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, editingRecipeIds: { a: "r2" } } };
     await listFlowDrafts({ user: "RD" }); await getFlowDraft("draft"); await saveFlowDraft(body, { id: "draft", revision: 2 }); await deleteFlowDraft({ id: "draft", revision: 3 });
     expect(fetch.mock.calls[0][0]).toContain("/api/process-flow-drafts?user=RD");

@@ -352,7 +352,6 @@ class FlowDraftCreate(StrictModel):
     user: NonBlankString
     name: NonBlankString
     state: FlowDraftState
-    target: FlowOrigin | None = None
     origin: FlowOrigin | None = None
 
 
@@ -369,7 +368,6 @@ class FlowDraft(FlowDraftUpdate):
 class FlowDraftCommit(StrictModel):
     revision: int = Field(ge=1)
     flow: ProcessFlowCreate
-    target: FlowOrigin | None = None
 
 
 class GeometryEntity(StrictModel):

@@ -10,7 +10,8 @@ it("loads all drafts without per-source queries", async () => {
 it("sends revision on deletion and preserves derived records", async () => {
   const flow = { id: "flow", revision: 3 } as ProcessFlow;
   const child = { id: "child", revision: 1, origin: { flowId: "flow", revision: 1 } } as ProcessFlow;
-  const draft = { id: "draft", revision: 2, target: { flowId: "flow", revision: 1 } } as FlowDraftSummary;
+  const draft = { id: "draft", revision: 2, name: "Draft", user: "RD", schemaVersion: 2,
+    createdAt: "2026-01-01", updatedAt: "2026-01-01" } as FlowDraftSummary;
   const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", fetch);
   const target = { collection: "processFlows" as const, resource: flow };
   await deleteManagementResource(target);

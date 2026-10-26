@@ -1,6 +1,6 @@
 import type {
   GeometryEntity, FlowDraft, FlowDraftSummary, FlowDraftCreate,
-  ProcessFlow, ProcessFlowCreate, ProcessFlowUpdate, FlowOrigin, ProcessStepTemplate,
+  ProcessFlow, ProcessFlowCreate, ProcessFlowUpdate, ProcessStepTemplate,
 } from "@/lib/process-flow/types";
 import type {
   GeometryGeneratorDefinition,
@@ -244,8 +244,8 @@ export async function saveFlowDraft(body: FlowDraftCreate, current?: Pick<FlowDr
 export async function deleteFlowDraft(draft: Pick<FlowDraft, "id" | "revision">) {
   return apiFetch<void>(`${draftPath(draft.id)}?revision=${draft.revision}`, { method: "DELETE" });
 }
-export async function commitFlowDraft(draft: Pick<FlowDraft, "id" | "revision">, flow: ProcessFlowCreate, target?: FlowOrigin) {
+export async function commitFlowDraft(draft: Pick<FlowDraft, "id" | "revision">, flow: ProcessFlowCreate) {
   return apiFetch<ProcessFlow>(draftPath(draft.id) + "/commit", {
-    method: "POST", body: JSON.stringify({ revision: draft.revision, flow, ...(target ? { target } : {}) }),
+    method: "POST", body: JSON.stringify({ revision: draft.revision, flow }),
   });
 }

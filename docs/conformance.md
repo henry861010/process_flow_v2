@@ -88,8 +88,8 @@ session path與仍保留的legacy single-GLB path；文件不得把下列Open項
 | ID | Contract | Evidence | 狀態 |
 | --- | --- | --- | --- |
 | FLOW-001 | Flow 自有 definition/configuration、候選與 null selection、無 embedded/舊 payload | models、recipes helpers、test_process_flows、viewer recipes tests | Closed |
-| FLOW-002 | 更新／刪除 CAS、另存獨立、原 origin 保留 | test_process_flows | Closed |
-| FLOW-003 | 草稿 schema 2、target revision、atomic commit failure 保留草稿 | test_process_flows、test_flow_migration | Closed |
+| FLOW-002 | 更新／刪除 CAS、原 origin 保留、編輯器不提供複製與另存 | test_process_flows、viewer save tests | Closed |
+| FLOW-003 | 草稿 schema 2 僅供新 flow、atomic commit failure 保留草稿、14→16 清除舊 target 草稿 | test_process_flows、test_flow_migration | Closed |
 | FLOW-004 | 採用候選決定執行／PnP pruning／preview cache，input preview 不依賴無關站點 | kernel tests、test_process_flows、test_api | Closed |
 | FLOW-005 | 三檔 ZIP、bootstrap processFlows、舊 API 退場 | test_api、test_process_flows | Closed |
 | FLOW-006 | Unified editor 完整操作與 keyboard、409、preview/export | UI-FLOW-001 至 008，見 [自動測試與操作紀錄](ui/evidence/unified-flow-editor/README.md)；既有 responsive／drag gaps 另列。 | Closed |

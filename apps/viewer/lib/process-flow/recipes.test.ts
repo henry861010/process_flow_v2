@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { copyRecipe, createRecipe, createStepConfiguration, removeRecipe, selectedRecipe } from "./recipes";
+import { createRecipe, createStepConfiguration, removeRecipe, selectedRecipe } from "./recipes";
 import { flowAuthoringIssues } from "./flow-editor-save";
 import type { ParameterDefinition, ProcessStepTemplate } from "./types";
 const definitions: ParameterDefinition[] = [{ id: "layers", name: "Layers", valueType: "string[]", defaultValue: ["Cu"] }, { id: "thk", name: "Thickness", valueType: "float", required: true }];
@@ -11,26 +11,35 @@ describe("recipe candidates", () => {
     expect(definitions[0].defaultValue).toEqual(["Cu"]);
     expect(selectedRecipe(undefined)).toBeNull();
   });
-  it("keeps adding, copying and editing independent from adoption", () => {
+  it("keeps adding and editing independent from adoption", () => {
     const config = createStepConfiguration(definitions);
     const before = structuredClone(selectedRecipe(config));
     const other = createRecipe(definitions, "Recipe 2");
     config.recipeCandidates.push(other);
     other.parameterValues.thk = 10;
-    const duplicate = copyRecipe(other);
-    (duplicate.parameterValues.layers as string[]).push("other");
-    expect(duplicate.recipeId).not.toBe(other.recipeId);
     expect(other.parameterValues.layers).toEqual(["Cu"]);
     expect(selectedRecipe(config)).toEqual(before);
     config.selectedRecipeId = other.recipeId;
     expect(selectedRecipe(config)?.parameterValues.thk).toBe(10);
   });
-  it("clears adoption when deleting the adopted candidate without falling back", () => {
+  it("adopts the next candidate, then the previous candidate, when deleting the adopted one", () => {
     const config = createStepConfiguration(definitions);
-    config.recipeCandidates.push(createRecipe(definitions));
-    const result = removeRecipe(config, config.selectedRecipeId!);
-    expect(result.recipeCandidates).toHaveLength(1);
-    expect(result.selectedRecipeId).toBeNull(); expect(selectedRecipe(result)).toBeNull();
+    const second = createRecipe(definitions, "Recipe 2");
+    const third = createRecipe(definitions, "Recipe 3");
+    config.recipeCandidates.push(second, third);
+    const afterFirst = removeRecipe(config, config.selectedRecipeId!);
+    expect(afterFirst.selectedRecipeId).toBe(second.recipeId);
+    const afterLast = removeRecipe({ ...afterFirst, selectedRecipeId: third.recipeId }, third.recipeId);
+    expect(afterLast.selectedRecipeId).toBe(second.recipeId);
+    const empty = removeRecipe(afterLast, second.recipeId);
+    expect(empty.selectedRecipeId).toBeNull();
+    expect(selectedRecipe(empty)).toBeNull();
+  });
+  it("preserves an existing unselected state when deleting another candidate", () => {
+    const config = createStepConfiguration(definitions);
+    config.selectedRecipeId = null;
+    config.recipeCandidates.push(createRecipe(definitions, "Recipe 2"));
+    expect(removeRecipe(config, config.recipeCandidates[0].recipeId).selectedRecipeId).toBeNull();
   });
   it("allows incomplete candidates but checks supplied names and types in every candidate", () => {
     const step = { id: "step", parameterDefinitions: definitions } as ProcessStepTemplate;

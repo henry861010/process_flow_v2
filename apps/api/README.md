@@ -111,7 +111,7 @@ missing token必須重新preview，不可在前端自行重建geometry。
 
 統一 schema 3 ProcessFlow CRUD、execute 和 schema 2 FlowDraft CRUD／atomic commit；完整路由與錯誤契約見 [Process Flow API](../../docs/reference/process-flow-api.md)。更新／刪除要求 revision，409 保留原資料。正式儲存允許缺少 geometry／required recipe 值，但必須拓樸合法且已提供值有效。
 
-舊 template／instance／dual draft／combined create API 已移除。Bootstrap 使用 processFlows，ZIP 僅三檔。SQLite schema 14 migration 先備份，支援已知 8–13 路徑，拒絕未知版本與實驗 schema 15，不自動 reset。
+舊 template／instance／dual draft／combined create API 已移除。Bootstrap 使用 processFlows，ZIP 僅三檔。SQLite schema 16 migration 先備份，支援已知 8–13 路徑與 14 版草稿清理，拒絕未知版本與實驗 schema 15，不自動 reset。
 
 ### Preview 與 export
 

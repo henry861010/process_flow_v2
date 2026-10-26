@@ -15,7 +15,7 @@ import {
 const HEIGHT = 300;
 const useClientLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
 
-export function PlacementPreview({ placements, validation, unit, selectedIndex, resetKey, onSelect, onViewChange }: {
+export function PlacementPreview({ placements, validation, unit, selectedIndex, resetKey, onSelect, onViewChange, readOnly = false }: {
   placements: readonly PlacementDraft[];
   validation: PlacementValidationSummary;
   unit?: string | null;
@@ -23,6 +23,7 @@ export function PlacementPreview({ placements, validation, unit, selectedIndex, 
   resetKey: number;
   onSelect: (index: number) => void;
   onViewChange?: () => void;
+  readOnly?: boolean;
 }) {
   const geometry = React.useMemo(() => placementPreviewGeometry(placements, validation), [placements, validation]);
   const viewportRef = React.useRef<SVGSVGElement>(null);
@@ -145,8 +146,8 @@ export function PlacementPreview({ placements, validation, unit, selectedIndex, 
         </summary>
         <div id={instructionsId} className="absolute right-0 top-full z-10 mt-2 w-64 max-w-[calc(100vw-6rem)] space-y-2 rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-md">
           <p>Drag to pan. Ctrl/⌘ + wheel to zoom. Fit all shows every shape.</p>
-          <p>Focus the plot: arrow keys pan, +/− zoom, Home fits all. Select a shape to jump to its placement card.</p>
-          <p>X points right; Y points up. Dashed outlines are invalid. Incomplete coordinates are not drawn; review the highlighted cards below.</p>
+          <p>Focus the plot: arrow keys pan, +/− zoom, Home fits all.{readOnly ? "" : " Select a shape to jump to its placement card."}</p>
+          <p>X points right; Y points up. Dashed outlines are invalid. Incomplete coordinates are not drawn.{readOnly ? "" : " Review the highlighted cards below."}</p>
         </div>
       </details>
       <div className="relative">
@@ -185,7 +186,7 @@ export function PlacementPreview({ placements, validation, unit, selectedIndex, 
             if (!gesture || event.pointerId !== gesture.pointerId) return;
             drag.current = null;
             event.currentTarget.releasePointerCapture(event.pointerId);
-            if (!gesture.moved && gesture.index !== null) onSelect(gesture.index);
+            if (!readOnly && !gesture.moved && gesture.index !== null) onSelect(gesture.index);
           }}
           onPointerCancel={() => { drag.current = null; }}
           onLostPointerCapture={() => { drag.current = null; }}
@@ -201,11 +202,11 @@ export function PlacementPreview({ placements, validation, unit, selectedIndex, 
             const points = shape.points.map((point) => projectPlacementPoint(point, activeCamera, width, HEIGHT));
             const selected = shape.index === selectedIndex;
             const path = points.map(([x, y], index) => `${index ? "L" : "M"} ${x} ${y}`).join(" ") + " Z";
-            return <g key={shape.index} data-placement-index={shape.index} className={`cursor-pointer ${shape.diagnostic ? "text-destructive" : "text-primary"}`}>
+            return <g key={shape.index} data-placement-index={shape.index} className={`${readOnly ? "" : "cursor-pointer "}${shape.diagnostic ? "text-destructive" : "text-primary"}`}>
               <title>{`Placement ${shape.index + 1} · ${shape.type} · ${placementBoundsLabel(shape.bounds, unit)}${shape.diagnostic ? ` · Invalid: ${shape.diagnostic}` : ""}`}</title>
               <path d={path} fill={shape.diagnostic ? "none" : "currentColor"} fillOpacity={selected ? 0.35 : 0.12}
                 stroke="currentColor" strokeWidth={selected ? 3 : 1.5} strokeDasharray={shape.diagnostic ? "5 3" : undefined}
-                strokeLinejoin="round" pointerEvents="all" />
+                strokeLinejoin="round" pointerEvents={readOnly ? "none" : "all"} />
               {shape.bounds.xMin === shape.bounds.xMax && shape.bounds.yMin === shape.bounds.yMax
                 ? <circle cx={points[0][0]} cy={points[0][1]} r={4} fill="none" stroke="currentColor" strokeDasharray="2 2" /> : null}
             </g>;

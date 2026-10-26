@@ -15,9 +15,10 @@ type State = FlowDraftState;
 type Confirmation = { title: string; description: string; action: string; resolve: (accepted: boolean) => void };
 const inputClass = "h-9 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
-export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, busy: parentBusy, modern = false, onLoad }: {
+export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, busy: parentBusy, modern = false, onLoad, onSaved }: {
   target?: FlowOrigin; origin?: FlowOrigin; state: State; enabled: boolean;
   saveDisabled?: boolean; busy?: boolean; modern?: boolean; onLoad: (draft: FlowDraft) => State;
+  onSaved?: (draft: FlowDraft) => void;
 }) {
   const fingerprint = draftFingerprint(state);
   const [baseline, setBaseline] = React.useState(fingerprint);
@@ -26,7 +27,6 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   stateRef.current = state;
   const [active, setActive] = React.useState<FlowDraft | null>(null);
   const [saveOpen, setSaveOpen] = React.useState(false);
-  const [saveAsNew, setSaveAsNew] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [selectedDraftId, setSelectedDraftId] = React.useState<string | null>(null);
   const [user, setUser] = React.useState("");
@@ -117,20 +117,21 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
     return ask("Discard unsaved changes?", `Your changes have not been saved. ${destination}`, "Discard changes");
   }
 
-  async function save(asNew = false, identityOverride?: { user: string; name: string }) {
-    if (!enabled || saveDisabled || busy || operationRef.current) return;
+  async function save(identityOverride?: { user: string; name: string }) {
+    if (!enabled || target || saveDisabled || busy || operationRef.current) return;
     const identityValues = identityOverride ?? { user, name };
     if (!identityValues.user.trim() || !identityValues.name.trim()) { setError("User and draft name are required."); return; }
     const captured = structuredClone(stateRef.current);
     operationRef.current = true; setOperation("save"); setError(null);
     try {
       const body = { schemaVersion: 2 as const, user: identityValues.user.trim(), name: identityValues.name.trim(),
-        state: captured, ...(target ? { target } : {}), ...(origin ? { origin } : {}) };
-      const saved = await saveFlowDraft(body, !asNew && active ? active : undefined);
+        state: captured, ...(origin ? { origin } : {}) };
+      const saved = await saveFlowDraft(body, active ?? undefined);
       setActive(saved); setUser(saved.user); setName(saved.name);
       setBaseline(draftFingerprint(captured)); setLastSavedAt(saved.updatedAt);
       setSaveOpen(false);
       setNotice(`Draft "${saved.name}" saved at ${new Date(saved.updatedAt).toLocaleString()}.`);
+      onSaved?.(saved);
     } catch (cause) { setError(errorMessage(cause)); }
     finally {
       operationRef.current = false; setOperation(null);
@@ -173,7 +174,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
       if (selectedDraftId === row.id) setSelectedDraftId(null);
       if (active?.id === row.id) {
         setActive(null); setBaseline(""); setLastSavedAt(null);
-        setNotice("Draft deleted. Editor contents remain available to save as a new draft.");
+        setNotice("Draft deleted. Editor contents remain available to save as a draft.");
       }
     } catch (cause) { setError(errorMessage(cause)); }
     finally { operationRef.current = false; setOperation(null); }
@@ -184,27 +185,27 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
     setBaseline(draftFingerprint(captured));
   }, []);
   function confirmReplace() { return !dirty || window.confirm("Discard changes since the last save?"); }
-  function openSave(asNew = false) {
+  function openSave() {
+    if (target) return;
     saveReturnFocus.current = menuOpen
       ? menu.current?.querySelector<HTMLButtonElement>("[aria-haspopup]") ?? saveTrigger.current
       : saveTrigger.current;
-    setMenuOpen(false); setError(null); setSaveAsNew(asNew);
-    setUser(active?.user ?? user); setName(active ? (asNew ? `${active.name} copy` : active.name) : name);
+    setMenuOpen(false); setError(null);
+    setUser(active?.user ?? user); setName(active?.name ?? name);
     setSaveOpen(true);
   }
 
   const saveControl = modern ? <div ref={menu} className="relative flex shrink-0">
     <Button ref={saveTrigger} type="button" variant="outline" className={active ? "rounded-r-none" : undefined}
-      disabled={!enabled || busy || saveDisabled} onClick={() => active ? void save(false, active) : openSave()}>
+      disabled={!enabled || Boolean(target) || busy || saveDisabled} onClick={() => active ? void save(active) : openSave()}>
       {operation === "save" ? <Loader2 className="animate-spin" /> : <Save className="hidden sm:block" />} {operation === "save" ? "Saving…" : "Save Draft"}
     </Button>
     {active ? <Button type="button" variant="outline" size="icon" className="-ml-px rounded-l-none" aria-haspopup="menu" aria-expanded={menuOpen}
-      title="Draft options" aria-label="Draft options" disabled={!enabled || busy || saveDisabled} onClick={() => setMenuOpen(!menuOpen)}><ChevronDown /></Button> : null}
+      title="Draft options" aria-label="Draft options" disabled={!enabled || Boolean(target) || busy || saveDisabled} onClick={() => setMenuOpen(!menuOpen)}><ChevronDown /></Button> : null}
     {menuOpen ? <div role="menu" aria-label="Draft options" className="absolute right-0 top-full z-30 mt-2 w-56 rounded-md border bg-white p-1 shadow-lg">
       <button role="menuitem" className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none" onClick={() => openSave()}>Edit draft details…</button>
-      <button role="menuitem" className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none" onClick={() => openSave(true)}>Save as new draft…</button>
     </div> : null}
-  </div> : <Button ref={saveTrigger} type="button" variant="outline" size="sm" disabled={!enabled || busy || saveDisabled} onClick={() => openSave()}><Save />Save Draft</Button>;
+  </div> : <Button ref={saveTrigger} type="button" variant="outline" size="sm" disabled={!enabled || Boolean(target) || busy || saveDisabled} onClick={() => openSave()}><Save />Save Draft</Button>;
 
   const selectedDraft = rows.find((row) => row.id === selectedDraftId) ?? null;
   const sortedRows = [...rows].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
@@ -231,8 +232,8 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   </>;
 
   const dialogContent = <>
-    {saveOpen ? <EditorDialog returnFocus={saveReturnFocus} title={saveAsNew ? "Save as new draft" : active ? modern ? "Edit draft details" : "Update draft" : "Save draft"} busy={busy} onClose={() => setSaveOpen(false)}>
-      <form className="min-h-0 overflow-y-auto" onSubmit={(event) => { event.preventDefault(); void save(saveAsNew); }}>
+    {saveOpen && !target ? <EditorDialog returnFocus={saveReturnFocus} title={active ? modern ? "Edit draft details" : "Update draft" : "Save draft"} busy={busy} onClose={() => setSaveOpen(false)}>
+      <form className="min-h-0 overflow-y-auto" onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <div className="space-y-4 p-5">
           <p className="text-sm text-muted-foreground">Preserve your complete editing progress, including geometry bindings, parameters and graph layout.</p>
           <label className="block space-y-1 text-sm">Draft name<input data-autofocus required className={inputClass} value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /></label>
@@ -241,8 +242,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
         </div>
         <footer className="flex flex-wrap justify-end gap-2 border-t px-5 py-3">
           <Button type="button" variant="outline" disabled={busy} onClick={() => setSaveOpen(false)}>Cancel</Button>
-          {!modern && active ? <Button type="button" variant="outline" disabled={busy} onClick={() => void save(true)}>Save as New Draft</Button> : null}
-          <Button type="submit" disabled={busy}>{operation === "save" ? "Saving…" : saveAsNew ? "Save new draft" : "Save Draft"}</Button>
+          <Button type="submit" disabled={busy}>{operation === "save" ? "Saving…" : "Save Draft"}</Button>
         </footer>
       </form>
     </EditorDialog> : null}

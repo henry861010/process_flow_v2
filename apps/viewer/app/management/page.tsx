@@ -286,7 +286,6 @@ export default function ManagementPage() {
                 <Cell>{flow.version}</Cell><Cell>{flow.owner}</Cell><Cell>{flow.revision}</Cell>
                 <td className="px-4 py-3 align-top"><div className="flex justify-end gap-2">
                   <Button asChild size="sm" variant="outline"><Link href={`/flow-editor?flowId=${encodeURIComponent(flow.id)}`}>Edit</Link></Button>
-                  <Button asChild size="sm" variant="outline"><Link href={`/flow-editor?flowId=${encodeURIComponent(flow.id)}&copy=1`}>Copy</Link></Button>
                   <DeleteButton name={flow.name} disabled={resourceBusy} deleting={deleting?.collection === "processFlows" && deleting.id === flow.id}
                     onClick={() => void handleDelete({ collection: "processFlows", resource: flow })} />
                 </div></td>

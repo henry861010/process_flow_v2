@@ -18,7 +18,5 @@ def update_draft(store: SQLiteStore, id_: str, body: FlowDraftUpdate):
 
 def commit_draft(store: SQLiteStore, id_: str, body: FlowDraftCommit, generators: GeometryGeneratorRegistry):
     store._required_draft(id_, body.revision)
-    current = store._required_flow(body.target.flowId, body.target.revision) if body.target else None
-    resource = prepare_flow(store, body.flow, generators, current=current)
-    return store.commit_flow_draft(id_, body.revision, resource,
-                                  target_revision=body.target.revision if body.target else None)
+    resource = prepare_flow(store, body.flow, generators)
+    return store.commit_flow_draft(id_, body.revision, resource)

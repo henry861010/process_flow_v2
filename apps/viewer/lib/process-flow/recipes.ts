@@ -11,10 +11,11 @@ export function createStepConfiguration(definitions: ParameterDefinition[]): Ste
   const recipe = createRecipe(definitions);
   return { recipeCandidates: [recipe], selectedRecipeId: recipe.recipeId };
 }
-export function copyRecipe(recipe: RecipeCandidate): RecipeCandidate {
-  return { ...structuredClone(recipe), recipeId: crypto.randomUUID(), name: `${recipe.name} copy` };
-}
 export function removeRecipe(configuration: StepConfiguration, recipeId: string): StepConfiguration {
-  return { recipeCandidates: configuration.recipeCandidates.filter((recipe) => recipe.recipeId !== recipeId),
-    selectedRecipeId: configuration.selectedRecipeId === recipeId ? null : configuration.selectedRecipeId };
+  const removedIndex = configuration.recipeCandidates.findIndex((recipe) => recipe.recipeId === recipeId);
+  const recipeCandidates = configuration.recipeCandidates.filter((recipe) => recipe.recipeId !== recipeId);
+  const selectedRecipeId = configuration.selectedRecipeId === recipeId
+    ? (recipeCandidates[removedIndex] ?? recipeCandidates[removedIndex - 1])?.recipeId ?? null
+    : configuration.selectedRecipeId;
+  return { recipeCandidates, selectedRecipeId };
 }

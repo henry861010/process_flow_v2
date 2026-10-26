@@ -26,13 +26,13 @@ source_of_truth:
 | DELETE | /api/process-flows/{flow_id}?revision=N | CAS 刪除；204 |
 | POST | /api/process-flows/{flow_id}/execute | 使用採用 recipe，回傳 geometryStructure 與 stepOutputs |
 | GET | /api/process-flow-drafts | 全域草稿摘要，可依 user 篩選 |
-| POST | /api/process-flow-drafts | schemaVersion 2、user、name、state、可選 target/origin；201 |
+| POST | /api/process-flow-drafts | schemaVersion 2、user、name、state、可選 origin；201；僅供尚未建立的 flow |
 | GET | /api/process-flow-drafts/{draft_id} | 完整草稿 |
 | PUT | /api/process-flow-drafts/{draft_id} | 完整草稿輸入加 revision |
 | DELETE | /api/process-flow-drafts/{draft_id}?revision=N | CAS 刪除；204 |
-| POST | /api/process-flow-drafts/{draft_id}/commit | {revision, flow: ProcessFlowCreate, target?: {flowId, revision}} |
+| POST | /api/process-flow-drafts/{draft_id}/commit | `{revision, flow: ProcessFlowCreate}`；原子建立 flow 並刪除草稿 |
 
-不存在為 404；revision 或唯一性衝突為 409；domain validation 為 400；payload schema 無效為 422。409 不會清掉草稿或改動正式資料。另存走 create，送出完整內容與直接來源 origin；更新忽略客戶端嘗試改寫的 origin 並保留原值。
+不存在為 404；revision 或唯一性衝突為 409；domain validation 為 400；payload schema 無效為 422。草稿建立、更新或 commit 若帶 `target` 均回 422。409 不會清掉草稿或改動正式資料。既有 flow 使用 PUT 更新；更新忽略客戶端嘗試改寫的 origin 並保留原值。
 
 ## Preview 與 export
 

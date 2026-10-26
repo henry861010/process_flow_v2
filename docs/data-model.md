@@ -15,11 +15,11 @@ source_of_truth:
 
 # Process Flow 資料模型
 
-本文件定義 persistence、API、compiler 與 viewer 共用的資料契約。ProcessFlow schema 為 3；FlowDraft schema 為 2；SQLite schema 為 14。這三個版本與使用者填寫的 `version`、防止覆寫的 `revision` 各自獨立。
+本文件定義 persistence、API、compiler 與 viewer 共用的資料契約。ProcessFlow schema 為 3；FlowDraft schema 為 2；SQLite schema 為 16。這三個版本與使用者填寫的 `version`、防止覆寫的 `revision` 各自獨立。
 
 ## 1. 範圍
 
-Flow 自有完整拓樸與 configuration；不再拆成 flow template 和 flow instance。所有 flows 都能更新或另存。此版沒有 flow lifecycle、template/product 分類、啟停狀態或歷史版本還原。ProcessStepTemplate 的既有管理功能保留。
+Flow 自有完整拓樸與 configuration；不再拆成 flow template 和 flow instance。已建立的 flow 更新原 ID，新 flow 在第一次保存前可使用 draft。此版沒有 flow lifecycle、template/product 分類、啟停狀態或歷史版本還原。ProcessStepTemplate 的既有管理功能保留。
 
 ## 2. 主要物件
 
@@ -33,7 +33,7 @@ Flow 自有完整拓樸與 configuration；不再拆成 flow template 和 flow i
 
 ## 3. Ownership
 
-Flow 的 `definition` 與 `configuration` 屬於該 flow。另存會完整複製它們；任何 recipe 值的修改都不會傳播到另一 flow。StepRef 仍引用 ProcessStepTemplate；catalog binding 仍引用 GeometryEntity，並非複製 geometry catalog。
+Flow 的 `definition` 與 `configuration` 屬於該 flow；修改既有 flow 只更新該 ID，不會傳播到其他 flow。StepRef 仍引用 ProcessStepTemplate；catalog binding 仍引用 GeometryEntity，並非複製 geometry catalog。
 
 `origin` 是弱來源記錄，不是 runtime 依賴，也不提供來源內容。來源更新或刪除不影響副本。Step program 的既有更新行為不等於 flow 歷史版本管理。
 
@@ -163,15 +163,15 @@ Generator binding 保存原 parameters，儲存不生成 geometry、不重新正
 
 ## 8. FlowDraft
 
-FlowDraft 使用 schemaVersion 2：`id, user, name, revision, createdAt, updatedAt, state`，可選 `target`、`origin`。Revision 自 1 遞增；更新和刪除使用 CAS。列表跨 flows，無 template scope。
+FlowDraft 使用 schemaVersion 2：`id, user, name, revision, createdAt, updatedAt, state`，可選 `origin`。Draft 僅用於尚未正式建立的 flow；建立、更新和 commit 都不接受 `target`。Revision 自 1 遞增；更新和刪除使用 CAS。列表跨 flows，無 template scope。
 
 `state` 包含 `metadata`（name/version/owner/description）、完整 configuration、nodes、edges、viewport 及 `editingRecipeIds`。Node 保存 position，flowInput node 保存 definition，processStep node 保存 stepRef。Edge 保存畫布 source/target/handles。Viewport 為 x/y/zoom。
 
-編輯既有 flow 時，`target: {flowId, revision}` 保存載入時版本；此 revision 不會因草稿更新自動追上伺服器。`editingRecipeIds` 只決定面板查看內容，不改變採用。草稿格式合法即可保存，不要求拓樸或參數完整。
+編輯既有 flow 時僅可直接更新正式 flow。`editingRecipeIds` 只決定面板查看內容，不改變採用。新 flow 的草稿格式合法即可保存，不要求拓樸或參數完整。
 
-## 9. 更新與另存
+## 9. 更新與來源資訊
 
-更新保留原 id、origin，拓樸與 configuration 可修改。另存送出完整新 flow 內容，origin 記錄直接來源的 ID 及載入時 revision；新副本 revision 為 1。未提供 origin 的全新 flow 沒有來源。Origin 不設外鍵，也不追溯祖先鏈。
+更新保留原 id、origin，拓樸與 configuration 可修改。編輯器不提供複製或另存；第一次正式保存建立 revision 1 的 flow。既有 `origin` 歷史資訊保留；Origin 不設外鍵，也不追溯祖先鏈。
 
 ## 10. 版本與移除欄位
 
@@ -187,11 +187,11 @@ Runtime MUST NOT 接受 ProcessFlowTemplate／ProcessFlowInstance、flow status�
 | Step preview | 完整合法拓樸 | 目標與上游依賴完整 | 該 closure 所需 inputs |
 | Input preview | 指定 input 可解析 | 無關站點不要求完整 | 只解析該 input |
 
-停用 step 禁止新增引用（含另存的新 flow）。既有 flow 仍可讀取、執行及更新；更新僅保留的同 stepRefId/stepTemplateId 配對可繼續使用停用 step。
+停用 step 禁止新增引用。既有 flow 仍可讀取、執行及更新；更新僅保留的同 stepRefId/stepTemplateId 配對可繼續使用停用 step。
 
 ## 12. 草稿 commit transaction
 
-`POST /api/process-flow-drafts/{id}/commit` 接受草稿 revision、完整正式 flow create payload 與可選 target。先執行 authoring validation；在同一 transaction 重新檢查 draft revision、建立或 CAS 更新 flow、刪除草稿。任何失敗都保留草稿與原正式資料。另存 commit 不傳 target。
+`POST /api/process-flow-drafts/{id}/commit` 接受草稿 revision 與完整正式 flow create payload。先執行 authoring validation；在同一 transaction 重新檢查 draft revision、建立 flow、刪除草稿。任何失敗都保留草稿與原正式資料。既有 flow 透過 PUT 與 CAS revision 更新。
 
 ## 13. Compile、preview 與 export
 

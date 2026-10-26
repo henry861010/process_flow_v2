@@ -669,7 +669,7 @@ function ParameterLabel({
         {definition.unit ? <span>/ {definition.unit}</span> : null}
       </div>
       {definition.description && !compact ? (
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+        <p data-parameter-description className="mt-2 text-xs leading-relaxed text-muted-foreground">
           {definition.description}
         </p>
       ) : null}

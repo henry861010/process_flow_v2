@@ -122,15 +122,15 @@ blocking reason；API error 不得清空 draft。
 使用者輸入造成 state 改變時，舊 success/error message SHOULD 清除，避免把過期結果顯示為
 仍然有效。
 
-## Flow copy、dirty 與 save 流程
+## Flow、dirty 與 save 流程
 
-Home flow card → 開啟完整 flow → 編輯拓樸／候選 → Save dialog → 更新或另存，成功後保留在 editor。
+Home flow card → 開啟完整 flow → 編輯拓樸／候選 → Save dialog → 更新原 flow，成功後保留在 editor。
 
-- Source 對話框提供 Open／Copy 和跨 flow 草稿恢復。
+- Source 對話框提供 Open 與新 flow 草稿恢復。
 - 正式保存要求拓樸與已提供值有效；允許缺少 bindings／required 參數。
-- 目前查看 recipe 與採用分開。查看屬於草稿 UI state；預覽只使用採用 recipe。
-- Draft 保存完整 configuration、畫布與 target revision；載入不重套 defaults。
-- 409 保留內容，提供重新載入與另存；成功 commit 才刪除來源草稿。
+- Recipe 卡片開獨立編輯視窗，儲存才更新草稿；套用選單直接切換採用 recipe，預覽只使用已儲存的採用 recipe。
+- 新 flow draft 保存完整 configuration 與畫布；載入不重套 defaults。既有 flow 不提供 Save Draft。
+- 409 保留內容，提供取消與確認重新載入；成功 commit 才刪除來源草稿。
 - Dirty 離頁與 source replacement 仍保護未儲存進度。
 
 ## Modal 與 overlay 層級
@@ -138,6 +138,7 @@ Home flow card → 開啟完整 flow → 編輯拓樸／候選 → Save dialog �
 | Surface | Close paths | Backdrop | z-index |
 | --- | --- | --- | --- |
 | Node Editor | Close、Escape、outside | `foreground/40` | `50` |
+| Recipe Edit／Delete | Save／Cancel、Close、Escape、outside | `foreground/40` | `95` |
 | Geometry Catalog | Close、Escape、outside | `foreground/40` | `50` |
 | Geometry Preview | Close、Escape、outside | `foreground/45` | `50` |
 | Save Information | Close、Cancel、Escape、outside when idle | `foreground/40` | `90` |
@@ -179,7 +180,7 @@ API error 顯示 server message；只有無法取得 message 時才使用 compon
 cross-screen contract：
 
 1. Flow topology：click-add Step → drag Geometry → connect → edit-button editor → Save Flow → Preview。
-2. Flow recipes：新增兩組候選、切換查看與採用，保存重載、草稿恢復、revision conflict 與另存。
+2. Flow recipes：新增兩組候選、編輯儲存／取消、切換採用、刪除採用候選，保存重載、新 flow 草稿恢復與 revision conflict。
 3. Preview/export：open ready target → Loading/Ready → Export form → jobs drawer → terminal state。
 4. CAD workbench：demo/import → section/camera → error or imported state → Reset preserving camera view。
 

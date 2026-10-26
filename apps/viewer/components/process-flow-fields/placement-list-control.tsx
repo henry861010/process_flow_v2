@@ -563,7 +563,7 @@ function emptyRectanglePlacement(): RectanglePlacement {
   };
 }
 
-function normalizePlacements(value: unknown): PlacementDraft[] {
+export function normalizePlacements(value: unknown): PlacementDraft[] {
   if (!Array.isArray(value)) return [];
   const result: PlacementDraft[] = [];
   value.forEach((candidate) => {

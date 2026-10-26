@@ -89,6 +89,17 @@ describe("placement preview geometry", () => {
 });
 
 describe("placement preview presentation", () => {
+  it("keeps the graph but hides placement-card instructions in read-only summaries", () => {
+    const html = renderToStaticMarkup(<PlacementPreview placements={[rectangle()]}
+      validation={summarizePlacementValidation([rectangle()])} selectedIndex={null}
+      resetKey={0} onSelect={() => {}} readOnly />);
+    expect(html).toContain('data-placement-index="0"');
+    expect(html).not.toContain("jump to its placement card");
+    expect(html).not.toContain("review the highlighted cards below");
+    expect(html).toContain('data-placement-index="0" class="text-primary"');
+    expect(html).toContain('pointer-events="none"');
+  });
+
   it("shows empty and incomplete states without a stale shape", () => {
     expect(render([])).toContain("No placements");
     const html = render([polygon([["", ""], [0, 0], [1, 1]])]);

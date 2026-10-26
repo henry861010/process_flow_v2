@@ -83,17 +83,17 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 
 | ID | Given | When | Then |
 | --- | --- | --- | --- |
-| `UI-HOME-001` | reset fixtures loaded | open `/` | 每個 flow 顯示一張 card，metadata 與 flow count 正確，Open／Copy 進入統一編輯器。 |
+| `UI-HOME-001` | reset fixtures loaded | open `/` | 每個 flow 顯示一張 card，metadata 與 flow count 正確，Open 進入統一編輯器。 |
 | `UI-GEN-001` | Home ready | click `Create HBM`或`Create DRAM` | navigate至專用editor並載入正確generator definition。 |
 | `UI-HBM-004` | valid HBM parameters | click Generate JSON | 下載合法純GeometryStructure，root molding與child dies符合HBM mapping。 |
 | `UI-HBM-007` | valid HBM parameters與metadata | click Save to DB | catalog建立`die.hbm` immutable geometry並回報server id。 |
 | `UI-MGMT-001` | bootstrap 與 draft summaries ready | open Management tabs | Flows、Geometries、Process steps、Drafts 四類 count 與 rows 符合 bootstrap 及統一草稿摘要。 |
 | `UI-MGMT-002` | Process steps tab | click row Edit、change allowed fields/default、Save | 頁內modal只暴露允許欄位；成功後row即時更新且不導頁。 |
 | `UI-MGMT-009` | Process step input ports | Move up/down with mouse or keyboard、Cancel／Save and reopen | 順序可修改且首尾與saving按鈕停用；Cancel丟棄排序，Save保留排序，port definitions與output ports仍鎖定。 |
-| `UI-MGMT-005` | Flows tab | Edit → modify topology/metadata/recipes → Save or Save as | 進入統一編輯器；更新遞增 revision，另存獨立 configuration 並記錄直接 origin，來源不連動。 |
-| `UI-MGMT-006` | Flows 與來源副本 | cancel/confirm Delete；模擬 stale revision | 取消無請求，DELETE 帶 revision，成功只移除目標 flow，副本／草稿／geometry／step 保留；409 不自動重試。Process steps 保留 Edit，沒有 Delete。 |
+| `UI-MGMT-005` | Flows tab | Edit → modify topology/metadata/recipes → Save | 進入統一編輯器；更新同一 ID 並遞增 revision，不顯示 Copy、Save As、Save Draft。 |
+| `UI-MGMT-006` | Flows tab | cancel/confirm Delete；模擬 stale revision | 取消無請求，DELETE 帶 revision，成功只移除目標 flow，其他 flow／草稿／geometry／step 保留；409 不自動重試。Process steps 保留 Edit，沒有 Delete。 |
 | `UI-MGMT-007` | Geometries 含被 flow／draft 引用的 geometry | cancel/confirm Delete；解除引用後再刪除 | catalog 引用回傳 409 並指出來源；generator binding 不誤擋；成功更新 row/count，不連帶刪除其他資源，失敗保留資料。 |
-| `UI-MGMT-008` | 跨多個 users 的 FlowDrafts，包含 target flow 已刪除 | 查看 Drafts、Resume、cancel/confirm Delete；模擬 stale revision | 單一列表、更新時間由新到舊；不依附 flow scope；刪除帶 revision，409 保留資料並要求重新確認；草稿仍可恢復並另存，Reset／ZIP reset 清空草稿。 |
+| `UI-MGMT-008` | 跨多個 users 的新 flow 草稿 | 查看 Drafts、Resume、cancel/confirm Delete；模擬 stale revision | 單一列表、更新時間由新到舊；刪除帶 revision，409 保留資料並要求重新確認；恢復後更新同一草稿，Reset／ZIP reset 清空草稿。 |
 | `UI-GRAPH-001` | node in view mode | single-click node | screen-level dialog開啟；不要求 double-click。 |
 | `UI-GRAPH-012` | inputPorts reordered around primary | reload Flow Editor；Arrange | 接口依宣告順序；primary 同排，前置 auxiliary 在上、後置在下；未接 primary、巢狀與 disconnected 區塊不重疊，portId 接線維持原語意。 |
 | `UI-PREVIEW-001` | ready step target in Flow Editor | click Preview | 依採用 recipe 與 upstream closure，Geometry Preview loading 後 ready。 |
@@ -148,7 +148,7 @@ Review 不只驗證單一 component，還 MUST 依下列順序走完跨 screen j
 | Journey | Entry | Required transition | Completion evidence |
 | --- | --- | --- | --- |
 | Flow topology | fresh `/flow-editor` | Step add → Geometry add → valid connect → Save Flow → save dialog | metadata只在dialog顯示、topology remains editable、configuration仍可編 |
-| Flow recipes | Home Alpha flow card | 候選新增／複製／查看／採用 → Preview → 更新／另存 | 兩組值獨立，重載保留採用，409 保留內容 |
+| Flow recipes | Home Alpha flow card | 候選新增／編輯儲存或取消／選單採用／刪除 → Preview → 更新 | 兩組值獨立，重載保留採用，409 保留內容 |
 | Catalog geometry | Home Create HBM/DRAM | parameters → Preview → Save to DB | success留在editor並顯示new geometry id |
 | Preview/export | ready input/step target | Loading → Ready → Export form → job terminal | Preview不被下層 overlay close path 誤關 |
 | CAD workbench | `/cad-viewer` demo | import/section/camera → Reset | model/error清理且 camera view保留 |
@@ -177,10 +177,10 @@ Journey 中的 current gap 必須保留原操作路徑並標記 gap ID；不可�
 
 ## Editor draft acceptance
 
-統一編輯器驗證 Save Draft、Resume、user/name、搜尋、作者篩選、更新時間排序、revision 更新／刪除、另存草稿、失敗保留與 dirty confirmation。FlowDraft 保存 topology、positions、viewport、完整 configuration、目前查看 recipe 與 target revision。正式 commit 使用目前畫布內容，flow 寫入與草稿刪除為同一 transaction；重載不重新套用 defaults。
+統一編輯器驗證新 flow 的 Save Draft、Resume、user/name、搜尋、作者篩選、更新時間排序、同一草稿 revision 更新／刪除、失敗保留與 dirty confirmation。FlowDraft 保存 topology、positions、viewport 與完整 configuration；舊 `editingRecipeIds` 仍可讀取。既有 flow 不顯示 Save Draft。正式 commit 使用目前畫布內容，flow 建立與草稿刪除為同一 transaction；重載不重新套用 defaults。
 
 ## Unified Flow acceptance
 
-新增流程、候選 recipes、草稿、衝突與另存以 [Flow Editor cases](../screens/flow-editor.md) 為準；舊 FTE／FIE cases 已退場，歷史操作證據留在 evidence 目錄。新流程不鎖 topology，不要求完整設定才可保存。
+新增流程、候選 recipes、草稿與衝突以 [Flow Editor cases](../screens/flow-editor.md) 為準；舊 FTE／FIE cases 已退場，歷史操作證據留在 evidence 目錄。新流程不鎖 topology，不要求完整設定才可保存。
 
 本次操作紀錄見 [Unified editor evidence](../evidence/unified-flow-editor/README.md)。

@@ -12,7 +12,7 @@ from .models import ProcessStepTemplate
 from .step_template_transfer import locked_process_step_template
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "14"
+DATABASE_SCHEMA_VERSION = "16"
 
 
 class DuplicateItemError(ValueError):
@@ -60,9 +60,12 @@ class SQLiteStore:
             ).fetchone() if "schema_metadata" in tables else None
             version = row[0] if row else None
             if version != DATABASE_SCHEMA_VERSION:
-                if version not in {"8", "9", "10", "11", "12", "13"}:
+                if version == "14":
+                    self._migrate_draft_policy()
+                elif version in {"8", "9", "10", "11", "12", "13"}:
+                    self._migrate(int(version), tables)
+                else:
                     raise RuntimeError(f"Unsupported database schema migration: {version} -> {DATABASE_SCHEMA_VERSION}")
-                self._migrate(int(version), tables)
         with self._connection:
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_metadata(key,value) VALUES ('analyticsDatasetId', ?)",
@@ -99,7 +102,7 @@ class SQLiteStore:
         from .flow_migration import LEGACY_TABLES, convert_legacy
         # SQLite's backup API produces a consistent, independently recoverable snapshot.
         if self.db_path != Path(":memory:"):
-            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v14-{uuid.uuid4().hex}.bak")
+            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v16-{uuid.uuid4().hex}.bak")
             backup = sqlite3.connect(str(backup_path))
             try:
                 self._connection.backup(backup)
@@ -127,6 +130,27 @@ class SQLiteStore:
             for table in LEGACY_TABLES:
                 if table in tables:
                     self._connection.execute(f"DROP TABLE {table}")
+            self._set_schema_version()
+
+    def _migrate_draft_policy(self) -> None:
+        if self.db_path != Path(":memory:"):
+            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v16-{uuid.uuid4().hex}.bak")
+            backup = sqlite3.connect(str(backup_path))
+            try:
+                self._connection.backup(backup)
+            finally:
+                backup.close()
+            self.migration_backup_path = backup_path
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            self._connection.execute(
+                "DELETE FROM process_flow_drafts WHERE json_type(payload, '$.target') NOT IN ('null')"
+                " AND json_type(payload, '$.target') IS NOT NULL"
+            )
+            self._connection.execute(
+                "UPDATE process_flow_drafts SET payload = json_remove(payload, '$.target')"
+                " WHERE json_type(payload, '$.target') = 'null'"
+            )
             self._set_schema_version()
 
     def reset(self) -> None:
@@ -312,7 +336,7 @@ class SQLiteStore:
         if current is None:
             raise NotFoundError(id_)
         if current["revision"] != revision:
-            raise ResourceConflictError("Flow changed in another session. Reload it or save as a new flow.")
+            raise ResourceConflictError("Flow changed in another session. Reload it before saving again.")
         return current
 
     def _update_flow_in_transaction(self, payload: JsonObject, revision: int) -> JsonObject:
@@ -364,7 +388,7 @@ class SQLiteStore:
         if current is None:
             raise NotFoundError(id_)
         if current["revision"] != revision:
-            raise DraftConflictError("Draft changed in another session. Reload it or save as a new draft.")
+            raise DraftConflictError("Draft changed in another session. Reload it before saving again.")
         return current
 
     def update_flow_draft(self, id_: str, body: JsonObject) -> JsonObject:
@@ -385,16 +409,12 @@ class SQLiteStore:
             self._required_draft(id_, revision)
             self._delete_in_transaction("process_flow_drafts", id_)
 
-    def commit_flow_draft(self, id_: str, revision: int, resource: JsonObject,
-                          *, target_revision: int | None = None) -> JsonObject:
+    def commit_flow_draft(self, id_: str, revision: int, resource: JsonObject) -> JsonObject:
         try:
             with self._connection:
                 self._connection.execute("BEGIN IMMEDIATE")
                 self._required_draft(id_, revision)
-                if target_revision is None:
-                    self._insert_values("process_flows", _flow_values(resource))
-                else:
-                    resource = self._update_flow_in_transaction(resource, target_revision)
+                self._insert_values("process_flows", _flow_values(resource))
                 self._delete_in_transaction("process_flow_drafts", id_)
         except sqlite3.IntegrityError as error:
             raise _duplicate_item_error(error) from error

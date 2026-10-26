@@ -67,7 +67,7 @@ API 載入 flow 自有 definition/configuration 及 step templates。Compiler �
 
 ### Editor draft commit
 
-草稿保存畫布與完整 configuration。Commit 在同一交易檢查 draft／target flow revision、建立或更新 flow 並刪草稿；失敗保留原資料。正式保存驗證拓樸與已提供值，不執行 generator 或 kernel。
+草稿保存尚未正式建立 flow 的畫布與完整 configuration。Commit 在同一交易檢查 draft revision、建立 flow 並刪草稿；失敗保留原資料。既有 flow 直接以 CAS revision 更新。正式保存驗證拓樸與已提供值，不執行 generator 或 kernel。
 
 ### Preview 與 export
 
@@ -78,7 +78,7 @@ Preview 可以直接解析 flow input，或只執行 step output 的 upstream cl
 
 ## Persistence 與生命週期
 
-業務 SQLite schema 14 使用 canonical JSON 加查詢欄位。已知 8–13 格式經一致性備份後在單一交易升級；unknown／schema 15 拒絕且不 reset。所有 flows 的 (name, version) 唯一。舊 template／instance 及草稿轉換、embedded geometry 保留與失敗回滾詳見 [Persistence](../reference/persistence.md)。
+業務 SQLite schema 16 使用 canonical JSON 加查詢欄位。已知 8–13 格式及 schema 14 經一致性備份後升級；schema 14 清除指向既有 flow 的草稿。Unknown／schema 15 拒絕且不 reset。所有 flows 的 (name, version) 唯一。舊 template／instance 及草稿轉換、embedded geometry 保留與失敗回滾詳見 [Persistence](../reference/persistence.md)。
 
 Export job 是 process-local memory state，不是 SQLite resource。API shutdown 會取消 queued／
 running jobs；restart 後 history 會消失。

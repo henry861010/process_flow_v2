@@ -16,6 +16,29 @@ FIXTURES = Path(__file__).parent / 'fixtures' / 'schema13'
 # Keep this baseline independent of the new compiler and migration implementation.
 LEGACY_EXECUTION_DIGESTS = json.loads((FIXTURES / 'execution-digests.json').read_text())['instances']
 
+
+def schema14_with_drafts(path):
+    with patch('process_flow_api.repository.DATABASE_SCHEMA_VERSION', '14'):
+        store = SQLiteStore(path)
+        store.insert_process_flow({'schemaVersion': 3, 'id': 'saved-flow', 'name': 'Saved', 'version': 'v1',
+                                   'owner': 'RD', 'description': '', 'revision': 1,
+                                   'definition': {'flowInputs': [], 'stepRefs': [], 'flowEdges': []},
+                                   'configuration': {'inputBindings': {}, 'stepConfigurations': {}}})
+        common = {'schemaVersion': 2, 'user': 'RD', 'name': 'Working', 'revision': 1,
+                  'createdAt': '2026-01-01', 'updatedAt': '2026-01-02',
+                  'state': {'metadata': {'name': 'Working', 'version': 'v1', 'owner': 'RD', 'description': ''},
+                            'configuration': {'inputBindings': {}, 'stepConfigurations': {}},
+                            'nodes': [], 'edges': [], 'viewport': {'x': 0, 'y': 0, 'zoom': 1}}}
+        for id_, target in (('new-draft', None), ('saved-draft', 'saved-flow'), ('orphan-draft', 'deleted-flow')):
+            payload = {**common, 'id': id_}
+            if target:
+                payload['target'] = {'flowId': target, 'revision': 1}
+            store.insert_flow_draft(payload)
+        store.insert_flow_draft({**common, 'id': 'null-target-draft', 'target': None})
+        dataset_id = store.dataset_id
+        store.close()
+    return dataset_id
+
 def old_data():
     return {name.replace('-', '_'): json.loads((FIXTURES / f'{name}.json').read_text())
             for name in ('process-step-templates', 'process-flow-templates', 'process-flow-instances', 'geometries')}
@@ -59,6 +82,36 @@ def legacy_database(path, version=13, mutate=lambda data: None):
 
 
 class FlowMigrationTests(unittest.TestCase):
+    def test_schema14_cleanup_deletes_targeted_drafts_only_once_and_backs_up(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'schema14.sqlite3'
+            dataset_id = schema14_with_drafts(path)
+            store = SQLiteStore(path)
+            self.assertEqual(store.dataset_id, dataset_id)
+            self.assertEqual({draft['id'] for draft in store.list_flow_drafts()}, {'new-draft', 'null-target-draft'})
+            self.assertNotIn('target', store.get_flow_draft('null-target-draft'))
+            self.assertEqual(store.get_process_flow('saved-flow')['revision'], 1)
+            self.assertTrue(store.migration_backup_path.exists())
+            with sqlite3.connect(store.migration_backup_path) as backup:
+                self.assertEqual(backup.execute("SELECT value FROM schema_metadata WHERE key='databaseSchemaVersion'").fetchone()[0], '14')
+                self.assertEqual(backup.execute('SELECT COUNT(*) FROM process_flow_drafts').fetchone()[0], 4)
+            store.close()
+            reopened = SQLiteStore(path)
+            self.assertFalse(hasattr(reopened, 'migration_backup_path'))
+            self.assertEqual(reopened.count('process_flow_drafts'), 2)
+            reopened.close()
+
+    def test_schema14_cleanup_rolls_back_if_marker_update_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'schema14.sqlite3'
+            schema14_with_drafts(path)
+            with patch.object(SQLiteStore, '_set_schema_version', side_effect=RuntimeError('interrupted')):
+                with self.assertRaisesRegex(RuntimeError, 'interrupted'):
+                    SQLiteStore(path)
+            with sqlite3.connect(path) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM process_flow_drafts').fetchone()[0], 4)
+                self.assertEqual(db.execute("SELECT value FROM schema_metadata WHERE key='databaseSchemaVersion'").fetchone()[0], '14')
+
     def test_schema_11_and_13_preserve_formal_values_and_all_drafts(self):
         for version in (11, 13):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:

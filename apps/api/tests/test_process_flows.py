@@ -40,13 +40,12 @@ class ProcessFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
-    def draft(self, flow=None, target=None):
+    def draft(self, flow=None):
         flow = flow or self.flow
         state = {'metadata': {key: flow[key] for key in ('name', 'version', 'owner', 'description')},
                  'configuration': flow['configuration'], 'nodes': [], 'edges': [],
                  'viewport': {'x': -25, 'y': 31, 'zoom': .7}, 'editingRecipeIds': {'mold_cap': 'not-adopted'}}
         body = {'schemaVersion': 2, 'user': 'RD', 'name': 'Working draft', 'state': state}
-        if target: body['target'] = target
         response = self.client.post('/api/process-flow-drafts', json=body)
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
@@ -177,7 +176,9 @@ class ProcessFlowTests(unittest.TestCase):
         saved = self.create()
         update = {**create_body(saved), 'revision': 1}
         self.assertEqual(self.client.put(f"/api/process-flows/{saved['id']}", json=update).json()['revision'], 2)
-        self.assertEqual(self.client.put(f"/api/process-flows/{saved['id']}", json=update).status_code, 409)
+        stale = self.client.put(f"/api/process-flows/{saved['id']}", json=update)
+        self.assertEqual(stale.status_code, 409)
+        self.assertNotIn('save as', stale.json()['message'].lower())
         self.assertEqual(self.client.delete(f"/api/process-flows/{saved['id']}?revision=1").status_code, 409)
         self.assertEqual(self.client.delete(f"/api/process-flows/{saved['id']}").status_code, 422)
         self.assertEqual(self.client.post('/api/process-flows', json=create_body(saved)).status_code, 409)
@@ -233,9 +234,9 @@ class ProcessFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(set(response.json()['stepOutputs']), {'main_bump', 'pnp', 'joint'})
 
-    def test_draft_crud_preserves_incomplete_values_ui_and_target_revision(self):
+    def test_draft_crud_preserves_incomplete_values_and_ui_state(self):
         flow = copy.deepcopy(self.flow); values(flow, 'mold_cap')['thickness'] = ''
-        draft = self.draft(flow, target={'flowId': flow['id'], 'revision': 1})
+        draft = self.draft(flow)
         body = {key: value for key, value in draft.items() if key not in ('id', 'createdAt', 'updatedAt')}
         body['state']['viewport']['x'] = 81
         updated = self.client.put('/api/process-flow-drafts/' + draft['id'], json=body)
@@ -248,7 +249,7 @@ class ProcessFlowTests(unittest.TestCase):
         listing = self.client.get('/api/process-flow-drafts?user=RD&search=Working').json()
         self.assertEqual(len(listing), 1); self.assertNotIn('state', listing[0])
 
-    def test_draft_commit_is_atomic_for_create_update_and_revision_conflicts(self):
+    def test_draft_commit_is_atomic_for_create_and_revision_conflicts(self):
         draft = self.draft(); body = {'revision': 1, 'flow': {**create_body(self.flow), 'name': 'Draft result'}}
         with patch.object(self.app.state.store, '_delete_in_transaction', side_effect=RuntimeError('injected failure')):
             with self.assertRaises(RuntimeError): self.client.post('/api/process-flow-drafts/' + draft['id'] + '/commit', json=body)
@@ -257,13 +258,27 @@ class ProcessFlowTests(unittest.TestCase):
         response = self.client.post('/api/process-flow-drafts/' + draft['id'] + '/commit', json=body)
         self.assertEqual(response.status_code, 200, response.text)
         saved = response.json(); self.assertIsNone(self.app.state.store.get_flow_draft(draft['id']))
-        target = {'flowId': saved['id'], 'revision': 1}; draft = self.draft(saved, target)
-        body = {'revision': 1, 'flow': create_body(saved), 'target': {**target, 'revision': 9}}
+        draft = self.draft(saved)
+        body = {'revision': 1, 'flow': {**create_body(saved), 'name': 'Another draft result'}}
         route = '/api/process-flow-drafts/' + draft['id'] + '/commit'
+        update = {key: value for key, value in draft.items() if key not in ('id', 'createdAt', 'updatedAt')}
+        self.assertEqual(self.client.put('/api/process-flow-drafts/' + draft['id'], json=update).status_code, 200)
         self.assertEqual(self.client.post(route, json=body).status_code, 409)
         self.assertIsNotNone(self.app.state.store.get_flow_draft(draft['id']))
-        body['target'] = target
-        self.assertEqual(self.client.post(route, json=body).json()['revision'], 2)
+        body['revision'] = 2
+        self.assertEqual(self.client.post(route, json=body).json()['revision'], 1)
+        self.assertIsNone(self.app.state.store.get_flow_draft(draft['id']))
+
+    def test_draft_requests_reject_existing_flow_targets(self):
+        draft = self.draft()
+        target = {'flowId': self.flow['id'], 'revision': self.flow['revision']}
+        create = {'schemaVersion': 2, 'user': 'RD', 'name': 'Rejected', 'state': draft['state'], 'target': target}
+        self.assertEqual(self.client.post('/api/process-flow-drafts', json=create).status_code, 422)
+        update = {key: value for key, value in draft.items() if key not in ('id', 'createdAt', 'updatedAt')}
+        self.assertEqual(self.client.put('/api/process-flow-drafts/' + draft['id'], json={**update, 'target': target}).status_code, 422)
+        commit = {'revision': draft['revision'], 'flow': {**create_body(self.flow), 'name': 'Rejected commit'}, 'target': target}
+        self.assertEqual(self.client.post('/api/process-flow-drafts/' + draft['id'] + '/commit', json=commit).status_code, 422)
+        self.assertEqual(self.app.state.store.get_flow_draft(draft['id']), draft)
 
     def test_failed_draft_commit_validation_or_duplicate_keeps_draft(self):
         draft = self.draft(); route = '/api/process-flow-drafts/' + draft['id'] + '/commit'

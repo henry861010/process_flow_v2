@@ -14,7 +14,7 @@ type DraftPicker = Pick<ReturnType<typeof useEditorDrafts>, "pickerContent" | "s
 
 export function FlowSourceDialog({ flows, drafts, onUseFlow, onClose }: {
   flows: ProcessFlow[]; drafts: DraftPicker;
-  onUseFlow: (id: string, asCopy?: boolean) => Promise<boolean>; onClose: () => void;
+  onUseFlow: (id: string) => Promise<boolean>; onClose: () => void;
 }) {
   const [tab, setTab] = React.useState("flows");
   const [search, setSearch] = React.useState("");
@@ -30,7 +30,7 @@ export function FlowSourceDialog({ flows, drafts, onUseFlow, onClose }: {
     `${flow.name} ${flow.version} ${flow.owner ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   const busy = working || drafts.busy;
 
-  async function loadSource(asCopy = false) {
+  async function loadSource() {
     if (busy) return;
     setError(null);
     if (tab === "drafts") {
@@ -39,7 +39,7 @@ export function FlowSourceDialog({ flows, drafts, onUseFlow, onClose }: {
     }
     if (!selectedId) return;
     setWorking(true);
-    try { if (await onUseFlow(selectedId, asCopy)) onClose(); }
+    try { if (await onUseFlow(selectedId)) onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to load flow."); }
     finally { setWorking(false); }
   }
@@ -49,7 +49,6 @@ export function FlowSourceDialog({ flows, drafts, onUseFlow, onClose }: {
     : "Resume a draft with its complete configuration and graph layout."}
     className="h-[min(620px,calc(100dvh-32px))] max-w-[720px]" busy={busy} onClose={onClose}
     footer={<><Button variant="outline" disabled={busy} onClick={onClose}>Cancel</Button>
-      {tab === "flows" ? <Button variant="outline" disabled={busy || !selectedId} onClick={() => void loadSource(true)}>Copy flow</Button> : null}
       <Button disabled={busy || (tab === "drafts" ? drafts.loading || !drafts.selectedDraft : !selectedId)} onClick={() => void loadSource()}>
         {busy ? <Loader2 className="animate-spin" /> : tab === "drafts" ? <FileClock /> : <Workflow />}
         {busy ? "Loading…" : tab === "drafts" ? "Resume draft" : "Open flow"}
