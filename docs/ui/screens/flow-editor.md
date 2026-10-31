@@ -5,10 +5,11 @@ owner: integration.platform
 audience:
   - developers
   - QA
-last_verified: 2026-10-25
+last_verified: 2026-10-31
 last_verified_commit: 7d49bf0b
 source_of_truth:
   - apps/viewer/components/process-flow-editor/process-flow-editor.tsx
+  - apps/viewer/components/process-flow-parameters/recipe-parameter-summary.tsx
   - apps/viewer/components/process-flow-save/save-information-dialog.tsx
   - apps/viewer/lib/process-flow/recipes.ts
 ---
@@ -34,6 +35,9 @@ Start from… 提供 Flows／Drafts；flow 可 Open，草稿可 Resume。新增 
 - Apply recipe 選單直接改變 `selectedRecipeId`，不提供未套用選項。既有資料若有候選但未套用，保持原狀並提示手動選擇。
 - 每張卡片右側 Delete 需確認；刪除已套用候選時採用下一個候選，沒有下一個才採用前一個。刪除最後一個後設為 null；空候選集合可保存。
 - 已套用 recipe 的 placements 參數只顯示 placement graph，不列出每筆 placement；編輯視窗仍可編輯每筆資料。
+- 已套用 recipe 的所有 `fieldGroupArray` 依 definition 顯示唯讀表格，不限 RDL：每個 item 一列，首欄以 `itemNameTemplate` 與既有 index 命名，其餘欄位依 child definitions 的順序、名稱與單位顯示。保留資料列序與數值，不顯示 `itemId` 或原始 JSON。
+- 摘要中的 scalar 顯示文字（保留 `0`／`False`），array 顯示清單；nested `fieldGroupArray` 遞迴顯示表格，placements 沿用唯讀 graph。未設定顯示 `Not set`、空群組／array 顯示 `No items`、不合法結構顯示 `Invalid value`，不補 defaults。placements 的空值與無效值沿用既有 preview 提示。
+- 群組表格提供 caption、列／欄標題與可鍵盤操作的局部水平捲動區域；固定欄位寬度下長文字可換行，nested table 也在自身範圍捲動，不撐寬站點視窗。
 - 刪除站點連帶移除 step configuration；刪除 input 移除 binding。
 - Preview 永遠依已儲存於 flow 草稿的採用候選與其上游依賴；編輯視窗中尚未儲存的變更不影響摘要或 Preview。
 
@@ -50,5 +54,6 @@ Start from… 提供 Flows／Drafts；flow 可 Open，草稿可 Resume。新增 
 | UI-FLOW-007 | Input／上游 preview、JSON／STEP／CDB 匯出使用採用設定 |
 | UI-FLOW-008 | Dialog focus、Escape、Tab、candidate labels 與鍵盤刪 node 正確 |
 | UI-FLOW-009 | 已套用 placements 只顯示 graph；recipe 編輯視窗保留 placement 清單，空值／無效值顯示正確且 mobile 無水平溢出 |
+| UI-FLOW-010 | RDL 與任意 `fieldGroupArray` 以 schema 驅動的表格摘要顯示，保留列序、編號、單位、0／False；nested group、array、placements 正確，缺值／空值／不合法結構不回退 JSON；切換採用 recipe 後摘要同步更新，窄視窗只在表格內水平捲動 |
 
 舊 flow-template-editor 和 flow-instance-editor route 已移除。既有 screenshots 是歷史參考；新驗收應使用以上路由與契約。

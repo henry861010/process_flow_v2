@@ -2,6 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import stepTemplates from "../../../api/src/process_flow_api/fixtures/process-step-templates.json";
 import type { FlowConfiguration, ProcessStepTemplate } from "@/lib/process-flow/types";
 import { StepInspector } from "./process-flow-editor";
 
@@ -65,5 +66,28 @@ describe("process step recipe presentation", () => {
     expect(html).toContain('<option value="r1" selected="">Recipe 1</option>');
     expect(html).toContain('<option value="r2">Recipe 2</option>');
     expect(html).not.toContain('Recipe 1 (r1)</option>');
+  });
+
+  it("shows only the selected recipe's group values when adoption changes", () => {
+    const rdlTemplate = stepTemplates.find((step) => step.id === "step_tpl_rdl")! as ProcessStepTemplate;
+    const rdlNode = { ...node, data: { ...node.data, stepTemplate: rdlTemplate } };
+    const candidates = ["First dielectric", "Second dielectric"].map((material, index) => ({
+      recipeId: `rdl-recipe-${index}`, name: `Stack ${index}`,
+      parameterValues: { layers: { items: [{
+        itemId: `internal-${index}`, index: 1,
+        values: { Dielectric: material, Conductivity: "Cu", thk: 8, density: 0 },
+      }] } },
+    }));
+    for (const [index, selected] of candidates.entries()) {
+      const html = renderToStaticMarkup(<StepInspector node={rdlNode} topologyLocked={false}
+        configuration={{ inputBindings: {}, stepConfigurations: { "step-1": {
+          recipeCandidates: candidates, selectedRecipeId: selected.recipeId,
+        } } }} onLabelChange={() => {}} onConfigurationChange={() => {}} onPreview={() => {}}
+        onDelete={() => {}} previewAvailability={{ ok: true }} />);
+      expect(html).toContain("<table");
+      expect(html).toContain(index === 0 ? "First dielectric" : "Second dielectric");
+      expect(html).not.toContain(index === 0 ? "Second dielectric" : "First dielectric");
+      expect(html).not.toContain("internal-");
+    }
   });
 });

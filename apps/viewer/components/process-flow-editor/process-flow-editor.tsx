@@ -51,8 +51,7 @@ import {
   geometrySearchText,
 } from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
-import { PlacementPreview } from "@/components/process-flow-fields/placement-preview";
-import { normalizePlacements } from "@/components/process-flow-fields/placement-list-control";
+import { RecipeParameterSummary } from "@/components/process-flow-parameters/recipe-parameter-summary";
 import { FlowGdsFileProvider, useFlowGdsFile } from "@/components/process-flow-fields/flow-gds-file-context";
 import { StepTemplateDetails } from "@/components/process-flow-fields/step-template-details";
 import { StepTemplateHoverPreview, StepTemplatePreviewProvider } from "@/components/process-flow-fields/step-template-hover-preview";
@@ -94,7 +93,6 @@ import {
 import { analyzeFlowDependencies } from "@/lib/process-flow/dependencies";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import { createStepConfiguration, createRecipe, removeRecipe } from "@/lib/process-flow/recipes";
-import { summarizePlacementValidation } from "@/lib/process-flow/placement-validation";
 
 
 import { flowConfigurationIssues, flowAuthoringIssues } from "@/lib/process-flow/flow-editor-save";
@@ -1747,41 +1745,6 @@ export function StepInspector({
       ) : null}
     </section>
   );
-}
-
-function RecipeParameterSummary({ definitions, recipe }: { definitions: ProcessStepTemplate["parameterDefinitions"]; recipe: RecipeCandidate }) {
-  if (!definitions.length) return <p className="mt-3 text-sm text-muted-foreground">No parameters</p>;
-  return (
-    <dl className="mt-4 divide-y border-t">
-      {definitions.map((definition) => {
-        const value = recipe.parameterValues[definition.id];
-        const isPlacement = definition.valueType === "placements" || definition.controlType === "placementList";
-        return (
-          <div key={definition.id} className="min-w-0 py-3 first:pt-4 last:pb-0">
-            <dt className="text-xs font-medium">{definition.name}{definition.unit ? ` / ${definition.unit}` : ""}</dt>
-            {isPlacement ? (
-              <dd className="mt-2"><AppliedPlacementGraph key={`${recipe.recipeId}:${definition.id}`} value={value} unit={definition.unit} /></dd>
-            ) : (
-              <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{formatRecipeValue(value)}</dd>
-            )}
-          </div>
-        );
-      })}
-    </dl>
-  );
-}
-
-function AppliedPlacementGraph({ value, unit }: { value: unknown; unit?: string | null }) {
-  const placements = React.useMemo(() => normalizePlacements(value), [value]);
-  const validation = React.useMemo(() => summarizePlacementValidation(placements), [placements]);
-  return <PlacementPreview placements={placements} validation={validation} unit={unit} selectedIndex={null} resetKey={0} onSelect={() => {}} readOnly />;
-}
-
-function formatRecipeValue(value: unknown): string {
-  if (value === undefined || value === null || value === "") return "Not set";
-  if (typeof value === "string" || typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "True" : "False";
-  return JSON.stringify(value, null, 2) ?? "Not set";
 }
 
 function GeometryPickerDialog({
