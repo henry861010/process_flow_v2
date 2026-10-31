@@ -7,11 +7,12 @@ Process Flow 是 local-first 的半導體製程建模 PoC。它以 ProcessFlow �
 
 | 位置 | 職責 |
 | --- | --- |
-| `apps/viewer` | Next.js static UI、editor working state、HTTP client 與 3D 顯示。 |
+| `apps/viewer` | Next.js static UI、editor working state、HTTP client、SVG 結構剖面與獨立 3D viewer。 |
 | `apps/api` | FastAPI、Pydantic boundary、SQLite repository、draft transaction、preview/export orchestration。 |
 | `packages/kernel-py` | Geometry domain、graph/configuration validation、compile 與 process-step execution；不存取 HTTP 或 SQLite。 |
-| `packages/process-step-py` | `process_flow_steps.<program>` 的實際 process operations。 |
-| `packages/geometry_generators` | 可獨立安裝的 versioned geometry generators、manifest、registry 與工程預覽。 |
+| `packages/process-step-py` | `process_flow_steps.<program>` 的實際 process operations 與製程專屬 schematic presenters。 |
+| `packages/geometry_generators` | 可獨立安裝的 versioned geometry generators、manifest、registry、工程預覽與 component presenters。 |
+| `packages/schematic-py` | Schematic 純資料契約、registry、共用 composer 與圖形／厚度佈局工具。 |
 | `packages/mesh-control-py` | Python 定義的 mesh control sets 與 HBM 範例。 |
 | `packages/cad-py` | GeometryStructure 到 GLB / STEP AP242 的轉換。 |
 | `docs` | Target contract、現行架構、UI 規格、操作手冊與 conformance ledger。 |
@@ -44,6 +45,7 @@ venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
   -e packages/process-step-py \
   -e packages/geometry_generators \
+  -e packages/schematic-py \
   -e packages/mesh-control-py \
   -e packages/cad-py \
   -e 'apps/api[test]'
@@ -76,6 +78,7 @@ venv/bin/python -m unittest discover -s /absolute/path/to/mesher/tests -v
 venv/bin/python -m unittest packages/kernel-py/tests/test_kernel.py
 venv/bin/python -m unittest discover -s packages/mesh-control-py/tests
 venv/bin/python -m unittest discover -s packages/geometry_generators/tests
+venv/bin/python -m unittest discover -s packages/schematic-py/tests
 venv/bin/python -m unittest discover apps/api/tests
 venv/bin/python scripts/check_docs.py
 venv/bin/python scripts/check_golden_example.py

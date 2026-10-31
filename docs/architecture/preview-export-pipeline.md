@@ -6,8 +6,8 @@ audience:
   - backend engineers
   - CAD and mesher developers
   - operators
-last_verified: 2026-08-29
-last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/conformance.md
@@ -26,10 +26,10 @@ Preview 與 file export 是兩條相關但不同的 runtime path。Legacy direct
 產生一份base64 GLB；current Geometry Preview UI改用semantic session。File export使用browser目前選取的
 ready snapshot，不重新執行flow。
 
-[ADR-0004](./decisions/0004-semantic-preview-sessions.md) 已核准semantic preview session、upstream
-snapshots、content-addressed binary mesh、OCC exact body section與Three.js demand renderer。Session path
-已實作；legacy single-GLB path暫時保留供compatibility。剩餘差異見
-[PV-001..PV-005](../conformance.md)。
+[ADR-0012](./decisions/0012-process-owned-schematic-preview.md) 將 Geometry Preview 改為 target-only
+SVG schematic。ADR-0004 的 semantic session、upstream snapshots、content-addressed binary mesh
+與 OCC exact body section API 保留；Flow Editor 不載入這些 CAD display assets。Legacy single-GLB
+path 暫時保留供 compatibility。剩餘驗收見 [conformance](../conformance.md)。
 
 ## 現行同步 preview
 
@@ -68,8 +68,8 @@ conversion helper path。Timeout 時 API 會終止 worker 並回傳 error。
 
 `POST /api/geometry-preview/step` 接受一份 `geometryStructure`，使用同一 worker 同步回傳 base64 STEP。
 
-此 path 目前沒有 session、跨step asset reuse、body diff、binary mesh URL或section endpoint。Viewer
-切換step會建立另一個request並重新load整份GLB。
+此 path 沒有 session、跨 step asset reuse、body diff、binary mesh URL 或 section endpoint。
+Legacy client 切換 step 會建立另一個 request 並重新 load 整份 GLB；current preview UI 不使用此 path。
 
 ## Semantic preview session
 
@@ -83,33 +83,37 @@ sequenceDiagram
   participant V as Viewer
   participant A as Preview session API
   participant K as Compiler / GeometryKernel
-  participant C as CAD body resolver / cache
+  participant S as Schematic composer / presenters
 
   V->>A: POST /api/preview-sessions
   A->>K: compile + execute target upstream closure once
   K-->>A: every executed step output
-  A-->>V: session + ordered snapshot manifests
-  V->>A: GET .../{snapshotId}/mesh
-  A->>C: lazy export/cache by geometryHash + version
-  C-->>A: immutable GLB bytes
-  A-->>V: model/gltf-binary + ETag
-  V->>A: GET .../section?axis=x|y&position=um&tolerance=0.1
-  A->>C: prepare resolved OCC bodies once per geometryHash
-  A->>C: exact OCC body section at requested position
-  C-->>A: exact body/material regions + contours
-  A-->>V: exact section manifest
+  A->>S: compose target final geometry only
+  S-->>A: generic shapes + actual thickness + source references
+  A-->>V: session + snapshots + target schematic
+  V->>V: render SVG + linked thickness details
 ```
 
 Endpoints：
 
 | Endpoint | Contract |
 | --- | --- |
-| `POST /api/preview-sessions` | 建立／reuse ephemeral session與ordered upstream snapshot manifests。 |
+| `POST /api/preview-sessions` | 建立／reuse ephemeral session、ordered upstream snapshots 與 target-only schematic。 |
 | `GET /api/preview-sessions/{sessionId}/snapshots/{snapshotId}/mesh` | Lazy傳回以geometryHash/version cache的binary GLB；支援ETag/304。 |
 | `GET /api/preview-sessions/{sessionId}/snapshots/{snapshotId}/section` | 依`axis=x\|y`、finite position與positive tolerance回傳OCC body regions；支援ETag/304。 |
 
-每個snapshot包含`geometryHash`、`geometryEntityJson`、`meshUrl`與`sectionUrl`。Mesh cache key是
-`geometryHash + mesh cache version`；session/snapshot ids另包含request/contract version。Session JSON不
+每個 snapshot 包含 `geometryHash`、`geometryEntityJson`、`meshUrl`、`sectionUrl`、nullable `schematic`
+與 `schematicWarnings`；只有 `initialSnapshotId` target 有 document。API 的 composition root 載入
+step／generator companion presenters，kernel execution 不依賴它們。Viewer 不發 mesh／section
+請求；這兩條 lazy routes 保留給工程 clients。
+
+Schematic document 含版本、unit、通用 SVG shapes、source references、實際厚度明細與總厚度。
+代表複製、顯示排列與薄層放大只存在 document，不修改 geometry 或 export。單一 presenter 失敗由
+composer 退回通用圖形並提示；整體 composition 失敗以 null document／schematicWarnings 保留
+semantic snapshot 與匯出功能。
+
+Mesh cache key 是 `geometryHash + mesh cache version`；session/snapshot ids 另包含
+request/contract、schematic 與 registry version。Geometry hash 不含 presentation 版本。Session JSON 不
 inline base64 mesh。Mesh與section response使用`private, max-age=31536000, immutable`及content-derived
 ETag；section strong ETag包含`snapshotId`，因此相同geometry的不同snapshot response不會共用validator。
 Client送`If-None-Match`時可取得`304`。
@@ -142,6 +146,8 @@ Cache、execution與admission設定：
 cancel只取消等待；server以bounded registries及concurrency避免slider unique positions無限排隊。
 
 ### Exact section
+
+以下是保留 exact-section API 與 3D consumers 的工程契約，Flow Editor schematic preview 不執行此路徑。
 
 Slider drag/debounce期間viewer先使用shader clipping，section card顯示`Computing`；140ms settle後請求
 resolved CadBody shape的OpenCascade section。Response按body/material提供exact CAD area與closed 2D

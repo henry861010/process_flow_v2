@@ -8,8 +8,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-13
-last_verified_commit: 990aaf71
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - apps/viewer/app
   - apps/viewer/components
@@ -94,7 +94,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/management` | bootstrap ready | inspect flows/drafts/geometries、open Flow Editor、edit process-step settings | `UI-MGMT-001` 至 `UI-MGMT-005` |
 | `/dashboard` | active export snapshot | all-client counts、stage/detail/elapsed、FIFO queue、refresh/stale recovery | `UI-DASH-001` 至 `UI-DASH-008` |
 | `/cad-viewer` | demo workbench | import、section、camera、reset | `UI-CAD-001` 至 `UI-CAD-006` |
-| Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、feature controls、export | `UI-PREVIEW-001` 至 `UI-PREVIEW-007` |
+| Geometry Preview | ready `panel_plp_310x310mm_glass` target | loading、ready、SVG 剖面、厚度明細、export | `UI-SCHEMATIC-001` 至 `UI-SCHEMATIC-007`，保留適用的 `UI-PREVIEW` lifecycle cases |
 
 每個 entry state 的詳細 setup、操作順序與完成定義見
 [Reconstruction Guide](reconstruction-guide.md)。

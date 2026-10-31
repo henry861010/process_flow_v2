@@ -6,8 +6,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-13
-last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - docs/ui/README.md
   - docs/ui/screens
@@ -43,7 +43,7 @@ source_of_truth:
 | `/geometry-generator?generatorId=<id>` | generator defaults | 由Home或Management的generator command進入 | matching registry definition、preview與Save to DB |
 | `/management` | resource overview | reset 後完整 bootstrap | 四類count、tabs、process-step Edit modal |
 | `/cad-viewer` | demo workbench | 直接開 route，不 import file | demo model、Section XZ、Grid/Axes on、ISO |
-| Geometry Preview | ready preview | Flow Editor 綁定 `panel_plp_310x310mm_glass` 後開 Preview | Loading → Ready、viewport、right controls、footer |
+| Geometry Preview | ready preview | Flow Editor 綁定 `panel_plp_310x310mm_glass` 後開 Preview | Loading → Ready、SVG 剖面、厚度明細、footer；無 mesh／section 請求 |
 
 ## 主要操作旅程
 

@@ -24,6 +24,7 @@ import process_flow_api.main as api_main
 from flow_requests import flow_create_payload, fixture_flow, selected_values
 from process_flow_api.main import create_app
 from process_flow_api import services as api_services
+from process_flow_api import preview_sessions as api_preview_sessions
 from process_flow_api.export_job_logging import ExportJobLogError
 from process_flow_api.models import PreviewSectionResponse
 from process_flow_api.seed import load_seed_fixtures
@@ -959,6 +960,15 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(snapshot["order"], 0)
         self.assertTrue(snapshot["meshUrl"].startswith("/api/preview-sessions/"))
         self.assertTrue(snapshot["sectionUrl"].startswith("/api/preview-sessions/"))
+        self.assertEqual(snapshot["schematic"]["schemaVersion"], 1)
+        self.assertEqual(snapshot["schematic"]["unit"], "um")
+        self.assertEqual(snapshot["schematicWarnings"], [])
+        structure = snapshot["geometryEntityJson"]["structure"]
+        self.assertEqual(
+            snapshot["schematic"]["totalThickness"],
+            structure["root"]["bodies"][0]["geometry"]["thk"],
+        )
+        self.assertEqual(snapshot["geometryHash"], api_preview_sessions.content_hash(structure))
 
         mesh_exporter = mock.AsyncMock(return_value=b"glTF-preview-session-test")
         self.app.state.preview_sessions._mesh_exporter = mesh_exporter
@@ -1007,6 +1017,9 @@ class ProcessFlowApiTests(unittest.TestCase):
         request_payload["flowId"] = instance["id"]
         original_compile = api_services.FlowCompiler.compile
         original_execute = api_services._execute_preview_plan
+        manager = self.app.state.preview_sessions
+        manager._mesh_exporter = mock.AsyncMock(side_effect=AssertionError("Unexpected mesh load"))
+        manager._section_preparer = mock.Mock(side_effect=AssertionError("Unexpected section load"))
 
         with (
             mock.patch.object(
@@ -1034,6 +1047,15 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertTrue(all(snapshot["sourceKind"] == "stepOutput" for snapshot in snapshots))
         self.assertEqual(created.json()["initialSnapshotId"], snapshots[-1]["snapshotId"])
         self.assertEqual(snapshots[-1]["label"], "Mold target")
+        self.assertIsNone(snapshots[0]["schematic"])
+        self.assertIsNotNone(snapshots[-1]["schematic"])
+        manager._mesh_exporter.assert_not_awaited()
+        manager._section_preparer.assert_not_called()
+        for snapshot in snapshots:
+            self.assertEqual(
+                snapshot["geometryHash"],
+                api_preview_sessions.content_hash(snapshot["geometryEntityJson"]["structure"]),
+            )
         self.assertEqual(compile_flow.call_count, 1)
         self.assertEqual(execute_flow.call_count, 1)
 
@@ -1047,6 +1069,45 @@ class ProcessFlowApiTests(unittest.TestCase):
         }
         rejected = self.client.post("/api/preview-sessions", json=invalid_port)
         self.assertEqual(rejected.status_code, 400, rejected.text)
+
+    def test_preview_schematic_version_invalidates_session_without_changing_geometry(self):
+        bootstrap = self.reset_poc_data()
+        flow = fixture_flow(bootstrap)
+        request_payload = preview_session_request(
+            flow, flow,
+            target={"type": "flowInput", "flowInputId": "incoming_panel"},
+        )
+        first = self.client.post("/api/preview-sessions", json=request_payload)
+        self.assertEqual(first.status_code, 200, first.text)
+        with mock.patch.object(api_preview_sessions, "SCHEMATIC_PRESENTATION_VERSION", "next:registry"):
+            second = self.client.post("/api/preview-sessions", json=request_payload)
+        self.assertEqual(second.status_code, 200, second.text)
+        left, right = first.json()["snapshots"][0], second.json()["snapshots"][0]
+        self.assertNotEqual(first.json()["sessionId"], second.json()["sessionId"])
+        self.assertNotEqual(left["snapshotId"], right["snapshotId"])
+        self.assertEqual(left["geometryHash"], right["geometryHash"])
+        self.assertEqual(left["geometryEntityJson"], right["geometryEntityJson"])
+
+    def test_preview_schematic_failure_preserves_semantic_snapshot_and_exports(self):
+        bootstrap = self.reset_poc_data()
+        flow = fixture_flow(bootstrap)
+        request_payload = preview_session_request(
+            flow, flow,
+            target={"type": "flowInput", "flowInputId": "incoming_panel"},
+        )
+        with mock.patch.object(api_preview_sessions, "build_schematic", side_effect=RuntimeError("bad presenter")):
+            with self.assertLogs("process_flow_api.preview_sessions", level="ERROR"):
+                response = self.client.post("/api/preview-sessions", json=request_payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        snapshot = response.json()["snapshots"][0]
+        self.assertIsNone(snapshot["schematic"])
+        self.assertTrue(snapshot["schematicWarnings"])
+        structure = snapshot["geometryEntityJson"]["structure"]
+        self.assertEqual(snapshot["geometryHash"], api_preview_sessions.content_hash(structure))
+        mesh_exporter = mock.AsyncMock(return_value=b"glTF-export-remains-available")
+        self.app.state.preview_sessions._mesh_exporter = mesh_exporter
+        self.assertEqual(self.client.get(snapshot["meshUrl"]).status_code, 200)
+        mesh_exporter.assert_awaited_once_with(structure, format="glb")
 
     def test_preview_session_exact_section_cache_etag_and_validation(self):
         bootstrap = self.reset_poc_data()

@@ -114,6 +114,8 @@ class GeometryFixtureTests(unittest.TestCase):
                     "frame",
                     "envelope",
                     "molding",
+                    "rdl",
+                    "uf",
                     "daf",
                     "fow",
                     "tim",

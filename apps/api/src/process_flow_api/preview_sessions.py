@@ -5,6 +5,7 @@ from .analytics import request_context
 import asyncio
 import hashlib
 import json
+import logging
 import math
 import os
 from collections import OrderedDict
@@ -15,6 +16,7 @@ from typing import Any, Generic, Literal, Protocol, TypeVar, cast
 from .geometry_preview_exporter import export_geometry
 from .models import GeometryPreviewRequest
 from .repository import NotFoundError, SQLiteStore
+from .schematic_builder import SCHEMATIC_PRESENTATION_VERSION, build_schematic
 from .services import (
     PreviewRequestContext,
     PreviewSnapshotGeometry,
@@ -33,6 +35,7 @@ PREVIEW_SESSION_CONTRACT_VERSION = 1
 MESH_CACHE_VERSION = 1
 PREPARED_SECTION_CACHE_VERSION = 1
 SECTION_CACHE_VERSION = 3
+logger = logging.getLogger(__name__)
 
 
 class PreviewCapacityError(RuntimeError):
@@ -84,6 +87,8 @@ class PreviewSnapshotRecord:
     geometry_entity_json: JsonObject
     mesh_url: str
     section_url: str
+    schematic: JsonObject | None = None
+    schematic_warnings: tuple[str, ...] = ()
 
     @property
     def geometry_structure(self) -> JsonObject:
@@ -103,6 +108,8 @@ class PreviewSnapshotRecord:
             "geometryEntityJson": self.geometry_entity_json,
             "meshUrl": self.mesh_url,
             "sectionUrl": self.section_url,
+            "schematic": self.schematic,
+            "schematicWarnings": list(self.schematic_warnings),
         }
 
 
@@ -334,7 +341,10 @@ class PreviewSessionManager:
         context = resolve_preview_request(store, body)
         request_hash = await asyncio.to_thread(
             content_hash,
-            preview_request_identity(context),
+            {
+                **preview_request_identity(context),
+                "schematicVersion": SCHEMATIC_PRESENTATION_VERSION,
+            },
         )
         session_id = f"preview_{request_hash}"
 
@@ -562,8 +572,13 @@ class PreviewSessionManager:
         snapshot_geometries: tuple[PreviewSnapshotGeometry, ...],
     ) -> PreviewSessionRecord:
         snapshots = tuple(
-            self._snapshot_record(session_id, request_hash, snapshot)
-            for snapshot in snapshot_geometries
+            self._snapshot_record(
+                session_id,
+                request_hash,
+                snapshot,
+                include_schematic=index == len(snapshot_geometries) - 1,
+            )
+            for index, snapshot in enumerate(snapshot_geometries)
         )
         if not snapshots:
             raise RuntimeError("Preview session did not produce any snapshots")
@@ -584,6 +599,8 @@ class PreviewSessionManager:
         session_id: str,
         request_hash: str,
         source: PreviewSnapshotGeometry,
+        *,
+        include_schematic: bool = False,
     ) -> PreviewSnapshotRecord:
         geometry_hash = content_hash(source.geometry_structure)
         snapshot_hash = content_hash(
@@ -597,6 +614,7 @@ class PreviewSessionManager:
                 "geometryHash": geometry_hash,
                 "meshVersion": MESH_CACHE_VERSION,
                 "sectionVersion": SECTION_CACHE_VERSION,
+                "schematicVersion": SCHEMATIC_PRESENTATION_VERSION,
             }
         )
         snapshot_id = f"snapshot_{snapshot_hash}"
@@ -608,6 +626,18 @@ class PreviewSessionManager:
             output_step_ref_id=source.step_ref_id,
             source_label=source.label,
         )
+        schematic = None
+        schematic_warnings: tuple[str, ...] = ()
+        if include_schematic:
+            try:
+                schematic = build_schematic(source.geometry_structure)
+            except Exception:
+                # A display failure must not make the calculated structure or
+                # JSON/STEP/CDB exports unavailable.
+                logger.exception("Could not compose schematic for %s", snapshot_id)
+                schematic_warnings = (
+                    "Cross section preview is unavailable. Geometry exports are still available.",
+                )
         return PreviewSnapshotRecord(
             snapshot_id=snapshot_id,
             source_kind=source.source_kind,
@@ -618,6 +648,8 @@ class PreviewSessionManager:
             geometry_entity_json=geometry_entity_json,
             mesh_url=f"{base_url}/mesh",
             section_url=f"{base_url}/section",
+            schematic=schematic,
+            schematic_warnings=schematic_warnings,
         )
 
     async def _snapshot(

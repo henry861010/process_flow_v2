@@ -125,6 +125,14 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 - Built-in explicit contracts另有`hbm-package@1`、`dram-package@1`與`rigid@1`。Polygon target
   必須unique、無zero-length edge、non-zero-area且不得self-intersect；HBM/DRAM fixed children
   必須完整位於target內。Unknown adapter id/version明確失敗。
+- HBM 的 root via／circuit／bump 若與原 package 的完整 XY footprint 相同，隨 package 適配
+  target，保留 Z、thickness 與 feature metadata。局部 feature 保留原 XY；有孔洞但 bounding box
+  相同不視為完整 footprint。此規則避免 upstream bump formation 被誤當成 fixed core。
+- DRAM 的 root features 隨 package 適配，core children 保持原尺寸；LSI（三種 generation）、SoC、
+  wafer dummy、VRM 與 panel carrier 使用 `box-rescale`，一併調整 root bump。Wafer carrier 與
+  frame 使用 `rigid`，保留圓形 body 與 bump 原尺寸。跨 generator 回歸測試見
+  `packages/process-step-py/tests/test_generator_bump_pnp.py`，涵蓋 Micro／BGA／C4 formation、
+  Flip、矩形／多邊形 target 的縮小與放大、雙側 bump 接合，以及過小 target 的整批拒絕。
 - PnP先完成整個placements batch的validation/materialization；任一筆失敗時不得attach任何child。
 - Bump feature envelope 不會預先套用 `koz`；各 exporter 的 current behavior 見 [geometry-semantics.md](../../concepts/geometry-semantics.md)。
 - TMV 需要既有 process footprint、正的 `thk`、非空 `material` 與 `0` 到 `100`（含端點）的 `density`；輸出的 via direction 固定為 `+z`、`koz` 為 `0`，且不推進 cursor。

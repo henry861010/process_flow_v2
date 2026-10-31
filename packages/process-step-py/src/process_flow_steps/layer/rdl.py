@@ -18,12 +18,14 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
             state.deposit_layer(
                 material=layer["dielectric"],
                 thickness=layer["thk"],
+                key="rdl",
             )
             continue
 
         state.deposit_layer(
             material=layer["dielectric"],
             thickness=layer["thk"],
+            key="rdl",
         )
         state.add_via_below_cursor(
             material=layer["conductivity"],

@@ -6,8 +6,8 @@ owner: integration.platform
 audience:
   - 架構與產品負責人
   - Viewer、CAD 與 QA 開發者
-last_verified: 2026-07-12
-last_verified_commit: eb34a9ef688da71a77c4bbd8660bcb58ebf2288a
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 verified_against:
   - apps/viewer/lib/geometry-preview/features/
   - apps/viewer/components/geometry-preview/
@@ -15,6 +15,10 @@ verified_against:
 ---
 
 # ADR-0005：Estimated feature field visualization
+
+Geometry Preview 的 feature UI 已由 [ADR-0012](./0012-process-owned-schematic-preview.md) 取代，
+改為 presenter 提供固定數量的 schematic 符號。下列 density、WebGL 與 exact section 疊加規則只適用於
+保留的 3D feature renderer；Flow Editor preview 不載入它，也不提供 density controls。
 
 ## 背景
 

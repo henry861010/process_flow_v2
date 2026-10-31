@@ -6,8 +6,8 @@ audience:
   - geometry producers
   - process-step authors
   - kernel、CAD、viewer 與 API 開發者
-last_verified: 2026-10-18
-last_verified_commit: 754a4e03
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - docs/reference/geometry-structure.md
 verified_against:
@@ -54,6 +54,8 @@ MUST NOT 放入 key。
 - `carrier`：製程中的 carrier solid。
 - `envelope`：代表所屬 Container／Entity 整體外形或幾何近似的 Body。
 - `molding`：molding process 建立的實體。
+- `rdl`：RDL process 建立的 dielectric 實體，供所屬 presenter 識別 RDL layer。
+- `uf`：Under Fill process 建立的填膠實體，供所屬 presenter 識別實際存在的 UF 區域。
 - `daf`：DAF process step 建立的 DAF 實體。
 - `fow`：FOW process step 建立的 FOW 實體；Debond 保留此 body。
 - `tim`：thermal interface material 實體。
@@ -98,6 +100,8 @@ MUST NOT 放入 key。
 - Molding、DAF 與 FOW 分別建立 `molding`、`daf`、`fow` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
   `daf` role 視為可選的 bonded DAF。
+- RDL 與 Under Fill 分別建立 `rdl`、`uf` body roles；這些 keys 不改變 CAD／mesh 的幾何或材料
+  ownership。舊結構缺少 role 時維持通用呈現，不從 material 名稱推論，也不自動遷移。
 - Copy、PnP、move、flip、grind 與 saw MUST 保留既有 key，不得從 material、geometry、位置或
   id 自動推論。
 - 新增 vocabulary 必須同步本文件、kernel validation、fixtures/producers 與 contract tests。

@@ -14,9 +14,100 @@ from process_flow_kernel import (
 )
 from process_flow_steps.pnp.adapters import adapt_geometry, rotate_geometry
 from process_flow_steps.pnp.pnp import execute as execute_pnp_step
+from process_flow_steps.flip.flip import execute as execute_flip
+from process_flow_steps.bump.uBump_formation import execute as execute_micro_bump
 
 
 class AdaptivePnpTests(unittest.TestCase):
+    def test_hbm_flip_micro_bump_flip_then_pnp_adapts_package_bump(self):
+        state = ProcessGeometryState.from_structure(hbm_geometry(), {"footprint": {"derive": "largestRootBody"}})
+
+        def context(values):
+            return ProcessStepContext(state, values, values, {}, {}, {}, {}, None, lambda _: None)
+
+        execute_flip(context({}))
+        execute_micro_bump(context({"material": "SnAg", "thk": 2, "density": 64, "koz": 0.3}))
+        execute_flip(context({}))
+        source = geometry_entity("hbm", state.to_geometry_structure(),
+                                 adaptation={"adapterId": "hbm-package", "adapterVersion": 1})
+        original = copy.deepcopy(source["structure"])
+        result = execute_pnp(source, [
+            rectangle_placement(10, 20, 6, 5),
+            polygon_placement(30, 40, [[0, 0], [6, 0], [6, 5], [0, 5]]),
+        ])
+        first, second = result.geometry()["root"]["children"]
+        bump = first["bumps"][0]
+        self.assertEqual(bump["geometry"]["bottom_left"], [10, 20, 10])
+        self.assertEqual(bump["geometry"]["top_right"], [16, 25, 10])
+        self.assertEqual(bump["geometry"]["thk"], 2)
+        self.assertEqual((bump["density"], bump["koz"], bump["direction"], bump["stage"]),
+                         (64, 0.3, "-z", "reflowed"))
+        self.assertEqual(second["bumps"][0]["geometry"]["type"], "PolygonGeometry")
+        self.assertEqual([p[:2] for p in second["bumps"][0]["geometry"]["polys"][0]],
+                         [[30, 40], [36, 40], [36, 45], [30, 45]])
+        for placed in (first, second):
+            core = placed["children"][1]["bodies"][0]["geometry"]
+            self.assertEqual(core["top_right"][0] - core["bottom_left"][0], 4)
+            self.assertEqual(core["top_right"][1] - core["bottom_left"][1], 3)
+        self.assertEqual(source["structure"], original)
+
+    def test_hbm_package_features_resize_but_local_features_stay_fixed(self):
+        structure = hbm_geometry()
+        package = structure["root"]["bodies"][0]["geometry"]
+        for collection in ("vias", "circuits", "bumps"):
+            feature = {"geometry": copy.deepcopy(package), "material": "Cu", "density": 40, "koz": 0}
+            feature["geometry"]["thk"] = 1
+            if collection != "circuits":
+                feature["direction"] = "+z"
+            if collection == "bumps":
+                feature["stage"] = "reflowed"
+            structure["root"][collection].append(feature)
+        structure["root"]["circuits"].append({
+            "id": "local-circuit", "material": "Cu", "density": 20, "koz": 0,
+            "geometry": {"type": "BoxGeometry", "bottom_left": [-1, -1, 2], "top_right": [1, 1, 2], "thk": 1},
+        })
+        artifact = GeometryArtifact.from_entity(geometry_entity("hbm", structure,
+                        adaptation={"adapterId": "hbm-package", "adapterVersion": 1}))
+        adapted = adapt_geometry(artifact, {"type": "rectangle", "width": 6, "height": 5})
+        for collection in ("vias", "circuits", "bumps"):
+            geometry = adapted["root"][collection][0]["geometry"]
+            self.assertEqual(geometry["bottom_left"][:2], [-3, -2.5])
+            self.assertEqual(geometry["top_right"][:2], [3, 2.5])
+            self.assertEqual(geometry["thk"], 1)
+        self.assertEqual(adapted["root"]["circuits"][1]["geometry"],
+                         structure["root"]["circuits"][1]["geometry"])
+        with self.assertRaisesRegex(ValueError, "fixed core geometry does not fit"):
+            adapt_geometry(artifact, {"type": "rectangle", "width": 3, "height": 2})
+
+    def test_hbm_same_bounds_polygon_hole_is_not_a_package_feature(self):
+        structure = hbm_geometry()
+        structure["root"]["circuits"] = [{
+            "material": "Cu", "density": 40, "koz": 0,
+            "geometry": {"type": "PolygonGeometry", "thk": 1, "polys": [
+                [[-5, -4, 0], [5, -4, 0], [5, 4, 0], [-5, 4, 0]],
+                [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]],
+            ]},
+        }]
+        artifact = GeometryArtifact.from_entity(geometry_entity("hbm", structure,
+                        adaptation={"adapterId": "hbm-package", "adapterVersion": 1}))
+        with self.assertRaisesRegex(ValueError, "fixed core geometry does not fit"):
+            adapt_geometry(artifact, {"type": "rectangle", "width": 6, "height": 5})
+
+    def test_hbm_full_polygon_feature_matches_package_footprint(self):
+        structure = hbm_geometry()
+        structure["root"]["circuits"] = [{
+            "material": "Cu", "density": 40, "koz": 0,
+            "geometry": {"type": "PolygonGeometry", "thk": 1, "polys": [
+                [[5, 4, 0], [5, -4, 0], [-5, -4, 0], [-5, 4, 0]],
+            ]},
+        }]
+        artifact = GeometryArtifact.from_entity(geometry_entity("hbm", structure,
+                        adaptation={"adapterId": "hbm-package", "adapterVersion": 1}))
+        adapted = adapt_geometry(artifact, {"type": "rectangle", "width": 6, "height": 5})
+        self.assertEqual(adapted["root"]["circuits"][0]["geometry"], {
+            "type": "BoxGeometry", "bottom_left": [-3, -2.5, 0], "top_right": [3, 2.5, 0], "thk": 1,
+        })
+
     def test_pnp_preserves_all_bump_stages_for_mixed_target_shapes(self):
         for stage in BUMP_STAGES:
             with self.subTest(stage=stage):

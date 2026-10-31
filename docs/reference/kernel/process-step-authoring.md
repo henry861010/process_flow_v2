@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - process-step authors
   - backend engineers
-last_verified: 2026-07-11
-last_verified_commit: b01b1e70
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/application/context.py
   - packages/kernel-py/src/process_flow_kernel/infrastructure/module_resolver.py
@@ -92,6 +92,23 @@ Kernel 在 module 執行前：
 4. 清除 rewritten feature ids，讓 normalization 依新 payload 重新產生。
 
 Module 使用收到的 material string，不自行 append `_dup<number>`。
+
+## Schematic presenter companion
+
+製程專屬圖樣放在同一 step 套件的獨立 companion module，例如 RDL 的
+`process_flow_steps.layer.rdl_schematic`。它提供
+`present_schematic(context: SchematicContext) -> list[SchematicPart]`；`execute` 與 kernel
+不 import companion。`process-flow-schematic` 只提供共用契約、圖形與 composer，不收納製程規則。
+
+Presenter 讀取最終 snapshot 的唯讀節點與實際 Z 範圍，回傳一般圖形與排列提示；不重新執行 recipe、
+不保存 step 當下的圖形、不修改 geometry。後續 grind／flip／debond 的結果直接由最終結構反映。
+以 semantic body role 或 feature kind 註冊至 `process_flow_steps.schematic_presenters`，
+API composition root 組合 step 與 generator registries。新增註冊或改變圖樣語意時更新 API 的
+presentation registry version；自訂 body key 必須先擴充正式 vocabulary，不能以 material 名稱分派。
+
+Presenter tests 覆蓋形狀、零 density、後續 geometry 改變與 input immutability；一般 step tests
+仍只驗證 geometry operation。Generator 的內部堆疊與代表顆數由 generator presenter 擁有。
+完整依賴與 document 契約見 [ADR-0012](../../architecture/decisions/0012-process-owned-schematic-preview.md)。
 
 ## 新增 process step
 

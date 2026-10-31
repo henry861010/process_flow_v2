@@ -6,8 +6,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - apps/viewer/components/viewer/viewer-scene.tsx
   - apps/viewer/components/viewer/model-loader.ts
@@ -87,10 +87,10 @@ visual。
   `#8aa0a6/#d1dcde`，旋轉到XY plane。
 - Axes size為scene max dimension `×.16`，放在min corner外移size `×.18`。
 - 有`model`時render loaded object；null時render built-in Demo Package。
-- Optional children與model在同一group/coordinate system；Preview用它render feature overlay。
+- Optional children 與 model 在同一 group／coordinate system；保留的 3D feature consumers 可用它 render overlay。
 
-Scene bounds必須包含所有可見 authority；Preview會把feature envelopes merge進GLB model bounds，再傳
-入scene。
+Scene bounds 必須包含所有可見 authority；3D feature consumer 會把 feature envelopes merge 進 GLB
+model bounds 再傳入 scene。Flow Editor schematic preview 不使用此 scene。
 
 ## Demo 材質色盤
 

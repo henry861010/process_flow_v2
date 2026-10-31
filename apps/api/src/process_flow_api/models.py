@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, model_serializer, model_validator
 from process_flow_geometry_generators import GeometryGeneratorDefinition
 
 
@@ -629,6 +629,93 @@ class GeometryPreviewResponse(StrictModel):
     glbBase64: str
 
 
+SchematicFiniteFloat = Annotated[float, Field(strict=True, allow_inf_nan=False)]
+SchematicNonNegativeFloat = Annotated[float, Field(strict=True, ge=0, allow_inf_nan=False)]
+SchematicSourceId = Annotated[str, Field(min_length=1)]
+SchematicPoint = tuple[SchematicFiniteFloat, SchematicFiniteFloat]
+
+
+class SchematicRectangle(StrictModel):
+    x: SchematicFiniteFloat
+    y: SchematicFiniteFloat
+    width: SchematicNonNegativeFloat
+    height: SchematicNonNegativeFloat
+
+
+class SchematicClip(SchematicRectangle):
+    exclusions: list[SchematicRectangle]
+
+
+class SchematicShapeBase(StrictModel):
+    id: SchematicSourceId
+    itemId: SchematicSourceId
+    fill: str
+    stroke: str
+    strokeWidth: SchematicNonNegativeFloat
+    clip: SchematicClip | None = None
+
+
+class SchematicRectShape(SchematicShapeBase, SchematicRectangle):
+    kind: Literal["rect"]
+
+
+class SchematicCircleShape(SchematicShapeBase):
+    kind: Literal["circle"]
+    cx: SchematicFiniteFloat
+    cy: SchematicFiniteFloat
+    r: SchematicNonNegativeFloat
+
+
+class SchematicPathShape(SchematicShapeBase):
+    kind: Literal["path"]
+    points: list[SchematicPoint]
+    closed: bool = Field(default=False, strict=True)
+
+
+SchematicShape = Annotated[
+    SchematicRectShape | SchematicCircleShape | SchematicPathShape,
+    Field(discriminator="kind"),
+]
+
+
+class SchematicItem(StrictModel):
+    id: SchematicSourceId
+    label: str
+    material: str
+    groupLabel: str
+    sourceIds: list[SchematicSourceId]
+    zMin: SchematicFiniteFloat
+    zMax: SchematicFiniteFloat
+    thickness: SchematicNonNegativeFloat
+
+    @model_validator(mode="after")
+    def z_range_is_ordered(self):
+        if self.zMax < self.zMin:
+            raise ValueError("Schematic item zMax must be at least zMin")
+        return self
+
+
+class SchematicComponent(SchematicRectangle):
+    id: SchematicSourceId
+    label: str
+    sourceIds: list[SchematicSourceId]
+
+
+class SchematicDocument(StrictModel):
+    schemaVersion: Literal[1]
+    unit: str
+    viewBox: tuple[
+        SchematicFiniteFloat, SchematicFiniteFloat,
+        SchematicNonNegativeFloat, SchematicNonNegativeFloat,
+    ]
+    shapes: list[SchematicShape]
+    items: list[SchematicItem]
+    components: list[SchematicComponent]
+    totalThickness: SchematicNonNegativeFloat
+    notes: list[str]
+    warnings: list[str]
+
+
 class PreviewSnapshot(StrictModel):
     snapshotId: str = Field(min_length=1)
     sourceKind: Literal["flowInput", "stepOutput"]
@@ -639,6 +726,29 @@ class PreviewSnapshot(StrictModel):
     geometryEntityJson: JsonObject
     meshUrl: str = Field(min_length=1)
     sectionUrl: str = Field(min_length=1)
+    schematic: SchematicDocument | None = None
+    schematicWarnings: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def preserve_geometry_when_schematic_is_invalid(cls, data):
+        if not isinstance(data, dict) or data.get("schematic") is None:
+            return data
+        try:
+            document = SchematicDocument.model_validate(data["schematic"])
+        except ValidationError:
+            # Presentation contract errors must not discard a calculated
+            # snapshot or turn its otherwise valid session into HTTP 500.
+            warnings = data.get("schematicWarnings", [])
+            return {
+                **data,
+                "schematic": None,
+                "schematicWarnings": [
+                    *warnings,
+                    "Cross section preview document is invalid. Geometry exports are still available.",
+                ],
+            }
+        return {**data, "schematic": document}
 
 
 class PreviewSessionResponse(StrictModel):

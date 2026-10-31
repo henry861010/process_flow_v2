@@ -1,3 +1,5 @@
+import type { SchematicDocument } from "./schematic-types";
+
 import {
   ApiRequestError,
   apiFetch,
@@ -53,6 +55,8 @@ export type GeometryPreviewSnapshot = {
   order: number;
   geometryHash: string;
   geometryEntityJson: GeometryEntityDownload;
+  schematic?: SchematicDocument | null;
+  schematicWarnings?: string[];
   meshUrl: string;
   sectionUrl: string;
 };

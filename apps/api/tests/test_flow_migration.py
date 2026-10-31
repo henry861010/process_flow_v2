@@ -9,12 +9,45 @@ from unittest.mock import patch
 from process_flow_api.repository import SQLiteStore
 from process_flow_api.models import ProcessFlow, FlowDraft
 from process_flow_api.flow_migration import canvas
-from process_flow_kernel import FlowCompiler, GeometryKernel, InMemoryGeometryCatalog
+from process_flow_kernel import FlowCompiler, GeometryKernel, InMemoryGeometryCatalog, ProcessGeometryState
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'schema13'
 # Captured with the unmodified schema-13 compiler/kernel at sourceCommit.
 # Keep this baseline independent of the new compiler and migration implementation.
 LEGACY_EXECUTION_DIGESTS = json.loads((FIXTURES / 'execution-digests.json').read_text())['instances']
+SCHEMATIC_BODY_ROLES = frozenset({'rdl', 'uf'})
+
+
+def execution_payload(result):
+    return {'geometryStructure': result.geometry(), 'stepOutputs': result.step_outputs(),
+            'terminalStepRefIds': result.terminal_step_ref_ids()}
+
+
+def without_new_role(method):
+    # Reproduce the historical producer metadata before stable IDs are derived.
+    # No geometry argument, material, existing role or execution behavior changes.
+    def call(state, *args, **kwargs):
+        if kwargs.get('key') in SCHEMATIC_BODY_ROLES:
+            kwargs.pop('key')
+        return method(state, *args, **kwargs)
+    return call
+
+
+def legacy_execution_payload(plan):
+    with patch.object(ProcessGeometryState, 'deposit_layer', without_new_role(ProcessGeometryState.deposit_layer)), \
+         patch.object(ProcessGeometryState, 'apply_under_fill', without_new_role(ProcessGeometryState.apply_under_fill)):
+        return execution_payload(GeometryKernel().execute(plan))
+
+
+def without_added_roles_and_ids(value):
+    # Added role tags change stable IDs transitively. Preserve every other field,
+    # list order and pre-existing semantic role for exact physical comparison.
+    if isinstance(value, dict):
+        return {key: without_added_roles_and_ids(item) for key, item in value.items()
+                if key != 'id' and not (key == 'key' and isinstance(item, str) and item in SCHEMATIC_BODY_ROLES)}
+    if isinstance(value, list):
+        return [without_added_roles_and_ids(item) for item in value]
+    return value
 
 
 def schema14_with_drafts(path):
@@ -82,6 +115,18 @@ def legacy_database(path, version=13, mutate=lambda data: None):
 
 
 class FlowMigrationTests(unittest.TestCase):
+    def test_schematic_metadata_projection_preserves_all_other_fields(self):
+        current = {'id': 'new-id', 'key': 'rdl', 'geometry': {'thk': 5},
+                   'material': 'PI_dup2', 'density': 40, 'stage': 'joined',
+                   'children': [{'id': 'child', 'key': 'lsi.si', 'geometry': {'thk': 10}}],
+                   'terminalStepRefIds': ['finish']}
+        self.assertEqual(without_added_roles_and_ids(current), {
+            'geometry': {'thk': 5}, 'material': 'PI_dup2', 'density': 40, 'stage': 'joined',
+            'children': [{'key': 'lsi.si', 'geometry': {'thk': 10}}], 'terminalStepRefIds': ['finish'],
+        })
+        self.assertIn('id', current)
+        self.assertEqual(current['key'], 'rdl')
+
     def test_schema14_cleanup_deletes_targeted_drafts_only_once_and_backs_up(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'schema14.sqlite3'
@@ -132,10 +177,11 @@ class FlowMigrationTests(unittest.TestCase):
                     for step in plan.steps:
                         self.assertEqual(step.raw_parameter_values, instance['stepConfigurations'][step.step_ref_id]['parameterValues'])
                     result = GeometryKernel().execute(plan)
-                    payload = {'geometryStructure': result.geometry(), 'stepOutputs': result.step_outputs(),
-                               'terminalStepRefIds': result.terminal_step_ref_ids()}
-                    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                    payload = execution_payload(result)
+                    legacy_payload = legacy_execution_payload(plan)
+                    digest = hashlib.sha256(json.dumps(legacy_payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
                     self.assertEqual(digest, LEGACY_EXECUTION_DIGESTS[instance['id']])
+                    self.assertEqual(without_added_roles_and_ids(payload), without_added_roles_and_ids(legacy_payload))
                 for template in old['process_flow_templates']:
                     for ref in template['stepRefs']:
                         if 'parameterDefaults' in ref:

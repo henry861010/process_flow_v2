@@ -273,7 +273,22 @@ def _hbm_package(structure: JsonObject, region: JsonObject) -> JsonObject:
     target = _region_in_source_frame(region, source_bounds)
     root = result["root"]
     envelope = _envelope_body(root)
+    original_footprint = copy.deepcopy(envelope["geometry"])
     _replace_footprint(envelope["geometry"], target, region)
+
+    # Formation steps add density envelopes at package scope. A feature covering
+    # the entire original package follows its adapted footprint; it is not a
+    # fixed silicon core. Localized features retain their original XY geometry.
+    package_features = [
+        feature
+        for collection in ("vias", "circuits", "bumps")
+        for feature in root.get(collection, [])
+        if isinstance(feature, dict)
+        and isinstance(feature.get("geometry"), dict)
+        and _same_xy_footprint(feature["geometry"], original_footprint)
+    ]
+    for feature in package_features:
+        _replace_footprint(feature["geometry"], target, region)
 
     bottom_layers = [
         body
@@ -302,6 +317,7 @@ def _hbm_package(structure: JsonObject, region: JsonObject) -> JsonObject:
         if isinstance(feature, dict)
         and feature is not envelope
         and feature not in bottom_layers
+        and feature not in package_features
         and isinstance(feature.get("geometry"), dict)
     ]
     fixed_geometries = [
@@ -319,6 +335,43 @@ def _hbm_package(structure: JsonObject, region: JsonObject) -> JsonObject:
         "HBM fixed core geometry",
     )
     return result
+
+
+def _same_xy_footprint(left: JsonObject, right: JsonObject) -> bool:
+    left_bounds, right_bounds = _geometry_bounds(left), _geometry_bounds(right)
+    if any(
+        not math.isclose(left_bounds[key], right_bounds[key], rel_tol=0, abs_tol=1e-9)
+        for key in ("xMin", "xMax", "yMin", "yMax")
+    ):
+        return False
+    if left.get("type") == right.get("type") == "BoxGeometry":
+        return True
+
+    # Bounding boxes alone would also match a localized polygon with a hole.
+    # Compare projected regions so only genuinely package-wide features adapt.
+    from shapely.geometry import Point, Polygon, box
+    from shapely.ops import unary_union
+    from process_flow_kernel import classify_polygon_loops
+
+    def projected(geometry):
+        kind = geometry.get("type")
+        if kind == "BoxGeometry":
+            bounds = _geometry_bounds(geometry)
+            return box(bounds["xMin"], bounds["yMin"], bounds["xMax"], bounds["yMax"])
+        if kind == "PolygonGeometry":
+            return unary_union([
+                Polygon(
+                    [point[:2] for point in polygon.outer],
+                    [[point[:2] for point in hole] for hole in polygon.holes],
+                )
+                for polygon in classify_polygon_loops(geometry.get("polys", []))
+            ])
+        if kind in {"CylinderGeometry", "ConeGeometry"}:
+            radius = max(float(geometry.get("bottom_radius") or 0), float(geometry.get("top_radius") or 0))
+            return Point(geometry["center"][:2]).buffer(radius)
+        raise ValueError(f"Unsupported geometry type for package adaptation: {kind}")
+
+    return projected(left).equals(projected(right))
 
 
 def _dram_package(structure: JsonObject, region: JsonObject) -> JsonObject:

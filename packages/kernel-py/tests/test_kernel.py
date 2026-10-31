@@ -1979,7 +1979,7 @@ class KernelExecutionTests(unittest.TestCase):
         )
         geometry = GeometryKernel().execute(plan).geometry()
         self.assertEqual([body["material"] for body in geometry["root"]["bodies"][1:]], ["PI-1", "PI-2"])
-        self.assertEqual([body.get("key") for body in geometry["root"]["bodies"][1:]], [None, None])
+        self.assertEqual([body.get("key") for body in geometry["root"]["bodies"][1:]], ["rdl", "rdl"])
         self.assertEqual(len(geometry["root"]["vias"]), 1)
         self.assertEqual(len(geometry["root"]["circuits"]), 1)
 

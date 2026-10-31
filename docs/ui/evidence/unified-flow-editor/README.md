@@ -52,7 +52,7 @@ npm run build
 - Kernel、mesh-control package 與 geometry-generators package：243 tests、1105 subtests 通過。
 - Viewer：37 files、367 tests 通過；production build、TypeScript 與 lint 檢查通過。
 - API 完整集合依下述 mesher 環境分開執行；流程契約、revision、draft rollback、ZIP、analytics history、preview、匯出及 migration 均有覆蓋。
-- Migration 使用 schema 8／9／11／13 測試資料庫，涵蓋備份、兩種草稿及舊 workspace、bound/unbound embedded 轉 catalog、跨集合衝突、交易失敗與重啟。三個 legacy instance 的完整 geometry、step outputs 與 terminal IDs，以舊 commit `7d49bf0b` 未修改 compiler/kernel 生成的 digest 為基準；11／13 升級後全部一致。基準保存在 `apps/api/tests/fixtures/schema13/execution-digests.json`。
+- Migration 使用 schema 8／9／11／13 測試資料庫，涵蓋備份、兩種草稿及舊 workspace、bound/unbound embedded 轉 catalog、跨集合衝突、交易失敗與重啟。三個 legacy instance 的完整 geometry、step outputs 與 terminal IDs，以舊 commit `7d49bf0b` 未修改 compiler/kernel 生成的 digest 為基準，保存在 `apps/api/tests/fixtures/schema13/execution-digests.json`，不改寫原始基準。新增 `rdl`／`uf` 語意標記後，11／13 regression 先在僅省略這兩個新 producer roles 的執行投影中驗證歷史 digest，再將正式結果僅去除 IDs 與這兩個新 keys 後逐層比對。座標、厚度、材料、feature 屬性、其他 semantic keys、結構順序及 terminal IDs 仍須完全一致。
 - `scripts/check_docs.py` 與 `scripts/check_golden_example.py` 驗證文件連結、截圖尺寸和可執行 golden example。
 
 ### Mesher 相依版本限制

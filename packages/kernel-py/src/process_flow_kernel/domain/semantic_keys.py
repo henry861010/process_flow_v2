@@ -28,6 +28,8 @@ BODY_KEYS = frozenset(
         "frame",
         "envelope",
         "molding",
+        "rdl",
+        "uf",
         "daf",
         "fow",
         "tim",

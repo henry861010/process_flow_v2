@@ -6,8 +6,8 @@ audience:
   - process-step authors
   - CAD and mesher developers
   - viewer developers
-last_verified: 2026-10-12
-last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/conformance.md
@@ -58,13 +58,13 @@ copy、move、flip、clip 與 PnP 保留 `stage`；現有 bump formation 輸出 
 不算重疊。部分跨出 wafer 的 bump 仍由下側 bump 墊高；Z 接觸後，Joint 將 root 直屬 child
 的整片上側 bump（包含 wafer 外的部分）改成 `joined`，保留完整 XY footprint，涵蓋完整接合高度，並調整
 child subtree 的 Z；main 下側 bump 原始 envelope 保留。Joined feature 在其 footprint
-接管相交 ancestor reflowed bump 的 XY columns，預覽的 3D envelope、detail glyph 與
+接管相交 ancestor reflowed bump 的 XY columns，保留的 3D renderer 的 envelope、detail glyph 與
 2D estimated section 都遮掉被接管的下側表示，保留接合區外的 wafer bump。Stage 也顯示
 於 feature 選取資訊。原始 GeometryStructure 不因顯示遮蔽而修改。
 
 STEP 將 child solids 從 ancestor solids 扣除；CDB 延用較深 container 的 assignment
 priority。兩者以 child joined envelope 表達接合區，避免將保留的下側資料重複實體化。
-預覽仍是 estimated density，不代表個別 solder 的實際位置或形狀。
+3D density 與 schematic 固定符號都不代表個別 solder 的實際位置或形狀。
 欄位不改變 CAD／mesh 的 materialization 行為。完整 contract 見
 [Bump stage](../reference/geometry-structure.md#62-bump-stage)。
 
@@ -91,6 +91,7 @@ Geometry structure 本身不為不同 sibling branches 定義通用 ownership pr
 | Consumer | Bodies | Density features | `direction` | `koz` | Primitive limits |
 | --- | --- | --- | --- | --- | --- |
 | Kernel serialization | 保存 | 保存 envelope、material、density | 保存；flip 反轉 | 保存 | Box、Polygon、Cylinder、Cone |
+| Flow schematic preview | 最終 snapshot 的實際 Z 區間與厚度；顯示可放大 | Presenter 產生固定少量 via／circuit／bump 符號，不表達 density；0 不畫符號 | 讀取最終幾何，不模擬佈線方向 | 不據此重建實際 placement | 最終 structure 的通用 Z 範圍 |
 | Legacy GLB preview（current） | 輸出 materialized bodies | 不輸出 feature bodies；viewer 可由 JSON overlay | JSON overlay 可讀 | JSON overlay 可讀 | Box、Polygon、Cylinder、Cone |
 | Session binary display mesh（current） | 以geometryHash/version cache的binary GLB顯示resolved bodies | 仍不輸出feature bodies；manifest/viewer只顯示estimated overlay | metadata可讀，不改變body mesh | metadata可讀，不預先inset | Box、Polygon、Cylinder、Cone |
 | OCC exact body section（current） | 對resolved CadBody shape產生X/Y vertical body/material regions；viewer由contours產生caps | Exact response排除density feature；viewer可另疊加estimated envelope section pattern | 不改變body section | pattern metadata保留但不套KOZ | 跟隨CadBody resolver支援範圍 |
@@ -100,6 +101,10 @@ Geometry structure 本身不為不同 sibling branches 定義通用 ownership pr
 因此「所有 downstream consumer 都已套用 `koz`」不是現況。若 workflow 依賴 `koz` 或 direction-aware mesh，必須先補 consumer implementation 與 tests，不能只更新此文件。
 
 ### Display mesh 與 exact section authority
+
+以下為保留的 CAD display consumers。Flow Editor 使用
+[process-owned schematic](../architecture/decisions/0012-process-owned-schematic-preview.md)，
+不請求 mesh／exact section；其實際厚度仍以原始 snapshot 為 authority。
 
 Session GLB是display artifact，不是BRep或geometry semantics authority。工程截面由resolved
 OpenCascade body shape產生；viewer shader clipping只作drag/debounce期間feedback。Section response的

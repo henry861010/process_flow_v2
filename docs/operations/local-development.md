@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - developers
   - operators
-last_verified: 2026-08-29
-last_verified_commit: 013fba726b811c8acfbc5d928463a15baa67a9e3
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - README.md
   - apps/api/pyproject.toml
@@ -45,6 +45,7 @@ venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
   -e packages/process-step-py \
   -e packages/geometry_generators \
+  -e packages/schematic-py \
   -e packages/mesh-control-py \
   -e packages/cad-py \
   -e 'apps/api[test]'
@@ -54,6 +55,11 @@ venv/bin/pip install \
 不可執行沒有path的`pip install mesher`，因為PyPI上的同名package與本專案無關。
 
 所有 local packages 必須安裝在啟動 API 的同一 Python environment。Kernel 會在 execution time import `process_flow_steps`；CAD/CDB workers也使用 `sys.executable` 啟動。
+
+Flow preview 使用 `process-flow-schematic`；API composition root 載入各 step／generator 的 presenter
+companion modules。一般 kernel execution 不需要或載入 schematic；只有啟動 API／使用 presenter
+時需要安裝該套件。修改 presenter 或註冊規則時同步更新 API 的 presentation registry version，
+使 session／snapshot cache 失效而不改變 geometry hash。
 
 ## 啟動 API
 

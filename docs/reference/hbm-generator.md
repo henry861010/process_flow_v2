@@ -146,6 +146,11 @@ Generator輸出的`adaptationContract`是`hbm-package@1`。Unified PnP只改變p
 footprint（以及generator定義的package-sized base die、pass2、usg、elk），所有core child bodies維持原XY尺寸；
 target無法容納fixed core時必須失敗。
 
+上游製程建立、且 XY footprint 與原 package 完全相同的 root via／circuit／bump envelope
+也隨 package 適配，保留實際 Z、thickness、density、direction 與 bump stage。因此
+`Flip → Micro Bump → Flip → PnP` 不會將 package-sized bump 誤當成 fixed core。
+局部 feature 保留原 XY；僅 bounding box 相同但有孔洞的 feature 不視為完整 package footprint。
+
 ## Structure identity
 
 Generator 必須輸出 normalized empty arrays與structure-local ids：

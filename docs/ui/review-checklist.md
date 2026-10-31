@@ -8,8 +8,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-25
-last_verified_commit: 7d49bf0b
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - docs/ui/reconstruction-guide.md
   - docs/ui/acceptance/README.md
@@ -68,9 +68,10 @@ source_of_truth:
 ### CAD Viewer / Geometry Preview
 
 - [ ] viewport / right pane 順序、min-height、scroll owner 與 breakpoint 正確。
-- [ ] Section、Axis、Grid、Axes、Camera 的 default 與 disabled state 正確。
+- [ ] CAD Viewer 的 Section、Axis、Grid、Axes、Camera default 與 disabled state 正確。
 - [ ] CAD Reset 保留 current camera view；import error 保留原 model。
-- [ ] Preview 狀態完整覆蓋 Loading、Ready、Error、GLB loading/error。
+- [ ] Preview 覆蓋 Loading、Ready、Error 與 schematic unavailable；匯出不受 schematic failure 阻擋。
+- [ ] Preview 只畫 target SVG、實際厚度與固定代表符號，無 mesh／section 請求或 WebGL controls。
 - [ ] Preview footer 與 Export form z-index、backdrop、close path 正確。
 
 ## Interaction and accessibility review

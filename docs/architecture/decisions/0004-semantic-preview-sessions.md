@@ -7,8 +7,8 @@ audience:
   - 架構與產品負責人
   - API、kernel、CAD 與 viewer 開發者
   - QA 與 coding agent
-last_verified: 2026-07-12
-last_verified_commit: bdf2338e402dbd6e88a5dc494c874969d3be19b0
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 verified_against:
   - apps/api/src/process_flow_api/preview_sessions.py
   - apps/api/src/process_flow_api/services.py
@@ -22,6 +22,10 @@ verified_against:
 # ADR-0004：Semantic preview session 與精確 body section
 
 ## 狀態
+
+Geometry Preview 的 3D／section UI 要求已由 [ADR-0012](./0012-process-owned-schematic-preview.md)
+取代為 process-owned SVG schematic。此 ADR 的 session、geometry identity、mesh／section API 與
+保留 3D consumers 契約繼續有效；不得據此要求 Flow Editor preview 載入 CAD display assets。
 
 Accepted。這是 target contract；現行 implementation gap 集中記錄於
 [conformance.md](../../conformance.md) 的 `PV-*` entries。

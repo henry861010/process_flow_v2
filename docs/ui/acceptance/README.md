@@ -6,8 +6,8 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-10-25
-last_verified_commit: 7d49bf0b
+last_verified: 2026-10-31
+last_verified_commit: 039906db
 source_of_truth:
   - docs/ui/screens
   - docs/ui/components
@@ -25,7 +25,7 @@ UI-<AREA>-<三位數>
 ```
 
 `AREA` 只使用 `HOME`、`FLOW`、`PSTE`、`CAD`、`GRAPH`、`LIB`、`PARAM`、
-`PLACE`、`PREVIEW`、`EXPORT`、`HBM`、`GEN`、`MGMT`。Case ID 不因 test framework 或檔名改變。
+`PLACE`、`PREVIEW`、`SCHEMATIC`、`EXPORT`、`HBM`、`GEN`、`MGMT`。Case ID 不因 test framework 或檔名改變。
 
 ## 環境契約
 
@@ -36,7 +36,8 @@ Visual capture MUST：
 3. 使用 Chromium、browser zoom `100%`、device scale factor `1`、light scheme、
    reduced motion、locale `en-US`、timezone `Asia/Taipei`。
 4. viewport 使用 `1440×900`、`1024×768`、`390×844`，不可包含 browser chrome。
-5. 等待 fonts、icons、React Flow fitView、GLB load 與必要 API requests 完成。
+5. 等待 fonts、icons、React Flow fitView 與必要 API requests 完成；CAD viewer 等待 GLB，
+   Geometry Preview 等待 target schematic，並確認無 mesh／section requests。
 6. 動態值（job UUID、timestamp）在 fixture/test adapter 固定；不得以大區塊遮罩掩蓋 layout。
 7. screenshot 寫入 `docs/ui/assets/reference/`，檔名完全依下表。
 8. Asset MUST 是真正的 PNG data，pixel dimensions 必須和檔名一致；
