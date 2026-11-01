@@ -145,6 +145,42 @@ class SchematicContractTests(unittest.TestCase):
             finally:
                 app.state.store.close()
 
+    def test_dual_bump_flow_previews_formation_pnp_and_joint_with_existing_wire_shapes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = create_app(db_path=Path(directory) / "test.sqlite3")
+            try:
+                with TestClient(app) as client:
+                    documents = {}
+                    for step in ("main_bump", "pnp", "joint"):
+                        response = client.post("/api/preview-sessions", json={
+                            "flowId": "flow_inst_dual_bump_demo",
+                            "target": {"type": "stepOutput", "stepRefId": step, "outputPortId": "result_geometry"},
+                        })
+                        self.assertEqual(response.status_code, 200, response.text)
+                        payload = response.json()
+                        snapshot = next(s for s in payload["snapshots"] if s["snapshotId"] == payload["initialSnapshotId"])
+                        document = snapshot["schematic"]
+                        self.assertIsNotNone(document, snapshot["schematicWarnings"])
+                        self.assertEqual(document["schemaVersion"], 1)
+                        self.assertEqual(document["warnings"], [])
+                        self.assertEqual(SchematicDocument.model_validate(document).payload(), document)
+                        documents[step] = document
+                        root = snapshot["geometryEntityJson"]["structure"]["root"]
+                        if step == "pnp":
+                            lower = root["bumps"][0]
+                            row = next(item for item in document["items"] if lower["id"] in item["sourceIds"])
+                            self.assertEqual(row["thickness"], lower["geometry"]["thk"])
+                            self.assertTrue(all(child["bumps"][0]["stage"] == "reflowed" for child in root["children"]))
+                        if step == "joint":
+                            self.assertFalse(any(root["bumps"][0]["id"] in item["sourceIds"] for item in document["items"]))
+                    self.assertEqual({shape["kind"] for shape in documents["main_bump"]["shapes"]}, {"rect"})
+                    self.assertIn("path", {shape["kind"] for shape in documents["pnp"]["shapes"]})
+                    self.assertNotIn("circle", {shape["kind"] for shape in documents["pnp"]["shapes"]})
+                    self.assertIn("circle", {shape["kind"] for shape in documents["joint"]["shapes"]})
+                    self.assertNotIn("path", {shape["kind"] for shape in documents["joint"]["shapes"]})
+            finally:
+                app.state.store.close()
+
 
 if __name__ == "__main__":
     unittest.main()

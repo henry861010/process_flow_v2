@@ -33,6 +33,18 @@ target pitch `1.4 * diameter`, fits at least one circle, and centers each circle
 an equal-width cell. Repetition precedes clipping, so exclusions retain the row's
 spacing. It emits ordinary circle shapes without changing document schema version 1.
 
+Path primitives also support `repeat_x=True`: normalized points define one motif,
+and `r` supplies its target half-width relative to display height. Repeated paths
+are emitted as ordinary path shapes. Parts from the same emitting node may share
+a `repeat_group` to use the largest requested radius for a common count and pitch;
+path widths match, while circles retain their individual radii.
+
+A part may reference a physical node using `source_id` for material, source IDs,
+Z and thickness measurements. Its optional `display_bounds` controls placement
+relative to the emitting node's component without modifying physical geometry.
+Component grouping includes presentation differences and referenced measurement
+properties while ignoring source IDs, absolute XY and runtime material suffixes.
+
 Representation counts, feature motifs and relation eligibility are supplied by
 the owning producer packages. No process program, die name or recipe is interpreted
 here. JSON/STEP/CDB consumers continue using the unchanged physical structure.

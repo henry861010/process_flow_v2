@@ -47,42 +47,53 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         self.assertGreater(left, 0)
         self.assertLess(left, 2 * radius)
 
-    def test_carrier_and_hbm_fill_their_own_bump_widths_independent_of_density(self):
-        snapshot = carrier_hbm_snapshot()
+    def test_carrier_and_hbm_before_joint_show_only_paired_reflowed_bumps(self):
+        for stage in ("deposited", "reflowed"):
+            with self.subTest(stage=stage):
+                snapshot = carrier_hbm_snapshot()
+                snapshot["root"]["bumps"][0]["stage"] = stage
+                snapshot["root"]["children"][0]["bumps"][0]["stage"] = stage
+                before = copy.deepcopy(snapshot)
+                document = compose_schematic(snapshot, registry())
+                self.assertEqual(document["warnings"], [])
+                self.assertEqual(document["schemaVersion"], 1)
+                self.assertEqual(document["totalThickness"], 1470)
+                self.assertFalse(any(shape["kind"] == "circle" for shape in document["shapes"]))
+                expected = {"carrier", "hbm-package"}
+                if stage == "reflowed":
+                    expected.update(("carrier-bump", "hbm-bump"))
+                    self.assertTrue(any(shape["kind"] == "path" for shape in document["shapes"]))
+                self.assertEqual({source for item in document["items"] for source in item["sourceIds"]}, expected)
+                self.assertEqual(snapshot, before)
+
+    def test_carrier_and_hbm_after_joint_show_only_hbm_joint_row(self):
+        state = ProcessGeometryState.from_structure(carrier_hbm_snapshot())
+        state.join_bumps(joined_height=15)
+        snapshot = state.to_geometry_structure()
         before = copy.deepcopy(snapshot)
         document = compose_schematic(snapshot, registry())
         self.assertEqual(document["warnings"], [])
-        self.assertEqual(document["schemaVersion"], 1)
-        self.assertEqual(document["totalThickness"], 1470)
-        rows = []
-        for source_id in ("carrier-bump", "hbm-bump"):
-            item = next(item for item in document["items"] if source_id in item["sourceIds"])
-            self.assertEqual(item["thickness"], 25)
-            symbols = [shape for shape in document["shapes"] if shape["itemId"] == item["id"]]
-            self.assert_filled_bump_row(symbols)
-            rows.append(symbols)
-        self.assertGreater(len(rows[0]), len(rows[1]))
-        self.assertGreater(len(rows[1]), 3)
-        carrier_shape = next(shape for shape in document["shapes"] if shape["kind"] == "rect"
-                             and shape["clip"]["width"] > 160)
-        self.assertEqual(rows[0][0]["clip"]["x"], carrier_shape["x"])
-        self.assertEqual(rows[0][0]["clip"]["width"], carrier_shape["width"])
+        self.assertEqual(document["totalThickness"], 1435)
+        self.assertFalse(any("carrier-bump" in item["sourceIds"] for item in document["items"]))
+        joint = next(item for item in document["items"] if "hbm-bump" in item["sourceIds"])
+        self.assertEqual((joint["zMin"], joint["zMax"], joint["thickness"]), (700, 715, 15))
+        symbols = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
+        self.assert_filled_bump_row(symbols)
+        self.assertTrue(all(shape["itemId"] == joint["id"] for shape in symbols))
         hbm = document["components"][0]
         self.assertEqual(hbm["label"], "HBM")
-        self.assertEqual(rows[1][0]["clip"]["x"], hbm["x"])
-        self.assertEqual(rows[1][0]["clip"]["width"], hbm["width"])
+        self.assertEqual(symbols[0]["clip"]["x"], hbm["x"])
+        self.assertEqual(symbols[0]["clip"]["width"], hbm["width"])
         for density in (1, 100):
             variant = copy.deepcopy(snapshot)
-            variant["root"]["bumps"][0]["density"] = density
             variant["root"]["children"][0]["bumps"][0]["density"] = density
             self.assertEqual(compose_schematic(variant, registry()), document)
         absent = copy.deepcopy(snapshot)
-        absent["root"]["bumps"][0]["density"] = 0
         absent["root"]["children"][0]["bumps"][0]["density"] = 0
         self.assertFalse(any(shape["kind"] == "circle" for shape in compose_schematic(absent, registry())["shapes"]))
         self.assertEqual(snapshot, before)
 
-    def test_partial_width_joint_preserves_unjoined_subcolumn(self):
+    def test_partial_width_joint_hides_all_unjoined_subcolumns(self):
         lower = bump("lower", BoxGeometry([0, 0, 0], [100, 100, 0], 10).json(), "reflowed")
         joined = bump("partial-joint", BoxGeometry([20, 20, 0], [30, 60, 0], 6).json(), "joined")
         unjoined = bump("unjoined", BoxGeometry([30, 20, 0], [60, 60, 0], 10).json(), "reflowed")
@@ -95,18 +106,14 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         document = compose_schematic(snapshot, registry())
         self.assertEqual(document["warnings"], [])
         component = document["components"][0]
-        row = next(item for item in document["items"] if "lower" in item["sourceIds"])
-        symbols = [shape for shape in document["shapes"] if shape["itemId"] == row["id"]]
+        source_ids = {source for item in document["items"] for source in item["sourceIds"]}
+        self.assertEqual(source_ids, {"partial-joint", "silicon"})
+        symbols = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
         self.assert_filled_bump_row(symbols)
         for symbol in symbols:
-            exclusions = symbol["clip"]["exclusions"]
-            self.assertEqual(len(exclusions), 1)
-            self.assertEqual(exclusions[0]["x"], component["x"])
-            self.assertEqual(exclusions[0]["width"], component["width"] / 4)
-            unjoined_x = component["x"] + component["width"] * 0.75
-            self.assertFalse(any(cut["x"] <= unjoined_x <= cut["x"] + cut["width"] for cut in exclusions))
-        unjoined_row = next(item for item in document["items"] if "unjoined" in item["sourceIds"])
-        self.assert_filled_bump_row([shape for shape in document["shapes"] if shape["itemId"] == unjoined_row["id"]])
+            self.assertEqual(symbol["clip"]["exclusions"], [])
+            self.assertEqual(symbol["clip"]["x"], component["x"])
+            self.assertEqual(symbol["clip"]["width"], component["width"] / 4)
 
     def test_grouped_runtime_material_instances_share_measurements_and_symbols(self):
         source = normalize_geometry_structure({"key": "lsi", "bodies": [
@@ -114,7 +121,7 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
             {"id": "silicon", "material": "Si", "geometry": BoxGeometry([0, 0, 7], [10, 10, 7], 10).json()},
         ], "vias": [{"id": "via", "material": "Cu", "density": 1, "direction": "+z", "koz": 0,
                       "geometry": BoxGeometry([0, 0, 2], [10, 10, 2], 5).json()}],
-            "bumps": [bump("bump", BoxGeometry([0, 0, 0], [10, 10, 0], 2).json(), "reflowed")]})
+            "bumps": [bump("bump", BoxGeometry([0, 0, 0], [10, 10, 0], 2).json(), "joined")]})
         main = ProcessGeometryState.create()
         main.initialize_box_layer(material="Carrier", bottom_left=[0, 0, 0], top_right=[100, 100, 0], thickness=100)
         for x, suffix in ((0, ""), (30, "_dup2")):
@@ -164,14 +171,15 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         uf_shapes = [shape for shape in document["shapes"] if shape["fill"] == "#efc490"]
         self.assertEqual(len(uf_shapes), 5)  # Three cavities and two representative gaps.
         lower_id = snapshot["root"]["bumps"][0]["id"]
-        lower_item = next(item for item in document["items"] if lower_id in item["sourceIds"])
-        lower_symbols = [shape for shape in document["shapes"] if shape["itemId"] == lower_item["id"]]
-        self.assert_filled_bump_row(lower_symbols)
-        self.assertTrue(all(len(shape["clip"]["exclusions"]) == 3 for shape in lower_symbols))
+        self.assertFalse(any(lower_id in item["sourceIds"] for item in document["items"]))
+        circles = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
+        for component in document["components"]:
+            self.assert_filled_bump_row([shape for shape in circles if shape["clip"]["x"] == component["x"]])
+        self.assertTrue(all(shape["clip"]["exclusions"] == [] for shape in circles))
         self.assertEqual(snapshot, snapshot_before)
         self.assertEqual(source, before)
 
-    def test_frozen_snapshot_preserves_polygon_holes_when_resolving_ownership(self):
+    def test_hidden_polygon_deposit_preserves_source_geometry(self):
         lower = bump("lower", PolygonGeometry([
             [[0, 0, 0], [20, 0, 0], [20, 20, 0], [0, 20, 0]],
             [[5, 5, 0], [15, 5, 0], [15, 15, 0], [5, 15, 0]],
@@ -184,15 +192,14 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
                 "bodies": [{"id": id + "-body", "material": "Si",
                     "geometry": BoxGeometry([a[0], a[1], 6], [b[0], b[1], 6], 50).json()}]})
         snapshot = normalize_geometry_structure({"bumps": [lower], "children": children})
+        before = copy.deepcopy(snapshot)
         document = compose_schematic(snapshot, registry())
         self.assertEqual(document["warnings"], [])
-        row = next(item for item in document["items"] if "lower" in item["sourceIds"])
-        symbols = [shape for shape in document["shapes"] if shape["itemId"] == row["id"]]
-        self.assert_filled_bump_row(symbols)
-        overlap_component = next(component for component in document["components"] if "overlap" in component["sourceIds"])
-        for symbol in symbols:
-            self.assertEqual(len(symbol["clip"]["exclusions"]), 1)
-            self.assertEqual(symbol["clip"]["exclusions"][0]["x"], overlap_component["x"])
+        self.assertFalse(any("lower" in item["sourceIds"] for item in document["items"]))
+        circles = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
+        for component in document["components"]:
+            self.assert_filled_bump_row([shape for shape in circles if shape["clip"]["x"] == component["x"]])
+        self.assertEqual(snapshot, before)
 
 
 if __name__ == "__main__":

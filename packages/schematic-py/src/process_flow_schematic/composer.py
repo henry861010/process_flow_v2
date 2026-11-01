@@ -103,6 +103,14 @@ def _validate_parts(parts):
                 raise ValueError("Invalid component hint")
         if part.layout not in ("node", "bridges", "gaps"):
             raise ValueError("Unsupported schematic layout")
+        for reference in (part.source_id, part.repeat_group):
+            if reference is not None and (not isinstance(reference, str) or not reference):
+                raise ValueError("Invalid schematic reference")
+        if part.display_bounds is not None:
+            bounds = part.display_bounds
+            if (not isinstance(bounds, Bounds) or not all(math.isfinite(value) for value in vars(bounds).values())
+                    or bounds.x_max < bounds.x_min or bounds.y_max < bounds.y_min or bounds.z_max <= bounds.z_min):
+                raise ValueError("Invalid display bounds")
         for primitive in part.primitives:
             if not isinstance(primitive, Primitive) or primitive.kind not in ("rect", "circle", "path"):
                 raise ValueError("Unsupported schematic primitive")
@@ -114,9 +122,10 @@ def _validate_parts(parts):
             if min(primitive.width, primitive.height, primitive.r, primitive.stroke_width) < 0:
                 raise ValueError("Negative schematic dimensions")
             if not isinstance(primitive.repeat_x, bool) or (
-                primitive.repeat_x and (primitive.kind != "circle" or primitive.r <= 0)
+                primitive.repeat_x and (primitive.kind not in ("circle", "path") or primitive.r <= 0
+                                        or (primitive.kind == "path" and len(primitive.points) < 2))
             ):
-                raise ValueError("Horizontal repetition requires a circle with positive radius")
+                raise ValueError("Horizontal repetition requires a circle or path with positive radius")
 
 
 def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry) -> SchematicDocument:
@@ -147,6 +156,8 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
         try:
             parts = presenter(context)
             _validate_parts(parts)
+            if any(part.source_id is not None and part.source_id not in nodes_by_id for part in parts):
+                raise ValueError("Unknown schematic source")
             return list(parts)
         except Exception:
             warnings.append(f"A presenter could not display {context.node.get('id', context.kind)}; a generic representation is used.")
@@ -166,11 +177,16 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
                     continue
                 if bounds.thickness <= 0:
                     continue
-                context = SchematicContext(frozen, node, container, ancestors, kind, bounds, unit, query=query)
                 record = _Node(str(node.get("id", f"node-{container_index}-{collection}-{index}")), kind,
-                               node, container, ancestors, bounds, present(context))
+                               node, container, ancestors, bounds, [])
                 nodes.append(record)
                 nodes_by_container.setdefault(id(container), []).append(record)
+
+    nodes_by_id = {node.id: node for node in nodes}
+    for node in nodes:
+        context = SchematicContext(frozen, node.node, node.container, node.ancestors,
+                                   node.kind, node.bounds, unit, query=query)
+        node.parts = present(context)
 
     for container, ancestors in reversed(containers):
         children = container.get("children", ())
@@ -202,10 +218,40 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
             selected.append(container)
             selected_ids.add(id(container))
 
+    def presentation_signature(container):
+        """Keep relational presentation differences without retaining source IDs or XY placement."""
+        bounds = container_bounds.get(id(container))
+        signatures = []
+        for node in nodes_by_container.get(id(container), ()):
+            repeat_groups = {}
+            parts = []
+            for part in node.parts:
+                source = nodes_by_id.get(part.source_id, node)
+                display = part.display_bounds
+                relative = None
+                if display is not None and bounds is not None:
+                    width = bounds.x_max - bounds.x_min
+                    depth = bounds.y_max - bounds.y_min
+                    relative = (round((display.x_min - bounds.x_min) / width, 9) if width else 0,
+                                round((display.x_max - bounds.x_min) / width, 9) if width else 1,
+                                round((display.y_min - bounds.y_min) / depth, 9) if depth else 0,
+                                round((display.y_max - bounds.y_min) / depth, 9) if depth else 1,
+                                display.z_min, display.z_max)
+                repeat_group = None
+                if part.repeat_group is not None:
+                    repeat_group = repeat_groups.setdefault(part.repeat_group, len(repeat_groups))
+                parts.append((base_material(part.label), part.fill, part.primitives, part.layout,
+                              source.kind, base_material(str(source.node.get("material", ""))),
+                              source.bounds.z_min, source.bounds.z_max, relative, repeat_group))
+            signatures.append((node.kind, node.node.get("key"), tuple(parts)))
+        return (tuple(sorted(signatures, key=repr)), tuple(sorted(
+            (presentation_signature(child) for child in container.get("children", ())), key=repr)))
+
     groups_by_signature = {}
     for container in selected:
         hint = hints.get(id(container), ComponentHint(str(container.get("key") or "Component")))
-        signature = (hint.label, hint.representative_count, hint.placement, _signature(container))
+        signature = (hint.label, hint.representative_count, hint.placement, _signature(container),
+                     presentation_signature(container))
         if signature not in groups_by_signature:
             groups_by_signature[signature] = _Group(f"group-{len(groups_by_signature) + 1}", [], hint, container_bounds[id(container)])
         groups_by_signature[signature].containers.append(container)
@@ -261,21 +307,22 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
         for part in node.parts:
             if not part.primitives and part.layout not in ("bridges", "gaps"):
                 continue
-            material = str(node.node.get("material", ""))
+            source = nodes_by_id.get(part.source_id, node)
+            material = str(source.node.get("material", ""))
             label = base_material(part.label)
-            key = (group.id if group else "base", node.kind, label, base_material(material),
-                   node.bounds.z_min, node.bounds.z_max)
+            key = (group.id if group else "base", source.kind, label, base_material(material),
+                   source.bounds.z_min, source.bounds.z_max)
             if key not in item_index:
                 item = {"id": f"item-{len(items) + 1}", "label": label, "material": base_material(material),
                         "groupLabel": group_labels[group.id] if group else "Structure", "sourceIds": [],
-                        "zMin": node.bounds.z_min, "zMax": node.bounds.z_max, "thickness": node.bounds.thickness}
+                        "zMin": source.bounds.z_min, "zMax": source.bounds.z_max, "thickness": source.bounds.thickness}
                 item_index[key] = item
                 items.append(item)
                 item_source_ids[item["id"]] = set()
             item = item_index[key]
-            if node.id not in item_source_ids[item["id"]]:
-                item["sourceIds"].append(node.id)
-                item_source_ids[item["id"]].add(node.id)
+            if source.id not in item_source_ids[item["id"]]:
+                item["sourceIds"].append(source.id)
+                item_source_ids[item["id"]].add(source.id)
             node_items[(node.id, id(part))] = item["id"]
 
     def rectangle(bounds, placement=None, source_bounds=None):
@@ -313,7 +360,26 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
             display_rects.setdefault(node.id, []).append(
                 rectangle(node.bounds, target, source_owner_bounds.get(id(node.container))))
 
+    # Repeated motifs in a local group share a count and width, including when
+    # their physical heights differ. These are generic display hints only.
+    repeat_metrics = {}
+    for node in nodes:
+        for part in node.parts:
+            if part.repeat_group is None:
+                continue
+            display = part.display_bounds or node.bounds
+            extent = z.y(display.z_min) - z.y(display.z_max)
+            radius = max((primitive.r * extent for primitive in part.primitives if primitive.repeat_x), default=0)
+            key = (node.id, part.repeat_group)
+            repeat_metrics[key] = max(repeat_metrics.get(key, 0), radius)
+
     shapes = []
+
+    def repeat_layout(node, part, primitive, rect):
+        target = repeat_metrics.get((node.id, part.repeat_group), primitive.r * rect["height"])
+        radius = min(target, rect["width"] / 2.8)
+        count = max(1, math.floor(rect["width"] / (2 * radius * 1.4)))
+        return radius, count, rect["width"] / count
 
     def append_part(node, part, rect):
         item_id = node_items.get((node.id, id(part)))
@@ -341,9 +407,8 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
                              width=primitive.width * rect["width"], height=primitive.height * rect["height"])
             elif primitive.kind == "circle":
                 if primitive.repeat_x:
-                    radius = min(primitive.r * rect["height"], rect["width"] / 2.8)
-                    count = max(1, math.floor(rect["width"] / (2 * radius * 1.4)))
-                    cell_width = rect["width"] / count
+                    shared_radius, count, cell_width = repeat_layout(node, part, primitive, rect)
+                    radius = min(primitive.r * rect["height"], shared_radius)
                     for index in range(count):
                         shapes.append({**shape, "id": f"shape-{len(shapes) + 1}",
                                        "cx": rect["x"] + (index + 0.5) * cell_width,
@@ -352,11 +417,20 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
                 shape.update(cx=rect["x"] + primitive.cx * rect["width"], cy=rect["y"] + primitive.cy * rect["height"],
                              r=min(primitive.r * rect["height"], rect["width"] * 0.14))
             elif primitive.kind == "path":
-                shape.update(points=[[rect["x"] + x * rect["width"], rect["y"] + y * rect["height"]]
-                                     for x, y in primitive.points], closed=primitive.closed)
                 if primitive.fill is None and not primitive.closed:
                     shape["fill"] = "none"
                     shape["stroke"] = primitive.stroke or part.fill
+                if primitive.repeat_x:
+                    radius, count, cell_width = repeat_layout(node, part, primitive, rect)
+                    for index in range(count):
+                        center = rect["x"] + (index + 0.5) * cell_width
+                        shapes.append({**shape, "id": f"shape-{len(shapes) + 1}",
+                                       "points": [[center + (x - 0.5) * 2 * radius,
+                                                   rect["y"] + y * rect["height"]] for x, y in primitive.points],
+                                       "closed": primitive.closed})
+                    continue
+                shape.update(points=[[rect["x"] + x * rect["width"], rect["y"] + y * rect["height"]]
+                                     for x, y in primitive.points], closed=primitive.closed)
             else:
                 warnings.append("An unsupported schematic primitive was omitted.")
                 continue
@@ -374,7 +448,8 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
                 bridge_requests.append((node, part))
                 continue
             for placement in ([p for p in placements if p.group is group] if group else [None]):
-                append_part(node, part, rectangle(node.bounds, placement))
+                append_part(node, part, rectangle(part.display_bounds or node.bounds, placement,
+                                                  source_owner_bounds.get(id(node.container))))
 
     seen_bridges = set()
     for node, part in bridge_requests:

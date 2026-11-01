@@ -85,7 +85,9 @@ class Bounds:
 class Primitive:
     """Local fractions; circle radius uses local height.
 
-    repeat_x fills the display width with equally spaced circles, ignoring cx.
+    repeat_x fills the display width with equally spaced circles or path motifs.
+    For repeated paths, r sets the target half-width relative to display height;
+    points describe one motif in local fractions.
     """
     kind: str = "rect"
     x: float = 0
@@ -132,6 +134,12 @@ class SchematicPart:
     layout: str = "node"
     eligible_container_ids: tuple[str, ...] = ()
     occluded_by: tuple[str, ...] = ()
+    # Measurements come from source_id; display bounds remain relative to the
+    # emitting node's component. Neither changes the physical source geometry.
+    source_id: str | None = None
+    display_bounds: Bounds | None = None
+    # Local to one emitting node: members share horizontal repetition metrics.
+    repeat_group: str | None = None
 
 
 Presenter = Callable[[SchematicContext], list[SchematicPart]]

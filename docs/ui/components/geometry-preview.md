@@ -120,9 +120,12 @@ SVG 依 `viewBox` 顯示；不以原始 XY／實際 wafer 寬度縮小到無法�
 
 - 每組 `wafer-dmy` 兩顆置於最左與最右；LSI 三顆；DRAM、SoC、SoIC 與其他類型各一顆。
   相同結構合併，厚度、放置高度或內部堆疊不同則分組保留，子層不當成額外 die。
-- RDL 使用固定少量短柱、landing 與錯開水平線；bump 沿各自 geometry 的顯示寬度以圓形
-  等間距鋪滿，保留小間隙與左右邊距，窄面至少一顆。正 density 大小不影響符號疏密，
-  零 density 不畫符號。Joined bump 接合區以遮蔽避免重複畫。
+- RDL 使用固定少量短柱、landing 與錯開水平線；Joint presenter 以完整圓形顯示 `joined` bump。
+  PnP presenter 僅在上下兩側 reflowed bump 有唯一的 XY 正面積重疊與 Z 接觸、且雙側 density 大於零時，
+  畫成平面貼本體、弧面相對的上下半圓；兩側共用顆數與水平中心，各自保留實際高度和厚度明細。
+  下側只畫在上側 bump 的代表寬度內，carrier 外側保持空白。正 density 大小不影響符號疏密。
+  單側 reflowed、deposited 與零 density 不畫符號或列入部件明細，原始幾何及總厚度仍保留。
+  已配對與未配對元件分組保留；Joint 後改為完整圓球，沒有同一接點的殘留半圓。
 - 只有 target 實際存在 UF body 才顯示 UF，依其 Z 區間畫在 scope 內有 bump 的 die 下方，
   及相鄰合格代表 die 間。不依 dummy key 排除、不穿越未入選 die。
 - 厚度使用最終 snapshot 的實際 Z 區間，包含磨薄、整層移除與翻轉。零厚度不畫成有厚度實體。

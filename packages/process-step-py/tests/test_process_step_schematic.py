@@ -3,10 +3,11 @@ from __future__ import annotations
 import copy
 import unittest
 
-from process_flow_kernel import BoxGeometry, PolygonGeometry
-from process_flow_schematic import SchematicContext, geometry_bounds
-from process_flow_steps.bump.schematic import present_schematic as present_bump
+from process_flow_kernel import BoxGeometry
+from process_flow_schematic import SchematicContext, SchematicRegistry, geometry_bounds
+from process_flow_steps.joint.schematic import present_schematic as present_joint
 from process_flow_steps.layer.rdl_schematic import present_circuit, present_via
+from process_flow_steps.schematic_presenters import register_presenters
 from process_flow_steps.uf.schematic import present_schematic as present_underfill
 
 
@@ -28,42 +29,36 @@ def bump(id="bump", geometry=None, stage="reflowed", density=40):
 
 class StepPresenterTests(unittest.TestCase):
     def test_symbol_motifs_ignore_positive_density_and_zero_density_is_absent(self):
-        for presenter, kind, expected_count in ((present_bump, "bump", 1),
+        for presenter, kind, expected_count in ((present_joint, "bump", 1),
                 (present_via, "via", 9), (present_circuit, "circuit", 4)):
             with self.subTest(kind=kind):
-                low = bump(density=1)
-                high = bump(density=100)
+                low = bump(stage="joined", density=1)
+                high = bump(stage="joined", density=100)
                 before = copy.deepcopy(low)
                 low_part = presenter(context(low, kind=kind))[0]
                 high_part = presenter(context(high, kind=kind))[0]
                 self.assertEqual(low_part.primitives, high_part.primitives)
                 self.assertEqual(len(low_part.primitives), expected_count)
-                self.assertEqual(presenter(context(bump(density=0), kind=kind)), [])
+                self.assertEqual(presenter(context(bump(stage="joined", density=0), kind=kind)), [])
                 self.assertEqual(low, before)
 
-    def test_bump_requests_horizontal_circle_repetition(self):
-        part = present_bump(context(bump(), kind="bump"))[0]
+    def test_joint_owns_bump_presentation_and_requests_horizontal_circle_repetition(self):
+        registry = SchematicRegistry()
+        register_presenters(registry)
+        presenter = registry.resolve("bump", None)
+        self.assertEqual(presenter(context(bump(stage="joined"), kind="bump")),
+                         present_joint(context(bump(stage="joined"), kind="bump")))
+        part = presenter(context(bump(stage="joined"), kind="bump"))[0]
         self.assertEqual(part.primitives[0].kind, "circle")
         self.assertTrue(part.primitives[0].repeat_x)
 
-    def test_joined_bumps_own_only_overlapping_ancestor_symbols(self):
-        source = bump()
-        overlapping = {"id": "joined-die", "bumps": [bump("upper", box(thickness=6), "joined")]}
-        other_layer = {"id": "other-layer", "bumps": [bump("other", box(z=10), "joined")]}
-        touching = {"id": "touching", "bumps": [bump("touch", box(x=20), "joined")]}
-        root = {"id": "root", "bumps": [source], "children": [overlapping, other_layer, touching]}
-        part = present_bump(context(source, root, kind="bump"))[0]
-        self.assertEqual(part.occluded_by, ("upper",))
-        self.assertEqual(present_bump(context(overlapping["bumps"][0], overlapping, (root,), "bump"))[0].occluded_by, ())
-
-    def test_polygon_holes_do_not_claim_joint_ownership(self):
-        source = bump(geometry=PolygonGeometry([
-            [[0, 0, 0], [20, 0, 0], [20, 20, 0], [0, 20, 0]],
-            [[5, 5, 0], [15, 5, 0], [15, 15, 0], [5, 15, 0]],
-        ], 10).json())
-        in_hole = bump("upper", BoxGeometry([7, 7, 0], [13, 13, 0], 6).json(), "joined")
-        root = {"id": "root", "bumps": [source], "children": [{"id": "inside-hole", "bumps": [in_hole]}]}
-        self.assertEqual(present_bump(context(source, root, kind="bump"))[0].occluded_by, ())
+    def test_unjoined_bumps_are_hidden_even_without_a_matching_joint(self):
+        for stage in ("deposited", "reflowed"):
+            with self.subTest(stage=stage):
+                source = bump(stage=stage)
+                before = copy.deepcopy(source)
+                self.assertEqual(present_joint(context(source, kind="bump")), [])
+                self.assertEqual(source, before)
 
     def test_underfill_uses_bumped_components_including_dummy_and_other(self):
         uf = {"id": "uf-body", "key": "uf", "material": "UF", "geometry": box(thickness=3)}

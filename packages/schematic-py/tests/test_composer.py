@@ -4,7 +4,7 @@ import math
 import unittest
 
 from process_flow_schematic import (
-    ComponentHint, Primitive, SchematicPart, SchematicRegistry, compose_schematic,
+    Bounds, ComponentHint, Primitive, SchematicPart, SchematicRegistry, compose_schematic,
     geometry_bounds, slab,
 )
 
@@ -237,6 +237,49 @@ class ComposerTests(unittest.TestCase):
                 doc = compose_schematic(structure(container("root", bodies=[body("layer", 0, 5)])), registry)
                 self.assertEqual(len(doc["warnings"]), 1)
                 self.assertEqual([shape["kind"] for shape in doc["shapes"]], ["rect"])
+
+    def test_referenced_parts_keep_physical_measurements_and_share_path_repetition(self):
+        registry = SchematicRegistry()
+        registry.register("container", component, key="test-die")
+        def relation(context):
+            if context.node["id"] != "upper":
+                return []
+            return [SchematicPart("Contact", source_id=source_id, display_bounds=bounds, repeat_group="pair",
+                primitives=(Primitive(kind="path", points=((0, 0), (0.5, 1), (1, 0)), closed=True,
+                                      repeat_x=True, r=1),)) for source_id, bounds in (
+                    ("upper", Bounds(30, 0, 20, 50, 100, 30)),
+                    ("lower", Bounds(30, 0, 0, 50, 100, 20)))]
+        registry.register("body", relation)
+        source = structure(container("root", bodies=[body("lower", 0, 20, material="Lower")], children=[
+            container("die", key="test-die", bodies=[body("upper", 20, 10, material="Upper", x=30, width=20)])]))
+        before = copy.deepcopy(source)
+        document = compose_schematic(source, registry)
+        upper = next(item for item in document["items"] if item["sourceIds"] == ["upper"])
+        lower = next(item for item in document["items"] if item["sourceIds"] == ["lower"])
+        self.assertEqual((lower["material"], lower["zMin"], lower["thickness"]), ("Lower", 0, 20))
+        self.assertEqual((upper["material"], upper["zMin"], upper["thickness"]), ("Upper", 20, 10))
+        rows = [[s for s in document["shapes"] if s["itemId"] == item["id"]] for item in (upper, lower)]
+        self.assertEqual(len(rows[0]), len(rows[1]))
+        self.assertGreater(len(rows[0]), 0)
+        for a, b in zip(*rows):
+            self.assertEqual([p[0] for p in a["points"]], [p[0] for p in b["points"]])
+        self.assertEqual(document["schemaVersion"], 1)
+        self.assertEqual(document["warnings"], [])
+        self.assertEqual(source, before)
+
+    def test_invalid_source_and_display_bounds_fall_back_without_losing_geometry(self):
+        for options in ({"source_id": "missing"}, {"source_id": ""},
+                        {"display_bounds": Bounds(0, 0, 0, 10, 10, math.inf)},
+                        {"display_bounds": Bounds(10, 0, 0, 0, 10, 1)}, {"repeat_group": ""}):
+            with self.subTest(options=options):
+                registry = SchematicRegistry()
+                registry.register("body", lambda context: [SchematicPart("Invalid", primitives=(Primitive(),), **options)])
+                source = structure(container("root", bodies=[body("layer", 0, 5)]))
+                before = copy.deepcopy(source)
+                document = compose_schematic(source, registry)
+                self.assertEqual(len(document["warnings"]), 1)
+                self.assertEqual(document["items"][0]["sourceIds"], ["layer"])
+                self.assertEqual(source, before)
 
     def test_relation_cannot_cross_an_ineligible_component(self):
         registry = SchematicRegistry()
