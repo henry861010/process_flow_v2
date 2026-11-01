@@ -26,6 +26,13 @@ Z uses a shared monotonic piecewise transform, with a minimum height for thin
 intervals; the document always includes unscaled physical Z and thickness values.
 The SVG consumer understands only generic shapes, measurements and selection IDs.
 
+Circle primitives may set `repeat_x=True` (default `False`) to fill their display
+rectangle with an equally spaced row; this requires a positive radius and ignores
+`cx`. The composer uses radius `min(r * display_height, display_width / 2.8)` and
+target pitch `1.4 * diameter`, fits at least one circle, and centers each circle in
+an equal-width cell. Repetition precedes clipping, so exclusions retain the row's
+spacing. It emits ordinary circle shapes without changing document schema version 1.
+
 Representation counts, feature motifs and relation eligibility are supplied by
 the owning producer packages. No process program, die name or recipe is interpreted
 here. JSON/STEP/CDB consumers continue using the unchanged physical structure.

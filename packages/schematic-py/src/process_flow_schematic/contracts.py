@@ -83,7 +83,10 @@ class Bounds:
 
 @dataclass(frozen=True)
 class Primitive:
-    """Coordinates are local fractions; circle radius uses local height."""
+    """Local fractions; circle radius uses local height.
+
+    repeat_x fills the display width with equally spaced circles, ignoring cx.
+    """
     kind: str = "rect"
     x: float = 0
     y: float = 0
@@ -97,6 +100,7 @@ class Primitive:
     stroke: str | None = None
     stroke_width: float = 0.8
     closed: bool = False
+    repeat_x: bool = False
 
 
 @dataclass(frozen=True)

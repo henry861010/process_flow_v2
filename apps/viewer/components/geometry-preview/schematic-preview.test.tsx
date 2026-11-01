@@ -88,6 +88,23 @@ describe("schematic preview", () => {
     expect(markup).toContain("Enter, or Space");
   });
 
+  it("keeps a filled circle row clipped and selectable as one thickness item", () => {
+    const circles = Array.from({ length: 40 }, (_, index) => ({
+      ...document.shapes[2], id: `contact-${index}`, cx: 30 + index * 19, r: 6,
+      clip: { x: 20, y: 140, width: 760, height: 20,
+        exclusions: [{ x: 250, y: 140, width: 150, height: 20 }] },
+    }));
+    const filled = { ...document, shapes: [document.shapes[0], ...circles] } as SchematicDocument;
+    const markup = renderToStaticMarkup(<SchematicDrawing document={filled} selectedItemId="contact" onSelect={() => {}} />);
+    expect(markup.match(/<circle /g)).toHaveLength(40);
+    expect(markup.match(/data-selected="true"/g)).toHaveLength(40);
+    expect(markup.match(/role="button"/g)).toHaveLength(2);
+    expect(markup.match(/aria-label="Assembly, Contact, 5 µm"/g)).toHaveLength(1);
+    expect(markup.match(/clip-path="url\(/g)).toHaveLength(40);
+    expect(new Set(Array.from(markup.matchAll(/<clipPath id="([^"]+)"/g), (match) => match[1])).size).toBe(40);
+    expect(markup).toContain('d="M 20 140 h 760 v 20 h -760 Z M 250 140 h 150 v 20 h -150 Z"');
+  });
+
   it("clips excluded regions with an evenodd path and unique per-instance IDs", () => {
     const markup = renderToStaticMarkup(<><SchematicDrawing document={document} selectedItemId={null} onSelect={() => {}} /><SchematicDrawing document={document} selectedItemId={null} onSelect={() => {}} /></>);
     const ids = Array.from(markup.matchAll(/<clipPath id="([^"]+)"/g), (match) => match[1]);

@@ -58,8 +58,10 @@ Unexpected composition failure 回傳可匯出的 snapshot、null document 與�
 
 `wafer-dmy` 每組兩顆置於左右；LSI 三顆；其他類型各一顆。相同 semantic key、基礎材料、內部結構
 與實際 Z 區間可合併，忽略 placement 數量、XY 與 runtime material `_dupN` 後綴。
-RDL 使用固定少量短柱、landing 與水平線；bump 使用圓形。正 density 的符號數固定，零 density
-不畫符號。Joined bump 保留 ownership，避免接合區重複。
+RDL 使用固定少量短柱、landing 與水平線；bump 使用圓形，依各自 geometry 的顯示寬度等間距
+重複鋪滿，保留間隙與左右邊距。正 density 大小不影響符號疏密，零 density 不畫符號。
+水平重複是 presenter 提供的通用 circle primitive 提示，由 composer 在顯示尺寸確定後展開。
+Joined bump 保留 ownership，對完整排列套用遮蔽，避免接合區重複。
 
 UF 必須已有實際 UF body，依其 Z 範圍畫在 scope 內有 bump 的代表 die 下方與相鄰合格 die 間；
 不依 dummy key 排除、不穿越不合格 die、不自行新增 UF。RDL 與 UF producers 分別標記 `rdl`／`uf`

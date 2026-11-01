@@ -27,8 +27,8 @@ def bump(id="bump", geometry=None, stage="reflowed", density=40):
 
 
 class StepPresenterTests(unittest.TestCase):
-    def test_symbols_are_fixed_sparse_and_zero_density_is_absent(self):
-        for presenter, kind, expected_count in ((present_bump, "bump", 3),
+    def test_symbol_motifs_ignore_positive_density_and_zero_density_is_absent(self):
+        for presenter, kind, expected_count in ((present_bump, "bump", 1),
                 (present_via, "via", 9), (present_circuit, "circuit", 4)):
             with self.subTest(kind=kind):
                 low = bump(density=1)
@@ -40,6 +40,11 @@ class StepPresenterTests(unittest.TestCase):
                 self.assertEqual(len(low_part.primitives), expected_count)
                 self.assertEqual(presenter(context(bump(density=0), kind=kind)), [])
                 self.assertEqual(low, before)
+
+    def test_bump_requests_horizontal_circle_repetition(self):
+        part = present_bump(context(bump(), kind="bump"))[0]
+        self.assertEqual(part.primitives[0].kind, "circle")
+        self.assertTrue(part.primitives[0].repeat_x)
 
     def test_joined_bumps_own_only_overlapping_ancestor_symbols(self):
         source = bump()

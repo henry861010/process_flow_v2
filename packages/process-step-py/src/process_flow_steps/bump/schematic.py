@@ -28,8 +28,7 @@ def present_schematic(context: SchematicContext) -> list[SchematicPart]:
     return [SchematicPart(
         label="Bump · " + base_material(context.node.get("material", "Bump")),
         fill="#d9b85e",
-        primitives=tuple(Primitive(kind="circle", cx=x, cy=0.5, r=0.42,
-                                    fill="#d9b85e", stroke="#9a772e")
-                         for x in (0.2, 0.5, 0.8)),
+        primitives=(Primitive(kind="circle", cy=0.5, r=0.42, repeat_x=True,
+                              fill="#d9b85e", stroke="#9a772e"),),
         occluded_by=tuple(dict.fromkeys(occluded_by)),
     )]

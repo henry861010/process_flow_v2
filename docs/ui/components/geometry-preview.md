@@ -24,7 +24,7 @@ source_of_truth:
 
 `GeometryPreviewPanel` 是 Flow Editor 的 full-page overlay；input 與 step output 都可使用。
 以 SVG 剖面顯示 process flow 與採用 recipes 計算後的結構、剩餘層厚與總厚度，協助確認 grinding
-是否改變預期堆疊。固定代表顆數與符號不表示實際 PnP placement、bump／via 數量或 density。
+是否改變預期堆疊。代表顆數與示意符號不表示實際 PnP placement、bump／via 數量或 density。
 
 ```ts
 type GeometryPreviewContext = {
@@ -120,8 +120,9 @@ SVG 依 `viewBox` 顯示；不以原始 XY／實際 wafer 寬度縮小到無法�
 
 - 每組 `wafer-dmy` 兩顆置於最左與最右；LSI 三顆；DRAM、SoC、SoIC 與其他類型各一顆。
   相同結構合併，厚度、放置高度或內部堆疊不同則分組保留，子層不當成額外 die。
-- RDL 使用固定少量短柱、landing 與錯開水平線；bump 使用圓形。正 density 的符號數固定，
-  零 density 不畫符號。Joined bump 接合區不重複畫。
+- RDL 使用固定少量短柱、landing 與錯開水平線；bump 沿各自 geometry 的顯示寬度以圓形
+  等間距鋪滿，保留小間隙與左右邊距，窄面至少一顆。正 density 大小不影響符號疏密，
+  零 density 不畫符號。Joined bump 接合區以遮蔽避免重複畫。
 - 只有 target 實際存在 UF body 才顯示 UF，依其 Z 區間畫在 scope 內有 bump 的 die 下方，
   及相鄰合格代表 die 間。不依 dummy key 排除、不穿越未入選 die。
 - 厚度使用最終 snapshot 的實際 Z 區間，包含磨薄、整層移除與翻轉。零厚度不畫成有厚度實體。
@@ -149,5 +150,6 @@ Overlay 使用共用 dialog stack／focus lifecycle；nested Export 的 Escape�
 | `UI-SCHEMATIC-005` | 選取圖形或明細 | 對應內容互相醒目，明細可用 keyboard 選取。 |
 | `UI-SCHEMATIC-006` | 缺 presenter／presenter 失敗 | 通用 fallback 與提示可讀；原始匯出仍可用。 |
 | `UI-SCHEMATIC-007` | 390px 與桌面 viewport | 圖、明細與 footer 可達，無標籤嚴重重疊。 |
+| `UI-SCHEMATIC-008` | 寬 carrier 與窄 HBM 的 bump geometry | 各自沿顯示寬度等間距鋪滿，圓形不超界；接合區不重複，選取仍對應原厚度明細。 |
 
 自動測試與 browser 驗收進度只記錄於 [conformance](../../conformance.md)，不以此規格宣稱已完成。

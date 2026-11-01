@@ -113,6 +113,10 @@ def _validate_parts(parts):
                 raise ValueError("Non-finite schematic coordinates")
             if min(primitive.width, primitive.height, primitive.r, primitive.stroke_width) < 0:
                 raise ValueError("Negative schematic dimensions")
+            if not isinstance(primitive.repeat_x, bool) or (
+                primitive.repeat_x and (primitive.kind != "circle" or primitive.r <= 0)
+            ):
+                raise ValueError("Horizontal repetition requires a circle with positive radius")
 
 
 def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry) -> SchematicDocument:
@@ -336,6 +340,15 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
                 shape.update(x=rect["x"] + primitive.x * rect["width"], y=rect["y"] + primitive.y * rect["height"],
                              width=primitive.width * rect["width"], height=primitive.height * rect["height"])
             elif primitive.kind == "circle":
+                if primitive.repeat_x:
+                    radius = min(primitive.r * rect["height"], rect["width"] / 2.8)
+                    count = max(1, math.floor(rect["width"] / (2 * radius * 1.4)))
+                    cell_width = rect["width"] / count
+                    for index in range(count):
+                        shapes.append({**shape, "id": f"shape-{len(shapes) + 1}",
+                                       "cx": rect["x"] + (index + 0.5) * cell_width,
+                                       "cy": rect["y"] + primitive.cy * rect["height"], "r": radius})
+                    continue
                 shape.update(cx=rect["x"] + primitive.cx * rect["width"], cy=rect["y"] + primitive.cy * rect["height"],
                              r=min(primitive.r * rect["height"], rect["width"] * 0.14))
             elif primitive.kind == "path":

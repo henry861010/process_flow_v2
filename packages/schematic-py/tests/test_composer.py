@@ -165,6 +165,79 @@ class ComposerTests(unittest.TestCase):
         self.assertEqual(len(cuts), 1)  # both equivalent source containers map to one representative
         self.assertGreater(cuts[0]["width"], 0)
 
+    def test_repeated_circles_fill_wide_narrow_and_thin_display_bounds(self):
+        counts = {}
+        for name, component_width, thickness in (("wide", None, 10), ("die", 100, 10),
+                                                  ("narrow", 0.1, 10), ("thin", 100, 0.0001)):
+            with self.subTest(name=name):
+                registry = SchematicRegistry()
+                registry.register("bump", lambda context: [SchematicPart("Contact", primitives=(
+                    Primitive(kind="circle", r=0.42, repeat_x=True),))])
+                contact = {**body("contact", 0, thickness, width=component_width or 100), "density": 1}
+                if component_width is None:
+                    root = container("root", bumps=[contact])
+                else:
+                    registry.register("container", lambda context: [SchematicPart(
+                        "Die", component=ComponentHint("Die"))], key="die")
+                    root = container("root", children=[container("die", key="die", bumps=[contact],
+                        bodies=[body("silicon", thickness, 20)])])
+                source = structure(root)
+                before = copy.deepcopy(source)
+                doc = compose_schematic(source, registry)
+                circles = [shape for shape in doc["shapes"] if shape["kind"] == "circle"]
+                counts[name] = len(circles)
+                self.assertTrue(circles)
+                self.assertEqual(doc["warnings"], [])
+                rect = circles[0]["clip"]
+                radius = circles[0]["r"]
+                left_margin = circles[0]["cx"] - radius - rect["x"]
+                right_margin = rect["x"] + rect["width"] - circles[-1]["cx"] - radius
+                self.assertAlmostEqual(left_margin, right_margin)
+                self.assertGreater(left_margin, 0)
+                self.assertLess(left_margin, 2 * radius)
+                for circle in circles:
+                    self.assertEqual(circle["r"], radius)
+                    self.assertGreaterEqual(circle["cy"] - radius, rect["y"])
+                    self.assertLessEqual(circle["cy"] + radius, rect["y"] + rect["height"])
+                for left, right in zip(circles, circles[1:]):
+                    gap = right["cx"] - left["cx"]
+                    self.assertGreaterEqual(gap + 1e-9, 2.8 * radius)
+                    self.assertAlmostEqual(gap, circles[1]["cx"] - circles[0]["cx"])
+                self.assertEqual(len({shape["id"] for shape in doc["shapes"]}), len(doc["shapes"]))
+                item = next(item for item in doc["items"] if "contact" in item["sourceIds"])
+                self.assertEqual({shape["itemId"] for shape in circles}, {item["id"]})
+                self.assertEqual(source, before)
+                json.dumps(doc, allow_nan=False)
+        self.assertGreater(counts["wide"], counts["die"])
+        self.assertGreater(counts["thin"], counts["die"])
+        self.assertEqual(counts["narrow"], 1)
+
+    def test_repeated_circle_clipping_preserves_the_full_row_pattern(self):
+        source = structure(container("root", bodies=[body("base", 0, 10, key="contacts")], children=[
+            container("die", bodies=[body("silicon", 0, 20)]),
+        ]))
+        documents = []
+        for exclusions in ((), ("die",)):
+            registry = SchematicRegistry()
+            registry.register("body", lambda context: [SchematicPart("Contacts", primitives=(
+                Primitive(kind="circle", r=0.42, repeat_x=True),), occluded_by=exclusions)], key="contacts")
+            documents.append(compose_schematic(source, registry))
+        plain, masked = [[shape for shape in doc["shapes"] if shape["kind"] == "circle"] for doc in documents]
+        self.assertGreater(len(masked), 3)
+        self.assertEqual([(s["cx"], s["cy"], s["r"]) for s in plain],
+                         [(s["cx"], s["cy"], s["r"]) for s in masked])
+        self.assertTrue(all(s["clip"]["exclusions"] for s in masked))
+
+    def test_invalid_horizontal_repetition_falls_back_per_node(self):
+        for primitive in (Primitive(repeat_x=True), Primitive(kind="path", repeat_x=True),
+                          Primitive(kind="circle", repeat_x=1), Primitive(kind="circle", r=0, repeat_x=True)):
+            with self.subTest(primitive=primitive):
+                registry = SchematicRegistry()
+                registry.register("body", lambda context: [SchematicPart("Bad", primitives=(primitive,))])
+                doc = compose_schematic(structure(container("root", bodies=[body("layer", 0, 5)])), registry)
+                self.assertEqual(len(doc["warnings"]), 1)
+                self.assertEqual([shape["kind"] for shape in doc["shapes"]], ["rect"])
+
     def test_relation_cannot_cross_an_ineligible_component(self):
         registry = SchematicRegistry()
         registry.register("container", lambda context: [SchematicPart("Component", component=ComponentHint(context.node["id"]))], key="die")
