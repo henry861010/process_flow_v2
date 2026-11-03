@@ -1039,13 +1039,6 @@ function exportKindConfig(kind: FileExportKind) {
       placeholder: "/Users/henry/Desktop/geometry-preview.json",
     };
   }
-  if (kind === "step") {
-    return {
-      label: "STEP",
-      extension: ".step",
-      placeholder: "/Users/henry/Desktop/geometry-preview.step",
-    };
-  }
   return {
     label: "CDB",
     extension: ".cdb",

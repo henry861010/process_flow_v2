@@ -62,8 +62,9 @@ child subtree 的 Z；main 下側 bump 原始 envelope 保留。Joined feature �
 2D estimated section 都遮掉被接管的下側表示，保留接合區外的 wafer bump。Stage 也顯示
 於 feature 選取資訊。原始 GeometryStructure 不因顯示遮蔽而修改。
 
-STEP 將 child solids 從 ancestor solids 扣除；CDB 延用較深 container 的 assignment
-priority。兩者以 child joined envelope 表達接合區，避免將保留的下側資料重複實體化。
+CAD body resolver 將 child body solids 從 ancestor body solids 扣除，不實體化 bump envelope。
+CDB 延用較深 container 的 assignment priority，以 child joined envelope 表達接合區，
+避免將保留的下側資料重複實體化。
 3D density 與 schematic 固定符號都不代表個別 solder 的實際位置或形狀。
 欄位不改變 CAD／mesh 的 materialization 行為。完整 contract 見
 [Bump stage](../reference/geometry-structure.md#62-bump-stage)。
@@ -72,7 +73,7 @@ Feature `geometry` 是 envelope，`density` 是 0–100 percentage，`koz` 是�
 
 ## 空間優先順序
 
-目前 materialized CAD path 採用 descendant-over-ancestor：child subtree solid 會從 ancestor direct bodies/features 中扣除。這避免 ancestor 與 descendant 在同一 volume 重複表達 material。
+目前 materialized CAD path 採用 descendant-over-ancestor：child subtree solid 會從 ancestor direct bodies 中扣除。這避免 ancestor 與 descendant 在同一 volume 重複表達 material。
 
 Exact section延續相同ownership語意。切面若恰好與child wall及ancestor cavity wall共平面，OpenCascade
 可能同時回傳兩個有效boundary faces；section resolver會讓較深container先取得平面區域，再從ancestor
@@ -95,7 +96,6 @@ Geometry structure 本身不為不同 sibling branches 定義通用 ownership pr
 | Legacy GLB preview（current） | 輸出 materialized bodies | 不輸出 feature bodies；viewer 可由 JSON overlay | JSON overlay 可讀 | JSON overlay 可讀 | Box、Polygon、Cylinder、Cone |
 | Session binary display mesh（current） | 以geometryHash/version cache的binary GLB顯示resolved bodies | 仍不輸出feature bodies；manifest/viewer只顯示estimated overlay | metadata可讀，不改變body mesh | metadata可讀，不預先inset | Box、Polygon、Cylinder、Cone |
 | OCC exact body section（current） | 對resolved CadBody shape產生X/Y vertical body/material regions；viewer由contours產生caps | Exact response排除density feature；viewer可另疊加estimated envelope section pattern | 不改變body section | pattern metadata保留但不套KOZ | 跟隨CadBody resolver支援範圍 |
-| STEP AP242 | 輸出 materialized bodies | 以完整 feature envelope 輸出獨立 solid，名稱包含 feature/material/density | 不改變 solid 形狀 | 目前未做 XY inset | Box、Polygon、Cylinder、Cone |
 | Text CDB | 2.5D extrusion | 在 envelope 內以 deterministic density cell selection materialize | 目前忽略 | 目前忽略 | Box、Polygon、Cylinder；Cone 不支援 |
 
 因此「所有 downstream consumer 都已套用 `koz`」不是現況。若 workflow 依賴 `koz` 或 direction-aware mesh，必須先補 consumer implementation 與 tests，不能只更新此文件。

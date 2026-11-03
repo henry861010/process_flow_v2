@@ -14,7 +14,7 @@ source_of_truth:
 
 # process-flow-cad
 
-CadQuery/OCP adapter，將 standard geometry structure轉成 GLB 或 STEP AP242 bytes。API以 short-lived subprocess使用此 package，隔離 native CAD memory lifecycle。
+CadQuery/OCP adapter，將 standard geometry structure轉成 GLB bytes。API以 short-lived subprocess使用此 package，隔離 native CAD memory lifecycle。
 
 ## 安裝
 
@@ -30,26 +30,23 @@ Dependencies：CadQuery 2.5+（<3）與 `process-flow-kernel`。
 from process_flow_cad import convert_cad_bodies, export_cad_bytes
 
 glb = export_cad_bytes(structure, format="glb", progress=optional_event_callback)
-step = export_cad_bytes(structure, format="step")
 ```
 
 Worker interface：
 
 ```bash
-python -m process_flow_cad.worker <glb|step> <input-json> <output-file>
+python -m process_flow_cad.worker glb <input-json> <output-file>
 ```
 
-Progress callback是optional；STEP worker以`PROCESS_FLOW_PROGRESS `prefix在stderr回報validation、
+Progress callback是optional；GLB worker以`PROCESS_FLOW_PROGRESS `prefix在stderr回報validation、
 analysis、CAD body conversion與output writing。Success artifact及既有Python回傳值不受影響。
 
 ## 現行語意
 
 - 支援 Box、Polygon（odd-even holes）、Cylinder、Cone。
 - GLB保留 Process Flow Z-up coordinates，只輸出 body solids。
-- STEP使用 structure `unitSystem`，並包含 feature envelope solids。
 - Descendant solids從ancestor solids扣除。
 - Same-container、same-material overlapping siblings union；cross-material overlap raise `CadExportError`。
-- Density/`koz` 不會改變 STEP feature envelope solid；它們只反映在 label/metadata semantics。
 
 Cross-consumer差異見 [Geometry Semantics](../../docs/concepts/geometry-semantics.md)。
 

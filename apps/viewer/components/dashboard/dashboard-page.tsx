@@ -106,7 +106,7 @@ function JobSection({ title, jobs, queued, advanceSeconds, stale }: {
       {jobs.length === 0 ? (
         <div className="p-8 text-center">
           <p className="text-sm font-medium">{queued ? "No jobs waiting" : "No jobs running"}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{queued ? "New queued exports will appear here." : "Active CDB, STEP and JSON exports will appear here."}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{queued ? "New queued exports will appear here." : "Active CDB and JSON exports will appear here."}</p>
         </div>
       ) : (
         <>

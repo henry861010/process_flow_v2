@@ -181,9 +181,6 @@ export function GeometryPreviewPanel({
             <FileJson />
             Export JSON
           </Button>
-          <Button variant="outline" disabled={!ready} onClick={() => openFileExportDialog("step")}>
-            <Download />Export STEP
-          </Button>
           <Button
             variant="outline"
             disabled={!ready}

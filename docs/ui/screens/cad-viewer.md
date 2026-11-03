@@ -131,7 +131,7 @@ Reset的 normative baseline是**保留目前 `cameraView`**並重新 fit。它�
 | Imported | loaded object、new bounds/stats | filename、kind、size |
 | Error | existing/demo仍可inspect | destructive error copy |
 
-本 viewer不提供 measurement、annotation、body selection/edit、STEP import、geometry JSON edit。
+本 viewer不提供 measurement、annotation、body selection/edit、geometry JSON edit。
 
 ## 響應式、鍵盤與 ARIA
 

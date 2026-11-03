@@ -23,7 +23,6 @@ from .geometry_resolver import StoreGeometryCatalog
 from .identifiers import generated_flow_id
 from .models import (
     GeometryPreviewRequest,
-    GeometryPreviewStepRequest,
     ProcessFlowCreate,
     ProcessFlowUpdate,
     ProcessStepTemplate,
@@ -507,11 +506,6 @@ async def preview_geometry(
         "glbBase64": base64.b64encode(glb_bytes).decode("ascii"),
         "executionWarnings": copy.deepcopy(list(selected.execution_warnings)),
     }
-
-
-async def preview_step_geometry(body: GeometryPreviewStepRequest) -> JsonObject:
-    step_bytes = await export_geometry(body.geometryStructure, format="step")
-    return {"stepBase64": base64.b64encode(step_bytes).decode("ascii")}
 
 
 def build_geometry_entity_download(

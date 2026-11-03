@@ -82,7 +82,7 @@ def prepare_section_geometry(
     """Normalize and resolve geometry once for repeated exact sections."""
 
     structure = normalize_geometry_structure(geometry_structure)
-    converter = CadQueryConverter(CadExportOptions(include_feature_bodies=False))
+    converter = CadQueryConverter(CadExportOptions())
     bodies = converter.convert_bodies(structure)
     unit_system = structure.get("unitSystem", "um")
     if not isinstance(unit_system, str) or not unit_system:

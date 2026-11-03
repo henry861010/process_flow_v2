@@ -30,7 +30,7 @@ source_of_truth:
 | UI-FLOW-004 | 刪除 C4 node 後更新 flow，definition 與 stepConfigurations 同步少一站；來源仍保留原內容。另存記錄直接來源 revision 1，副本更新至 revision 2。來源更新／刪除隔離另有 API regression。 |
 | UI-FLOW-005 | 保存 Recipe viewing draft，再從 Management → Drafts → Resume；畫布、viewport、目前查看 Recipe 1、採用 Thicker molding 與原 target revision 均保留。 |
 | UI-FLOW-006 | 第二分頁將來源更新至 revision 2；第一分頁以 revision 1 commit 得到 409，recipe 編輯內容與草稿保留。選 Save as new flow 成功，原草稿在 transaction 成功後刪除。 |
-| UI-FLOW-007 | molding 上游局部預覽成功，bounds 為 310000×310000×1420，採用 thickness=220。JSON、STEP、CDB 三種工作皆完成，CDB 為 32 elements／80 nodes／4 components，匯出檔實際存在且非空。 |
+| UI-FLOW-007 | molding 上游局部預覽成功，bounds 為 310000×310000×1420，採用 thickness=220。當時 JSON、STEP、CDB 三種工作皆完成（STEP 匯出已於 2026-11-03 移除，此處為歷史紀錄），CDB 為 32 elements／80 nodes／4 components，匯出檔實際存在且非空。 |
 | UI-FLOW-008 | Recipe labels 同時呈現編輯／採用；鍵盤 Backspace 刪站同步清理 configuration。Preview／Export 取得初始焦點；Escape 僅關閉最上層 Export 並還原 trigger，Preview 與站點面板保持開啟。 |
 
 ![Currently editing Recipe 1 while Thicker molding remains adopted](recipe-candidates-1280x720.png)

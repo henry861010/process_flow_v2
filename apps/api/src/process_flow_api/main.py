@@ -39,8 +39,6 @@ from .models import (
     GeometryMaterializationResponse,
     GeometryPreviewRequest,
     GeometryPreviewResponse,
-    GeometryPreviewStepRequest,
-    GeometryPreviewStepResponse,
     MeshControlSetApplyRequest,
     MeshControlSetApplyResponse,
     MeshControlSetDefinition,
@@ -67,7 +65,6 @@ from .services import (
     update_flow,
     execute_flow,
     preview_geometry,
-    preview_step_geometry,
     require_item,
     update_process_step_template,
     validate_process_step_template,
@@ -427,10 +424,6 @@ def create_app(
             return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
         response.headers.update(headers)
         return asset.content
-
-    @app.post("/api/geometry-preview/step", response_model=GeometryPreviewStepResponse)
-    async def geometry_preview_step(body: GeometryPreviewStepRequest):
-        return await preview_step_geometry(body)
 
     @app.get("/api/mesh-control-sets", response_model=list[MeshControlSetDefinition])
     async def list_mesh_control_sets():

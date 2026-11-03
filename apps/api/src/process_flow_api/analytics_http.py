@@ -22,7 +22,6 @@ OPERATIONS = {
     ("POST", "/api/process-flows/{flow_id}/execute"): "flow.execute",
     ("POST", "/api/geometry-preview"): "flow.preview",
     ("POST", "/api/preview-sessions"): "flow.preview",
-    ("POST", "/api/geometry-preview/step"): "geometry.preview",
     ("POST", "/api/geometry-generators/{generator_id}/preview"): "generator.preview",
     ("POST", "/api/geometry-materializations"): "geometry.materialize",
     ("POST", "/api/geometries"): "geometry.create",

@@ -14,7 +14,7 @@ Process Flow 是 local-first 的半導體製程建模 PoC。它以 ProcessFlow �
 | `packages/geometry_generators` | 可獨立安裝的 versioned geometry generators、manifest、registry、工程預覽與 component presenters。 |
 | `packages/schematic-py` | Schematic 純資料契約、registry、共用 composer 與圖形／厚度佈局工具。 |
 | `packages/mesh-control-py` | Python 定義的 mesh control sets 與 HBM 範例。 |
-| `packages/cad-py` | GeometryStructure 到 GLB / STEP AP242 的轉換。 |
+| `packages/cad-py` | GeometryStructure 到 GLB 的轉換。 |
 | `docs` | Target contract、現行架構、UI 規格、操作手冊與 conformance ledger。 |
 
 系統邊界與 dependency direction 見

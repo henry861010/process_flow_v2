@@ -197,7 +197,7 @@ Runtime MUST NOT 接受 ProcessFlowTemplate／ProcessFlowInstance、flow status�
 
 先依 selectedRecipeId 取得有效參數，再分析 dependencies、檢查完整度並 compile。PnP 的 `placements: []` 只依採用 recipe 裁剪 auxiliary 依賴。非採用候選不參與運算。Kernel 只接收已解析 ExecutionPlan，不讀 repository 或候選集合。
 
-Preview request 只接受完整 inline `flow: {definition, configuration}` 或 `flowId`，兩者擇一。快取 identity 包含 definition、configuration、step definitions、catalog geometry 與 target；切換採用、改值、改線或 binding 不能命中舊結果。JSON／STEP／CDB 匯出使用相同解析脈絡。
+Preview request 只接受完整 inline `flow: {definition, configuration}` 或 `flowId`，兩者擇一。快取 identity 包含 definition、configuration、step definitions、catalog geometry 與 target；切換採用、改值、改線或 binding 不能命中舊結果。JSON／CDB 匯出使用相同解析脈絡。
 
 API 詳見 [Process Flow API](reference/process-flow-api.md)，SQLite 升級詳見 [Persistence](reference/persistence.md)。
 

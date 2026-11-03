@@ -523,11 +523,6 @@ class GeometryPreviewRequest(StrictModel):
         return self
 
 
-class GeometryPreviewStepRequest(StrictModel):
-    geometryStructure: JsonObject
-    analyticsContext: AnalyticsContext | None = None
-
-
 class MeshControlSetDefinition(StrictModel):
     id: str
     version: str
@@ -585,7 +580,7 @@ class CdbFileExportCreateRequest(StrictModel):
 class FileExportCreateRequest(StrictModel):
     analyticsContext: AnalyticsContext | None = None
     clientId: str = Field(min_length=1, max_length=160)
-    kind: Literal["cdb", "json", "step"]
+    kind: Literal["cdb", "json"]
     outputPath: str = Field(min_length=1)
     sourceLabel: str | None = None
     geometryStructure: JsonObject | None = None
@@ -601,11 +596,6 @@ class FileExportCreateRequest(StrictModel):
                 raise ValueError("meshControl is required for cdb export")
             if self.geometryEntityJson is not None:
                 raise ValueError("geometryEntityJson is not supported for cdb export")
-        elif self.kind == "step":
-            if self.geometryStructure is None:
-                raise ValueError("geometryStructure is required for step export")
-            if self.geometryEntityJson is not None or self.meshControl is not None:
-                raise ValueError("step export accepts only geometryStructure")
         else:
             if self.geometryEntityJson is None:
                 raise ValueError("geometryEntityJson is required for json export")
@@ -810,13 +800,9 @@ class PreviewSectionResponse(StrictModel):
     regions: list[PreviewSectionRegion]
 
 
-class GeometryPreviewStepResponse(StrictModel):
-    stepBase64: str
-
-
 FileExportStage = Literal[
     "preparing", "validating", "analyzing_geometry", "building_2d_mesh",
-    "building_3d_mesh", "building_cad_model", "writing_output", "finalizing",
+    "building_3d_mesh", "writing_output", "finalizing",
 ]
 FileExportProgressUnit = Literal["features", "layers", "bodies", "records"]
 
@@ -834,7 +820,7 @@ class FileExportProgress(StrictModel):
 class FileExportJob(StrictModel):
     jobId: str
     clientId: str
-    kind: Literal["cdb", "json", "step"]
+    kind: Literal["cdb", "json"]
     status: Literal["queued", "running", "success", "failed", "canceling", "canceled"]
     sourceLabel: str | None = None
     outputPath: str
@@ -877,7 +863,7 @@ class DashboardJobProgress(StrictModel):
 class DashboardJob(StrictModel):
     jobId: str
     targetFolderPath: str
-    kind: Literal["cdb", "json", "step"]
+    kind: Literal["cdb", "json"]
     status: Literal["queued", "running", "canceling"]
     createdAt: str
     startedAt: str | None = None

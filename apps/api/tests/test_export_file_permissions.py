@@ -77,13 +77,9 @@ class FileExportPermissionsTests(unittest.IsolatedAsyncioTestCase):
                 "process_flow_api.file_export_jobs.start_cdb_worker",
                 new=start_private_output_worker,
             ),
-            mock.patch(
-                "process_flow_api.file_export_jobs.start_cad_worker",
-                new=start_private_output_worker,
-            ),
             mock.patch.object(Path, "replace", autospec=True, side_effect=publish),
         ):
-            for kind in ("json", "cdb", "step"):
+            for kind in ("json", "cdb"):
                 with self.subTest(kind=kind):
                     created = await self.create_job(kind)
                     job = await self.wait_for_job(created["jobId"])
@@ -104,13 +100,9 @@ class FileExportPermissionsTests(unittest.IsolatedAsyncioTestCase):
                 "process_flow_api.file_export_jobs.start_cdb_worker",
                 new=start_private_output_worker,
             ),
-            mock.patch(
-                "process_flow_api.file_export_jobs.start_cad_worker",
-                new=start_private_output_worker,
-            ),
             mock.patch.object(Path, "chmod", autospec=True, side_effect=deny_primary),
         ):
-            for kind in ("json", "cdb", "step"):
+            for kind in ("json", "cdb"):
                 with self.subTest(kind=kind):
                     created = await self.create_job(kind)
                     job = await self.wait_for_job(created["jobId"])

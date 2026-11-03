@@ -4,7 +4,7 @@ const CLIENT_ID_STORAGE_KEY = "process-flow:export-client-id";
 const LEGACY_CLIENT_ID_STORAGE_KEY = "process-flow:cdb-export-client-id";
 let sessionClientId: string | undefined;
 
-export type FileExportKind = "cdb" | "json" | "step";
+export type FileExportKind = "cdb" | "json";
 
 export type SymmetryMode =
   | "full"
@@ -124,7 +124,6 @@ export type FileExportStage =
   | "analyzing_geometry"
   | "building_2d_mesh"
   | "building_3d_mesh"
-  | "building_cad_model"
   | "writing_output"
   | "finalizing";
 

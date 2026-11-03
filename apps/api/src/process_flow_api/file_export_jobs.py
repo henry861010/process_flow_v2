@@ -20,7 +20,6 @@ from typing import Any, Literal, cast
 from .analytics import AnalyticsRecorder, current_origin
 from .dashboard_progress import public_progress_message
 
-from .cad_exporter import cad_worker_error_message, start_cad_worker
 from .cdb_exporter import (
     cdb_worker_error_message,
     parse_cdb_worker_stdout,
@@ -35,7 +34,7 @@ from .export_job_logging import (
 )
 
 JsonObject = dict[str, Any]
-FileExportKind = Literal["cdb", "json", "step"]
+FileExportKind = Literal["cdb", "json"]
 FileExportStatus = Literal["queued", "running", "success", "failed", "canceling", "canceled"]
 FileExportStage = Literal[
     "preparing",
@@ -43,7 +42,6 @@ FileExportStage = Literal[
     "analyzing_geometry",
     "building_2d_mesh",
     "building_3d_mesh",
-    "building_cad_model",
     "writing_output",
     "finalizing",
 ]
@@ -203,9 +201,6 @@ class FileExportJobManager:
                 input_payload,
                 normalized_mesh_control,
             )
-        elif normalized_kind == "step":
-            input_payload = _required_json_object(geometry_structure, "geometryStructure")
-            input_path = _write_job_input(input_payload, normalized_kind)
         else:
             input_payload = _required_json_object(geometry_entity_json, "geometryEntityJson")
             input_path = _write_job_input(input_payload, normalized_kind, pretty=True)
@@ -552,19 +547,13 @@ class FileExportJobManager:
                 await self._mark_success(job_id, {})
                 return
 
-            if kind == "cdb":
-                if mesh_control_input_path is None:
-                    raise RuntimeError("CDB export is missing mesh_control.json.")
-                process = await start_cdb_worker(
-                    geometry_input_path=input_path,
-                    mesh_control_input_path=mesh_control_input_path,
-                    output_path=temp_output_path,
-                )
-            else:
-                process = await start_cad_worker(
-                    input_path=input_path,
-                    output_path=temp_output_path,
-                )
+            if mesh_control_input_path is None:
+                raise RuntimeError("CDB export is missing mesh_control.json.")
+            process = await start_cdb_worker(
+                geometry_input_path=input_path,
+                mesh_control_input_path=mesh_control_input_path,
+                output_path=temp_output_path,
+            )
 
             async with self._lock:
                 job = self._jobs.get(job_id)
@@ -589,16 +578,7 @@ class FileExportJobManager:
                 return
 
             if process.returncode != 0:
-                message = (
-                    cdb_worker_error_message(process.returncode, stdout, stderr)
-                    if kind == "cdb"
-                    else cad_worker_error_message(
-                        format="step",
-                        returncode=process.returncode,
-                        stdout=stdout,
-                        stderr=stderr,
-                    )
-                )
+                message = cdb_worker_error_message(process.returncode, stdout, stderr)
                 await self._mark_failed(
                     job_id,
                     message,
@@ -609,7 +589,7 @@ class FileExportJobManager:
                 )
                 return
 
-            metadata = parse_cdb_worker_stdout(stdout) if kind == "cdb" else {}
+            metadata = parse_cdb_worker_stdout(stdout)
             await self._start_stage(job_id, "finalizing", message="Finalizing output file.")
             await self._mark_success(job_id, metadata)
         except Exception as error:
@@ -1173,9 +1153,9 @@ def _normalize_client_id(value: str) -> str:
 
 def _normalize_file_export_kind(value: str) -> FileExportKind:
     normalized = str(value).strip().lower()
-    if normalized in {"cdb", "json", "step"}:
+    if normalized in {"cdb", "json"}:
         return normalized  # type: ignore[return-value]
-    raise ValueError("Export job kind must be one of: cdb, json, step.")
+    raise ValueError("Export job kind must be one of: cdb, json.")
 
 
 def _normalize_output_path(value: str, kind: FileExportKind) -> Path:
@@ -1361,7 +1341,6 @@ def _optional_stage(value: Any) -> FileExportStage | None:
         "analyzing_geometry",
         "building_2d_mesh",
         "building_3d_mesh",
-        "building_cad_model",
         "writing_output",
         "finalizing",
     }:

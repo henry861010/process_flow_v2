@@ -22,7 +22,7 @@ source_of_truth:
 
 ## 範圍
 
-Ready Geometry Preview可建立`json`、`step`、`cdb` background jobs。Job屬於browser client，
+Ready Geometry Preview可建立`json`、`cdb` background jobs。Job屬於browser client，
 關閉Preview不取消job。Root Layout透過`FileExportJobsProvider`常駐唯一drawer，Home、Flow Editor
 與其他頁面共用；頁面切換不重新建立polling。只顯示目前browser client的jobs，不跨client彙整。
 
@@ -32,14 +32,13 @@ Browser client ID存在localStorage `process-flow:export-client-id`；若只有l
 ## Export 表單
 
 點Preview footer action開 portal modal：fixed z `100`、16px margin；CDB form width
-`min(960px,100vw-32px)`，JSON/STEP width `min(760px,100vw-32px)`，max-height
-`min(92vh,900px)`、radius8、border、shadow。Header依kind顯示icon、`Export JSON/STEP/CDB`、
+`min(960px,100vw-32px)`，JSON width `min(760px,100vw-32px)`，max-height
+`min(92vh,900px)`、radius8、border、shadow。Header依kind顯示icon、`Export JSON/CDB`、
 source label、Close；footer固定顯示validation error、`Cancel`、primary `Export`，CDB的output path也位於footer並與操作按鈕同列；窄螢幕時output path排在按鈕上方。內容區獨立捲動。
 
 | Kind | Fields | Placeholder | Payload snapshot |
 | --- | --- | --- | --- |
 | JSON | Output path | `/Users/henry/Desktop/geometry-preview.json` | `geometryEntityJson` |
-| STEP | Output path | `/Users/henry/Desktop/geometry-preview.step` | `geometryStructure` |
 | CDB | Mesher + Global element size + Symmetry + Controls + Output path | `/Users/henry/Desktop/model.cdb` | `geometryStructure` + `meshControl` |
 
 CDB內容先顯示跨欄的 `Mesh configuration`，其下在 `lg` 以上是左側280px `Mesh setup` 與右側可伸縮的 `Mesh controls`，窄螢幕為單欄。
@@ -76,7 +75,7 @@ case-insensitive contains search；點外部或按Escape關閉。清單只供查
 Client只做基本輸入檢查：global/local size必須finite且`>0`、location數值必須finite。Reference、
 method欄位組合及完整mesh-control contract由package的本地validator負責；3D_REGION另由API解析幾何。Frontend不複製幾何規則，也
 不檢查reference是否存在、resolved Z、bounds、start/end順序或overlap。接著檢查path required、path以
-`/`開頭、extension case-insensitive符合`.json/.step/.cdb`。錯誤顯示在固定footer；local control輸入錯誤時自動展開並捲到該卡片，編輯後清除舊錯誤。
+`/`開頭、extension case-insensitive符合`.json/.cdb`。錯誤顯示在固定footer；local control輸入錯誤時自動展開並捲到該卡片，編輯後清除舊錯誤。
 
 Submitting時fields、Close、Cancel與backdrop close disabled；primary顯示spinner。成功後seed job到
 drawer、自動expand、關form；失敗保留form/value。
@@ -133,7 +132,7 @@ type FileExportProgress = {
   stage:
     | "preparing" | "validating" | "analyzing_geometry"
     | "building_2d_mesh" | "building_3d_mesh"
-    | "building_cad_model" | "writing_output" | "finalizing";
+    | "writing_output" | "finalizing";
   current: number | null;
   total: number | null;
   unit: "features" | "layers" | "bodies" | "records" | null;
@@ -146,7 +145,6 @@ type FileExportProgress = {
 | Kind | Stage順序 |
 | --- | --- |
 | JSON | preparing → writing_output → finalizing |
-| STEP | preparing → validating → analyzing_geometry → building_cad_model → writing_output → finalizing |
 | CDB | preparing → validating → analyzing_geometry → building_2d_mesh → building_3d_mesh → writing_output → finalizing |
 
 Circle imprint/extension及所有2D feature meshing都屬於`building_2d_mesh`；不存在獨立的

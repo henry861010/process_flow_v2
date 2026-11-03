@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) != 3:
         print(
             "Usage: python -m process_flow_cad.worker "
-            "<format> <input-json> <output-file>",
+            "glb <input-json> <output-file>",
             file=sys.stderr,
         )
         return 2
@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
         counts = _geometry_counts(geometry_structure)
         _complete_stage("analyzing_geometry", timer, data=counts)
 
-        body_total = counts["bodyCount"] + counts["featureCount"]
+        body_total = counts["bodyCount"]
         timer = _start_stage(
             "building_cad_model",
             "Building CAD model.",
@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
 
         timer = _start_stage(
             "writing_output",
-            "Writing STEP output.",
+            "Writing GLB output.",
             current=0,
             total=1,
             unit="records",
@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
                 "current": 1,
                 "total": 1,
                 "unit": "records",
-                "message": "STEP output written.",
+                "message": "GLB output written.",
                 "data": {},
             }
         )

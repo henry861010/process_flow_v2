@@ -16,7 +16,7 @@ DEFAULT_EXPORT_TIMEOUT_SECONDS = 30
 async def export_geometry(
     geometry_structure: JsonObject,
     *,
-    format: Literal["glb", "step"],
+    format: Literal["glb"],
     timeout_seconds: int | None = None,
 ) -> bytes:
     timeout = timeout_seconds or int(

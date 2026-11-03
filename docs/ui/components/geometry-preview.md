@@ -60,14 +60,14 @@ Preview 不建立 WebGL scene、不載入 GLB、不呼叫 exact section。沒有
 切換、旋轉、切面或 density 控制。既有 mesh／section routes、standalone CAD viewer 與 generator
 engineering preview 保留；legacy `POST /api/geometry-preview` 不供此 UI 使用。
 
-Document 與 session 僅留在 interaction memory。JSON／STEP／CDB 匯出必須使用同一 target 的原始
+Document 與 session 僅留在 interaction memory。JSON／CDB 匯出必須使用同一 target 的原始
 `geometryEntityJson`／`structure`，不得使用代表 die 複製、顯示位置、符號或放大厚度。Schematic
 失敗仍保留 snapshot 與匯出；`schematicWarnings`／document warnings 顯示為可讀提示。
 
 `executionWarnings` 是獨立的製程執行結果，預設為空；舊回應缺少此欄位時視為沒有警告。
 有警告時，在剖面圖上方顯示琥珀色 `Process warnings` 區塊，標示來源 step label 與說明，
 最多佔內容區高度 30%，可獨立捲動，剖面圖依剩餘空間 fit。即使 schematic 缺少或不支援，
-仍顯示製程警告，JSON／STEP／CDB 匯出維持可用。Joint 的高度保留警告必須說明設定與實際 SOH
+仍顯示製程警告，JSON／CDB 匯出維持可用。Joint 的高度保留警告必須說明設定與實際 SOH
 及既有填充／支撐材料的原因，後續 snapshot 顯示原始 joint 的來源 label。
 
 ## Overlay shell
@@ -82,7 +82,7 @@ Step output 主標題為 `<sourceLabel>`（flow-local step label；未設定沿�
 `Geometry Preview`，次行 `<sourceLabel> -> <slotLabel>`。保留 request badge `Loading/Ready/Error`、
 source badge 與右側 Close；長標題可換行，Close 不縮小。
 
-Footer actions 順序為 `Export JSON`、`Export STEP`、`Export CDB`。Snapshot ready 後可用，
+Footer actions 順序為 `Export JSON`、`Export CDB`。Snapshot ready 後可用，
 不依 schematic 是否成功。Backdrop、Close、Escape 關閉；unmount abort session request，
 不修改 editor draft、不取消已建立的 export jobs。
 

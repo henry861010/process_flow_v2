@@ -28,7 +28,6 @@ class ExportJobLogger:
         "analyzing_geometry": "Analyzing geometry",
         "building_2d_mesh": "Building 2D mesh",
         "building_3d_mesh": "Building 3D mesh",
-        "building_cad_model": "Building CAD model",
         "writing_output": "Writing output",
         "finalizing": "Finalizing files",
     }

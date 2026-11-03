@@ -83,8 +83,8 @@ class DashboardTests(unittest.TestCase):
     def test_global_counts_fifo_and_all_formats(self):
         self.add_job("queued-first", kind="json", client="client-a")
         self.add_job("running", kind="cdb", status="running", client="client-b")
-        self.add_job("queued-second", kind="step", client="client-b")
-        self.add_job("canceling", kind="step", status="canceling", client="client-c")
+        self.add_job("queued-second", kind="json", client="client-b")
+        self.add_job("canceling", kind="json", status="canceling", client="client-c")
         for status in ("success", "failed", "canceled"):
             self.add_job(status, status=status)
         payload = self.snapshot()
@@ -94,7 +94,7 @@ class DashboardTests(unittest.TestCase):
                          ["running", "canceling", "queued-first", "queued-second"])
         self.assertEqual([job["queuePosition"] for job in payload["jobs"]],
                          [None, None, 1, 2])
-        self.assertEqual({job["kind"] for job in payload["jobs"]}, {"cdb", "json", "step"})
+        self.assertEqual({job["kind"] for job in payload["jobs"]}, {"cdb", "json"})
         # Wall-clock timestamps deliberately disagree with the monotonic duration.
         self.assertAlmostEqual(payload["jobs"][0]["runElapsedSeconds"], 30, delta=2)
         self.assertAlmostEqual(payload["jobs"][2]["queueElapsedSeconds"], 60, delta=2)
@@ -147,13 +147,13 @@ class DashboardTests(unittest.TestCase):
         self.assertNotIn("finished-0", [job["jobId"] for job in jobs])
 
     def test_target_folder_uses_saved_output_parent_for_all_active_jobs(self):
-        for kind in ("cdb", "json", "step"):
+        for kind in ("cdb", "json"):
             for status in ("queued", "running", "canceling"):
                 job_id = f"{kind}-{status}"
                 job = self.add_job(job_id, kind=kind, status=status)
                 job.output_path = self.root / "匯出 folder" / ("long-segment-" * 20) / f"{job_id}.{kind}"
         payload = self.snapshot()
-        self.assertEqual(len(payload["jobs"]), 9)
+        self.assertEqual(len(payload["jobs"]), 6)
         for item in payload["jobs"]:
             job = self.manager._jobs[item["jobId"]]
             self.assertEqual(item["targetFolderPath"], str(job.output_path.parent))
@@ -214,8 +214,6 @@ class DashboardTests(unittest.TestCase):
             ("cdb", "building_3d_mesh", "Assigning feature 2 of 5 in layer 3 of 12."),
             ("cdb", "building_3d_mesh", "Built layer 3 of 12."),
             ("cdb", "writing_output", "Writing CDB nodes."),
-            ("step", "building_cad_model", "Converting CAD bodies."),
-            ("step", "building_cad_model", "Converted body 3 of 10."),
             ("json", "writing_output", "Writing JSON document."),
         ]
         for kind, stage, message in cases:

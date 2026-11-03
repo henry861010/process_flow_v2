@@ -77,7 +77,7 @@ ready target
   -> open Geometry Preview
   -> Loading
   -> Ready or Error
-  -> open Export JSON / STEP / CDB
+  -> open Export JSON / CDB
   -> submit valid path
   -> drawer expands with queued/running job
   -> terminal success/failed/canceled state

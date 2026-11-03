@@ -3,13 +3,10 @@ from __future__ import annotations
 import copy
 import tempfile
 import unittest
-from math import asin, pi, sqrt
 from pathlib import Path
 
 import numpy as np
 from fastapi.testclient import TestClient
-from mesher.process_flow.exporters import write_cdb_text
-from mesher.process_flow.pipeline import build_mesh_from_structure
 from process_flow_cad import convert_cad_bodies, export_cad_bytes
 from process_flow_kernel import ProcessGeometryState
 
@@ -34,7 +31,7 @@ def joined_structure(height, density=100, *, x=0, circular=False):
 
 
 class JointConsumerTests(unittest.TestCase):
-    def test_step_ownership_preserves_lower_data_without_duplicate_solid_volume(self):
+    def test_glb_preserves_joined_body_geometry_without_mutating_input(self):
         for height, x, circular in ((5,0,False), (25,0,False), (60,0,False),
                                     (5,15,False), (25,15,False), (25,15,True)):
             with self.subTest(height=height, x=x, circular=circular):
@@ -43,21 +40,18 @@ class JointConsumerTests(unittest.TestCase):
                 bump = structure["root"]["children"][0]["bumps"][0]
                 self.assertEqual(bump["stage"], "joined")
                 self.assertEqual(bump["geometry"]["bottom_left"], [x, 5 if circular else 0, 100])
-                bodies = convert_cad_bodies(structure, include_feature_bodies=True)
-                lower = [body for body in bodies if body.feature_type == "bump" and "LowerSolder" in body.material]
-                upper = [body for body in bodies if body.feature_type == "bump" and "UpperSolder" in body.material]
-                main_area = 100 * pi if circular else 400
-                # Circle/overhanging rectangle intersection: integrate sqrt(r²-y²)-5 over [-5,5].
-                overlap_area = 25 * sqrt(3) + 100 * asin(0.5) - 50 if circular else (100 if x == 0 else 50)
-                self.assertAlmostEqual(sum(body.shape.Volume() for body in lower), (main_area - overlap_area) * 20)
-                self.assertAlmostEqual(sum(body.shape.Volume() for body in upper), 100 * height)
+                bodies = convert_cad_bodies(structure)
+                self.assertTrue(all(body.body_kind == "body" for body in bodies))
                 for index, left in enumerate(bodies):
                     for right in bodies[index+1:]:
                         self.assertLess(abs(left.shape.intersect(right.shape).Volume()), 1e-5)
-                self.assertIn(b"ISO-10303-21", export_cad_bytes(structure, format="step"))
+                self.assertEqual(export_cad_bytes(structure, format="glb")[:4], b"glTF")
                 self.assertEqual(structure, before)
 
     def test_cdb_child_density_owns_joint_columns_and_source_is_immutable(self):
+        from mesher.process_flow.exporters import write_cdb_text
+        from mesher.process_flow.pipeline import build_mesh_from_structure
+
         control = {"schemaVersion":"1.0.0", "unitSystem":"um", "mesher":"process_flow_2_5d", "globalElementSize":5, "symmetry":"full", "controls":[]}
         for height, density, x, circular in ((5,100,0,False), (25,100,0,False), (25,80,0,False), (25,0,0,False),
                                              (5,100,15,False), (25,100,15,False), (25,80,15,False), (25,0,15,False),

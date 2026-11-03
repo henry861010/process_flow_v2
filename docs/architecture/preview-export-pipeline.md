@@ -63,10 +63,8 @@ sequenceDiagram
 Flow-input target 不執行 process modules。Step-output target 只 compile target upstream closure；不是 `GeometryKernel.execute_preview()`，目前沒有該 API。
 
 GLB worker 由目前的 Python executable 以 `python -m process_flow_cad.worker` 啟動。
-`GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS`（default `30`）只控制同步 preview／STEP
+`GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS`（default `30`）只控制同步 GLB preview
 conversion helper path。Timeout 時 API 會終止 worker 並回傳 error。
-
-`POST /api/geometry-preview/step` 接受一份 `geometryStructure`，使用同一 worker 同步回傳 base64 STEP。
 
 此 path 沒有 session、跨 step asset reuse、body diff、binary mesh URL 或 section endpoint。
 Legacy client 切換 step 會建立另一個 request 並重新 load 整份 GLB；current preview UI 不使用此 path。
@@ -183,14 +181,13 @@ Viewer 可將同一份 ready snapshot 送到 `POST /api/geometry-preview/export-
 | 類型 | Input | 執行方式 |
 | --- | --- | --- |
 | `json` | `geometryEntityJson` | API process 直接寫 pretty JSON |
-| `step` | `geometryStructure` | `process_flow_cad.worker step` subprocess |
 | `cdb` | `geometryStructure` + canonical `meshControl` | `mesher.process_flow.worker` subprocess |
 
 CDB request不再接受頂層`elementSize`、`symmetry`或`modelType`。`meshControl`固定包含
 `schemaVersion: "1.0.0"`、`unitSystem: "um"`、`mesher: "process_flow_2_5d"`、positive
 `globalElementSize`、`symmetry`與`controls`。`symmetry`合法值為`full`、`upper_half`、
 `right_half`、`upper_right_quarter`，所有欄位都必填。Job response以完整`meshControl`保存建立時的
-設定；JSON與STEP的`meshControl`為`null`。通用route與CDB compatibility route都要求相同的
+設定；JSON的`meshControl`為`null`。通用route與CDB compatibility route都要求相同的
 `kind: "cdb"`、`geometryStructure`、`meshControl`、`outputPath` body（另含browser `clientId`與optional
 `sourceLabel`）。
 
@@ -223,13 +220,12 @@ layers時套用local Z-plane controls。正常套用controls不產生job warning
 失敗等實際警告仍透過既有`warning`欄位回報。
 
 Job state transition 是 `queued → running → success/failed`，取消路徑可經
-`canceling → canceled`。Manager 預設同時執行三個 job（CDB、JSON、STEP 共用額度）；`EXPORT_MAX_CONCURRENT_JOBS`
+`canceling → canceled`。Manager 預設同時執行三個 job（CDB、JSON 共用額度）；`EXPORT_MAX_CONCURRENT_JOBS`
 優先於 legacy `CDB_EXPORT_MAX_CONCURRENT_JOBS`。每個 `clientId` 最多保留 20 個
 terminal jobs。
 
 Lifecycle status不承載內部pipeline細節；running job另回傳`progress`。JSON依序為
-`preparing → writing_output → finalizing`，STEP為
-`preparing → validating → analyzing_geometry → building_cad_model → writing_output → finalizing`，
+`preparing → writing_output → finalizing`，
 CDB為`preparing → validating → analyzing_geometry → building_2d_mesh → building_3d_mesh →
 writing_output → finalizing`。Circle imprint/extension屬於`building_2d_mesh`，沒有
 `processing_features` stage。`current/total`只在worker能精確計數時提供，不代表整體job百分比。
@@ -270,7 +266,7 @@ temp files，因此不會隨terminal cleanup刪除。Cleanup 失敗以 job `warn
 
 ## Timeout、重啟與取消
 
-背景 STEP/CDB jobs 目前沒有 hard timeout；`GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` 不適用。
+背景 CDB jobs 目前沒有 hard timeout；`GEOMETRY_PREVIEW_EXPORT_TIMEOUT_SECONDS` 不適用。
 取消 running subprocess 時會呼叫 terminate，但不提供 cross-process durable recovery。
 
 Jobs、queue 與 history 都在 API process memory：
@@ -281,7 +277,7 @@ Jobs、queue 與 history 都在 API process memory：
 
 ## Export 語意
 
-CAD worker normalize structure 後支援 Box、Polygon、Cylinder、Cone。GLB 只包含 materialized body solids；STEP AP242 另包含 feature envelope solids。CDB 使用 2.5D mesher，其 primitive 與 feature semantics 較窄，詳見 [geometry-semantics.md](../concepts/geometry-semantics.md)。
+CAD worker normalize structure 後支援 Box、Polygon、Cylinder、Cone。GLB 只包含 materialized body solids。CDB 使用 2.5D mesher，其 primitive 與 feature semantics 較窄，詳見 [geometry-semantics.md](../concepts/geometry-semantics.md)。
 
 Session display assets同樣只authoritative表示materialized bodies。Future display LOD不得改變body/material
 identity；engineering section精度由BRep exact section path負責，不由display mesh triangle density決定。

@@ -860,7 +860,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertIn("terminalStepRefIds", payload)
         self.assertGreater(len(payload["stepOutputs"]), 0)
 
-    def test_preview_and_step_export(self):
+    def test_preview_inline_flow_and_draft(self):
         bootstrap = self.reset_poc_data()
         flow_template = fixture_flow(bootstrap)
         instance = fixture_flow(bootstrap)
@@ -926,13 +926,6 @@ class ProcessFlowApiTests(unittest.TestCase):
             json=draft_template,
         )
         self.assertEqual(rejected_save.status_code, 422, rejected_save.text)
-
-        step = self.client.post(
-            "/api/geometry-preview/step",
-            json={"geometryStructure": preview_payload["geometryEntityJson"]["structure"]},
-        )
-        self.assertEqual(step.status_code, 200, step.text)
-        self.assertIn("stepBase64", step.json())
 
     def test_preview_session_flow_input_mesh_cache_etag_and_not_found(self):
         bootstrap = self.reset_poc_data()
@@ -1661,47 +1654,6 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertIn("log folder is not writable", response.json()["message"])
         self.assertFalse(output_path.exists())
 
-    def test_step_export_job_writes_step_file(self):
-        output_path = Path(self.tmp.name) / "MODEL.STEP"
-        output_path.with_suffix(".step").write_text("previous output", encoding="utf-8")
-        output_path.with_suffix(".step").chmod(0o600)
-
-        response = self.client.post(
-            "/api/geometry-preview/export-jobs",
-            json={
-                "clientId": "client-step",
-                "kind": "step",
-                "geometryStructure": simple_structure(),
-                "outputPath": str(output_path),
-                "sourceLabel": "STEP unit test",
-            },
-        )
-
-        self.assertEqual(response.status_code, 200, response.text)
-        job = wait_for_export_job(self.client, response.json()["job"]["jobId"], "client-step")
-        normalized_output_path = Path(self.tmp.name) / "MODEL.step"
-        self.assertEqual(job["status"], "success", job)
-        self.assertEqual(job["kind"], "step")
-        self.assertEqual(job["outputPath"], str(normalized_output_path))
-        self.assertIsNone(job["meshControl"])
-        self.assertTrue(normalized_output_path.exists())
-        for path in (normalized_output_path, Path(job["logPath"])):
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o777, str(path))
-        content = normalized_output_path.read_text(encoding="utf-8", errors="replace")
-        self.assertIn("ISO-10303-21", content)
-        step_log = Path(job["logPath"]).read_text(encoding="utf-8")
-        self.assert_log_actions_in_order(
-            step_log,
-            (
-                "Preparing export",
-                "Checking geometry",
-                "Analyzing geometry",
-                "Building CAD model",
-                "Writing output",
-                "Finalizing files",
-            ),
-        )
-
     def test_cdb_export_job_rejects_non_cdb_extension(self):
         response = self.client.post(
             "/api/geometry-preview/cdb-jobs",
@@ -1936,19 +1888,51 @@ class ProcessFlowApiTests(unittest.TestCase):
                 self.assertIn(field, response.text)
                 self.assertFalse(output_path.exists())
 
+    def test_removed_step_export_is_unavailable(self):
+        response = self.client.post(
+            "/api/geometry-preview/step",
+            json={"geometryStructure": simple_structure()},
+        )
+        self.assertEqual(response.status_code, 404, response.text)
+        schema = self.client.get("/openapi.json").json()
+        self.assertNotIn("/api/geometry-preview/step", schema["paths"])
+        self.assertNotIn("GeometryPreviewStepRequest", schema["components"]["schemas"])
+        for model in ("FileExportCreateRequest", "FileExportJob", "DashboardJob"):
+            self.assertEqual(
+                set(schema["components"]["schemas"][model]["properties"]["kind"]["enum"]),
+                {"json", "cdb"},
+            )
+
+        output_path = Path(self.tmp.name) / "removed.step"
+        response = self.client.post(
+            "/api/geometry-preview/export-jobs",
+            json={
+                "clientId": "removed-format",
+                "kind": "step",
+                "geometryStructure": simple_structure(),
+                "outputPath": str(output_path),
+            },
+        )
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertFalse(output_path.exists())
+        self.assertEqual(
+            self.client.get("/api/export-jobs", params={"clientId": "removed-format"}).json()["jobs"],
+            [],
+        )
+
     def test_export_job_rejects_wrong_generic_extension(self):
         response = self.client.post(
             "/api/geometry-preview/export-jobs",
             json={
                 "clientId": "client-a",
-                "kind": "step",
-                "geometryStructure": simple_structure(),
-                "outputPath": str(Path(self.tmp.name) / "model.stp"),
+                "kind": "json",
+                "geometryEntityJson": preview_geometry_entity(),
+                "outputPath": str(Path(self.tmp.name) / "model.txt"),
             },
         )
 
         self.assertEqual(response.status_code, 400, response.text)
-        self.assertIn(".step", response.json()["message"])
+        self.assertIn(".json", response.json()["message"])
 
     def test_file_export_jobs_are_filtered_by_client_id(self):
         response = self.client.post(

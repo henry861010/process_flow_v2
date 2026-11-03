@@ -41,11 +41,9 @@ class CadExportError(RuntimeError):
 
 @dataclass(frozen=True)
 class CadExportOptions:
-    include_feature_bodies: bool = False
     volume_tolerance: float = 1e-6
     linear_deflection: float = 0.1
     angular_deflection: float = 0.1
-    step_schema: str = "AP242"
 
 
 @dataclass
@@ -63,7 +61,6 @@ class CadBody:
     container_ancestors: tuple[str, ...] = ()
     body_kind: Literal["body", "feature"] = "body"
     feature_type: str | None = None
-    density: Any = None
 
 
 @dataclass
@@ -75,12 +72,12 @@ class CadExportResult:
 def export_cad_bytes(
     geometry_structure: JsonObject,
     *,
-    format: Literal["glb", "step"],
+    format: Literal["glb"],
     progress: ProgressCallback | None = None,
 ) -> bytes:
     normalized_format = _normalize_format(format)
     converter = CadQueryConverter(
-        CadExportOptions(include_feature_bodies=normalized_format == "step"),
+        CadExportOptions(),
         progress=progress,
     )
     result = converter.convert(geometry_structure, formats=[normalized_format])
@@ -90,11 +87,10 @@ def export_cad_bytes(
 def convert_cad_bodies(
     geometry_structure: JsonObject,
     *,
-    include_feature_bodies: bool = False,
     progress: ProgressCallback | None = None,
 ) -> list[CadBody]:
     converter = CadQueryConverter(
-        CadExportOptions(include_feature_bodies=include_feature_bodies),
+        CadExportOptions(),
         progress=progress,
     )
     return converter.convert_bodies(geometry_structure)
@@ -117,15 +113,12 @@ class CadQueryConverter:
         self,
         payload: JsonObject,
         *,
-        formats: list[Literal["glb", "step"]] | None = None,
+        formats: list[Literal["glb"]] | None = None,
     ) -> CadExportResult:
-        requested_formats = formats or ["step", "glb"]
+        requested_formats = formats or ["glb"]
         structure = normalize_geometry_structure(payload)
         self._completed_source_bodies = 0
-        self._total_source_bodies = _count_source_bodies(
-            structure["root"],
-            include_features=self.options.include_feature_bodies,
-        )
+        self._total_source_bodies = _count_source_bodies(structure["root"])
         self._emit_progress("Converting CAD bodies.")
         bodies = self._convert_container(structure["root"])
         visible_bodies = [
@@ -143,17 +136,13 @@ class CadQueryConverter:
             files[normalized_format] = self._export_bodies(
                 visible_bodies,
                 normalized_format,
-                structure,
             )
         return CadExportResult(files=files, bodies=bodies)
 
     def convert_bodies(self, payload: JsonObject) -> list[CadBody]:
         structure = normalize_geometry_structure(payload)
         self._completed_source_bodies = 0
-        self._total_source_bodies = _count_source_bodies(
-            structure["root"],
-            include_features=self.options.include_feature_bodies,
-        )
+        self._total_source_bodies = _count_source_bodies(structure["root"])
         self._emit_progress("Converting CAD bodies.")
         return self._convert_container(structure["root"])
 
@@ -167,20 +156,8 @@ class CadQueryConverter:
             self._body_to_cad(container, body, container_ancestors)
             for body in container["bodies"]
         ]
-        direct_feature_bodies = (
-            self._container_features_to_cad(container, container_ancestors)
-            if self.options.include_feature_bodies
-            else []
-        )
-
-        direct_feature_bodies = self._resolve_sibling_bodies(container, direct_feature_bodies)
-        feature_cut_tool = self._union_shapes([body.shape for body in direct_feature_bodies])
-        if feature_cut_tool is not None:
-            for body in direct_bodies:
-                body.shape = self._subtract_tool(body.shape, feature_cut_tool)
-
         direct_bodies = self._resolve_sibling_bodies(container, direct_bodies)
-        direct_solids = [*direct_bodies, *direct_feature_bodies]
+        direct_solids = direct_bodies
 
         descendant_bodies = []
         for child in container["children"]:
@@ -201,7 +178,7 @@ class CadQueryConverter:
             {
                 "itemType": "container_resolution",
                 "containerRef": container.get("id") or container.get("key"),
-                "sourceBodyCount": len(direct_bodies) + len(direct_feature_bodies),
+                "sourceBodyCount": len(direct_bodies),
                 "resolvedBodyCount": len(resolved),
                 "wallDurationMs": int(
                     round((time.perf_counter() - container_started) * 1000)
@@ -231,70 +208,6 @@ class CadQueryConverter:
             container_ref=container["id"],
             feature_type="body",
             geometry_type=body["geometry"].get("type"),
-            duration_ms=int(round((time.perf_counter() - started) * 1000)),
-        )
-        return result
-
-    def _container_features_to_cad(
-        self,
-        container: JsonObject,
-        container_ancestors: tuple[str, ...],
-    ) -> list[CadBody]:
-        return [
-            *[
-                self._feature_to_cad(
-                    container,
-                    "via",
-                    feature,
-                    container_ancestors,
-                )
-                for feature in container["vias"]
-            ],
-            *[
-                self._feature_to_cad(
-                    container,
-                    "circuit",
-                    feature,
-                    container_ancestors,
-                )
-                for feature in container["circuits"]
-            ],
-            *[
-                self._feature_to_cad(
-                    container,
-                    "bump",
-                    feature,
-                    container_ancestors,
-                )
-                for feature in container["bumps"]
-            ],
-        ]
-
-    def _feature_to_cad(
-        self,
-        container: JsonObject,
-        feature_type: str,
-        feature: JsonObject,
-        container_ancestors: tuple[str, ...],
-    ) -> CadBody:
-        started = time.perf_counter()
-        result = CadBody(
-            id=stable_id("feature-body", [container["id"], feature_type, feature["id"]]),
-            source_ids=[feature["id"]],
-            container_id=container["id"],
-            container_key=container.get("key"),
-            material=feature_material_name(feature_type, feature.get("material"), feature.get("density")),
-            shape=self._geometry_to_shape(feature["geometry"]),
-            container_ancestors=container_ancestors,
-            body_kind="feature",
-            feature_type=feature_type,
-            density=feature.get("density"),
-        )
-        self._source_body_completed(
-            source_ref=feature["id"],
-            container_ref=container["id"],
-            feature_type=feature_type,
-            geometry_type=feature["geometry"].get("type"),
             duration_ms=int(round((time.perf_counter() - started) * 1000)),
         )
         return result
@@ -495,17 +408,12 @@ class CadQueryConverter:
     def _export_bodies(
         self,
         bodies: list[CadBody],
-        export_format: Literal["glb", "step"],
-        structure: JsonObject,
+        export_format: Literal["glb"],
     ) -> bytes:
         assembly = self._assembly_from_bodies(bodies)
         with tempfile.TemporaryDirectory(prefix="process-flow-cad-export-") as tmp:
-            suffix = ".glb" if export_format == "glb" else ".step"
-            output_path = Path(tmp) / f"preview{suffix}"
-            if export_format == "step":
-                self._set_step_options(structure.get("unitSystem", "um"))
-                assembly.export(str(output_path), "STEP", unit=self._step_unit(structure.get("unitSystem", "um")))
-            elif export_format == "glb":
+            output_path = Path(tmp) / "preview.glb"
+            if export_format == "glb":
                 self._export_glb_z_up(assembly, output_path)
             else:
                 raise CadExportError(f"Unsupported CAD export format: {export_format}")
@@ -546,33 +454,6 @@ class CadQueryConverter:
         )
         if result is False:
             raise CadExportError("GLB export failed.")
-
-    def _set_step_options(self, unit_system: str) -> None:
-        try:
-            from OCP.Interface import Interface_Static
-            from OCP.STEPCAFControl import STEPCAFControl_Controller
-            from OCP.STEPControl import STEPControl_Controller
-        except ImportError as error:
-            raise CadExportError("CadQuery OCP STEP modules are unavailable.") from error
-
-        STEPControl_Controller.Init_s()
-        STEPCAFControl_Controller.Init_s()
-        schema = "AP242DIS" if self.options.step_schema.upper() == "AP242" else self.options.step_schema
-        if Interface_Static.SetCVal_s("write.step.schema", schema) is False:
-            raise CadExportError(f"Unsupported STEP schema: {self.options.step_schema}")
-        if Interface_Static.SetCVal_s("write.step.unit", self._step_unit(unit_system)) is False:
-            raise CadExportError(f"Unsupported STEP unit system: {unit_system}")
-
-    @staticmethod
-    def _step_unit(unit_system: str) -> str:
-        units = {
-            "um": "UM",
-            "mm": "MM",
-            "cm": "CM",
-            "m": "M",
-            "inch": "INCH",
-        }
-        return units.get(str(unit_system).lower(), str(unit_system).upper())
 
     def _union_shapes(self, shapes: list[Any]):
         filtered = [shape for shape in shapes if not self._is_empty_shape(shape)]
@@ -662,21 +543,19 @@ def _load_cadquery():
     return cq
 
 
-def _count_source_bodies(container: JsonObject, *, include_features: bool) -> int:
+def _count_source_bodies(container: JsonObject) -> int:
     total = len(container.get("bodies", []))
-    if include_features:
-        total += sum(len(container.get(field, [])) for field in ("vias", "circuits", "bumps"))
     total += sum(
-        _count_source_bodies(child, include_features=include_features)
+        _count_source_bodies(child)
         for child in container.get("children", [])
         if isinstance(child, dict)
     )
     return total
 
 
-def _normalize_format(value: str) -> Literal["glb", "step"]:
+def _normalize_format(value: str) -> Literal["glb"]:
     normalized = str(value).strip().lower()
-    if normalized in ("glb", "step"):
+    if normalized == "glb":
         return normalized  # type: ignore[return-value]
     raise CadExportError(f"Unsupported CAD export format: {value}")
 
@@ -726,16 +605,6 @@ def material_color_hex(material: Any) -> str:
     return MATERIAL_FALLBACK_COLORS[index]
 
 
-def feature_material_name(feature_type: str, material: Any, density: Any) -> str:
-    return "_".join(
-        [
-            sanitize_material_token(feature_type),
-            sanitize_material_token(normalize_material_name(material)),
-            sanitize_density_token(density),
-        ]
-    )
-
-
 def body_label_name(body: CadBody, index: int) -> str:
     return f"{normalize_material_name(body.material)} body {index + 1}"
 
@@ -743,22 +612,6 @@ def body_label_name(body: CadBody, index: int) -> str:
 def normalize_material_name(material: Any) -> str:
     value = "" if material is None else str(material)
     return value.strip() or "generic"
-
-
-def sanitize_density_token(density: Any) -> str:
-    if density is None or density == "":
-        return "unknown"
-    try:
-        numeric = float(density)
-        raw = str(int(numeric)) if numeric.is_integer() else str(numeric)
-    except (TypeError, ValueError):
-        raw = str(density).strip()
-    return sanitize_material_token(raw.replace("-", "minus").replace(".", "p"))
-
-
-def sanitize_material_token(value: Any) -> str:
-    token = re.sub(r"[^A-Za-z0-9]+", "_", str(value).strip()).strip("_")
-    return token or "generic"
 
 
 def material_matches(material: str, token: str) -> bool:

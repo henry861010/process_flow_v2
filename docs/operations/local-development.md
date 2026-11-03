@@ -100,7 +100,7 @@ npm run start
 ### 即時 job dashboard
 
 開啟 `http://localhost:3001/dashboard`，或部署後的 viewer 網址 `/dashboard`。
-這是任何持有網址的人都可查看的唯讀頁面，顯示所有 client 的 CDB/STEP/JSON active exports：
+這是任何持有網址的人都可查看的唯讀頁面，顯示所有 client 的 CDB/JSON active exports：
 執行中數量／並行上限、等待數量、stage、細部動作說明、耗時與全域 FIFO 順位。細部說明與
 使用者 export drawer 同源，只公開固定文案或純數字進度；終態不保留在畫面。
 

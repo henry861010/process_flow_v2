@@ -18,7 +18,7 @@ from process_flow_cad.exporter import CadQueryConverter
 
 
 class CadExporterTests(unittest.TestCase):
-    def test_bump_stages_export_as_features_without_mutating_input(self):
+    def test_bump_stages_preserve_glb_bodies_without_mutating_input(self):
         for stage in ("deposited", "reflowed", "joined"):
             with self.subTest(stage=stage):
                 structure = box_structure()
@@ -30,12 +30,21 @@ class CadExporterTests(unittest.TestCase):
                     "stage": stage,
                 }]
                 original = json.dumps(structure, sort_keys=True)
-                bodies = convert_cad_bodies(structure, include_feature_bodies=True)
-                bumps = [body for body in bodies if body.feature_type == "bump"]
-                self.assertEqual(len(bumps), 1)
-                self.assertEqual(bumps[0].source_ids, ["bump:known"])
-                self.assertIn(b"ISO-10303-21", export_cad_bytes(structure, format="step"))
+                bodies = convert_cad_bodies(structure)
+                self.assertEqual([body.body_kind for body in bodies], ["body"])
+                self.assertEqual(export_cad_bytes(structure, format="glb")[:4], b"glTF")
                 self.assertEqual(json.dumps(structure, sort_keys=True), original)
+
+    def test_cad_export_rejects_removed_step_format(self):
+        with self.assertRaisesRegex(CadExportError, "Unsupported CAD export format"):
+            export_cad_bytes(box_structure(), format="step")
+        with self.assertRaisesRegex(CadExportError, "Unsupported CAD export format"):
+            CadQueryConverter().convert(box_structure(), formats=["step"])
+
+    def test_default_conversion_only_exports_glb(self):
+        result = CadQueryConverter().convert(box_structure())
+        self.assertEqual(set(result.files), {"glb"})
+        self.assertEqual(result.files["glb"][:4], b"glTF")
 
     def test_glb_export_returns_binary_glb(self):
         glb = export_cad_bytes(box_structure(), format="glb")
@@ -52,22 +61,16 @@ class CadExporterTests(unittest.TestCase):
         self.assertEqual(bounds["yMin"], 0)
         self.assertEqual(bounds["yMax"], 10)
 
-    def test_step_export_returns_ap242_step(self):
-        step = export_cad_bytes(box_structure(), format="step").decode("utf-8", errors="replace")
-
-        self.assertIn("ISO-10303-21", step)
-        self.assertRegex(step, r"AP242|242")
-
-    def test_step_export_reports_body_progress_without_changing_output(self):
+    def test_glb_export_reports_body_progress(self):
         events = []
 
-        step = export_cad_bytes(
+        glb = export_cad_bytes(
             feature_structure(),
-            format="step",
+            format="glb",
             progress=events.append,
         )
 
-        self.assertIn(b"ISO-10303-21", step)
+        self.assertEqual(glb[:4], b"glTF")
         progress_events = [event for event in events if event["event"] == "progress"]
         body_events = [
             event
@@ -82,20 +85,14 @@ class CadExporterTests(unittest.TestCase):
         )
 
     def test_all_supported_primitives_export(self):
-        step = export_cad_bytes(all_primitive_structure(), format="step").decode(
-            "utf-8",
-            errors="replace",
-        )
+        glb = export_cad_bytes(all_primitive_structure(), format="glb")
 
-        self.assertIn("ISO-10303-21", step)
+        self.assertEqual(glb[:4], b"glTF")
 
     def test_polygon_holes_export_through_odd_even_classifier(self):
-        step = export_cad_bytes(polygon_with_hole_structure(), format="step").decode(
-            "utf-8",
-            errors="replace",
-        )
+        glb = export_cad_bytes(polygon_with_hole_structure(), format="glb")
 
-        self.assertIn("ISO-10303-21", step)
+        self.assertEqual(glb[:4], b"glTF")
 
     def test_polygon_hole_tangent_to_outer_loop_exports(self):
         bodies = convert_cad_bodies(polygon_with_tangent_hole_structure())
@@ -108,12 +105,10 @@ class CadExporterTests(unittest.TestCase):
         with self.assertRaisesRegex(CadExportError, "Overlapping sibling bodies"):
             convert_cad_bodies(cross_material_overlap_structure())
 
-    def test_glb_excludes_features_and_step_includes_features(self):
-        glb_bodies = convert_cad_bodies(feature_structure(), include_feature_bodies=False)
-        step_bodies = convert_cad_bodies(feature_structure(), include_feature_bodies=True)
+    def test_cad_bodies_exclude_feature_envelopes(self):
+        bodies = convert_cad_bodies(feature_structure())
 
-        self.assertEqual([body.body_kind for body in glb_bodies], ["body"])
-        self.assertIn("feature", [body.body_kind for body in step_bodies])
+        self.assertEqual([body.body_kind for body in bodies], ["body"])
 
     def test_section_box_returns_closed_exact_material_region(self):
         result = section_geometry(box_structure(), axis="x", position=5)

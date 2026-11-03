@@ -121,10 +121,9 @@ missing token必須重新preview，不可在前端自行重建geometry。
 | `GET` | `/api/preview-sessions/{sessionId}/snapshots/{snapshotId}/mesh` | Retained lazy binary GLB route for CAD clients |
 | `GET` | `/api/preview-sessions/{sessionId}/snapshots/{snapshotId}/section` | Retained exact body section route for engineering clients |
 | `POST` | `/api/geometry-preview` | Resolve/execute target and return geometry JSON + GLB |
-| `POST` | `/api/geometry-preview/step` | Convert supplied structure to base64 STEP |
 | `GET` | `/api/mesh-control-sets` | List registered Python mesh control sets |
 | `POST` | `/api/mesh-control-sets/{setId}/apply` | Resolve a set against `geometryStructure` and return a complete `meshControl` plus rule details |
-| `POST` | `/api/geometry-preview/export-jobs` | Create JSON/STEP/CDB file job |
+| `POST` | `/api/geometry-preview/export-jobs` | Create JSON/CDB file job |
 | `POST` | `/api/geometry-preview/cdb-jobs` | CDB-only compatibility route using the same `geometryStructure` + `meshControl` body |
 | `GET` | `/api/export-jobs?clientId=...` | Client-filtered in-memory job list |
 | `GET` | `/api/export-jobs/{jobId}?clientId=...` | Job detail |
@@ -189,7 +188,7 @@ parse 完整字串。
 
 Current API 沒有 authentication/authorization。Reset endpoint 可刪除資料；export endpoint 可寫入/replace API host absolute path；`clientId` 不是 identity。只可部署在受信任 local environment。
 
-File export 的 JSON、CDB、STEP 主檔、CDB 附帶的 geometry／mesh-control JSON，以及每個
+File export 的 JSON、CDB 主檔、CDB 附帶的 geometry／mesh-control JSON，以及每個
 job 的 log，皆明確設定為 `0777`（所有使用者可讀、寫與執行）。主檔在發布至最終路徑前
 設定權限；附帶 JSON 在寫入後、log 在建立後設定。權限設定失敗時工作不會回報成功；
 log 權限設定失敗則拒絕建立工作並清除該 log。此設定只套用後續匯出（包含覆蓋匯出），

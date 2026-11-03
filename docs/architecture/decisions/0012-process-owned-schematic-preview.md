@@ -24,7 +24,7 @@ verified_against:
 
 Flow Editor 的 Geometry Preview 以 SVG 結構剖面取代互動 3D。目的為確認目前結構、實際剩餘厚度與
 grinding 結果；PnP 的實際 XY、die 顆數與 feature density 不作為畫圖密度。保留 semantic preview
-session、target snapshot、JSON／STEP／CDB 匯出與既有 standalone CAD viewer、generator engineering preview。
+session、target snapshot、JSON／CDB 匯出與既有 standalone CAD viewer、generator engineering preview。
 
 本決策取代 ADR-0004／0005 中要求 Geometry Preview 載入 GLB、操作 section／density 與使用 WebGL
 的 UI 條款。既有 mesh／exact-section API、CAD 幾何精度與保留的 3D renderer 契約繼續有效。

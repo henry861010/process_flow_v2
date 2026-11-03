@@ -51,7 +51,7 @@ Start from… 提供 Flows／Drafts；flow 可 Open，草稿可 Resume。新增 
 | UI-FLOW-004 | 編輯既有 flow 後 Save 保留原 ID、遞增 revision；沒有 Copy、Save As、Save Draft |
 | UI-FLOW-005 | 新 flow 保存／恢復 draft 保留同一 ID、positions、viewport、候選與採用狀態；正式 Save 刪除草稿，舊 `editingRecipeIds` 可讀取 |
 | UI-FLOW-006 | 模擬其他 client 更新；409 不丟內容，可取消或確認 reload；舊 `copy=1` 顯示編輯原 flow 提示 |
-| UI-FLOW-007 | Input／上游 preview、JSON／STEP／CDB 匯出使用採用設定 |
+| UI-FLOW-007 | Input／上游 preview、JSON／CDB 匯出使用採用設定 |
 | UI-FLOW-008 | Dialog focus、Escape、Tab、candidate labels 與鍵盤刪 node 正確 |
 | UI-FLOW-009 | 已套用 placements 只顯示 graph；recipe 編輯視窗保留 placement 清單，空值／無效值顯示正確且 mobile 無水平溢出 |
 | UI-FLOW-010 | RDL 與任意 `fieldGroupArray` 以 schema 驅動的表格摘要顯示，保留列序、編號、單位、0／False；nested group、array、placements 正確，缺值／空值／不合法結構不回退 JSON；切換採用 recipe 後摘要同步更新，窄視窗只在表格內水平捲動 |

@@ -17,7 +17,7 @@ source_of_truth:
 # Job Dashboard
 
 Route: `/dashboard`. Dashboard 是公開唯讀的即時 export 監控頁，資料來自
-`GET /api/dashboard/jobs`，涵蓋所有 client 的 CDB、STEP、JSON。沿用
+`GET /api/dashboard/jobs`，涵蓋所有 client 的 CDB、JSON。沿用
 [Design System](../design-system.md) 的淺色 tokens、字體與 Lucide icons。
 
 ## 畫面與資料

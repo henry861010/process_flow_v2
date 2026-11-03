@@ -64,7 +64,7 @@ representation counts and grouping remain unchanged.
 
 Representation counts, feature motifs and relation eligibility are supplied by
 the owning producer packages. No process program, die name or recipe is interpreted
-here. JSON/STEP/CDB consumers continue using the unchanged physical structure.
+here. JSON/CDB consumers continue using the unchanged physical structure.
 
 Applications can reserve a common horizontal layout for several snapshots:
 

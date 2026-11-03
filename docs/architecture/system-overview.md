@@ -50,7 +50,7 @@ flowchart LR
 | `packages/kernel-py` | Geometry domain、flow validation/compiler、execution plan、step execution、normalization | SQLite、HTTP、CadQuery、frontend state |
 | `packages/process-step-py` | Concrete `execute(context)` operations 與 companion schematic presenters | Persistence、API routing、共用 schematic layout |
 | `packages/schematic-py` | 純資料契約、registry、composer、基本圖形與共用厚度／排列工具 | Kernel execution、製程專屬呈現規則、HTTP、SQLite |
-| `packages/cad-py` | Geometry-to-CadQuery conversion、GLB、STEP AP242 | Flow compilation、catalog resolution |
+| `packages/cad-py` | Geometry-to-CadQuery conversion、GLB | Flow compilation、catalog resolution |
 | external `mesher` 0.2 | Standard structure to 2.5D mesh/text CDB | Flow compilation、catalog resolution |
 
 Dependency direction 是 `viewer → API → kernel`，API 也依賴獨立的 geometry generator package，並在 `create_app` 明確註冊啟用的實作。API 另外啟動CAD與external mesher workers；
@@ -81,7 +81,7 @@ API 載入 flow 自有 definition/configuration 及 step templates。Compiler �
 
 Preview 可以直接解析 flow input，或只執行 step output 的 upstream closure。API 對 target 的最終
 snapshot 套用所屬 step／generator presenters 與共用 composer，產生 SVG schematic document；
-preview 不載入 CAD mesh 或 exact section。背景 JSON/STEP/CDB export job 使用已 ready 的原始 snapshot，
+preview 不載入 CAD mesh 或 exact section。背景 JSON/CDB export job 使用已 ready 的原始 snapshot，
 不重新 compile。完整行為與操作限制見
 [Preview 與 export pipeline](./preview-export-pipeline.md)。
 

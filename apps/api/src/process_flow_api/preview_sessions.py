@@ -53,7 +53,7 @@ class MeshExporter(Protocol):
         self,
         geometry_structure: JsonObject,
         *,
-        format: Literal["glb", "step"],
+        format: Literal["glb"],
     ) -> bytes: ...
 
 
@@ -691,7 +691,7 @@ class PreviewSessionManager:
                                             component_bindings=component_bindings)
             except Exception:
                 # A display failure must not make the calculated structure or
-                # JSON/STEP/CDB exports unavailable.
+                # JSON/CDB exports unavailable.
                 logger.exception("Could not compose schematic for %s", snapshot_id)
                 schematic_warnings += (
                     "Cross section preview is unavailable. Geometry exports are still available.",
