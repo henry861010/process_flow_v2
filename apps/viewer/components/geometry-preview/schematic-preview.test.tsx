@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatSchematicLength, SchematicDrawing, SchematicPreview } from "./schematic-preview";
 import type { SchematicDocument } from "./schematic-types";
+import { schematicLabels, schematicTextColor } from "./schematic-labels";
 
 const document: SchematicDocument = {
   schemaVersion: 1,
@@ -41,7 +42,6 @@ describe("schematic preview", () => {
     expect(markup).toContain("Thin layers are enlarged.");
     expect(markup).toContain("A generic layer style was used.");
     expect(markup).toContain("lg:grid-cols-[minmax(0,1fr)_340px]");
-    expect(markup).toContain("min-w-[640px]");
   });
 
   it("honors generic primitive coordinates and material styles without distorting circles", () => {
@@ -56,26 +56,67 @@ describe("schematic preview", () => {
     expect(markup).not.toContain('preserveAspectRatio="none"');
   });
 
-  it("preserves readable diagram scale when many component variants require horizontal scrolling", () => {
-    const wide = { ...document, viewBox: [0, 0, 3000, 400] } as SchematicDocument;
-    const markup = renderToStaticMarkup(<SchematicPreview document={wide} />);
-    expect(markup).toContain('min-width:3000px');
-    expect(markup).toContain('viewBox="0 0 3000 400"');
+  it.each([[3000, 400], [800, 2400]])("fits the complete %s × %s diagram within the available viewport", (width, height) => {
+    const diagram = { ...document, viewBox: [0, 0, width, height] } as SchematicDocument;
+    const markup = renderToStaticMarkup(<SchematicPreview document={diagram} />);
+    expect(markup).toContain(`viewBox="0 0 ${width} ${height}"`);
+    expect(markup).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(markup).toContain('class="block h-full w-full font-sans"');
+    expect(markup).not.toContain('min-width:');
+    expect(markup).not.toContain('min-w-[640px]');
+    expect(markup).not.toContain('min-h-[320px]');
   });
 
-  it("labels visible layers with actual thickness without placing parent labels over child bodies", () => {
+  it("keeps measurements in the details and places labels in exposed layer regions", () => {
     const markup = renderToStaticMarkup(<SchematicDrawing document={document} selectedItemId={null} onSelect={() => {}} />);
     expect(markup).toContain('data-layer-label="body"');
-    expect(markup).toContain('>Support</tspan>');
-    expect(markup).toContain('>200 µm</tspan>');
+    expect(markup).toContain('>Support<title>');
+    expect(markup).not.toContain('<tspan');
     const covered = { ...document, shapes: [
       document.shapes[0],
       { id: "child", itemId: "fill", kind: "rect", x: 300, y: 180, width: 200, height: 80,
         fill: "#abc", stroke: "none", strokeWidth: 0 },
     ] } as SchematicDocument;
     const coveredMarkup = renderToStaticMarkup(<SchematicDrawing document={covered} selectedItemId={null} onSelect={() => {}} />);
-    expect(coveredMarkup).not.toContain('data-layer-label="body"');
+    const parentLabel = schematicLabels(covered).find((label) => label.itemId === "body");
+    expect(parentLabel).toBeDefined();
+    expect(parentLabel!.x).toBeLessThan(300);
+    expect(coveredMarkup).toContain('data-layer-label="body"');
     expect(coveredMarkup).toContain('data-layer-label="fill"');
+  });
+
+  it("centers component names inside visible bodies with contrasting text and no duplicate layer name", () => {
+    const component = { ...document, shapes: [
+      { ...document.shapes[0], x: 250, y: 80, width: 150, height: 60, fill: "#424547" },
+    ], items: [{ ...document.items[0], groupLabel: "Component A" }] } as SchematicDocument;
+    const labels = schematicLabels(component);
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toMatchObject({ component: true, text: "Component A", x: 325, y: 110, background: "#424547" });
+    const markup = renderToStaticMarkup(<SchematicDrawing document={component} selectedItemId={null} onSelect={() => {}} />);
+    expect(markup).toContain('data-component-label="component"');
+    expect(markup).toContain('fill="#ffffff"');
+    expect(markup).not.toContain('data-layer-label="body"');
+    expect(schematicTextColor("#006b57")).toBe("#ffffff");
+    expect(schematicTextColor("#bcbcbc")).toBe("#111827");
+    expect(schematicTextColor("#ffcf00")).toBe("#111827");
+    expect(schematicTextColor("#fff")).toBe("#111827");
+  });
+
+  it("avoids clipped holes and fully hidden parent slabs when placing labels", () => {
+    const clipped = { ...document, components: [], shapes: [{ ...document.shapes[0],
+      clip: { x: 20, y: 160, width: 760, height: 120, exclusions: [{ x: 20, y: 160, width: 500, height: 120 }] },
+    }] } as SchematicDocument;
+    expect(schematicLabels(clipped)[0].x).toBeGreaterThan(520);
+    const covered = { ...document, components: [], shapes: [document.shapes[0], {
+      ...document.shapes[0], id: "cover", itemId: "fill",
+    }] } as SchematicDocument;
+    expect(schematicLabels(covered).some((label) => label.itemId === "body")).toBe(false);
+    const window = { ...covered, shapes: [document.shapes[0], {
+      ...covered.shapes[1], clip: { x: 20, y: 160, width: 760, height: 120,
+        exclusions: [{ x: 250, y: 160, width: 300, height: 120 }] },
+    }] } as SchematicDocument;
+    const exposed = schematicLabels(window).find((label) => label.itemId === "body");
+    expect(exposed).toMatchObject({ x: 400, y: 220 });
   });
 
   it("gives each item one keyboard target and highlights all shapes of the selected item", () => {

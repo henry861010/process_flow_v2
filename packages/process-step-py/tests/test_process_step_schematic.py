@@ -4,9 +4,11 @@ import copy
 import unittest
 
 from process_flow_kernel import BoxGeometry
-from process_flow_schematic import SchematicContext, SchematicRegistry, geometry_bounds
+from process_flow_schematic import (
+    CONDUCTOR_FILL, MATRIX_FILL, UNDERFILL_FILL, SchematicContext, SchematicRegistry, geometry_bounds,
+)
 from process_flow_steps.joint.schematic import present_schematic as present_joint
-from process_flow_steps.layer.rdl_schematic import present_circuit, present_via
+from process_flow_steps.layer.rdl_schematic import present_circuit, present_schematic as present_rdl, present_via
 from process_flow_steps.schematic_presenters import register_presenters
 from process_flow_steps.uf.schematic import present_schematic as present_underfill
 
@@ -28,9 +30,22 @@ def bump(id="bump", geometry=None, stage="reflowed", density=40):
 
 
 class StepPresenterTests(unittest.TestCase):
-    def test_symbol_motifs_ignore_positive_density_and_zero_density_is_absent(self):
+    def test_process_symbols_share_material_palette_without_changing_source_materials(self):
+        node = bump(stage="joined")
+        before = copy.deepcopy(node)
+        for presenter, kind in ((present_joint, "bump"), (present_via, "via"), (present_circuit, "circuit")):
+            part = presenter(context(node, kind=kind))[0]
+            self.assertEqual(part.fill, CONDUCTOR_FILL)
+            self.assertTrue(all(primitive.fill == CONDUCTOR_FILL for primitive in part.primitives))
+        self.assertEqual(present_rdl(context(node))[0].fill, MATRIX_FILL)
+        uf = {"id": "uf", "material": "custom fill", "geometry": box(thickness=3)}
+        assembly = {"id": "assembly", "bodies": [uf], "bumps": [node]}
+        self.assertTrue(all(part.fill == UNDERFILL_FILL for part in present_underfill(context(uf, assembly))))
+        self.assertEqual(node, before)
+
+    def test_symbol_motifs_ignore_density_except_zero_density_joint(self):
         for presenter, kind, expected_count in ((present_joint, "bump", 1),
-                (present_via, "via", 9), (present_circuit, "circuit", 4)):
+                (present_via, "via", 9), (present_circuit, "circuit", 9)):
             with self.subTest(kind=kind):
                 low = bump(stage="joined", density=1)
                 high = bump(stage="joined", density=100)
@@ -39,7 +54,15 @@ class StepPresenterTests(unittest.TestCase):
                 high_part = presenter(context(high, kind=kind))[0]
                 self.assertEqual(low_part.primitives, high_part.primitives)
                 self.assertEqual(len(low_part.primitives), expected_count)
-                self.assertEqual(presenter(context(bump(stage="joined", density=0), kind=kind)), [])
+                zero_parts = presenter(context(bump(stage="joined", density=0), kind=kind))
+                if kind == "bump":
+                    self.assertEqual(zero_parts, [])
+                else:
+                    self.assertEqual(zero_parts[0].primitives, low_part.primitives)
+                    missing_density = bump(stage="joined")
+                    missing_density.pop("density")
+                    self.assertEqual(presenter(context(missing_density, kind=kind))[0].primitives,
+                                     low_part.primitives)
                 self.assertEqual(low, before)
 
     def test_joint_owns_bump_presentation_and_requests_horizontal_circle_repetition(self):

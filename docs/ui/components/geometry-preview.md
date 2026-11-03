@@ -7,7 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-31
+last_verified: 2026-11-01
 last_verified_commit: 039906db
 source_of_truth:
   - docs/architecture/decisions/0012-process-owned-schematic-preview.md
@@ -113,14 +113,45 @@ close/context change -> abort session request
 | Snapshot ready、schematic unavailable | 明確提示與可用的 snapshot 匯出 | Ready | enabled |
 
 桌面剖面在左、厚度明細在右；窄螢幕先圖後明細，body 可捲動，footer 保持可達。
-SVG 依 `viewBox` 顯示；不以原始 XY／實際 wafer 寬度縮小到無法閱讀。圖與明細選取互相醒目提示，
+SVG 依 `viewBox` 與預覽區域的可用寬高等比例自動縮放，整張圖一次完整顯示，圖面不需水平或垂直捲動。
+視窗尺寸改變時同步縮放，保留 die 寬扁比例；窄螢幕先以預覽區域全高顯示圖面，再向下捲動查看明細。
+圖與明細選取互相醒目提示，
 明細保留 keyboard button 操作、可讀材料、實際 Z 區間及厚度。
+
+### 剖面視覺樣式
+
+圖面使用白色、圓角、有細邊框的畫板，背景為淡灰；層與部件使用平面實體色塊，
+一般外框為 `0.6px`，細導體不加外框。材料色由後端共用 palette 與各 presenter 提供：
+
+| 材料角色 | 色彩 |
+| --- | --- |
+| Silicon | `#bcbcbc` |
+| SoC／HBM 的 Pass2、USG、ELK，HBM 內部 molding，LSI 的 USG 與 PM 層 | `#808182` |
+| Molding／dielectric | `#424547` |
+| LSI 的 DAF／FOW | `#a8d8f0` |
+| Underfill | `#00b7df` |
+| Conductor／bump | `#ffcf00` |
+| Substrate／support | `#006b57` |
+| 未分類材料 | `#a3a6aa` |
+
+Component 名稱以粗體優先放在其最大可見矩形區域；不足以容納時放在部件上方。
+同一部件不重複標示內層名稱，其餘主要層在最大的可見區域標示一次。文字必須避開
+裁切孔洞、被覆蓋的實體與線路，並依背景亮度採黑／白文字。長名稱可以縮寫，完整名稱
+保留在明細。圖內不重複放厚度數字；實際厚度、材料與 Z 區間統一在右側明細呈現，
+每列附上對應材料色塊。配色與文字佈局不得改變原始幾何、厚度、代表顆數或匯出資料。
 
 ## Schematic 行為
 
 - 每組 `wafer-dmy` 兩顆置於最左與最右；LSI 三顆；DRAM、SoC、SoIC 與其他類型各一顆。
   相同結構合併，厚度、放置高度或內部堆疊不同則分組保留，子層不當成額外 die。
-- RDL 使用固定少量短柱、landing 與錯開水平線；Joint presenter 以完整圓形顯示 `joined` bump。
+  一般 die 示意寬度為 320、左右 dummy 為 224，水平間距為 24（SVG 顯示單位）；
+  畫布依代表顆數展開，呈現寬扁外觀，實際厚度與共用 Z 顯示轉換不受影響。
+- RDL via 使用較細的梯形：`-z` 為上寬下窄，`+z` 為上窄下寬，flip 後依最終方向翻轉。
+  TIV／TMV 與其他未位於同範圍 RDL dielectric 層的 via 使用上下等寬的矩形直柱。
+  Circuit 每個實際層只畫同一排較寬的長方形導線，不在同一層內上下錯開。兩者各使用固定 9 根代表符號，
+  完全不依 density（含零或缺省）改變。各路徑採可重現的隨機錯位，上下 via 分別接於 circuit 左右對側；
+  flip 保留水平位置並反轉上下方向。符號填滿各自層厚，僅連接同一 footprint 且實際 Z 接觸的層，
+  不跨越間隙；重新開啟預覽不重新亂排，也不改變原始幾何。Joint presenter 以完整圓形顯示 `joined` bump。
   PnP presenter 僅在上下兩側 reflowed bump 有唯一的 XY 正面積重疊與 Z 接觸、且雙側 density 大於零時，
   畫成平面貼本體、弧面相對的上下半圓；兩側共用顆數與水平中心，各自保留實際高度和厚度明細。
   下側只畫在上側 bump 的代表寬度內，carrier 外側保持空白。正 density 大小不影響符號疏密。
@@ -154,5 +185,6 @@ Overlay 使用共用 dialog stack／focus lifecycle；nested Export 的 Escape�
 | `UI-SCHEMATIC-006` | 缺 presenter／presenter 失敗 | 通用 fallback 與提示可讀；原始匯出仍可用。 |
 | `UI-SCHEMATIC-007` | 390px 與桌面 viewport | 圖、明細與 footer 可達，無標籤嚴重重疊。 |
 | `UI-SCHEMATIC-008` | 寬 carrier 與窄 HBM 的 bump geometry | 各自沿顯示寬度等間距鋪滿，圓形不超界；接合區不重複，選取仍對應原厚度明細。 |
+| `UI-SCHEMATIC-009` | 多材料、裁切與深色部件 | 使用封裝剖面配色與黑／白粗體名稱，名稱避開遮蔽區，厚度數值集中在明細，圖與明細材料色相符。 |
 
 自動測試與 browser 驗收進度只記錄於 [conformance](../../conformance.md)，不以此規格宣稱已完成。

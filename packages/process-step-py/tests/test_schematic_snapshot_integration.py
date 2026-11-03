@@ -8,7 +8,7 @@ from process_flow_geometry_generators import GeometryGeneratorRegistry, register
 from process_flow_geometry_generators.schematic_presenters import register_presenters as register_generator_presenters
 from process_flow_kernel import BoxGeometry, PolygonGeometry, ProcessGeometryState, normalize_geometry_structure
 from process_flow_kernel.application.material_instances import rewrite_geometry_materials
-from process_flow_schematic import SchematicRegistry, compose_schematic
+from process_flow_schematic import UNDERFILL_FILL, SchematicRegistry, compose_schematic
 from process_flow_steps.schematic_presenters import register_presenters as register_step_presenters
 
 
@@ -168,7 +168,7 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         carrier_row = next(item for item in document["items"] if carrier["id"] in item["sourceIds"])
         self.assertEqual(carrier_row["thickness"], 190)
         self.assertAlmostEqual(document["totalThickness"], 581.5)
-        uf_shapes = [shape for shape in document["shapes"] if shape["fill"] == "#efc490"]
+        uf_shapes = [shape for shape in document["shapes"] if shape["fill"] == UNDERFILL_FILL]
         self.assertEqual(len(uf_shapes), 5)  # Three cavities and two representative gaps.
         lower_id = snapshot["root"]["bumps"][0]["id"]
         self.assertFalse(any(lower_id in item["sourceIds"] for item in document["items"]))

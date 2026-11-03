@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .contracts import Bounds
+from .palette import CONDUCTOR_FILL, GENERIC_FILL, MATRIX_FILL, SILICON_FILL, SUPPORT_FILL, UNDERFILL_FILL
 
 
 def geometry_bounds(geometry: Mapping[str, Any]) -> Bounds | None:
@@ -62,18 +63,14 @@ def base_material(material: str) -> str:
 def material_color(material: str) -> str:
     value = base_material(material).strip().lower()
     rules = (
-        (("copper", "metal", "cu", "via"), "#d2a532"),
-        (("silicon", "si", "die"), "#8e9ba8"),
-        (("glass", "wafer", "carrier"), "#b9d1e5"),
-        (("mold", "emc", "epoxy"), "#c1ccc5"),
-        (("dielectric", "polyimide", "pi"), "#98ad88"),
-        (("solder", "bump", "snag"), "#d9b85e"),
+        (("copper", "metal", "cu", "via", "solder", "bump", "snag"), CONDUCTOR_FILL),
+        (("underfill", "under fill", "uf"), UNDERFILL_FILL),
+        (("mold", "molding", "emc", "epoxy", "dielectric", "polyimide", "pi", "oxide", "sio2",
+          "usg", "elk", "passivation", "pass1", "pass2", "daf", "fow"), MATRIX_FILL),
+        (("silicon", "si", "die", "hbm", "dram", "soic"), SILICON_FILL),
+        (("glass", "wafer", "carrier", "substrate", "laminate", "fr4", "abf"), SUPPORT_FILL),
     )
     for tokens, color in rules:
         if any(re.search(rf"(^|[^a-z0-9]){re.escape(token)}([^a-z0-9]|$)", value) for token in tokens):
             return color
-    palette = ("#becbd5", "#b8c8b2", "#ccbcd7", "#dfc7b1", "#a9c6c6")
-    hashed = 0
-    for character in value:
-        hashed = (hashed * 31 + ord(character)) & 0xffffffff
-    return palette[hashed % len(palette)]
+    return GENERIC_FILL

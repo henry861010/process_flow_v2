@@ -4,7 +4,7 @@ from math import cos, pi, sin
 
 from process_flow_kernel.domain.bump_operations import footprints_overlap
 from process_flow_kernel.utils.math_utils import math
-from process_flow_schematic import Bounds, Primitive, SchematicContext, SchematicPart, base_material, geometry_bounds
+from process_flow_schematic import CONDUCTOR_FILL, CONDUCTOR_OUTLINE, Bounds, Primitive, SchematicContext, SchematicPart, base_material, geometry_bounds
 
 from .._schematic_helpers import footprint_geometry, walk
 
@@ -44,7 +44,7 @@ def _half_circle(*, upper):
                    for index in range(33))
     edge = 0.0 if upper else 1.0
     return Primitive(kind="path", points=((0.0, edge), *points[1:-1], (1.0, edge)),
-                     closed=True, repeat_x=True, r=1, fill="#d9b85e", stroke="#9a772e")
+                     closed=True, repeat_x=True, r=1, fill=CONDUCTOR_FILL, stroke=CONDUCTOR_OUTLINE)
 
 
 def present_schematic(context: SchematicContext) -> list[SchematicPart]:
@@ -59,7 +59,7 @@ def present_schematic(context: SchematicContext) -> list[SchematicPart]:
     upper_bounds = context.bounds
     return [SchematicPart(
         label="Reflowed bump · " + base_material(source.get("material", "Bump")),
-        fill="#d9b85e", primitives=(_half_circle(upper=is_upper),),
+        fill=CONDUCTOR_FILL, primitives=(_half_circle(upper=is_upper),),
         source_id=source["id"], repeat_group="opposing-bumps",
         display_bounds=Bounds(upper_bounds.x_min, upper_bounds.y_min, bounds.z_min,
                               upper_bounds.x_max, upper_bounds.y_max,

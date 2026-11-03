@@ -1,0 +1,12 @@
+"""Shared flat colors for semiconductor cross-section illustrations."""
+
+SILICON_FILL = "#bcbcbc"
+COMPONENT_MATRIX_FILL = "#808182"
+ADHESIVE_FILL = "#a8d8f0"
+MATRIX_FILL = "#424547"
+UNDERFILL_FILL = "#00b7df"
+CONDUCTOR_FILL = "#ffcf00"
+SUPPORT_FILL = "#006b57"
+GENERIC_FILL = "#a3a6aa"
+OUTLINE = "#303337"
+CONDUCTOR_OUTLINE = "#b58c00"

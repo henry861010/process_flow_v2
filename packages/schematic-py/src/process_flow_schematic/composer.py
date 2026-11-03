@@ -17,6 +17,7 @@ from typing import Any
 
 from .contracts import Bounds, ComponentHint, Primitive, SchematicContext, SchematicDocument, SchematicPart, SchematicRegistry
 from .geometry import base_material, geometry_bounds, material_color, walk_containers
+from .palette import OUTLINE
 
 
 def _freeze(value):
@@ -62,7 +63,7 @@ class _Placement:
 
 
 def _signature(container):
-    """Ignore identity, XY placement, repeated count and density magnitude."""
+    """Ignore identity, XY placement, repeated count and via/circuit density."""
     layers = []
     for collection in ("bodies", "vias", "circuits", "bumps"):
         for node in container.get(collection, ()):
@@ -71,7 +72,7 @@ def _signature(container):
                 continue
             layers.append((collection, node.get("key"), base_material(node.get("material", "")),
                            bounds.z_min, bounds.z_max, node.get("stage"), node.get("direction"),
-                           collection == "bodies" or node.get("density", 0) > 0))
+                           collection != "bumps" or node.get("density", 0) > 0))
     return (container.get("key"), tuple(sorted(layers, key=repr)),
             tuple(sorted((_signature(c) for c in container.get("children", ())), key=repr)))
 
@@ -273,27 +274,30 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
 
     edge_groups = [g for g in groups if g.hint.placement == "edges"]
     center_groups = [g for g in groups if g.hint.placement != "edges"]
-    edge_space = sum(max(1, g.hint.representative_count // 2) * 136 for g in edge_groups)
+    # Broad footprints keep dies visually wider than their exaggerated layer
+    # thicknesses. These dimensions affect presentation only, never geometry.
+    die_width, edge_die_width, gap = 320.0, 224.0, 24.0
+    edge_space = sum(max(1, g.hint.representative_count // 2) * (edge_die_width + gap) for g in edge_groups)
     center_count = sum(max(1, min(12, g.hint.representative_count)) for g in center_groups)
-    width = max(1000.0, 96.0 + edge_space * 2 + center_count * 184)
+    width = max(1000.0, 96.0 + edge_space * 2 + center_count * (die_width + gap))
     placements: list[_Placement] = []
     left, right = 48.0, width - 48.0
     for group in edge_groups:
         count = max(1, min(12, group.hint.representative_count))
         for index in range(count):
             if index % 2 == 0:
-                placements.append(_Placement(group, left, 112.0))
-                left += 136
+                placements.append(_Placement(group, left, edge_die_width))
+                left += edge_die_width + gap
             else:
-                right -= 112
-                placements.append(_Placement(group, right, 112.0))
-                right -= 24
-    center_width = center_count * 160 + max(center_count - 1, 0) * 24
+                right -= edge_die_width
+                placements.append(_Placement(group, right, edge_die_width))
+                right -= gap
+    center_width = center_count * die_width + max(center_count - 1, 0) * gap
     cursor = left + max(0, (right - left - center_width) / 2)
     for group in center_groups:
         for _ in range(max(1, min(12, group.hint.representative_count))):
-            placements.append(_Placement(group, cursor, 160.0))
-            cursor += 184
+            placements.append(_Placement(group, cursor, die_width))
+            cursor += die_width + gap
     placements.sort(key=lambda p: p.x)
 
     z = _ZDisplay([n.bounds for n in nodes])
@@ -400,7 +404,7 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
         primitives = part.primitives or (Primitive(),)
         for primitive in primitives:
             shape = {"id": f"shape-{len(shapes) + 1}", "itemId": item_id, "kind": primitive.kind,
-                     "fill": primitive.fill or part.fill, "stroke": primitive.stroke or "#52616c",
+                     "fill": primitive.fill or part.fill, "stroke": primitive.stroke or OUTLINE,
                      "strokeWidth": primitive.stroke_width, "clip": clip}
             if primitive.kind == "rect":
                 shape.update(x=rect["x"] + primitive.x * rect["width"], y=rect["y"] + primitive.y * rect["height"],

@@ -1,6 +1,6 @@
 """Joint owns schematic presentation of the joined bump features it produces."""
 
-from process_flow_schematic import Primitive, SchematicContext, SchematicPart, base_material
+from process_flow_schematic import CONDUCTOR_FILL, CONDUCTOR_OUTLINE, Primitive, SchematicContext, SchematicPart, base_material
 
 
 def present_schematic(context: SchematicContext) -> list[SchematicPart]:
@@ -8,7 +8,7 @@ def present_schematic(context: SchematicContext) -> list[SchematicPart]:
         return []
     return [SchematicPart(
         label="Bump · " + base_material(context.node.get("material", "Bump")),
-        fill="#d9b85e",
+        fill=CONDUCTOR_FILL,
         primitives=(Primitive(kind="circle", cy=0.5, r=0.42, repeat_x=True,
-                              fill="#d9b85e", stroke="#9a772e"),),
+                              fill=CONDUCTOR_FILL, stroke=CONDUCTOR_OUTLINE),),
     )]

@@ -10,6 +10,7 @@ import type {
   SchematicRectangle,
   SchematicShape,
 } from "./schematic-types";
+import { schematicLabels, schematicTextColor } from "./schematic-labels";
 
 const lengthFormatter = new Intl.NumberFormat("en-US", {
   maximumSignificantDigits: 8,
@@ -48,6 +49,12 @@ export function SchematicPreview({
   }
 
   const groups = new Map<string, SchematicItem[]>();
+  const itemColors = new Map<string, string>();
+  for (const shape of document.shapes) {
+    if (!itemColors.has(shape.itemId)) {
+      itemColors.set(shape.itemId, shape.fill === "none" ? shape.stroke : shape.fill);
+    }
+  }
   for (const item of document.items) {
     const label = item.groupLabel || "Structure";
     const items = groups.get(label) ?? [];
@@ -56,8 +63,8 @@ export function SchematicPreview({
   }
 
   return (
-    <div className="h-full overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
-      <section className="flex min-h-[420px] flex-col lg:min-h-0" aria-label="Structure cross section">
+    <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+      <section className="flex h-full min-h-0 min-w-0 flex-col" aria-label="Structure cross section">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-muted/25 px-4 py-3 md:px-5">
           <div>
             <h3 className="text-sm font-semibold">Cross section</h3>
@@ -68,28 +75,27 @@ export function SchematicPreview({
             Select a layer to inspect
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-background p-4 lg:p-6">
+        <div className="relative min-h-0 min-w-0 flex-1 bg-muted/30">
           {document.shapes.length > 0 ? (
             <div
-              className="flex min-h-full min-w-[640px] items-center"
-              style={{ minWidth: Math.max(640, document.viewBox[2]) }}
+              className="absolute inset-3 rounded-xl border border-border/60 bg-white p-2 md:inset-5 md:p-4 lg:inset-6"
             >
               <SchematicDrawing document={document} selectedItemId={selectedItemId} onSelect={setSelectedItemId} />
             </div>
           ) : (
-            <p className="flex min-h-64 items-center justify-center text-center text-sm text-muted-foreground" role="status">
+            <p className="flex h-full items-center justify-center p-3 text-center text-sm text-muted-foreground" role="status">
               This snapshot contains no visible structure.
             </p>
           )}
         </div>
         <div className="shrink-0 border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground md:px-5">
-          Layer thicknesses and Z positions show actual snapshot values. Thin layers may be enlarged for readability.
+          Schematic · not to scale. Select a component or layer to see its actual thickness and Z position in the layer details.
         </div>
       </section>
 
       <aside className="border-t bg-muted/15 lg:overflow-y-auto lg:border-l lg:border-t-0" aria-label="Actual layer thicknesses">
         <div className="border-b bg-background px-4 py-4">
-          <div className="text-xs font-medium text-muted-foreground">Total structure thickness</div>
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><Layers3 className="h-3.5 w-3.5" aria-hidden="true" />Total structure thickness</div>
           <div className="mt-1 font-mono text-2xl font-semibold tracking-tight">
             {formatSchematicLength(document.totalThickness, document.unit)}
           </div>
@@ -103,7 +109,7 @@ export function SchematicPreview({
               <ul className="space-y-1">
                 {items.map((item) => (
                   <li key={item.id}>
-                    <SchematicItemButton item={item} unit={document.unit} selected={selectedItemId === item.id} onSelect={setSelectedItemId} />
+                    <SchematicItemButton item={item} color={itemColors.get(item.id)} unit={document.unit} selected={selectedItemId === item.id} onSelect={setSelectedItemId} />
                   </li>
                 ))}
               </ul>
@@ -135,11 +141,13 @@ export function SchematicPreview({
 
 function SchematicItemButton({
   item,
+  color,
   unit,
   selected,
   onSelect,
 }: {
   item: SchematicItem;
+  color?: string;
   unit: string;
   selected: boolean;
   onSelect: (itemId: string) => void;
@@ -155,7 +163,10 @@ function SchematicItemButton({
       )}
     >
       <span className="flex items-start justify-between gap-3 text-sm">
-        <span className="min-w-0 break-words font-medium">{item.label}</span>
+        <span className="flex min-w-0 items-start gap-2 font-medium">
+          <span className="mt-1 h-3 w-3 shrink-0 rounded-sm border border-black/15" style={{ backgroundColor: color }} aria-hidden="true" />
+          <span className="min-w-0 break-words">{item.label}</span>
+        </span>
         <span className="shrink-0 whitespace-nowrap font-mono text-xs leading-5">{formatSchematicLength(item.thickness, unit)}</span>
       </span>
       <span className="mt-1 block break-words text-xs text-muted-foreground">{item.material || "Unspecified material"}</span>
@@ -181,6 +192,7 @@ export function SchematicDrawing({
   }
   const titleId = `${instanceId}-title`;
   const descriptionId = `${instanceId}-description`;
+  const labels = React.useMemo(() => schematicLabels(document), [document]);
 
   return (
     <svg
@@ -190,8 +202,7 @@ export function SchematicDrawing({
       aria-describedby={descriptionId}
       viewBox={document.viewBox.join(" ")}
       preserveAspectRatio="xMidYMid meet"
-      className="block h-auto min-h-[320px] w-full overflow-visible"
-      style={{ aspectRatio: `${document.viewBox[2]} / ${document.viewBox[3]}` }}
+      className="block h-full w-full font-sans"
     >
       <title id={titleId}>Structure cross section</title>
       <desc id={descriptionId}>Schematic, not to scale. Select a layer with a click, Enter, or Space to highlight its actual thickness in the adjacent list.</desc>
@@ -231,67 +242,27 @@ export function SchematicDrawing({
           </g>
         );
       })}
-      {document.shapes.map((shape, index) => {
-        if (shape.kind !== "rect" || (shape.width ?? 0) < 96 || (shape.height ?? 0) < 36) return null;
-        const item = items.get(shape.itemId);
-        if (!item) return null;
-        const x = (shape.x ?? 0) + (shape.width ?? 0) / 2;
-        const y = (shape.y ?? 0) + (shape.height ?? 0) / 2;
-        if (!shapeContainsPoint(shape, x, y) || document.shapes.slice(index + 1).some(
-          (later) => later.itemId !== shape.itemId && shapeContainsPoint(later, x, y),
-        )) return null;
-        const limit = Math.max(8, Math.floor((shape.width ?? 0) / 6.5));
-        const label = item.label.length > limit ? `${item.label.slice(0, limit - 1)}…` : item.label;
-        return (
-          <text
-            key={`label-${shape.id}`}
-            data-layer-label={item.id}
-            x={x}
-            y={y - 4}
-            textAnchor="middle"
-            className="fill-foreground text-[11px] font-medium"
-            pointerEvents="none"
-            aria-hidden="true"
-          >
-            <tspan x={x}>{label}</tspan>
-            <tspan x={x} dy="16" className="font-mono">{formatSchematicLength(item.thickness, document.unit)}</tspan>
-          </text>
-        );
-      })}
-      {document.components.map((component) => (
+      {labels.map((label) => (
         <text
-          key={component.id}
-          x={component.x + component.width / 2}
-          y={Math.max(document.viewBox[1] + 14, component.y - 10)}
+          key={label.id}
+          data-layer-label={label.component ? undefined : label.itemId}
+          data-component-label={label.component ? label.id : undefined}
+          x={label.x}
+          y={label.y}
           textAnchor="middle"
-          className="fill-foreground text-[12px] font-medium"
+          dominantBaseline="central"
+          fill={schematicTextColor(label.background)}
+          fontSize={label.fontSize}
+          fontWeight={label.component ? 750 : 650}
           pointerEvents="none"
+          aria-hidden="true"
         >
-          {component.label}
+          {label.text}
+          <title>{label.fullText}</title>
         </text>
       ))}
     </svg>
   );
-}
-
-/** Labels only occupy visible areas; an ancestor slab may be covered by children. */
-function shapeContainsPoint(shape: SchematicShape, x: number, y: number) {
-  const inRectangle = (rect: SchematicRectangle) => x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
-  if (shape.clip && (!inRectangle(shape.clip) || shape.clip.exclusions.some(inRectangle))) return false;
-  if (shape.kind === "rect") {
-    return inRectangle({ x: shape.x ?? 0, y: shape.y ?? 0, width: shape.width ?? 0, height: shape.height ?? 0 });
-  }
-  if (shape.kind === "circle") {
-    return (x - (shape.cx ?? 0)) ** 2 + (y - (shape.cy ?? 0)) ** 2 <= (shape.r ?? 0) ** 2;
-  }
-  if (!shape.closed || !shape.points?.length) return false;
-  let inside = false;
-  for (let i = 0, j = shape.points.length - 1; i < shape.points.length; j = i++) {
-    const [xi, yi] = shape.points[i];
-    const [xj, yj] = shape.points[j];
-    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
 }
 
 function SchematicPrimitive({ shape, selected }: { shape: SchematicShape; selected: boolean }) {

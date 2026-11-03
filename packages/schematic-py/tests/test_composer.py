@@ -4,8 +4,9 @@ import math
 import unittest
 
 from process_flow_schematic import (
+    CONDUCTOR_FILL, GENERIC_FILL, MATRIX_FILL, SILICON_FILL, SUPPORT_FILL, UNDERFILL_FILL,
     Bounds, ComponentHint, Primitive, SchematicPart, SchematicRegistry, compose_schematic,
-    geometry_bounds, slab,
+    geometry_bounds, material_color, slab,
 )
 
 
@@ -33,6 +34,22 @@ def component(context):
 
 
 class ComposerTests(unittest.TestCase):
+    def test_material_palette_is_consistent_for_aliases_and_runtime_instances(self):
+        families = (
+            (SILICON_FILL, ("Si", "silicon", "Si-Photonics", "HBM-package", "DRAM-package", "SoIC-stack")),
+            (MATRIX_FILL, ("Epoxy-Mold-Compound", "lsi_top_molding", "EMC", "PI", "polyimide", "SiO2", "usg", "pass2")),
+            (SUPPORT_FILL, ("glass", "carrier", "substrate", "FR4")),
+            (UNDERFILL_FILL, ("UF", "underfill")),
+            (CONDUCTOR_FILL, ("Cu", "copper", "SnAg", "solder")),
+        )
+        for expected, materials in families:
+            for material in materials:
+                with self.subTest(material=material):
+                    self.assertEqual(material_color(material), expected)
+                    self.assertEqual(material_color(material + "_dup12"), expected)
+        self.assertEqual(material_color("custom material"), GENERIC_FILL)
+        self.assertEqual(material_color("silicone"), GENERIC_FILL)
+
     def test_final_state_measurements_and_thin_layers_share_height_boundaries(self):
         source = structure(container("root", bodies=[body("base", 0, 1000), body("thin", 1000, 0.1)]))
         before = copy.deepcopy(source)

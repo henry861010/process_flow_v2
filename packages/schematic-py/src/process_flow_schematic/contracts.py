@@ -5,6 +5,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, NotRequired, TypedDict
 
+from .palette import GENERIC_FILL
+
 SCHEMATIC_VERSION = 1
 
 
@@ -100,7 +102,7 @@ class Primitive:
     points: tuple[tuple[float, float], ...] = ()
     fill: str | None = None
     stroke: str | None = None
-    stroke_width: float = 0.8
+    stroke_width: float = 0.6
     closed: bool = False
     repeat_x: bool = False
 
@@ -128,7 +130,7 @@ class SchematicContext:
 @dataclass(frozen=True)
 class SchematicPart:
     label: str
-    fill: str = "#cbd5d8"
+    fill: str = GENERIC_FILL
     primitives: tuple[Primitive, ...] = ()
     component: ComponentHint | None = None
     layout: str = "node"
@@ -159,5 +161,5 @@ class SchematicRegistry:
         return self._presenters.get((kind, key)) or self._presenters.get((kind, None))
 
 
-def slab(label: str, fill: str = "#cbd5d8") -> SchematicPart:
+def slab(label: str, fill: str = GENERIC_FILL) -> SchematicPart:
     return SchematicPart(label=label, fill=fill, primitives=(Primitive(),))
