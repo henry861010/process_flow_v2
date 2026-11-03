@@ -1072,10 +1072,10 @@ function ProcessFlowEditorInner() {
           onNodeClick={(_, node) => {
             if (savingRef.current) return;
             setSelectedNodeId(node.id);
-            if (isFlowInputNode(node)) setEditingNodeId(node.id);
+            if (topologyLocked && isFlowInputNode(node)) setEditingNodeId(node.id);
           }}
           onNodeDoubleClick={(_, node) => {
-            if (savingRef.current || !isStepNode(node)) return;
+            if (savingRef.current) return;
             setSelectedNodeId(node.id);
             setEditingNodeId(node.id);
           }}

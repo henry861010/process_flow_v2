@@ -7,6 +7,11 @@ from collections.abc import Sequence
 from .contracts import ComponentHint, SchematicLayoutGroup, SchematicLayoutPlan, SchematicSlot
 
 
+# Keep 144 display units inside the default support span, which starts at x=36.
+COMPONENT_EDGE_INSET = 180.0
+COMPONENT_GAP = 36.0
+
+
 def _positive_number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
@@ -52,14 +57,14 @@ def make_layout_plan(
         keys.add(group.key)
     edge_groups = [group for group in groups if group.hint.placement == "edges"]
     center_groups = [group for group in groups if group.hint.placement != "edges"]
-    die_width, edge_die_width, gap = 320.0, 224.0, 24.0
+    die_width, edge_die_width, gap = 320.0, 224.0, COMPONENT_GAP
     # Reserve the larger edge for odd counts as well as the common two-edge case.
     edge_space = sum(((min(12, group.hint.representative_count) + 1) // 2) * (edge_die_width + gap)
                      for group in edge_groups)
     center_count = sum(min(12, group.hint.representative_count) for group in center_groups)
-    width = max(1000.0, 96.0 + edge_space * 2 + center_count * (die_width + gap))
+    width = max(1000.0, COMPONENT_EDGE_INSET * 2 + edge_space * 2 + center_count * (die_width + gap))
     slots = []
-    left, right = 48.0, width - 48.0
+    left, right = COMPONENT_EDGE_INSET, width - COMPONENT_EDGE_INSET
     for group in edge_groups:
         for index in range(min(12, group.hint.representative_count)):
             if index % 2 == 0:

@@ -1,17 +1,29 @@
 """Envelope-based placement and joint planning, independent of serialized state."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from math import hypot
 
 from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
+from .container import Container
+from .features import Bump
 from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
 from ..utils.math_utils import math
 from ..utils.polygon import classify_polygon_loops
 
 
 UNJOINED_STAGES = ("deposited", "reflowed")
+
+
+@dataclass(frozen=True, slots=True)
+class _BumpJointPlan:
+    child: Container
+    offset: float
+    replacements: tuple[tuple[Bump, Bump], ...]
+    actual_height: float
+    support_materials: tuple[str, ...]
 
 
 def bottom_bumps(container, stages):
@@ -45,8 +57,9 @@ def plan_bump_joint(root, joined_height):
     """Validate the whole batch and prepare replacements before any mutation."""
     plans = []
     layer = None
+    bodies = None
     for child in root.children():
-        uppers = bottom_bumps(child, ("reflowed",))
+        uppers = _joint_bottom_bumps(child)
         pairs = []
         for upper in uppers:
             lowers = [
@@ -65,7 +78,6 @@ def plan_bump_joint(root, joined_height):
         if len(pairs) != len(uppers):
             raise ValueError("Bump Joint: a child has partially paired bottom bumps")
         body_bottom = pairs[0][0].z_max()
-        replacements = []
         for upper, lower in pairs:
             if math.f_ne(upper.z_max(), body_bottom):
                 raise ValueError("Bump Joint: a child has inconsistent joint heights")
@@ -74,11 +86,49 @@ def plan_bump_joint(root, joined_height):
                 layer = pair_layer
             elif any(math.f_ne(a, b) for a, b in zip(layer, pair_layer)):
                 raise ValueError("Bump Joint: all matched bumps must be on the same layer")
-            replacement = upper.copy_with_thk(joined_height).copy_with_stage("joined")
+
+        if bodies is None:
+            bodies = tuple(_assembly_bodies(root))
+        support_materials = tuple(sorted({
+            body.material()
+            for body in bodies
+            if any(
+                math.f_gt(min(body.z_max(), upper.z_max()), max(body.z_min(), lower.z_min()))
+                and footprints_overlap(body.geometry(), upper.geometry())
+                for upper, lower in pairs
+            )
+        }))
+        actual_height = body_bottom - pairs[0][1].z_min() if support_materials else joined_height
+        replacements = []
+        for upper, lower in pairs:
+            # A supported component keeps its exact position and upper surface,
+            # including the tolerated differences between paired bump planes.
+            height = upper.z_max() - lower.z_min() if support_materials else joined_height
+            replacement = upper.copy_with_thk(height).copy_with_stage("joined")
             replacement.move(z=lower.z_min() - replacement.z_min())
             replacements.append((upper, replacement))
-        plans.append((child, pairs[0][1].z_min() + joined_height - body_bottom, replacements))
+        offset = 0 if support_materials else pairs[0][1].z_min() + joined_height - body_bottom
+        plans.append(_BumpJointPlan(child, offset, tuple(replacements), actual_height, support_materials))
     return plans
+
+
+def _joint_bottom_bumps(container):
+    """Fill bodies may extend below bumps without changing their bottom layer.
+
+    Anchor to all direct bump stages so a repeated Joint cannot select a higher
+    reflowed layer after the original bottom layer has become joined.
+    """
+    bumps = container.bumps()
+    if not bumps:
+        return []
+    bottom = min(bump.z_min() for bump in bumps)
+    return [bump for bump in bumps if bump.stage() == "reflowed" and math.f_eq(bump.z_min(), bottom)]
+
+
+def _assembly_bodies(container):
+    yield from container.bodies()
+    for child in container.children():
+        yield from _assembly_bodies(child)
 
 
 def footprints_overlap(left, right):

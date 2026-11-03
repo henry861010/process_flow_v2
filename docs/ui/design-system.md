@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-07-11
-last_verified_commit: b01b1e702c0e08c73d0ad7f13b7c1e32f38d7ce4
+last_verified: 2026-11-03
+last_verified_commit: 886ad764
 source_of_truth:
   - apps/viewer/app/globals.css
   - apps/viewer/tailwind.config.ts
@@ -35,6 +35,7 @@ source_of_truth:
 | `--popover-foreground` | `204 24% 14%` | popover text |
 | `--primary` | `168 76% 25%` | primary command、active icon、graph source |
 | `--primary-foreground` | `0 0% 100%` | text on primary |
+| `--schematic-selection` | `0 72% 51%` | schematic feature 選取外框、淡外暈與鍵盤 focus |
 | `--secondary` | `203 22% 91%` | quiet badge/control |
 | `--secondary-foreground` | `204 24% 14%` | text on secondary |
 | `--muted` | `202 19% 92%` | subdued header、disabled surface |

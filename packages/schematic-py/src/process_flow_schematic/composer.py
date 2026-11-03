@@ -17,7 +17,7 @@ from typing import Any
 
 from .contracts import Bounds, ComponentHint, Primitive, SchematicContext, SchematicDocument, SchematicLayoutPlan, SchematicPart, SchematicRegistry
 from .geometry import base_material, geometry_bounds, material_color, walk_containers
-from .layout import _validate_layout_plan
+from .layout import COMPONENT_EDGE_INSET, COMPONENT_GAP, _validate_layout_plan
 from .palette import OUTLINE
 
 
@@ -326,12 +326,12 @@ def _compose_schematic(
     center_groups = [g for g in groups if g.hint.placement != "edges"]
     # Broad footprints keep dies visually wider than their exaggerated layer
     # thicknesses. These dimensions affect presentation only, never geometry.
-    die_width, edge_die_width, gap = 320.0, 224.0, 24.0
+    die_width, edge_die_width, gap = 320.0, 224.0, COMPONENT_GAP
     edge_space = sum(max(1, g.hint.representative_count // 2) * (edge_die_width + gap) for g in edge_groups)
     center_count = sum(max(1, min(12, g.hint.representative_count)) for g in center_groups)
-    width = max(1000.0, 96.0 + edge_space * 2 + center_count * (die_width + gap))
+    width = max(1000.0, COMPONENT_EDGE_INSET * 2 + edge_space * 2 + center_count * (die_width + gap))
     placements: list[_Placement] = []
-    left, right = 48.0, width - 48.0
+    left, right = COMPONENT_EDGE_INSET, width - COMPONENT_EDGE_INSET
     for group in edge_groups:
         count = max(1, min(12, group.hint.representative_count))
         for index in range(count):

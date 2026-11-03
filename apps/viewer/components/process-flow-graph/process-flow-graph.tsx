@@ -306,18 +306,18 @@ export function ProcessFlowGraph<
           onNodeClick={(event, node) => {
             onNodeClick?.(event, node);
             const data = getGraphNodeData(node);
-            if (data.nodeKind === "processStep" && canEditTopology && event.detail === 1) {
+            if (canEditTopology && event.detail === 1) {
               dispatchConnection({
                 type: "source",
-                handle: { nodeId: node.id, handleId: data.outputPortId ?? "result_geometry" },
+                handle: {
+                  nodeId: node.id,
+                  handleId: data.nodeKind === "flowInput" ? "out" : data.outputPortId ?? "result_geometry",
+                },
                 pointer: { x: event.clientX, y: event.clientY },
               });
-            } else if (data.nodeKind !== "processStep") {
-              cancelClickConnection();
             }
           }}
           onNodeDoubleClick={(event, node) => {
-            if (getGraphNodeData(node).nodeKind !== "processStep") return;
             cancelClickConnection();
             onNodeDoubleClick?.(event, node);
           }}
@@ -427,7 +427,7 @@ function FlowInputNode({
           "rounded-xl ring-2 ring-transparent hover:ring-primary/20",
           selected && "ring-primary/40",
         )}
-        title={graphMode === "view" ? "Select initial geometry" : undefined}
+        title={graphMode === "edit" ? "Click to connect; double-click to edit geometry input" : "Select initial geometry"}
         onDoubleClick={(event) => {
           if (graphMode !== "view") {
             return;
@@ -499,7 +499,7 @@ function FlowInputNode({
           : "h-[138px] w-[138px] cursor-pointer hover:shadow-md",
         statusClasses.border,
       )}
-      title={graphMode === "view" ? "Select initial geometry" : undefined}
+      title={graphMode === "edit" ? "Click to connect; double-click to edit geometry input" : "Select initial geometry"}
       onDoubleClick={(event) => {
         if (graphMode !== "view") {
           return;

@@ -73,6 +73,7 @@ class PreviewSnapshotGeometry:
     order: int
     target: JsonObject
     geometry_structure: JsonObject
+    execution_warnings: tuple[JsonObject, ...] = ()
 
 
 def bootstrap_payload(store: SQLiteStore) -> JsonObject:
@@ -210,7 +211,8 @@ def execute_flow(store: SQLiteStore, flow_id: str, generators: GeometryGenerator
     plan = _compiler(store, generators).compile(flow["definition"], flow["configuration"], steps)
     result = GeometryKernel().execute(plan)
     return {"geometryStructure": result.geometry(), "stepOutputs": result.step_outputs(),
-            "terminalStepRefIds": result.terminal_step_ref_ids()}
+            "terminalStepRefIds": result.terminal_step_ref_ids(),
+            "executionWarnings": result.execution_warnings()}
 
 
 def resolve_preview_request(
@@ -256,7 +258,7 @@ def preview_request_identity(context: PreviewRequestContext) -> JsonObject:
     """Return all semantic inputs that can affect a preview session."""
 
     return {
-        "contractVersion": 2,
+        "contractVersion": 3,
         "target": context.target,
         "sourceLabel": context.source_label,
         "definition": context.definition,
@@ -473,6 +475,7 @@ async def materialize_preview_snapshots(
                     "outputPortId": planned_step.output_port_id,
                 },
                 geometry_structure=geometry_structure,
+                execution_warnings=tuple(result.step_execution_warnings(planned_step.step_ref_id)),
             )
         )
     if not snapshots or snapshots[-1].step_ref_id != output_step_ref_id:
@@ -502,6 +505,7 @@ async def preview_geometry(
     return {
         "geometryEntityJson": geometry_entity_json,
         "glbBase64": base64.b64encode(glb_bytes).decode("ascii"),
+        "executionWarnings": copy.deepcopy(list(selected.execution_warnings)),
     }
 
 

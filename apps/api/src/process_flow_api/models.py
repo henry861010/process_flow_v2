@@ -618,15 +618,25 @@ class FileExportCancelRequest(StrictModel):
     clientId: str = Field(min_length=1, max_length=160)
 
 
+class ExecutionWarning(StrictModel):
+    code: str
+    stepRefId: str
+    stepLabel: str
+    message: str
+    details: JsonObject
+
+
 class ExecuteFlowResponse(StrictModel):
     geometryStructure: JsonObject
     stepOutputs: JsonObject
     terminalStepRefIds: list[str]
+    executionWarnings: list[ExecutionWarning] = Field(default_factory=list)
 
 
 class GeometryPreviewResponse(StrictModel):
     geometryEntityJson: JsonObject
     glbBase64: str
+    executionWarnings: list[ExecutionWarning] = Field(default_factory=list)
 
 
 SchematicFiniteFloat = Annotated[float, Field(strict=True, allow_inf_nan=False)]
@@ -737,6 +747,7 @@ class PreviewSnapshot(StrictModel):
     sectionUrl: str = Field(min_length=1)
     schematic: SchematicDocument | None = None
     schematicWarnings: list[str] = Field(default_factory=list)
+    executionWarnings: list[ExecutionWarning] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod

@@ -878,19 +878,39 @@ class ProcessGeometryState:
             offset_y=_finite_number(y, "y") - point["y"],
         )
 
-    def join_bumps(self, *, joined_height):
+    def join_bumps(self, *, joined_height, on_height_preserved=None):
+        """Join paired bumps, retaining an existing gap when solid bodies fill it.
+
+        ``on_height_preserved`` receives one diagnostic per constrained child
+        whose actual SOH differs from the requested height, after the whole
+        validated batch has been applied.
+        """
         height = _positive_number(joined_height, "joined_height")
         plans = plan_bump_joint(self._root, height)
         if not plans:
             return self
         snapshot = self.to_geometry_structure()["root"]
         children = self._root.children()
-        for child, offset, replacements in plans:
+        diagnostics = []
+        for plan in plans:
+            child = plan.child
             payload = snapshot["children"][children.index(child)]
-            for original, replacement in replacements:
+            for original, replacement in plan.replacements:
                 replacement._structure_id = payload["bumps"][child.bumps().index(original)]["id"]
-            child.move(z=offset)
-            child.replace_bumps(dict(replacements))
+            if plan.offset:
+                child.move(z=plan.offset)
+            child.replace_bumps(dict(plan.replacements))
+            if plan.support_materials and math.f_ne(plan.actual_height, height):
+                diagnostics.append({
+                    "childId": payload["id"],
+                    "requestedSoh": height,
+                    "actualSoh": plan.actual_height,
+                    "unit": self._unit_system,
+                    "supportMaterials": list(plan.support_materials),
+                })
+        if on_height_preserved is not None:
+            for diagnostic in diagnostics:
+                on_height_preserved(diagnostic)
         return self
 
     def place_geometry_state(

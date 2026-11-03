@@ -1051,7 +1051,7 @@
     "category": "joint",
     "program": "joint/mr_joint",
     "owner": "integration.platform",
-    "description": "整體回焊接合（Mass Reflow，MR）：代表 PnP 放置後，透過回焊讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合，並調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height。目前 MR 與 TCB 使用相同的幾何接合模型，不模擬溫度歷程。",
+    "description": "整體回焊接合（Mass Reflow，MR）：代表 PnP 放置後，透過回焊讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合。接合間隙沒有實體支撐材料時，調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height；已有 UF、膠材或其他實體材料填充時，維持該元件位置與目前總間距（SOH），並在實際 SOH 與設定不同時回報 warning。目前 MR 與 TCB 使用相同的幾何接合模型，不模擬溫度歷程。",
     "inputPorts": [
       {
         "portId": "main_geometry",
@@ -1066,7 +1066,7 @@
       {
         "portId": "result_geometry",
         "name": "Result geometry",
-        "description": "Assembly with joined child bumps and adjusted child heights.",
+        "description": "Assembly with joined child bumps; existing fill/support preserves the affected child's current SOH.",
         "dataType": "geometry"
       }
     ],
@@ -1074,7 +1074,7 @@
       {
         "id": "bump_joined_height",
         "name": "Bump joined height",
-        "description": "Total main-surface-to-die-body gap after joint, not an added upper-bump thickness.",
+        "description": "Requested total main-surface-to-die-body gap (SOH) after joint. Existing fill/support preserves the current gap and emits a warning when actual SOH differs.",
         "valueType": "float",
         "controlType": "number",
         "required": true,
@@ -1095,7 +1095,7 @@
     "category": "joint",
     "program": "joint/tcb_joint",
     "owner": "integration.platform",
-    "description": "熱壓接合（Thermocompression Bonding，TCB）：代表 PnP 放置後，透過加熱與施壓讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合，並調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height。目前 TCB 與 MR 使用相同的幾何接合模型，不模擬溫度或壓力歷程。",
+    "description": "熱壓接合（Thermocompression Bonding，TCB）：代表 PnP 放置後，透過加熱與施壓讓元件與主結構兩側的凸塊形成接點。模型會接合已配對且接觸的回焊凸塊，將元件側凸塊標記為已接合。接合間隙沒有實體支撐材料時，調整元件高度，使主結構接合表面到元件本體底面的總間距等於 bump_joined_height；已有 UF、膠材或其他實體材料填充時，維持該元件位置與目前總間距（SOH），並在實際 SOH 與設定不同時回報 warning。目前 TCB 與 MR 使用相同的幾何接合模型，不模擬溫度或壓力歷程。",
     "inputPorts": [
       {
         "portId": "main_geometry",
@@ -1110,7 +1110,7 @@
       {
         "portId": "result_geometry",
         "name": "Result geometry",
-        "description": "Assembly with joined child bumps and adjusted child heights.",
+        "description": "Assembly with joined child bumps; existing fill/support preserves the affected child's current SOH.",
         "dataType": "geometry"
       }
     ],
@@ -1118,7 +1118,7 @@
       {
         "id": "bump_joined_height",
         "name": "Bump joined height",
-        "description": "Total main-surface-to-die-body gap after joint, not an added upper-bump thickness.",
+        "description": "Requested total main-surface-to-die-body gap (SOH) after joint. Existing fill/support preserves the current gap and emits a warning when actual SOH differs.",
         "valueType": "float",
         "controlType": "number",
         "required": true,

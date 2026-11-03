@@ -3,6 +3,7 @@ from __future__ import annotations
 from .analytics import request_context
 
 import asyncio
+import copy
 import hashlib
 import json
 import logging
@@ -36,7 +37,7 @@ from .services import (
 JsonObject = dict[str, Any]
 Axis = Literal["x", "y"]
 PREVIEW_CACHE_CONTROL = "private, max-age=31536000, immutable"
-PREVIEW_SESSION_CONTRACT_VERSION = 2
+PREVIEW_SESSION_CONTRACT_VERSION = 3
 MESH_CACHE_VERSION = 1
 PREPARED_SECTION_CACHE_VERSION = 1
 SECTION_CACHE_VERSION = 3
@@ -94,6 +95,7 @@ class PreviewSnapshotRecord:
     section_url: str
     schematic: JsonObject | None = None
     schematic_warnings: tuple[str, ...] = ()
+    execution_warnings: tuple[JsonObject, ...] = ()
 
     @property
     def geometry_structure(self) -> JsonObject:
@@ -115,6 +117,7 @@ class PreviewSnapshotRecord:
             "sectionUrl": self.section_url,
             "schematic": self.schematic,
             "schematicWarnings": list(self.schematic_warnings),
+            "executionWarnings": copy.deepcopy(list(self.execution_warnings)),
         }
 
 
@@ -705,6 +708,7 @@ class PreviewSessionManager:
             section_url=f"{base_url}/section",
             schematic=schematic,
             schematic_warnings=schematic_warnings,
+            execution_warnings=copy.deepcopy(source.execution_warnings),
         )
 
     async def _snapshot(

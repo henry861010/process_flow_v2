@@ -32,7 +32,7 @@ const document: SchematicDocument = {
 };
 
 describe("schematic preview", () => {
-  it("uses the full width for the cross section, with total thickness in its header and notices below", () => {
+  it("uses the full width for the cross section, with collapsed reading notes and visible warnings", () => {
     const markup = renderToStaticMarkup(<SchematicPreview document={document} />);
     const drawingStart = markup.indexOf('role="group"');
     const drawingEnd = markup.indexOf("</svg>", drawingStart);
@@ -41,9 +41,11 @@ describe("schematic preview", () => {
     expect(drawingStart).toBeGreaterThan(0);
     expect(markup.indexOf("220 µm")).toBeLessThan(drawingStart);
     expect(markup).toContain("Component A");
-    expect(markup).toContain("Thin layers are enlarged.");
+    expect(markup).toContain('aria-label="Reading this schematic"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('aria-label="Schematic notes"');
+    expect(markup).not.toContain("Thin layers are enlarged.");
     expect(markup).toContain("A generic layer style was used.");
-    expect(markup.indexOf("Thin layers are enlarged.")).toBeGreaterThan(drawingEnd);
     expect(markup.indexOf("A generic layer style was used.")).toBeGreaterThan(drawingEnd);
     expect(markup).not.toContain("<aside");
     expect(markup).not.toContain("Actual layer thicknesses");

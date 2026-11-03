@@ -45,6 +45,15 @@ export type GeometryEntityDownload = {
 export type GeometryPreviewResponse = {
   geometryEntityJson: GeometryEntityDownload;
   glbBase64: string;
+  executionWarnings?: ExecutionWarning[];
+};
+
+export type ExecutionWarning = {
+  code: string;
+  stepRefId: string;
+  stepLabel: string;
+  message: string;
+  details: Record<string, unknown>;
 };
 
 export type GeometryPreviewSnapshot = {
@@ -57,6 +66,7 @@ export type GeometryPreviewSnapshot = {
   geometryEntityJson: GeometryEntityDownload;
   schematic?: SchematicDocument | null;
   schematicWarnings?: string[];
+  executionWarnings?: ExecutionWarning[];
   meshUrl: string;
   sectionUrl: string;
 };

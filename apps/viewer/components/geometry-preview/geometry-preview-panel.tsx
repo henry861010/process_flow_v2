@@ -7,8 +7,10 @@ import {
   requestGeometryPreviewSession,
   type GeometryPreviewSession,
   type GeometryPreviewRequest,
+  type GeometryPreviewSnapshot,
 } from "@/components/geometry-preview/geometry-preview-client";
 import { SchematicPreview } from "@/components/geometry-preview/schematic-preview";
+import { ProcessExecutionWarnings } from "@/components/geometry-preview/process-execution-warnings";
 import { FileExportDialog } from "@/components/geometry-preview/file-export-dialog";
 import type {
   FileExportJob,
@@ -163,10 +165,9 @@ export function GeometryPreviewPanel({
           ) : state.status === "error" ? (
             <PreviewMessage icon={<Layers3 />}>{state.message}</PreviewMessage>
           ) : (
-            <SchematicPreview
+            <GeometryPreviewSnapshotContent
               key={targetSnapshot?.snapshotId ?? "missing"}
-              document={targetSnapshot?.schematic ?? null}
-              warnings={targetSnapshot?.schematicWarnings}
+              snapshot={targetSnapshot}
             />
           )}
         </div>
@@ -209,6 +210,24 @@ export function GeometryPreviewPanel({
           onJobCreated={handleFileExportJobCreated}
         />
       ) : null}
+    </div>
+  );
+}
+
+export function GeometryPreviewSnapshotContent({
+  snapshot,
+}: {
+  snapshot: GeometryPreviewSnapshot | null;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <ProcessExecutionWarnings warnings={snapshot?.executionWarnings} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <SchematicPreview
+          document={snapshot?.schematic ?? null}
+          warnings={snapshot?.schematicWarnings}
+        />
+      </div>
     </div>
   );
 }

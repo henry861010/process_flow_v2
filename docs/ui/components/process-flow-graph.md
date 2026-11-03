@@ -112,18 +112,18 @@ handle建立連線。
 
 ## 互動優先順序
 
-1. Step 單擊選取；edit mode 同時從 output 開始拉線，view mode 不拉線。
-2. Step 雙擊透過 `onNodeDoubleClick` 開 editor；右上角常駐鉛筆按鈕使用 `onEdit`，可用 Tab、Enter/Space 操作。
-3. Geometry input 本體維持 screen-level 單擊開 editor，view 的 `onPick` 雙擊維持既有行為。
+1. Step 與 geometry input 單擊選取；edit mode 同時從 output 開始拉線（geometry input 使用 `out`），view mode 不拉線。
+2. Edit mode 的 step 與 geometry input 雙擊透過 `onNodeDoubleClick` 開 editor；step 右上角常駐鉛筆按鈕使用 `onEdit`，可用 Tab、Enter/Space 操作。
+3. View mode 的 geometry input 本體維持 screen-level 單擊開 editor，`onPick` 雙擊維持既有行為；step 雙擊開 editor。
 4. Node 內 command / handle MUST 阻止 click 與 double-click 冒泡，不能誤開 editor 或從 block 再啟動拉線。
-5. 單擊 pane 清 selection 並取消拉線。Step 雙擊、開編輯、Escape、來源刪除、流程替換、進入 view / saving 與開始 node / handle / edge reconnect 拖曳也取消暫存拉線。
+5. 單擊 pane 清 selection 並取消拉線。Node 雙擊、開編輯、Escape、來源刪除、流程替換、進入 view / saving 與開始 node / handle / edge reconnect 拖曳也取消暫存拉線。
 
 Shared graph 用內部 context 保存 click connection 的來源、游標與 hovered target，不存入 nodes、edges 或 draft。
 `interactionKey` 改變時清除暫存狀態，供 screen 在流程替換或 draft saving 時重設。
 停用 React Flow 原生 `connectOnClick`，以統一 handle handler 完成單擊連線；既有 handle drag 與 target reconnect 維持。
 預覽線在 viewport 座標繪製並跟隨游標，縮放/平移時重算游標位置；hover target 顯示 port name，合法為 emerald、不合法為 destructive。
 有效 target 透過既有 validator / `onConnect` 提交；無效 target 保留預覽與既有 edges。
-點另一個 step block 或 source handle 切換來源，點相同來源取消；block 本體不能代替 target input handle。
+點另一個 step、geometry input block 或 source handle 切換來源，點相同來源取消；block 本體不能代替 target input handle。
 連線來源既有 outgoing edges 在預覽期間暫時 muted，取消後恢復原 status。雙擊縮放停用，避免與編輯衝突。
 
 ## 連線規則（edit）
@@ -208,3 +208,5 @@ neutral node/edge的isolated component fixture。這是既有 fixture 的 opaque
 | `UI-GRAPH-010` | drag既有edge source endpoint | 無reconnect handle；source不可由edge endpoint改接。 |
 | `UI-GRAPH-011` | target reconnect到invalid/cycle或取消 | 原edge與graph state不變。 |
 | `UI-GRAPH-012` | inputPorts重排並reload／Arrange | 接口與上游分支依宣告順序；primary同排、前置auxiliary在上、後置在下；完整區塊不重疊，既有portId接線保持原語意。 |
+| `UI-GRAPH-013` | edit mode 單擊 geometry input 本體，再點另一個 step input | 從 `out` 顯示預覽線，單擊不開 editor；有效接線取代原 outgoing edge。 |
+| `UI-GRAPH-014` | edit mode 雙擊 geometry input 本體（含 icon 與 fallback） | 取消暫存拉線並開啟 geometry input editor；既有 edges 保持不變。 |

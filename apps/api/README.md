@@ -139,6 +139,14 @@ API 的 `schematic_builder` 明確註冊 step／generator presenters；presentat
 session 與 snapshot identity，`geometryHash` 只取原始 geometry。安裝 API 前須 editable install
 `packages/schematic-py`，完整命令見本機開發手冊。
 
+Execute、preview session 的各 snapshot 與 legacy geometry-preview 回應另有 `executionWarnings`，
+預設為空陣列，與 schematic presentation warnings 分開。每筆包含 `code`、`stepRefId`、
+`stepLabel`、`message`、`details`。Joint 在既有實體填充支撐下保留高度時，使用
+`joint_soh_preserved`；details 包含 `childId`、`requestedSoh`、`actualSoh`、`unit` 與
+`supportMaterials`。Execute 回傳本次執行的警告；各 preview snapshot 只繼承實際幾何輸入的上游
+警告並去重，因此後續 molding 仍可看到來源 joint 警告，無關分支不混入。
+警告不寫入 GeometryStructure、不阻止匯出，亦不修改已保存的 recipe 參數。
+
 ### 公開 job dashboard
 
 `GET /api/dashboard/jobs` 回傳 `generatedAt`、`maxConcurrentJobs`、`runningCount`（包含

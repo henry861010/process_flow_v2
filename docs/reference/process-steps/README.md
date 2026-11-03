@@ -39,8 +39,8 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Micro Bump | `bump/uBump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
-| MR joint | `joint/mr_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps，調整完整間距 |
-| TCB joint | `joint/tcb_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps，調整完整間距 |
+| MR joint | `joint/mr_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps；已有填充支撐時保留該 child 的現有 SOH |
+| TCB joint | `joint/tcb_joint` | `main_geometry` | `bump_joined_height` | 接合 root 直屬 child 與 main 的 reflowed bumps；已有填充支撐時保留該 child 的現有 SOH |
 | tmv | `tmv/tmv` | `main_geometry` | `thk`, `material`, `density` | 在 cursor 上方建立 `+z` via feature |
 | PnP | `pnp/pnp` | `main_geometry`, `die_geometry` | `placements` | 依 explicit或primitive-default adapter materialize absolute rectangle/polygon target |
 
@@ -69,13 +69,22 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | Flip | 設為 normalized 後的 root direct-body top Z | 不變 | 以 Z plane flip 全 subtree，normalize min Z，反轉 via/bump direction。 |
 | Under Fill | 不變 | 不變 | 新增 child cavity/root gap fill bodies。 |
 | Micro/BGA/C4 Bump | 不變 | 不變 | 在 cursor 上方新增 `stage="reflowed"` bump envelope。 |
-| MR joint / TCB joint | 不變 | 不變 | 上側 bump 改成 joined 並涵蓋完整接合間距；平移 child subtree，下側 bump 原始資料保留。 |
+| MR joint / TCB joint | 不變 | 不變 | 上側 bump 改成 joined 並涵蓋完整接合間距；無支撐時平移 child subtree，有支撐時保留原位與 SOH，下側 bump 原始資料保留。 |
 | tmv | 不變 | 不變 | 以 current footprint 在 cursor 上方新增 via envelope。 |
 | PnP | 不變 | 不變 | 依placements order將absolute target轉為adapter-local frame整批adapt；全部成功後attach到target center。 |
 
 ## 重要 operation 說明
 
 - MR joint 與 TCB joint 分類皆為 `joint`，共用相同接合實作與參數；目前不區分專屬物理行為。
+  SOH 是下側 bump 底面至上側 bump 頂面的完整接合間距，不是單側 bump 或 UF 的厚度。
+  Joint 以直接 bump 的最低層選取元件接點，不因 child 內填料降低 container 底面而略過接合。
+  若 assembly 中任一 body 與該 child 已配對上側 bump 投影有正面積交集，且與開放接合間隙
+  有超過 `1e-5` 的 Z 交集，就視為既有實體填充／支撐；材料名稱與 semantic key 不影響判斷。
+  Polygon 孔洞與圓形／錐形投影沿用 kernel 幾何語意，邊界接觸及只貼住側壁不算支撐。
+  同一 child 任一接點受支撐即保持整個 child 原位，仍將上側 bump 標記 joined 並涵蓋現有完整 SOH；
+  其他無支撐的 child 照設定高度執行。設定高於或低於現有 SOH 都不伸縮既有填充材料。
+  當 requested／actual SOH 差異超過 `1e-5` 時回報 `joint_soh_preserved` process warning，
+  包含 step、child、設定與實際 SOH、單位及支撐材料；相同高度不警告。
 - Micro／BGA／C4 formation 視為完成單側回焊成形，明確建立 `stage="reflowed"` 的 bump，
   不提供 stage parameter，適用 die、wafer 與 panel。PnP 保留來源 bump stage；獨立
   `joint/mr_joint` 或 `joint/tcb_joint` 完成後才將上側 bump 標記 `joined`。

@@ -64,6 +64,12 @@ Document 與 session 僅留在 interaction memory。JSON／STEP／CDB 匯出必�
 `geometryEntityJson`／`structure`，不得使用代表 die 複製、顯示位置、符號或放大厚度。Schematic
 失敗仍保留 snapshot 與匯出；`schematicWarnings`／document warnings 顯示為可讀提示。
 
+`executionWarnings` 是獨立的製程執行結果，預設為空；舊回應缺少此欄位時視為沒有警告。
+有警告時，在剖面圖上方顯示琥珀色 `Process warnings` 區塊，標示來源 step label 與說明，
+最多佔內容區高度 30%，可獨立捲動，剖面圖依剩餘空間 fit。即使 schematic 缺少或不支援，
+仍顯示製程警告，JSON／STEP／CDB 匯出維持可用。Joint 的高度保留警告必須說明設定與實際 SOH
+及既有填充／支撐材料的原因，後續 snapshot 顯示原始 joint 的來源 label。
+
 ## Overlay shell
 
 Outer fixed inset、z `50`、padding base `12px`／`sm` `24px`，backdrop `foreground/45`。
@@ -125,11 +131,21 @@ close/context change -> abort session request
 圖形佔用獨立的 flex viewport，不提供圖面捲動。SVG 同時依可用寬度與高度等比例縮放，以
 `preserveAspectRatio="xMidYMid meet"` 完整置中顯示目前 `viewBox`；開啟即能看到結構全貌，
 不裁切、不將圓形拉成橢圓。視窗尺寸改變時自動重新 fit，保留 die 與符號比例。
-Notes 與 warnings 放在圖下方的獨立捲動區，最多佔內容區高度的 25%，長內容不撐高圖面；
+Notes 預設隱藏，使用者點選 `Cross section` header 右上角的 Lucide `AlertCircle` 驚嘆號
+按鈕（accessible name 與 title 為 `Reading this schematic`）才開啟右上方浮動說明卡。
+按鈕提供 `aria-expanded` 與開啟時的 `aria-controls`；再次點擊、點卡片外、選取 feature、
+Close 或 Escape 可關閉，Close／Escape 將焦點還給按鈕。第一次 Escape 只關說明卡，
+下一次才關 preview；上層 Export form 保留自己的 Escape 優先權。Snapshot 改變時收合。
+說明卡寬 `384px`，限制於圖面可用寬高，長內容在卡內捲動；開關不改變圖面尺寸。
+Warnings 仍放在圖下方的獨立捲動區，最多佔內容區高度的 25%。圖面外距 base `8px`／
+`md` `12px`、白色畫板內距 base `4px`／`md` `8px`，以增加全圖可用空間；
 header 與 footer 保持可達。
 
 共用 layout 仍固定後端 document 中的 die 水平位置與 carrier 寬度；Z 顯示轉換依各 target
-的實際結構計算。Viewer 為顯示整張圖，可因 target 高度或 viewport 改變整體縮放比例，
+的實際結構計算。預設最外側 die 距 carrier／support 邊緣至少保留 144 個顯示單位，
+相鄰 die 間隔為 36 個顯示單位。共用與獨立預覽使用相同內距與間隔；
+圖面寬度同步保留此空間，不壓縮 die 間隔。
+Viewer 為顯示整張圖，可因 target 高度或 viewport 改變整體縮放比例，
 不要求不同高度 target 在螢幕上維持相同水平顯示比例。
 
 ### Feature 工程參數卡
@@ -137,7 +153,10 @@ header 與 footer 保持可達。
 點選 feature，在圖形旁開啟一張唯讀資訊卡，顯示所屬結構、完整 feature 名稱、`Material` 與
 `THK`；bump、via、circuit 另顯示 `Density`。THK 使用目前 snapshot 的實際厚度及單位，包含
 grinding 後剩餘值。Material、THK 與 density 讀取同一實際來源，PnP 配對 bump 各自遵循
-presenter 的 `source_id`。所有對應同一 item 的 shapes 同步反白。
+presenter 的 `source_id`。所有對應同一 item 的 shapes 同步以 `--schematic-selection` 紅框標示，
+線寬為原始線寬加 `2px`、至少 `4px`，並加 `2px`、30% 不透明度的同色淡外暈；保留材料填色。
+外框使用 `non-scaling-stroke`，fit 縮放後仍維持螢幕線寬。未選取圖形的鍵盤 focus 使用同色
+`4px` 外框；已選取時保留選取線寬，不被 focus 樣式覆蓋。
 
 Density 使用 `SchematicItem.densityValues` 的實際百分比，不平均、不按代表符號數量推算。
 合併來源先按唯一 `sourceId` 聚合、去重，數值遞增且缺值排最後；例如顯示 `30%, 50%`，
@@ -219,9 +238,9 @@ capture handler 之前攔截，且僅在 preview 為最上層 dialog 時生效�
 | `UI-SCHEMATIC-002` | 相同結構改變 PnP 顆數與正 density | 代表 die 與符號密度維持固定。 |
 | `UI-SCHEMATIC-003` | Grind 削薄／整層移除／flip | 圖、實際層厚與總厚度吻合 target snapshot。 |
 | `UI-SCHEMATIC-004` | 多 die 類型、極薄 RDL | 代表顆數與左右位置正確，薄層可辨識、同高度對齊。 |
-| `UI-SCHEMATIC-005` | 滑鼠點選或 Enter／Space 選取 feature | 開啟單張工程參數卡且不因圖形區重新分配尺寸自行關卡；所有同 item 圖形同步反白，顯示結構、名稱、Material、實際 THK；bump／via／circuit 另有 Density。 |
+| `UI-SCHEMATIC-005` | 滑鼠點選或 Enter／Space 選取 feature | 開啟單張工程參數卡且不因圖形區重新分配尺寸自行關卡；所有同 item 圖形同步顯示至少 4px 的紅框與淡外暈，保留材料填色，縮放後線寬不變；鍵盤選取不變回綠框。顯示結構、名稱、Material、實際 THK；bump／via／circuit 另有 Density。 |
 | `UI-SCHEMATIC-006` | 缺 presenter／presenter 失敗 | 通用 fallback 與提示可讀；原始匯出仍可用。 |
-| `UI-SCHEMATIC-007` | 390px 與桌面 viewport，含長卡片與 notes／warnings | 未選取時圖全寬；選取後桌面卡片置右側 288px，窄螢幕置下方且最多佔 review 區高度 40%，可卡內捲動。卡片不覆蓋圖，圖依剩餘寬高顯示全貌、不捲動且圓形不扭曲；總厚度、獨立限高 25% 的提示區與 footer 可達。 |
+| `UI-SCHEMATIC-007` | 390px 與桌面 viewport，含長卡片與 notes／warnings | 未選取時圖全寬；選取後桌面卡片置右側 288px，窄螢幕置下方且最多佔 review 區高度 40%，可卡內捲動。卡片不覆蓋圖，圖依剩餘寬高顯示全貌、不捲動且圓形不扭曲；notes 預設收合在右上角驚嘆號按鈕，開啟不壓縮圖面；總厚度、獨立限高 25% 的 warnings 區與 footer 可達。 |
 | `UI-SCHEMATIC-008` | 寬 carrier 與窄 HBM 的 bump geometry | 各自沿顯示寬度等間距鋪滿，圓形不超界；接合區不重複，選取卡片對應各側原始來源的材料、厚度與 density。 |
 | `UI-SCHEMATIC-009` | 多材料、裁切與深色部件 | 使用封裝剖面配色與黑／白粗體名稱，名稱避開遮蔽區，厚度數值在選取卡片呈現，圖與卡片材料相符。 |
 | `UI-SCHEMATIC-010` | 前步已完整、下游缺 recipe／參數／geometry／wiring | 前步預覽可開啟；request 保留完整 flow，後端在該路徑第一個不完整 step 停止 lookahead。 |
@@ -231,5 +250,8 @@ capture handler 之前攔截，且僅在 preview 為最上層 dialog 時生效�
 | `UI-SCHEMATIC-014` | 已開卡後切換 feature、再點同一 feature、點空白、Close、兩次 Escape | 切換時更新同一張卡；其餘操作關卡，圖恢復全寬，Close／Escape 還原圖形焦點；第一次 Escape 保留 preview，第二次才關閉 preview。 |
 | `UI-SCHEMATIC-015` | 開卡後縮放 viewport／整體 review 區、圖形可視區收到捲動事件或更新 snapshot | 卡片關閉；resize 自動重新 fit 全圖，不保留舊 snapshot 的工程參數。開關卡引起圖形區尺寸變化不視為整體 review 區縮放。 |
 | `UI-SCHEMATIC-016` | 已開卡再開 Export form，按 Escape 或點 form backdrop | 只關閉最上層 Export form，卡片與 preview 保留；submitting 時沿用 form 的不可關閉規則。 |
+| `UI-SCHEMATIC-017` | 點擊／Enter／Space 開啟右上角驚嘆號，關閉再重新開啟 | 預設無說明文字區；開啟顯示完整 notes、可捲動且不改變 SVG 尺寸。再次點擊、Close、點外部或 Escape 可關閉；Close／Escape 還原按鈕焦點，preview 保持開啟；notes 與 feature 卡不同時開啟。 |
 
-自動測試與 browser 驗收進度只記錄於 [conformance](../../conformance.md)，不以此規格宣稱已完成。
+紅色選取外框的單次 browser observation 見 [Schematic Selection Evidence](../evidence/schematic-selection/README.md)。
+右上角說明卡與三種 viewport 的觀察見 [Schematic Notes Disclosure Evidence](../evidence/schematic-notes/README.md)。
+自動測試與完整 browser 驗收進度以 [conformance](../../conformance.md) 為準，不以此規格宣稱已完成。

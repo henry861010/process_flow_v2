@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Layers3, MousePointer2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Layers3, MousePointer2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -30,10 +30,14 @@ export function SchematicPreview({
   warnings?: string[];
 }) {
   const [selection, setSelection] = React.useState<SchematicSelection | null>(null);
+  const [notesOpen, setNotesOpen] = React.useState(false);
   const [position, setPosition] = React.useState<ReturnType<typeof schematicInspectorPosition> | null>(null);
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const cardRef = React.useRef<HTMLElement>(null);
+  const notesButtonRef = React.useRef<HTMLButtonElement>(null);
+  const notesRef = React.useRef<HTMLElement>(null);
   const inspectorId = React.useId();
+  const notesId = React.useId();
   const selectedItem = selection?.document === document
     ? document?.items.find((item) => item.id === selection.itemId)
     : undefined;
@@ -43,7 +47,34 @@ export function SchematicPreview({
     setSelection(null);
   }, [selection]);
 
-  React.useEffect(() => { setSelection(null); }, [document]);
+  React.useEffect(() => { setSelection(null); setNotesOpen(false); }, [document]);
+
+  React.useEffect(() => {
+    if (!notesOpen) return;
+    const viewport = viewportRef.current;
+    const ownerDialog = viewport?.closest('[role="dialog"]');
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !(event.target instanceof Element)) return;
+      const inOwner = ownerDialog
+        ? event.target.closest('[role="dialog"]') === ownerDialog
+        : viewport?.parentElement?.contains(event.target);
+      if (!inOwner) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setNotesOpen(false);
+      notesButtonRef.current?.focus({ preventScroll: true });
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || notesRef.current?.contains(event.target) || notesButtonRef.current?.contains(event.target)) return;
+      setNotesOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [notesOpen]);
 
   React.useEffect(() => {
     const viewport = viewportRef.current;
@@ -99,6 +130,7 @@ export function SchematicPreview({
 
   function selectItem(itemId: string, event: React.MouseEvent<SVGGElement> | React.KeyboardEvent<SVGGElement>) {
     if (!document || !viewportRef.current) return;
+    setNotesOpen(false);
     if (selectedItem?.id === itemId) { closeInspector(); return; }
     const viewport = viewportRef.current.getBoundingClientRect();
     const shape = event.currentTarget.getBoundingClientRect();
@@ -142,13 +174,23 @@ export function SchematicPreview({
             <p className="font-mono text-sm font-semibold tabular-nums">{formatSchematicLength(document.totalThickness, document.unit)}</p>
           </div>
         </div>
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MousePointer2 className="h-3.5 w-3.5" aria-hidden="true" />Select a feature to inspect
-        </p>
+        <div className="ml-auto flex items-center gap-3">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <MousePointer2 className="h-3.5 w-3.5" aria-hidden="true" />Select a feature to inspect
+          </p>
+          {document.notes.length > 0 ? (
+            <button ref={notesButtonRef} type="button" aria-label="Reading this schematic" title="Reading this schematic"
+              aria-expanded={notesOpen} aria-controls={notesOpen ? notesId : undefined}
+              onClick={() => { setSelection(null); setNotesOpen((open) => !open); }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:text-foreground">
+              <AlertCircle className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
-      <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30 p-3 md:p-5 lg:p-6">
+      <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30 p-2 md:p-3">
         {document.shapes.length > 0 ? (
-          <div className="h-full min-h-0 min-w-0 w-full overflow-hidden rounded-xl border border-border/60 bg-white p-2 md:p-4">
+          <div className="h-full min-h-0 min-w-0 w-full overflow-hidden rounded-xl border border-border/60 bg-white p-1 md:p-2">
             <SchematicDrawing document={document} selectedItemId={selectedItem?.id ?? null} onSelect={selectItem} inspectorId={inspectorId} />
           </div>
         ) : (
@@ -156,6 +198,18 @@ export function SchematicPreview({
             This snapshot contains no visible structure.
           </p>
         )}
+        {notesOpen ? (
+          <section ref={notesRef} id={notesId} role="region" aria-label="Schematic notes"
+            className="absolute right-2 top-2 z-10 max-h-[calc(100%-16px)] w-96 max-w-[calc(100%-16px)] overflow-y-auto rounded-lg border bg-background p-4 text-xs leading-relaxed text-muted-foreground shadow-lg md:right-3 md:top-3 md:max-h-[calc(100%-24px)] md:max-w-[calc(100%-24px)]">
+            <h4 className="mb-2 pr-7 font-semibold text-foreground">Reading this schematic</h4>
+            <button type="button" aria-label="Close schematic notes"
+              onClick={() => { setNotesOpen(false); notesButtonRef.current?.focus({ preventScroll: true }); }}
+              className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <ul className="space-y-1 break-words">{document.notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
+          </section>
+        ) : null}
         {selectedItem ? (
           <section ref={cardRef} id={inspectorId} role="region" aria-label="Feature details" aria-live="polite"
             className="absolute z-10 max-w-[calc(100%-24px)] overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
@@ -168,14 +222,8 @@ export function SchematicPreview({
           </section>
         ) : null}
       </div>
-      {document.notes.length > 0 || document.warnings.length > 0 || warnings.length > 0 ? (
+      {document.warnings.length > 0 || warnings.length > 0 ? (
         <div className="max-h-[25%] shrink-0 space-y-3 overflow-y-auto border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground md:px-5">
-          {document.notes.length > 0 ? (
-            <section aria-label="Schematic notes">
-              <h4 className="mb-1 font-semibold text-foreground">Reading this schematic</h4>
-              <ul className="space-y-1">{document.notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
-            </section>
-          ) : null}
           {document.warnings.length > 0 || warnings.length > 0 ? (
             <section className="space-y-2 rounded-md border border-amber-500/40 bg-amber-50 p-3 text-amber-950" aria-label="Schematic warnings" role="status">
               <h4 className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" aria-hidden="true" />Presentation notices</h4>
@@ -253,7 +301,7 @@ export function SchematicDrawing({
                 onSelect(shape.itemId, event);
               }
             } : undefined}
-            className={cn("outline-none focus-visible:[&>*]:stroke-primary focus-visible:[&>*]:stroke-[3px]", item && "cursor-pointer")}
+            className={cn("outline-none", !selected && "focus-visible:[&>*]:stroke-[hsl(var(--schematic-selection))] focus-visible:[&>*]:stroke-[4px]", item && "cursor-pointer")}
             clipPath={shape.clip ? `url(#${instanceId}-clip-${index})` : undefined}
           >
             <SchematicPrimitive shape={shape} selected={selected} />
@@ -285,21 +333,22 @@ export function SchematicDrawing({
 }
 
 function SchematicPrimitive({ shape, selected }: { shape: SchematicShape; selected: boolean }) {
-  const style = {
+  const appearance = {
     fill: shape.fill,
-    stroke: selected ? "hsl(var(--primary))" : shape.stroke,
-    strokeWidth: selected ? Math.max(3, shape.strokeWidth) : shape.strokeWidth,
+    stroke: selected ? "hsl(var(--schematic-selection))" : shape.stroke,
+    strokeWidth: selected ? Math.max(4, shape.strokeWidth + 2) : shape.strokeWidth,
     vectorEffect: "non-scaling-stroke" as const,
+    style: selected ? { filter: "drop-shadow(0 0 2px hsl(var(--schematic-selection) / 0.3))" } : undefined,
   };
   if (shape.kind === "rect") {
-    return <rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} {...style} />;
+    return <rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} {...appearance} />;
   }
   if (shape.kind === "circle") {
-    return <circle cx={shape.cx} cy={shape.cy} r={shape.r} {...style} />;
+    return <circle cx={shape.cx} cy={shape.cy} r={shape.r} {...appearance} />;
   }
   const points = shape.points ?? [];
   const path = points.map(([x, y], index) => `${index === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
-  return <path d={`${path}${shape.closed && points.length > 0 ? " Z" : ""}`} {...style} />;
+  return <path d={`${path}${shape.closed && points.length > 0 ? " Z" : ""}`} {...appearance} />;
 }
 
 function rectanglePath({ x, y, width, height }: SchematicRectangle) {

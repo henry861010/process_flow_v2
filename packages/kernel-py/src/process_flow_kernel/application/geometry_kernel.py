@@ -30,6 +30,8 @@ class GeometryKernel:
             raise TypeError("GeometryKernel.execute requires an ExecutionPlan")
         execute_options = ExecuteOptions.from_value(options)
         step_outputs: dict[str, GeometryArtifact] = {}
+        execution_warnings = []
+        step_warning_indices: dict[str, list[int]] = {}
 
         for planned_step in execution_plan.steps:
             runtime_geometry_artifacts, geometry_input_sources = _resolve_geometry_inputs(
@@ -87,6 +89,7 @@ class GeometryKernel:
             step_configuration = {
                 "parameterValues": dict(planned_step.raw_parameter_values),
             }
+            local_warnings = []
             context = ProcessStepContext(
                 state=state,
                 values=values,
@@ -98,6 +101,7 @@ class GeometryKernel:
                 input_geometry=_main_or_first_geometry(serialized_geometry_inputs),
                 geometry_resolver=resolve_geometry,
                 geometry_artifact_resolver=resolve_geometry_artifact,
+                warning_collector=local_warnings.append,
             )
 
             output = process_module.execute(context)
@@ -112,6 +116,17 @@ class GeometryKernel:
                     output_state
                 )
             )
+            # Track warning occurrences, not messages: a shared ancestor is
+            # inherited once even when several geometry inputs converge here.
+            inherited_indices = {
+                index
+                for source in planned_step.geometry_inputs.values()
+                if source.kind == "stepOutput"
+                for index in step_warning_indices.get(source.step_ref_id, ())
+            }
+            own_indices = range(len(execution_warnings), len(execution_warnings) + len(local_warnings))
+            execution_warnings.extend(local_warnings)
+            step_warning_indices[planned_step.step_ref_id] = sorted(inherited_indices) + list(own_indices)
 
         terminal_step_ref_ids = list(execution_plan.terminal_step_ref_ids)
         selected_step_ref_id = execute_options.output_step_ref_id or (
@@ -126,6 +141,11 @@ class GeometryKernel:
             geometry_structure=selected_output.structure,
             step_outputs=_serialize_step_outputs(step_outputs),
             terminal_step_ref_ids=terminal_step_ref_ids,
+            execution_warnings=execution_warnings,
+            step_execution_warnings={
+                step_ref_id: [execution_warnings[index] for index in indices]
+                for step_ref_id, indices in step_warning_indices.items()
+            },
         )
 
 

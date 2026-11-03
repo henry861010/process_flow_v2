@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..domain.process_geometry_state import ProcessGeometryState
+from ..serialization.schema import deep_copy
 from .geometry_artifact import GeometryArtifact
 
 GeometryStateResolver = Callable[[str], ProcessGeometryState | None]
@@ -26,6 +27,20 @@ class ProcessStepContext:
         default=None,
         repr=False,
     )
+    warning_collector: Callable[[dict[str, Any]], None] | None = field(
+        default=None, repr=False, compare=False,
+    )
+
+    def warn(self, code: str, message: str, *, details: Mapping[str, Any] | None = None) -> None:
+        """Emit a process warning independently of the resulting geometry."""
+        if self.warning_collector is not None:
+            self.warning_collector({
+                "code": code,
+                "stepRefId": self.step_ref.get("stepRefId", ""),
+                "stepLabel": self.step_ref.get("stepLabel") or self.step_ref.get("stepRefId", ""),
+                "message": message,
+                "details": deep_copy(dict(details or {})),
+            })
 
     def get_param(self, parameter_id: str, default: Any = None) -> Any:
         return self.values.get(parameter_id, default)
