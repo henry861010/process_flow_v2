@@ -1,27 +1,27 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Layers3, MousePointer2 } from "lucide-react";
+import { AlertTriangle, Layers3, MousePointer2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type {
   SchematicDocument,
-  SchematicItem,
   SchematicRectangle,
   SchematicShape,
 } from "./schematic-types";
 import { schematicLabels, schematicTextColor } from "./schematic-labels";
+import { formatSchematicLength, schematicInspectorPosition, SchematicItemDetails } from "./schematic-inspector";
 
-const lengthFormatter = new Intl.NumberFormat("en-US", {
-  maximumSignificantDigits: 8,
-});
+export { formatSchematicLength } from "./schematic-inspector";
 
-export function formatSchematicLength(value: number, unit: string) {
-  const displayUnit = ["um", "µm", "μm"].includes(unit) ? "µm" : unit;
-  return `${lengthFormatter.format(value)} ${displayUnit}`.trim();
-}
+type SchematicSelection = {
+  itemId: string;
+  anchor: { x: number; y: number };
+  trigger: SVGGElement;
+  document: SchematicDocument;
+};
 
-/** Only display coordinates and generic shapes are interpreted in the viewer. */
+/** Only display coordinates, generic shapes and source measurements are interpreted here. */
 export function SchematicPreview({
   document,
   warnings = [],
@@ -29,7 +29,88 @@ export function SchematicPreview({
   document: SchematicDocument | null;
   warnings?: string[];
 }) {
-  const [selectedItemId, setSelectedItemId] = React.useState<string | null>(null);
+  const [selection, setSelection] = React.useState<SchematicSelection | null>(null);
+  const [position, setPosition] = React.useState<ReturnType<typeof schematicInspectorPosition> | null>(null);
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const cardRef = React.useRef<HTMLElement>(null);
+  const inspectorId = React.useId();
+  const selectedItem = selection?.document === document
+    ? document?.items.find((item) => item.id === selection.itemId)
+    : undefined;
+
+  const closeInspector = React.useCallback((restoreFocus = false) => {
+    if (restoreFocus && selection?.trigger.isConnected) selection.trigger.focus({ preventScroll: true });
+    setSelection(null);
+  }, [selection]);
+
+  React.useEffect(() => { setSelection(null); }, [document]);
+
+  React.useEffect(() => {
+    const viewport = viewportRef.current;
+    const card = cardRef.current;
+    if (!selection || !selectedItem || !viewport || !card) return;
+    setPosition(schematicInspectorPosition(selection.anchor,
+      { width: viewport.clientWidth, height: viewport.clientHeight }, card.getBoundingClientRect().height));
+  }, [selection, selectedItem]);
+
+  React.useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!selection || !selectedItem || !viewport) return;
+    const ownerDialog = viewport.closest('[role="dialog"]');
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !(event.target instanceof Element)) return;
+      // The preview's dialog handles Escape at document capture. Intercept it
+      // earlier, while leaving a nested export dialog in charge of its own keys.
+      const inOwner = ownerDialog ? event.target.closest('[role="dialog"]') === ownerDialog : viewport.contains(event.target);
+      if (!inOwner) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeInspector(true);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || !viewport.contains(event.target) || cardRef.current?.contains(event.target)) return;
+      const shape = event.target.closest('[data-item-id]');
+      if (shape && document?.items.some((item) => item.id === shape.getAttribute("data-item-id"))) return;
+      closeInspector();
+    };
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && cardRef.current?.contains(event.target)) return;
+      if (event.target instanceof Node && !viewport.contains(event.target) && !event.target.contains(viewport)) return;
+      closeInspector();
+    };
+    const onResize = () => closeInspector();
+    const size = { width: viewport.clientWidth, height: viewport.clientHeight };
+    const observer = new ResizeObserver(() => {
+      if (viewport.clientWidth !== size.width || viewport.clientHeight !== size.height) closeInspector();
+    });
+    observer.observe(viewport);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [selection, selectedItem, document, closeInspector]);
+
+  function selectItem(itemId: string, event: React.MouseEvent<SVGGElement> | React.KeyboardEvent<SVGGElement>) {
+    if (!document || !viewportRef.current) return;
+    if (selectedItem?.id === itemId) { closeInspector(); return; }
+    const viewport = viewportRef.current.getBoundingClientRect();
+    const shape = event.currentTarget.getBoundingClientRect();
+    const pointer = "clientX" in event && event.detail !== 0;
+    const trigger = Array.from(viewportRef.current.querySelectorAll<SVGGElement>('[data-item-id][role="button"]'))
+      .find((target) => target.getAttribute("data-item-id") === itemId) ?? event.currentTarget;
+    setPosition(null);
+    setSelection({ itemId, trigger, document, anchor: {
+      x: (pointer ? event.clientX : shape.left + shape.width / 2) - viewport.left,
+      y: (pointer ? event.clientY : shape.top + shape.height / 2) - viewport.top,
+    } });
+  }
 
   if (!document || document.schemaVersion !== 1) {
     return (
@@ -48,130 +129,62 @@ export function SchematicPreview({
     );
   }
 
-  const groups = new Map<string, SchematicItem[]>();
-  const itemColors = new Map<string, string>();
-  for (const shape of document.shapes) {
-    if (!itemColors.has(shape.itemId)) {
-      itemColors.set(shape.itemId, shape.fill === "none" ? shape.stroke : shape.fill);
-    }
-  }
-  for (const item of document.items) {
-    const label = item.groupLabel || "Structure";
-    const items = groups.get(label) ?? [];
-    items.push(item);
-    groups.set(label, items);
-  }
-
   return (
-    <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
-      <section className="flex h-full min-h-0 min-w-0 flex-col" aria-label="Structure cross section">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-muted/25 px-4 py-3 md:px-5">
+    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden" aria-label="Structure cross section">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b bg-muted/25 px-4 py-3 md:px-5">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div>
             <h3 className="text-sm font-semibold">Cross section</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">Schematic · not to scale</p>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <MousePointer2 className="h-3.5 w-3.5" aria-hidden="true" />
-            Select a layer to inspect
+          <div className="border-l pl-4" aria-label="Total structure thickness">
+            <p className="text-xs text-muted-foreground">Total structure thickness</p>
+            <p className="font-mono text-sm font-semibold tabular-nums">{formatSchematicLength(document.totalThickness, document.unit)}</p>
           </div>
         </div>
-        <div className="relative min-h-0 min-w-0 flex-1 bg-muted/30">
-          {document.shapes.length > 0 ? (
-            <div
-              className="absolute inset-3 rounded-xl border border-border/60 bg-white p-2 md:inset-5 md:p-4 lg:inset-6"
-            >
-              <SchematicDrawing document={document} selectedItemId={selectedItemId} onSelect={setSelectedItemId} />
-            </div>
-          ) : (
-            <p className="flex h-full items-center justify-center p-3 text-center text-sm text-muted-foreground" role="status">
-              This snapshot contains no visible structure.
-            </p>
-          )}
-        </div>
-        <div className="shrink-0 border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground md:px-5">
-          Schematic · not to scale. Select a component or layer to see its actual thickness and Z position in the layer details.
-        </div>
-      </section>
-
-      <aside className="border-t bg-muted/15 lg:overflow-y-auto lg:border-l lg:border-t-0" aria-label="Actual layer thicknesses">
-        <div className="border-b bg-background px-4 py-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><Layers3 className="h-3.5 w-3.5" aria-hidden="true" />Total structure thickness</div>
-          <div className="mt-1 font-mono text-2xl font-semibold tracking-tight">
-            {formatSchematicLength(document.totalThickness, document.unit)}
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <MousePointer2 className="h-3.5 w-3.5" aria-hidden="true" />Select a feature to inspect
+        </p>
+      </div>
+      <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30 p-3 md:p-5 lg:p-6">
+        {document.shapes.length > 0 ? (
+          <div className="h-full min-h-0 min-w-0 w-full overflow-hidden rounded-xl border border-border/60 bg-white p-2 md:p-4">
+            <SchematicDrawing document={document} selectedItemId={selectedItem?.id ?? null} onSelect={selectItem} inspectorId={inspectorId} />
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">From the lowest to the highest Z position</p>
-        </div>
-
-        <div className="space-y-4 p-3">
-          {Array.from(groups, ([label, items]) => (
-            <section key={label} aria-label={`${label} layer thicknesses`}>
-              <h4 className="mb-2 break-words px-1 text-xs font-semibold text-muted-foreground">{label}</h4>
-              <ul className="space-y-1">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <SchematicItemButton item={item} color={itemColors.get(item.id)} unit={document.unit} selected={selectedItemId === item.id} onSelect={setSelectedItemId} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-
+        ) : (
+          <p className="flex h-full items-center justify-center p-3 text-center text-sm text-muted-foreground" role="status">
+            This snapshot contains no visible structure.
+          </p>
+        )}
+        {selectedItem ? (
+          <section ref={cardRef} id={inspectorId} role="region" aria-label="Feature details" aria-live="polite"
+            className="absolute z-10 max-w-[calc(100%-24px)] overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
+            style={position ?? { left: 12, top: 12, width: 288, visibility: "hidden" }}>
+            <button type="button" aria-label="Close feature details" onClick={() => closeInspector(true)}
+              className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <SchematicItemDetails item={selectedItem} unit={document.unit} />
+          </section>
+        ) : null}
+      </div>
+      {document.notes.length > 0 || document.warnings.length > 0 || warnings.length > 0 ? (
+        <div className="max-h-[25%] shrink-0 space-y-3 overflow-y-auto border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground md:px-5">
           {document.notes.length > 0 ? (
-            <section className="space-y-2 border-t px-1 pt-3" aria-label="Schematic notes">
-              <h4 className="text-xs font-semibold">Reading this schematic</h4>
-              <ul className="space-y-2 text-xs leading-relaxed text-muted-foreground">
-                {document.notes.map((note, index) => <li key={index}>{note}</li>)}
-              </ul>
+            <section aria-label="Schematic notes">
+              <h4 className="mb-1 font-semibold text-foreground">Reading this schematic</h4>
+              <ul className="space-y-1">{document.notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
             </section>
           ) : null}
-
           {document.warnings.length > 0 || warnings.length > 0 ? (
             <section className="space-y-2 rounded-md border border-amber-500/40 bg-amber-50 p-3 text-amber-950" aria-label="Schematic warnings" role="status">
-              <h4 className="flex items-center gap-2 text-xs font-semibold"><AlertTriangle className="h-4 w-4" aria-hidden="true" />Presentation notices</h4>
-              <ul className="space-y-2 text-xs leading-relaxed">
-                {[...document.warnings, ...warnings].map((warning, index) => <li key={index}>{warning}</li>)}
-              </ul>
+              <h4 className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" aria-hidden="true" />Presentation notices</h4>
+              <ul className="space-y-1">{[...document.warnings, ...warnings].map((warning, index) => <li key={index}>{warning}</li>)}</ul>
             </section>
           ) : null}
         </div>
-      </aside>
-    </div>
-  );
-}
-
-function SchematicItemButton({
-  item,
-  color,
-  unit,
-  selected,
-  onSelect,
-}: {
-  item: SchematicItem;
-  color?: string;
-  unit: string;
-  selected: boolean;
-  onSelect: (itemId: string) => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={() => onSelect(item.id)}
-      className={cn(
-        "w-full rounded-md border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-transparent bg-background hover:border-border hover:bg-muted/50",
-      )}
-    >
-      <span className="flex items-start justify-between gap-3 text-sm">
-        <span className="flex min-w-0 items-start gap-2 font-medium">
-          <span className="mt-1 h-3 w-3 shrink-0 rounded-sm border border-black/15" style={{ backgroundColor: color }} aria-hidden="true" />
-          <span className="min-w-0 break-words">{item.label}</span>
-        </span>
-        <span className="shrink-0 whitespace-nowrap font-mono text-xs leading-5">{formatSchematicLength(item.thickness, unit)}</span>
-      </span>
-      <span className="mt-1 block break-words text-xs text-muted-foreground">{item.material || "Unspecified material"}</span>
-      <span className="mt-1 block font-mono text-[11px] text-muted-foreground">Z {formatSchematicLength(item.zMin, unit)} → {formatSchematicLength(item.zMax, unit)}</span>
-    </button>
+      ) : null}
+    </section>
   );
 }
 
@@ -179,10 +192,12 @@ export function SchematicDrawing({
   document,
   selectedItemId,
   onSelect,
+  inspectorId,
 }: {
   document: SchematicDocument;
   selectedItemId: string | null;
-  onSelect: (itemId: string) => void;
+  onSelect: (itemId: string, event: React.MouseEvent<SVGGElement> | React.KeyboardEvent<SVGGElement>) => void;
+  inspectorId?: string;
 }) {
   const instanceId = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const items = new Map(document.items.map((item) => [item.id, item]));
@@ -201,11 +216,13 @@ export function SchematicDrawing({
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       viewBox={document.viewBox.join(" ")}
+      width={document.viewBox[2]}
+      height={document.viewBox[3]}
       preserveAspectRatio="xMidYMid meet"
       className="block h-full w-full font-sans"
     >
       <title id={titleId}>Structure cross section</title>
-      <desc id={descriptionId}>Schematic, not to scale. Select a layer with a click, Enter, or Space to highlight its actual thickness in the adjacent list.</desc>
+      <desc id={descriptionId}>Schematic, not to scale. Select a layer with a click, Enter, or Space to review its material, actual thickness and available density in a floating card.</desc>
       <defs>
         {document.shapes.map((shape, index) => shape.clip ? (
           <clipPath key={shape.id} id={`${instanceId}-clip-${index}`} clipPathUnits="userSpaceOnUse">
@@ -224,14 +241,16 @@ export function SchematicDrawing({
             tabIndex={interactive ? 0 : undefined}
             aria-hidden={interactive ? undefined : true}
             aria-pressed={interactive ? selected : undefined}
+            aria-expanded={interactive && inspectorId ? selected : undefined}
+            aria-controls={interactive && selected ? inspectorId : undefined}
             aria-label={interactive && item ? `${item.groupLabel}, ${item.label}, ${formatSchematicLength(item.thickness, document.unit)}` : undefined}
             data-item-id={shape.itemId}
             data-selected={selected || undefined}
-            onClick={item ? () => onSelect(shape.itemId) : undefined}
+            onClick={item ? (event) => onSelect(shape.itemId, event) : undefined}
             onKeyDown={interactive ? (event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                onSelect(shape.itemId);
+                onSelect(shape.itemId, event);
               }
             } : undefined}
             className={cn("outline-none focus-visible:[&>*]:stroke-primary focus-visible:[&>*]:stroke-[3px]", item && "cursor-pointer")}

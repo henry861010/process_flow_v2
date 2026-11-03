@@ -87,6 +87,77 @@ class ComposerTests(unittest.TestCase):
         self.assertEqual(len({item["groupLabel"] for item in doc["items"]}), 3)
         self.assertEqual(doc["totalThickness"], 25)
 
+    def test_density_values_cover_features_without_adding_density_to_bodies(self):
+        registry = SchematicRegistry()
+        root = container("root", bodies=[{**body("body", 0, 10), "density": 90}])
+        for collection, kind in (("bumps", "bump"), ("vias", "via"), ("circuits", "circuit")):
+            registry.register(kind, lambda context: [slab("Feature")])
+            root[collection] = [{**body(kind, 0, 10), "density": 40}]
+        source = structure(root)
+        before = copy.deepcopy(source)
+        document = compose_schematic(source, registry)
+        for item in document["items"]:
+            if item["sourceIds"] == ["body"]:
+                self.assertNotIn("densityValues", item)
+            else:
+                self.assertEqual(item["densityValues"], [40])
+        self.assertEqual(len(document["items"]), 4)
+        self.assertEqual(source, before)
+
+    def test_density_values_are_sorted_unique_and_keep_unknown_sources(self):
+        registry = SchematicRegistry()
+        registry.register("via", lambda context: [slab("Via"), slab("Via")])
+        values = [70, 0, 30, 70, 100, None, None]
+        vias = [{**body(f"via-{index}", 0, 10), **({"density": value} if value is not None else {})}
+                for index, value in enumerate(values)]
+        document = compose_schematic(structure({"id": "root", "vias": vias}), registry)
+        self.assertEqual(len(document["items"]), 1)
+        item = document["items"][0]
+        self.assertEqual(item["sourceIds"], [via["id"] for via in vias])
+        self.assertEqual(item["densityValues"], [0, 30, 70, 100, None])
+
+    def test_invalid_source_density_is_unknown_instead_of_zero(self):
+        registry = SchematicRegistry()
+        registry.register("circuit", lambda context: [slab("Circuit")])
+        for value in (None, True, "40", math.nan, math.inf, -1, 101, 10 ** 1000):
+            with self.subTest(value=value):
+                source = structure({"id": "root", "circuits": [{**body("trace", 0, 10), "density": value}]})
+                document = compose_schematic(source, registry)
+                self.assertEqual(document["items"][0]["densityValues"], [None])
+
+    def test_density_differences_do_not_change_equivalent_component_layout(self):
+        registry = SchematicRegistry()
+        registry.register("container", component, key="test-die")
+        registry.register("via", lambda context: [slab("Via")])
+        first = {**container("first", key="test-die"), "vias": [{**body("via-1", 0, 10), "density": 20}]}
+        second = {**container("second", key="test-die"), "vias": [{**body("via-2", 0, 10, x=300), "density": 80}]}
+        source = structure(container("root", children=[first, second]))
+        mixed = compose_schematic(source, registry)
+        uniform_source = copy.deepcopy(source)
+        uniform_source["root"]["children"][1]["vias"][0]["density"] = 20
+        uniform = compose_schematic(uniform_source, registry)
+        self.assertEqual(mixed["shapes"], uniform["shapes"])
+        self.assertEqual(mixed["components"], uniform["components"])
+        self.assertEqual(len(mixed["items"]), 1)
+        self.assertEqual(mixed["items"][0]["sourceIds"], ["via-1", "via-2"])
+        self.assertEqual(mixed["items"][0]["densityValues"], [20, 80])
+
+    def test_referenced_feature_keeps_density_from_its_physical_source(self):
+        registry = SchematicRegistry()
+        registry.register("bump", lambda context: [
+            SchematicPart("Contact", source_id="lower", primitives=(Primitive(),))
+        ] if context.node["id"] == "upper" else [])
+        lower = {**body("lower", 0, 20, material="Lower"), "density": 25}
+        upper = {**body("upper", 20, 10, material="Upper"), "density": 75}
+        source = structure(container("root", bumps=[lower, upper]))
+        before = copy.deepcopy(source)
+        document = compose_schematic(source, registry)
+        self.assertEqual(len(document["items"]), 1)
+        item = document["items"][0]
+        self.assertEqual(item["sourceIds"], ["lower"])
+        self.assertEqual((item["material"], item["thickness"], item["densityValues"]), ("Lower", 20, [25]))
+        self.assertEqual(source, before)
+
     def test_component_hint_is_not_applied_to_internal_unkeyed_layers(self):
         registry = SchematicRegistry()
         registry.register("container", component, key="test-die")

@@ -7,7 +7,10 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from process_flow_api.main import create_app
 from process_flow_api.models import ProcessFlow, GeometryPreviewRequest, FlowConfiguration
-from process_flow_api.services import resolve_preview_request, prepare_preview_execution, preview_request_identity
+from process_flow_api.services import (
+    resolve_preview_request, prepare_preview_execution, preview_request_identity,
+    project_preview_flow, validate_preview_step, resolve_preview_flow_input,
+)
 from process_flow_kernel import GeometryKernel
 from pydantic import ValidationError
 
@@ -222,6 +225,116 @@ class ProcessFlowTests(unittest.TestCase):
         request['target'] = {'type': 'flowInput', 'flowInputId': 'incoming_panel'}
         context = resolve_preview_request(self.app.state.store, GeometryPreviewRequest.model_validate(request))
         self.assertIsNotNone(prepare_preview_execution(context, self.app.state.geometry_generators).flow_input_geometry)
+
+    def test_upstream_preview_ignores_incomplete_downstream_topology_and_configuration(self):
+        original = {key: copy.deepcopy(self.flow[key]) for key in ('definition', 'configuration')}
+        cases = {}
+        for kind in ('wire', 'recipe', 'parameter', 'template', 'geometry'):
+            content = copy.deepcopy(original)
+            if kind == 'wire':
+                content['definition']['flowEdges'] = [edge for edge in content['definition']['flowEdges']
+                    if edge['target']['stepRefId'] != 'mold_cap']
+            elif kind == 'recipe':
+                content['configuration']['stepConfigurations']['mold_cap']['selectedRecipeId'] = None
+            elif kind == 'parameter':
+                del values(content, 'mold_cap')['thickness']
+            elif kind == 'template':
+                content['definition']['stepRefs'][1]['processStepTemplateId'] = 'unfinished-template'
+            else:
+                future = copy.deepcopy(content['definition']['flowInputs'][1])
+                future['flowInputId'] = 'future_die'
+                content['definition']['flowInputs'].append(future)
+                content['configuration']['inputBindings']['future_die'] = {
+                    'kind': 'catalog', 'geometryId': 'missing-future-geometry',
+                }
+                content['definition']['stepRefs'][1]['processStepTemplateId'] = 'step_tpl_pnp'
+                content['configuration']['stepConfigurations']['mold_cap'] = copy.deepcopy(
+                    content['configuration']['stepConfigurations']['pnp_hbm'])
+                content['definition']['flowEdges'].append({
+                    'edgeId': 'future-die', 'source': {'kind': 'flowInput', 'flowInputId': 'future_die'},
+                    'target': {'stepRefId': 'mold_cap', 'inputPortId': 'die_geometry'},
+                })
+            cases[kind] = content
+
+        for kind, content in cases.items():
+            with self.subTest(kind=kind):
+                request = {'flow': content, 'target': {
+                    'type': 'stepOutput', 'stepRefId': 'pnp_hbm', 'outputPortId': 'result_geometry',
+                }}
+                context = resolve_preview_request(self.app.state.store, GeometryPreviewRequest.model_validate(request))
+                before = copy.deepcopy(context)
+                scope = project_preview_flow(context)
+                self.assertEqual([ref['stepRefId'] for ref in scope.definition['stepRefs']], ['pnp_hbm'])
+                self.assertEqual(set(scope.configuration['stepConfigurations']), {'pnp_hbm'})
+                prepared = prepare_preview_execution(context, self.app.state.geometry_generators)
+                self.assertEqual([step.step_ref_id for step in prepared.execution_plan.steps], ['pnp_hbm'])
+                self.assertEqual(context, before)
+                response = self.client.post('/api/preview-sessions', json=request)
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual([snapshot['stepRefId'] for snapshot in response.json()['snapshots']], ['pnp_hbm'])
+                # A full-flow save still requires the complete graph and valid resources.
+                if kind in ('wire', 'template', 'geometry'):
+                    save = self.client.post('/api/process-flows', json={
+                        **create_body(self.flow), **content, 'name': 'Incomplete ' + kind,
+                    })
+                    self.assertIn(save.status_code, (400, 404), save.text)
+
+    def test_isolated_flow_input_preview_does_not_require_any_step_or_wiring(self):
+        content = {key: copy.deepcopy(self.flow[key]) for key in ('definition', 'configuration')}
+        content['definition']['flowEdges'] = []
+        content['definition']['stepRefs'][0]['processStepTemplateId'] = 'unfinished-template'
+        content['configuration']['stepConfigurations'] = {}
+        content['configuration']['inputBindings']['incoming_hbm'] = {
+            'kind': 'generator', 'generatorId': 'unfinished-generator', 'generatorVersion': 1, 'parameters': {},
+        }
+        request = {'flow': content, 'target': {'type': 'flowInput', 'flowInputId': 'incoming_panel'}}
+        response = self.client.post('/api/preview-sessions', json=request)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(len(response.json()['snapshots']), 1)
+        content['configuration']['inputBindings'].pop('incoming_panel')
+        self.assertEqual(self.client.post('/api/preview-sessions', json=request).status_code, 400)
+
+    def test_preview_still_rejects_incomplete_target_upstream_scope(self):
+        for kind in ('wire', 'recipe', 'parameter', 'template', 'geometry'):
+            with self.subTest(kind=kind):
+                content = {key: copy.deepcopy(self.flow[key]) for key in ('definition', 'configuration')}
+                if kind == 'wire':
+                    content['definition']['flowEdges'] = [edge for edge in content['definition']['flowEdges']
+                        if edge['target'] != {'stepRefId': 'pnp_hbm', 'inputPortId': 'main_geometry'}]
+                elif kind == 'recipe':
+                    content['configuration']['stepConfigurations']['pnp_hbm']['selectedRecipeId'] = None
+                elif kind == 'parameter':
+                    del values(content, 'pnp_hbm')['placements']
+                elif kind == 'template':
+                    content['definition']['stepRefs'][0]['processStepTemplateId'] = 'unfinished-template'
+                else:
+                    content['configuration']['inputBindings']['incoming_panel']['geometryId'] = 'missing-target-geometry'
+                response = self.client.post('/api/preview-sessions', json={
+                    'flow': content, 'target': {'type': 'stepOutput', 'stepRefId': 'pnp_hbm'},
+                })
+                self.assertEqual(response.status_code, 400, response.text)
+
+    def test_future_step_readiness_reuses_validation_without_compiling_or_generating(self):
+        content = {key: copy.deepcopy(self.flow[key]) for key in ('definition', 'configuration')}
+        content['configuration']['inputBindings']['incoming_hbm'] = {
+            'kind': 'generator', 'generatorId': 'unfinished-generator', 'generatorVersion': 1, 'parameters': {},
+        }
+        context = resolve_preview_request(self.app.state.store, GeometryPreviewRequest.model_validate({
+            'flow': content, 'target': {'type': 'stepOutput', 'stepRefId': 'pnp_hbm'},
+        }))
+        with (
+            patch('process_flow_api.services.FlowCompiler.compile', side_effect=AssertionError('must not compile')),
+            patch.object(self.app.state.geometry_generators, 'generate', side_effect=AssertionError('must not generate')),
+        ):
+            validate_preview_step(context, self.app.state.geometry_generators, 'mold_cap')
+        with self.assertRaises(ValueError):
+            resolve_preview_flow_input(context, self.app.state.geometry_generators, 'incoming_hbm')
+        del values(content, 'mold_cap')['thickness']
+        context = resolve_preview_request(self.app.state.store, GeometryPreviewRequest.model_validate({
+            'flow': content, 'target': {'type': 'stepOutput', 'stepRefId': 'pnp_hbm'},
+        }))
+        with self.assertRaisesRegex(ValueError, 'Missing required parameter: thickness'):
+            validate_preview_step(context, self.app.state.geometry_generators, 'mold_cap')
 
     def test_zero_placements_prune_unfinished_auxiliary_branch(self):
         flow = copy.deepcopy(next(f for f in self.bootstrap['processFlows'] if f['id'] == 'flow_inst_dual_bump_demo'))

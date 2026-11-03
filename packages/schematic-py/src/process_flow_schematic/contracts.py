@@ -49,6 +49,7 @@ class SchematicItem(TypedDict):
     zMin: float
     zMax: float
     thickness: float
+    densityValues: NotRequired[list[float | None]]
 
 
 class SchematicComponent(SchematicRectangle):
@@ -112,6 +113,36 @@ class ComponentHint:
     label: str
     representative_count: int = 1
     placement: str = "center"
+
+
+@dataclass(frozen=True)
+class SchematicLayoutGroup:
+    """A stable presentation cohort supplied by the calling application."""
+    key: str
+    hint: ComponentHint
+
+
+@dataclass(frozen=True)
+class SchematicSlot:
+    id: str
+    group_key: str
+    x: float
+    width: float
+
+
+@dataclass(frozen=True)
+class SchematicLayoutPlan:
+    """Shared horizontal coordinates; no future geometry or measurements."""
+    slots: tuple[SchematicSlot, ...]
+    width: float
+    support_x: float = 36.0
+    support_width: float | None = None
+    fingerprint: str = ""
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, "slots", tuple(self.slots))
+        object.__setattr__(self, "notes", tuple(self.notes))
 
 
 @dataclass(frozen=True)

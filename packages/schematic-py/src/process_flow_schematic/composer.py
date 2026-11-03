@@ -15,8 +15,9 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from .contracts import Bounds, ComponentHint, Primitive, SchematicContext, SchematicDocument, SchematicPart, SchematicRegistry
+from .contracts import Bounds, ComponentHint, Primitive, SchematicContext, SchematicDocument, SchematicLayoutPlan, SchematicPart, SchematicRegistry
 from .geometry import base_material, geometry_bounds, material_color, walk_containers
+from .layout import _validate_layout_plan
 from .palette import OUTLINE
 
 
@@ -60,6 +61,7 @@ class _Placement:
     group: _Group
     x: float
     width: float
+    slot_id: str | None = None
 
 
 def _signature(container):
@@ -129,7 +131,26 @@ def _validate_parts(parts):
                 raise ValueError("Horizontal repetition requires a circle or path with positive radius")
 
 
-def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry) -> SchematicDocument:
+def compose_schematic(
+    structure: Mapping[str, Any], registry: SchematicRegistry, *,
+    layout_plan: SchematicLayoutPlan | None = None,
+    component_bindings: Mapping[str, str] | None = None,
+) -> SchematicDocument:
+    return _compose_schematic(structure, registry, layout_plan=layout_plan, component_bindings=component_bindings)
+
+
+def describe_schematic_components(
+    structure: Mapping[str, Any], registry: SchematicRegistry,
+) -> dict[str, ComponentHint]:
+    """Describe exactly the components selected by normal snapshot composition."""
+    return _compose_schematic(structure, registry, describe_only=True)
+
+
+def _compose_schematic(
+    structure, registry, *, layout_plan=None, component_bindings=None, describe_only=False,
+):
+    if layout_plan is not None:
+        _validate_layout_plan(layout_plan)
     frozen = _freeze(structure)
     unit = str(frozen.get("unitSystem", "um"))
     warnings = []
@@ -219,6 +240,11 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
             selected.append(container)
             selected_ids.add(id(container))
 
+    if describe_only:
+        return {str(container.get("id", "")): hints.get(
+            id(container), ComponentHint(str(container.get("key") or "Component")))
+            for container in selected}
+
     def presentation_signature(container):
         """Keep relational presentation differences without retaining source IDs or XY placement."""
         bounds = container_bounds.get(id(container))
@@ -249,14 +275,33 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
             (presentation_signature(child) for child in container.get("children", ())), key=repr)))
 
     groups_by_signature = {}
+    planned_groups = {}
+    group_signatures = {}
+    composition_notes = []
+    planned_keys = {slot.group_key for slot in layout_plan.slots} if layout_plan is not None else set()
     for container in selected:
         hint = hints.get(id(container), ComponentHint(str(container.get("key") or "Component")))
         signature = (hint.label, hint.representative_count, hint.placement, _signature(container),
                      presentation_signature(container))
-        if signature not in groups_by_signature:
-            groups_by_signature[signature] = _Group(f"group-{len(groups_by_signature) + 1}", [], hint, container_bounds[id(container)])
-        groups_by_signature[signature].containers.append(container)
+        bound_key = (component_bindings or {}).get(str(container.get("id", ""))) if layout_plan is not None else None
+        grouping_key = signature if layout_plan is None else (("cohort", bound_key) if bound_key in planned_keys
+                                                             else ("unbound", str(container.get("id", ""))))
+        if grouping_key not in groups_by_signature:
+            groups_by_signature[grouping_key] = _Group(f"group-{len(groups_by_signature) + 1}", [], hint, container_bounds[id(container)])
+        group = groups_by_signature[grouping_key]
+        group.containers.append(container)
+        if layout_plan is not None:
+            group_signatures.setdefault(group.id, set()).add(signature)
+            if bound_key in planned_keys:
+                planned_groups[bound_key] = group
+            else:
+                warnings.append("A component has no reserved schematic slot; its measurements are retained without a drawing.")
     groups = list(groups_by_signature.values())
+    if layout_plan is not None:
+        for group in groups:
+            if len(group_signatures[group.id]) > 1:
+                composition_notes.append(
+                    f"{group.hint.label} contains different instance structures. The first remaining instance is shown; measurements include every instance.")
     label_counts = Counter(group.hint.label for group in groups)
     label_indexes = Counter()
     group_labels = {}
@@ -271,6 +316,11 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
             for descendant, _ in walk_containers(container):
                 owner[id(descendant)] = group
                 source_owner_bounds[id(descendant)] = container_bounds[id(container)]
+
+    def is_representative(container, ancestors):
+        group = owner.get(id(container))
+        return not group or any(container is first or any(ancestor is first for ancestor in ancestors)
+                                for first in group.containers[:1])
 
     edge_groups = [g for g in groups if g.hint.placement == "edges"]
     center_groups = [g for g in groups if g.hint.placement != "edges"]
@@ -299,6 +349,18 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
             placements.append(_Placement(group, cursor, die_width))
             cursor += die_width + gap
     placements.sort(key=lambda p: p.x)
+    placement_sequence = placements
+    support_x, support_width = 36.0, width - 72
+    if layout_plan is not None:
+        width = layout_plan.width
+        support_x = layout_plan.support_x
+        support_width = width - 72.0 if layout_plan.support_width is None else layout_plan.support_width
+        placement_sequence = [
+            _Placement(planned_groups[slot.group_key], slot.x, slot.width, slot.id)
+            if slot.group_key in planned_groups else None
+            for slot in sorted(layout_plan.slots, key=lambda slot: slot.x)
+        ]
+        placements = [placement for placement in placement_sequence if placement is not None]
 
     z = _ZDisplay([n.bounds for n in nodes])
     height = max(240.0, z.height + 112)
@@ -329,10 +391,24 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
                 item_source_ids[item["id"]].add(source.id)
             node_items[(node.id, id(part))] = item["id"]
 
+    # Representative items can combine sources with different or unknown density.
+    for item in items:
+        sources = [nodes_by_id[source_id] for source_id in item["sourceIds"]]
+        if not sources or sources[0].kind not in ("bump", "via", "circuit"):
+            continue
+        density_values = set()
+        for source in sources:
+            value = source.node.get("density")
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not 0 <= value <= 100 or not math.isfinite(value)):
+                value = None
+            density_values.add(value)
+        item["densityValues"] = sorted(density_values, key=lambda value: (value is None, 0 if value is None else value))
+
     def rectangle(bounds, placement=None, source_bounds=None):
         y = z.y(bounds.z_max)
         if placement is None:
-            return {"x": 36.0, "y": y, "width": width - 72, "height": z.y(bounds.z_min) - y}
+            return {"x": support_x, "y": y, "width": support_width, "height": z.y(bounds.z_min) - y}
         source = source_bounds or placement.group.bounds
         span = source.x_max - source.x_min
         x0 = 0.0 if span <= 0 else (bounds.x_min - source.x_min) / span
@@ -344,8 +420,10 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
     # instances represented by the same component group.
     display_rects: dict[str, list[dict]] = {}
     mask_targets = {target for node in nodes for part in node.parts for target in part.occluded_by}
-    for container, _ in containers:
+    for container, ancestors in containers:
         if str(container.get("id", "")) not in mask_targets:
+            continue
+        if layout_plan is not None and not is_representative(container, ancestors):
             continue
         bounds = container_bounds.get(id(container))
         if bounds is None:
@@ -357,6 +435,8 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
                 rectangle(bounds, target, source_owner_bounds.get(id(container))))
     for node in nodes:
         if node.id not in mask_targets:
+            continue
+        if layout_plan is not None and not is_representative(node.container, node.ancestors):
             continue
         group = owner.get(id(node.container))
         targets = [p for p in placements if p.group is group] if group else [None]
@@ -445,7 +525,7 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
         group = owner.get(id(node.container))
         # Draw just the first physical instance in each equivalent group. All
         # equivalent source IDs remain in the associated measurement rows.
-        if group and not any(node.container is c or any(a is c for a in node.ancestors) for c in group.containers[:1]):
+        if not is_representative(node.container, node.ancestors):
             continue
         for part in node.parts:
             if part.layout in ("bridges", "gaps"):
@@ -458,9 +538,13 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
     seen_bridges = set()
     for node, part in bridge_requests:
         eligible = set(part.eligible_container_ids)
-        for left_p, right_p in zip(placements, placements[1:]):
-            left_ids = {str(c.get("id")) for c in left_p.group.containers}
-            right_ids = {str(c.get("id")) for c in right_p.group.containers}
+        for left_p, right_p in zip(placement_sequence, placement_sequence[1:]):
+            if left_p is None or right_p is None:
+                continue
+            left_ids = {str(c.get("id")) for c in (left_p.group.containers[:1] if layout_plan is not None
+                                                    else left_p.group.containers)}
+            right_ids = {str(c.get("id")) for c in (right_p.group.containers[:1] if layout_plan is not None
+                                                     else right_p.group.containers)}
             if not eligible.intersection(left_ids) or not eligible.intersection(right_ids):
                 continue
             # A relation cannot extend beyond the participating components.
@@ -475,7 +559,7 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
             append_part(node, part, {"x": left_p.x + left_p.width, "width": right_p.x - left_p.x - left_p.width,
                                      "y": z.y(upper), "height": z.y(lower) - z.y(upper)})
 
-    components = [{"id": f"component-{index + 1}", "label": group_labels[placement.group.id],
+    components = [{"id": placement.slot_id or f"component-{index + 1}", "label": group_labels[placement.group.id],
                    "x": placement.x, "width": placement.width, "y": z.y(placement.group.bounds.z_max),
                    "height": z.y(placement.group.bounds.z_min) - z.y(placement.group.bounds.z_max),
                    "sourceIds": [str(c.get("id", "")) for c in placement.group.containers]}
@@ -485,7 +569,8 @@ def compose_schematic(structure: Mapping[str, Any], registry: SchematicRegistry)
     document = {"schemaVersion": 1, "unit": unit, "viewBox": [0, 0, width, height], "shapes": shapes,
                 "items": items, "components": components, "totalThickness": total,
                 "notes": ["Schematic · not to scale. Thickness values reflect the current structure.",
-                          "Component count, horizontal positions and feature symbols are illustrative."],
+                          "Component count, horizontal positions and feature symbols are illustrative.",
+                          *(layout_plan.notes if layout_plan is not None else ()), *composition_notes],
                 "warnings": list(dict.fromkeys(warnings))}
     json.dumps(document, allow_nan=False)
     return document

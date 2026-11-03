@@ -40,14 +40,55 @@ a `repeat_group` to use the largest requested radius for a common count and pitc
 path widths match, while circles retain their individual radii.
 
 A part may reference a physical node using `source_id` for material, source IDs,
-Z and thickness measurements. Its optional `display_bounds` controls placement
+Z, thickness and density measurements. Its optional `display_bounds` controls placement
 relative to the emitting node's component without modifying physical geometry.
 Component grouping includes presentation differences and referenced measurement
 properties while ignoring source IDs, absolute XY and runtime material suffixes.
 
+`SchematicItem` may include `densityValues` for bump, via and circuit features.
+The composer collects density from each unique physical source ID, removes
+duplicates, and sorts numeric percentages ascending with `null` last. A missing
+density remains `null`; zero remains `0`, and no average or display-motif count is
+used. Body items omit this field. Values use the original percentage scale
+(`0` through `100`), and API validation rejects non-finite or out-of-range values.
+The optional field preserves compatibility with documents that omit it and does
+not change schema version 1; the presentation version changes to invalidate
+cached documents. Paired PnP bump parts each retain the measurements of their
+own referenced `source_id`.
+
+Consumers can use these measurements in a read-only feature review card showing
+the component, full feature name, material, actual snapshot thickness and, where
+applicable, distinct density values. Missing density is shown as `Not specified`.
+The values describe the physical snapshot, including grinding results, while
+representation counts and grouping remain unchanged.
+
 Representation counts, feature motifs and relation eligibility are supplied by
 the owning producer packages. No process program, die name or recipe is interpreted
 here. JSON/STEP/CDB consumers continue using the unchanged physical structure.
+
+Applications can reserve a common horizontal layout for several snapshots:
+
+```python
+groups = [SchematicLayoutGroup("assembly-die", ComponentHint("Die"))]
+plan = make_layout_plan(groups, fingerprint="shared-layout-identity")
+document = compose_schematic(
+    target_structure, registry,
+    layout_plan=plan,
+    component_bindings={"physical-container-id": "assembly-die"},
+)
+```
+
+`describe_schematic_components(structure, registry)` returns the selected physical
+container IDs and producer hints using the same selection as composition. The
+calling application owns cohort identity and bindings; this package never reads
+flow definitions. Plans are immutable and reserve component X positions, widths,
+and a support span. Missing cohorts leave blank slots, including for adjacency
+checks, and do not add shapes or measurements. Z remains snapshot-specific.
+Within one bound cohort, the first remaining physical instance supplies the
+drawing. All current instance measurements remain available, and differing
+structures produce a presentation note. An unbound current component retains
+measurements and produces a warning rather than extending the reserved layout.
+Omitting a plan preserves standalone composition.
 
 Run the core tests from the repository root:
 

@@ -16,6 +16,7 @@ from process_flow_kernel import (
     validate_flow_graph,
     validate_process_step_template as validate_step_contract,
 )
+from process_flow_kernel.application.flow_validation import upstream_step_ref_ids
 
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
@@ -44,6 +45,15 @@ class PreviewRequestContext:
     target: JsonObject
     source_label: str | None
     referenced_catalog_geometries: JsonObject
+
+
+@dataclass(frozen=True, slots=True)
+class PreviewFlowScope:
+    """A target's structural upstream flow, separate from the full draft."""
+
+    definition: JsonObject
+    configuration: JsonObject
+    step_templates: tuple[JsonObject, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,7 +221,15 @@ def resolve_preview_request(
 
     flow = body.flow.payload() if body.flow is not None else require_item(store.get_process_flow(body.flowId), body.flowId)
     definition = flow["definition"]
-    step_templates = tuple(load_step_templates_for_definition(store, definition))
+    # A draft can contain unfinished downstream references. Only the requested
+    # target's upstream scope requires every referenced template to exist.
+    step_templates = tuple(
+        template
+        for template_id in dict.fromkeys(
+            ref["processStepTemplateId"] for ref in definition["stepRefs"]
+        )
+        if (template := store.get_process_step_template(template_id)) is not None
+    )
     configuration = flow["configuration"]
     target = body.target.payload()
     referenced_catalog_geometries: JsonObject = {}
@@ -248,25 +266,128 @@ def preview_request_identity(context: PreviewRequestContext) -> JsonObject:
     }
 
 
-def prepare_preview_execution(
+def project_preview_flow(
+    context: PreviewRequestContext,
+    target: JsonObject | None = None,
+) -> PreviewFlowScope:
+    """Select upstream topology without requiring the rest of the draft to work.
+
+    This deliberately preserves structural auxiliary inputs, including the die
+    input of a zero-placement PnP. The compiler still owns conditional execution
+    dependencies and validates all topology inside the selected scope.
+    """
+
+    target = context.target if target is None else target
+    definition = context.definition
+    if target["type"] == "flowInput":
+        flow_input_id = target["flowInputId"]
+        inputs = [item for item in definition.get("flowInputs", [])
+                  if item["flowInputId"] == flow_input_id]
+        if len(inputs) != 1:
+            raise ValueError(f"Flow input not found or duplicated: {flow_input_id}")
+        refs, edges = [], []
+    else:
+        included = upstream_step_ref_ids(definition, target["stepRefId"])
+        refs = [ref for ref in definition.get("stepRefs", [])
+                if ref["stepRefId"] in included]
+        edges = [edge for edge in definition.get("flowEdges", [])
+                 if edge["target"]["stepRefId"] in included]
+        input_ids = {edge["source"]["flowInputId"] for edge in edges
+                     if edge["source"]["kind"] == "flowInput"}
+        inputs = [item for item in definition.get("flowInputs", [])
+                  if item["flowInputId"] in input_ids]
+
+    ref_ids = {ref["stepRefId"] for ref in refs}
+    input_ids = {item["flowInputId"] for item in inputs}
+    template_ids = {ref["processStepTemplateId"] for ref in refs}
+    return PreviewFlowScope(
+        definition={"flowInputs": inputs, "stepRefs": refs, "flowEdges": edges},
+        configuration={
+            "inputBindings": {
+                key: binding
+                for key, binding in context.configuration.get("inputBindings", {}).items()
+                if key in input_ids
+            },
+            "stepConfigurations": {
+                key: config
+                for key, config in context.configuration.get("stepConfigurations", {}).items()
+                if key in ref_ids
+            },
+        },
+        step_templates=tuple(template for template in context.step_templates
+                             if template["id"] in template_ids),
+    )
+
+
+def preview_compiler(
     context: PreviewRequestContext,
     generators: GeometryGeneratorRegistry,
-) -> PreparedPreviewExecution:
-    """Compile at most once against resources captured by the request context."""
+) -> FlowCompiler:
+    """Build a compiler from resources captured in the request identity."""
 
     catalog_geometries = [
         geometry
         for geometry in context.referenced_catalog_geometries.values()
         if isinstance(geometry, dict) and isinstance(geometry.get("id"), str)
     ]
-    compiler = FlowCompiler(InMemoryGeometryCatalog(catalog_geometries), generators)
+    return FlowCompiler(InMemoryGeometryCatalog(catalog_geometries), generators)
+
+
+def validate_preview_step(
+    context: PreviewRequestContext,
+    generators: GeometryGeneratorRegistry,
+    step_ref_id: str,
+    *,
+    compiler: FlowCompiler | None = None,
+) -> None:
+    """Validate a complete prefix without compiling, generating, or executing.
+
+    Resource availability is checked separately through lazy, memoized calls to
+    resolve_preview_flow_input, so overlapping future prefixes do not repeatedly
+    generate the same source geometry.
+    """
+
+    scope = project_preview_flow(context, {"type": "stepOutput", "stepRefId": step_ref_id})
+    (compiler or preview_compiler(context, generators)).validate_configuration(
+        scope.definition,
+        scope.configuration,
+        scope.step_templates,
+        require_complete=True,
+        included_step_ref_ids={step_ref_id},
+        resolve_resources=False,
+    )
+
+
+def resolve_preview_flow_input(
+    context: PreviewRequestContext,
+    generators: GeometryGeneratorRegistry,
+    flow_input_id: str,
+    *,
+    compiler: FlowCompiler | None = None,
+) -> JsonObject:
+    """Resolve one input and its constraints independently of downstream wiring."""
+
+    scope = project_preview_flow(context, {"type": "flowInput", "flowInputId": flow_input_id})
+    binding = scope.configuration["inputBindings"].get(flow_input_id)
+    if binding is None:
+        raise ValueError(f"Missing input binding: {flow_input_id}")
+    artifact = (compiler or preview_compiler(context, generators)).resolve_geometry_binding(
+        flow_input_id, scope.definition["flowInputs"][0], binding,
+    )
+    return dict(artifact.structure)
+
+
+def prepare_preview_execution(
+    context: PreviewRequestContext,
+    generators: GeometryGeneratorRegistry,
+) -> PreparedPreviewExecution:
+    """Compile at most once against resources captured by the request context."""
+
+    compiler = preview_compiler(context, generators)
     target = context.target
     if target["type"] == "flowInput":
-        geometry_structure = compiler.resolve_flow_input(
-            context.definition,
-            context.configuration,
-            context.step_templates,
-            target["flowInputId"],
+        geometry_structure = resolve_preview_flow_input(
+            context, generators, target["flowInputId"], compiler=compiler,
         )
         return PreparedPreviewExecution(
             context=context,
@@ -278,10 +399,11 @@ def prepare_preview_execution(
             "Preview currently supports only the result_geometry step output port"
         )
     output_step_ref_id = target["stepRefId"]
+    scope = project_preview_flow(context)
     plan = compiler.compile(
-        context.definition,
-        context.configuration,
-        context.step_templates,
+        scope.definition,
+        scope.configuration,
+        scope.step_templates,
         output_step_ref_id=output_step_ref_id,
     )
     return PreparedPreviewExecution(context=context, execution_plan=plan)

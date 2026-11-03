@@ -21,7 +21,7 @@ const customGroup: ParameterDefinition = {
 
 function render(definition: ParameterDefinition, value: unknown) {
   return renderToStaticMarkup(<RecipeParameterSummary definitions={[definition]} recipe={{
-    recipeId: "test-recipe", name: "Test recipe", parameterValues: { [definition.id]: value },
+    recipeId: "test-recipe", name: "Test recipe", description: "", parameterValues: { [definition.id]: value },
   }} />);
 }
 

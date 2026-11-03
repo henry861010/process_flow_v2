@@ -17,7 +17,12 @@ from .geometry_preview_exporter import export_geometry
 from .models import GeometryPreviewRequest
 from .repository import NotFoundError, SQLiteStore
 from .schematic_builder import SCHEMATIC_PRESENTATION_VERSION, build_schematic
+from .schematic_planning import (
+    FlowSchematicPlan, bind_schematic_snapshots, plan_flow_schematic,
+    schematic_layout_fingerprint,
+)
 from .services import (
+    PreparedPreviewExecution,
     PreviewRequestContext,
     PreviewSnapshotGeometry,
     build_geometry_entity_download,
@@ -31,7 +36,7 @@ from .services import (
 JsonObject = dict[str, Any]
 Axis = Literal["x", "y"]
 PREVIEW_CACHE_CONTROL = "private, max-age=31536000, immutable"
-PREVIEW_SESSION_CONTRACT_VERSION = 1
+PREVIEW_SESSION_CONTRACT_VERSION = 2
 MESH_CACHE_VERSION = 1
 PREPARED_SECTION_CACHE_VERSION = 1
 SECTION_CACHE_VERSION = 3
@@ -262,6 +267,9 @@ class PreviewSessionManager:
             max_entries=max_sessions,
             max_weight=max_session_bytes,
             weigh=lambda value: value.cache_weight,
+        )
+        self._layout_plans = _BoundedLru[str, FlowSchematicPlan](
+            max_entries=max_sessions, max_weight=max_session_bytes, weigh=lambda value: value.cache_weight,
         )
         self._meshes = _BoundedLru[tuple[str, int], bytes](
             max_entries=max_meshes,
@@ -536,6 +544,7 @@ class PreviewSessionManager:
             self._section_tasks.clear()
             self._prepared_section_tasks.clear()
             self._sessions.clear()
+            self._layout_plans.clear()
             self._meshes.clear()
             self._sections.clear()
             self._prepared_sections.clear()
@@ -558,11 +567,35 @@ class PreviewSessionManager:
                 prepare_preview_execution, context, self._geometry_generators
             )
             snapshot_geometries = await materialize_preview_snapshots(prepared)
+            planning = None
+            planning_warning = None
+            try:
+                layout_key = schematic_layout_fingerprint(context)
+                async with self._lock:
+                    planning = self._layout_plans.get(layout_key)
+                if planning is None:
+                    resolved_inputs = (
+                        {key: artifact.structure for key, artifact in prepared.execution_plan.external_geometries.items()}
+                        if prepared.execution_plan is not None
+                        else {context.target["flowInputId"]: prepared.flow_input_geometry}
+                    )
+                    planning = await asyncio.to_thread(
+                        plan_flow_schematic, context, self._geometry_generators,
+                        resolved_inputs=resolved_inputs,
+                    )
+                    async with self._lock:
+                        self._layout_plans.put(layout_key, planning)
+            except Exception:
+                logger.exception("Could not plan shared schematic layout for %s", session_id)
+                planning_warning = "Shared flow layout is unavailable; this preview uses a local layout. Geometry exports are still available."
             return await asyncio.to_thread(
                 self._assemble_session,
                 session_id,
                 request_hash,
                 snapshot_geometries,
+                prepared,
+                planning,
+                planning_warning,
             )
 
     def _assemble_session(
@@ -570,13 +603,31 @@ class PreviewSessionManager:
         session_id: str,
         request_hash: str,
         snapshot_geometries: tuple[PreviewSnapshotGeometry, ...],
+        prepared: PreparedPreviewExecution | None = None,
+        planning: FlowSchematicPlan | None = None,
+        planning_warning: str | None = None,
     ) -> PreviewSessionRecord:
+        bindings = {}
+        if planning is not None and prepared is not None:
+            try:
+                bindings = bind_schematic_snapshots(planning, prepared, snapshot_geometries)
+            except Exception:
+                logger.exception("Could not bind shared schematic layout for %s", session_id)
+                planning = None
+                planning_warning = "Shared flow layout could not be matched; this preview uses a local layout. Geometry exports are still available."
         snapshots = tuple(
             self._snapshot_record(
                 session_id,
                 request_hash,
                 snapshot,
                 include_schematic=index == len(snapshot_geometries) - 1,
+                layout_plan=planning.layout_for(snapshot.target) if planning is not None else None,
+                component_bindings=bindings.get(snapshot.step_ref_id),
+                layout_warning=(planning_warning or (
+                    "This process has no shared layout description; a local layout is shown."
+                    if planning is not None and snapshot.source_kind == "stepOutput"
+                    and snapshot.step_ref_id not in planning.outputs else None
+                )),
             )
             for index, snapshot in enumerate(snapshot_geometries)
         )
@@ -601,6 +652,9 @@ class PreviewSessionManager:
         source: PreviewSnapshotGeometry,
         *,
         include_schematic: bool = False,
+        layout_plan=None,
+        component_bindings: Mapping[str, str] | None = None,
+        layout_warning: str | None = None,
     ) -> PreviewSnapshotRecord:
         geometry_hash = content_hash(source.geometry_structure)
         snapshot_hash = content_hash(
@@ -627,15 +681,16 @@ class PreviewSessionManager:
             source_label=source.label,
         )
         schematic = None
-        schematic_warnings: tuple[str, ...] = ()
+        schematic_warnings: tuple[str, ...] = (layout_warning,) if layout_warning and include_schematic else ()
         if include_schematic:
             try:
-                schematic = build_schematic(source.geometry_structure)
+                schematic = build_schematic(source.geometry_structure, layout_plan=layout_plan,
+                                            component_bindings=component_bindings)
             except Exception:
                 # A display failure must not make the calculated structure or
                 # JSON/STEP/CDB exports unavailable.
                 logger.exception("Could not compose schematic for %s", snapshot_id)
-                schematic_warnings = (
+                schematic_warnings += (
                     "Cross section preview is unavailable. Geometry exports are still available.",
                 )
         return PreviewSnapshotRecord(

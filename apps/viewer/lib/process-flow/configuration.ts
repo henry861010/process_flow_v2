@@ -163,8 +163,6 @@ export function getStepExecutionReadiness(
   configuration: FlowConfiguration,
   geometries: GeometryEntity[],
 ): ConfigurationReadiness {
-  const structureError = getTemplateStructureError(template, stepTemplates);
-  if (structureError) return structureError;
   return getStepDependencyReadiness(stepRefId, template, stepTemplates, configuration, geometries);
 }
 

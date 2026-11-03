@@ -115,7 +115,11 @@ class PnpSchematicTests(unittest.TestCase):
             variant = copy.deepcopy(source)
             variant["root"]["bumps"][0]["density"] = density
             variant["root"]["children"][0]["bumps"][0]["density"] = density
-            self.assertEqual(compose_schematic(variant, registry()), reference)
+            expected = copy.deepcopy(reference)
+            for item in expected["items"]:
+                if "densityValues" in item:
+                    item["densityValues"] = [density]
+            self.assertEqual(compose_schematic(variant, registry()), expected)
 
     def test_true_footprints_handle_circle_boundary_holes_and_overhang(self):
         cases = [
@@ -144,6 +148,8 @@ class PnpSchematicTests(unittest.TestCase):
         self.assertEqual(len(document["components"]), 2)
         paired = next(component for component in document["components"] if "die" in component["sourceIds"])
         self.assertEqual(paired["sourceIds"], ["die", "duplicate"])
+        upper = next(item for item in document["items"] if "die-upper" in item["sourceIds"])
+        self.assertEqual(upper["densityValues"], [40, 99])
         self.assertEqual(len(motifs(document, "die-upper")), len(motifs(document, "duplicate-upper")))
         self.assertFalse(motifs(document, "unpaired-upper"))
         self.assert_pair(document)

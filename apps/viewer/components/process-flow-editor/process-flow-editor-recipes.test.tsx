@@ -72,7 +72,7 @@ describe("process step recipe presentation", () => {
     const rdlTemplate = stepTemplates.find((step) => step.id === "step_tpl_rdl")! as ProcessStepTemplate;
     const rdlNode = { ...node, data: { ...node.data, stepTemplate: rdlTemplate } };
     const candidates = ["First dielectric", "Second dielectric"].map((material, index) => ({
-      recipeId: `rdl-recipe-${index}`, name: `Stack ${index}`,
+      recipeId: `rdl-recipe-${index}`, name: `Stack ${index}`, description: "",
       parameterValues: { layers: { items: [{
         itemId: `internal-${index}`, index: 1,
         values: { Dielectric: material, Conductivity: "Cu", thk: 8, density: 0 },

@@ -87,7 +87,9 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         for density in (1, 100):
             variant = copy.deepcopy(snapshot)
             variant["root"]["children"][0]["bumps"][0]["density"] = density
-            self.assertEqual(compose_schematic(variant, registry()), document)
+            expected = copy.deepcopy(document)
+            next(item for item in expected["items"] if item["id"] == joint["id"])["densityValues"] = [density]
+            self.assertEqual(compose_schematic(variant, registry()), expected)
         absent = copy.deepcopy(snapshot)
         absent["root"]["children"][0]["bumps"][0]["density"] = 0
         self.assertFalse(any(shape["kind"] == "circle" for shape in compose_schematic(absent, registry())["shapes"]))

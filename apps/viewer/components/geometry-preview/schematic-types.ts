@@ -34,6 +34,8 @@ export type SchematicItem = {
   zMin: number;
   zMax: number;
   thickness: number;
+  /** Unique source percentages, sorted numerically; null records an unspecified source. */
+  densityValues?: (number | null)[] | null;
 };
 
 export type SchematicComponent = SchematicRectangle & {

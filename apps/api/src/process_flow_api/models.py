@@ -631,6 +631,7 @@ class GeometryPreviewResponse(StrictModel):
 
 SchematicFiniteFloat = Annotated[float, Field(strict=True, allow_inf_nan=False)]
 SchematicNonNegativeFloat = Annotated[float, Field(strict=True, ge=0, allow_inf_nan=False)]
+SchematicDensityPercentage = Annotated[float, Field(strict=True, ge=0, le=100, allow_inf_nan=False)]
 SchematicSourceId = Annotated[str, Field(min_length=1)]
 SchematicPoint = tuple[SchematicFiniteFloat, SchematicFiniteFloat]
 
@@ -687,6 +688,14 @@ class SchematicItem(StrictModel):
     zMin: SchematicFiniteFloat
     zMax: SchematicFiniteFloat
     thickness: SchematicNonNegativeFloat
+    densityValues: list[SchematicDensityPercentage | None] | None = Field(default=None, strict=True)
+
+    @model_serializer(mode="wrap")
+    def omit_inapplicable_density(self, handler):
+        payload = handler(self)
+        if self.densityValues is None:
+            payload.pop("densityValues", None)
+        return payload
 
     @model_validator(mode="after")
     def z_range_is_ordered(self):

@@ -64,20 +64,25 @@ describe("step configuration status scope", () => {
     expect(getStepConfigurationReadiness("place", template, steps, configuration, [geometry])).toMatchObject({
       status: "error", code: "missing-input-edge", stepRefId: "place",
     });
-    // Saving and compiler-backed preview still reject the incomplete template.
+    // Full-flow readiness remains strict; a prior step preview needs only its upstream closure.
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
-    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).code).toBe("missing-input-edge");
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
+    expect(getStepExecutionReadiness("place", template, steps, configuration, [geometry])).toMatchObject({
+      status: "error", code: "missing-input-edge", stepRefId: "place",
+    });
   });
 
   it("keeps upstream nodes ready when another branch or downstream template reference is invalid", () => {
     const { template, configuration, steps } = configuredScenario();
     template.stepRefs.push({ stepRefId: "unrelated", processStepTemplateId: "pnp" });
     expect(getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
 
     template.stepRefs.pop();
     template.stepRefs[2].processStepTemplateId = "missing";
     expect(getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
     expect(getStepConfigurationReadiness("place", template, steps, configuration, [geometry]).code).toBe("missing-step-template");
     expect(getStepConfigurationReadiness("unknown", template, steps, configuration, [geometry]).code).toBe("missing-step-template");
     expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
@@ -88,11 +93,13 @@ describe("step configuration status scope", () => {
     delete configuration.stepConfigurations.prepare1.recipeCandidates[0].parameterValues.thickness;
     const incomplete = getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry]);
     expect(incomplete).toMatchObject({ status: "incomplete", code: "incomplete-parameter", stepRefId: "prepare1" });
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry])).toEqual(incomplete);
     expect(stepReadinessStatusLabel(incomplete, "prepare2")).toBe("Waiting upstream");
 
     configuration.stepConfigurations.prepare1.recipeCandidates[0].parameterValues.thickness = 2;
     delete configuration.inputBindings.die;
     expect(getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry]).code).toBe("unbound-geometry");
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).code).toBe("unbound-geometry");
 
     configuration.inputBindings.die = { kind: "catalog", geometryId: "main" };
     template.flowEdges = template.flowEdges.filter((edge) => edge.edgeId !== "prepare");
@@ -100,6 +107,27 @@ describe("step configuration status scope", () => {
     expect(getStepConfigurationReadiness("prepare2", template, steps, configuration, [geometry])).toMatchObject({
       status: "error", code: "missing-input-edge", stepRefId: "prepare2",
     });
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry])).toMatchObject({
+      status: "error", code: "missing-input-edge", stepRefId: "prepare2",
+    });
+  });
+
+  it("allows an earlier preview while a downstream recipe or parameter is incomplete", () => {
+    const { template, configuration, steps } = configuredScenario();
+    configuration.stepConfigurations.place.selectedRecipeId = null;
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
+    expect(getStepExecutionReadiness("place", template, steps, configuration, [geometry])).toMatchObject({
+      status: "incomplete", code: "incomplete-parameter", stepRefId: "place",
+    });
+    expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
+
+    configuration.stepConfigurations.place.selectedRecipeId = "r1";
+    delete configuration.stepConfigurations.place.recipeCandidates[0].parameterValues.placements;
+    expect(getStepExecutionReadiness("prepare2", template, steps, configuration, [geometry]).status).toBe("ready");
+    expect(getStepExecutionReadiness("place", template, steps, configuration, [geometry])).toMatchObject({
+      status: "incomplete", code: "incomplete-parameter", stepRefId: "place",
+    });
+    expect(isConfigurationComplete(template, steps, configuration, [geometry])).toBe(false);
   });
 
   it("does not label a configured upstream node unused when a downstream cycle removes terminal roots", () => {

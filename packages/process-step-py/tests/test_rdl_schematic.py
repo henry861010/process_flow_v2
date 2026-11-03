@@ -270,7 +270,7 @@ class RdlSchematicTests(unittest.TestCase):
         self.assertEqual(restored, original)
         self.assertEqual(compose_schematic(restored, registry()), document)
 
-    def test_density_is_ignored_including_zero_and_missing_values(self):
+    def test_density_metadata_changes_without_changing_symbols_including_zero_and_missing_values(self):
         snapshot = rdl_state(density=1).to_geometry_structure()
         before = copy.deepcopy(snapshot)
         document = compose_schematic(snapshot, registry())
@@ -284,7 +284,11 @@ class RdlSchematicTests(unittest.TestCase):
                         else:
                             feature["density"] = density
                 variant_before = copy.deepcopy(variant)
-                self.assertEqual(compose_schematic(variant, registry()), document)
+                expected = copy.deepcopy(document)
+                for item in expected["items"]:
+                    if "densityValues" in item:
+                        item["densityValues"] = [density]
+                self.assertEqual(compose_schematic(variant, registry()), expected)
                 self.assertEqual(variant, variant_before)
         self.assertEqual(snapshot, before)
 
@@ -316,6 +320,7 @@ class RdlSchematicTests(unittest.TestCase):
                            if item["label"].startswith(("Via", "Circuit"))]
         self.assertEqual(len(conductor_items), 5)
         self.assertTrue(all(len(item["sourceIds"]) == 3 for item in conductor_items))
+        self.assertTrue(all(item["densityValues"] == [0, 40, None] for item in conductor_items))
         self.assertEqual(snapshot, before)
 
     def test_contacts_and_taper_fit_a_narrow_placed_component_after_flip(self):

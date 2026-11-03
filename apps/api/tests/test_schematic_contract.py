@@ -63,6 +63,29 @@ class SchematicContractTests(unittest.TestCase):
         self.assertEqual(path.points, [])
         self.assertFalse(path.closed)
 
+    def test_density_values_round_trip_percentages_and_unknown_sources(self):
+        payload = document_payload()
+        payload["items"][0]["densityValues"] = [0, 12.5, 100, None]
+        parsed = SchematicDocument.model_validate(payload)
+        self.assertEqual(parsed.payload(), payload)
+        self.assertEqual(parsed.model_dump(mode="json")["items"][0]["densityValues"], [0, 12.5, 100, None])
+
+    def test_legacy_items_omit_density_in_default_response_serialization(self):
+        parsed = SchematicDocument.model_validate(document_payload())
+        self.assertNotIn("densityValues", parsed.model_dump(mode="json")["items"][0])
+
+    def test_invalid_density_values_are_rejected_without_coercion(self):
+        for value in (-1, 101, math.nan, math.inf, "50", True):
+            with self.subTest(value=value):
+                payload = document_payload()
+                payload["items"][0]["densityValues"] = [value]
+                with self.assertRaises(ValidationError):
+                    SchematicDocument.model_validate(payload)
+        payload = document_payload()
+        payload["items"][0]["densityValues"] = (25, 75)
+        with self.assertRaises(ValidationError):
+            SchematicDocument.model_validate(payload)
+
     def test_invalid_shape_contracts_are_rejected(self):
         cases = [
             ("unknown primitive", lambda d: d["shapes"][0].update(kind="oval")),
@@ -166,10 +189,24 @@ class SchematicContractTests(unittest.TestCase):
                         self.assertEqual(SchematicDocument.model_validate(document).payload(), document)
                         documents[step] = document
                         root = snapshot["geometryEntityJson"]["structure"]["root"]
+                        def assert_source_densities(container):
+                            for body in container.get("bodies", []):
+                                for item in document["items"]:
+                                    if body["id"] in item["sourceIds"]:
+                                        self.assertNotIn("densityValues", item)
+                            for collection in ("bumps", "vias", "circuits"):
+                                for feature in container.get(collection, []):
+                                    for item in document["items"]:
+                                        if feature["id"] in item["sourceIds"]:
+                                            self.assertIn(feature["density"], item["densityValues"])
+                            for child in container.get("children", []):
+                                assert_source_densities(child)
+                        assert_source_densities(root)
                         if step == "pnp":
                             lower = root["bumps"][0]
                             row = next(item for item in document["items"] if lower["id"] in item["sourceIds"])
                             self.assertEqual(row["thickness"], lower["geometry"]["thk"])
+                            self.assertEqual(row["densityValues"], [lower["density"]])
                             self.assertTrue(all(child["bumps"][0]["stage"] == "reflowed" for child in root["children"]))
                         if step == "joint":
                             self.assertFalse(any(root["bumps"][0]["id"] in item["sourceIds"] for item in document["items"]))

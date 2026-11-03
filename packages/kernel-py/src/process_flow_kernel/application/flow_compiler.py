@@ -197,6 +197,10 @@ class FlowCompiler:
             binding,
         ).structure
 
+    def resolve_geometry_binding(self, flow_input_id, flow_input, binding) -> GeometryArtifact:
+        """Resolve one declared input without requiring an executable flow graph."""
+        return self._resolve_binding(flow_input_id, flow_input, binding)
+
     def _resolve_binding(self, flow_input_id, flow_input, binding):
         _validate_binding_shape(flow_input_id, binding)
         if binding["kind"] == "catalog":
