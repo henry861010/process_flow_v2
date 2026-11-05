@@ -41,7 +41,86 @@ def nested_scene(nesting="arranged"):
                    SceneRelation("fill-excludes-die", "fills", "fill", (AnchorRef("die"),), "inside")))
 
 
+def stacked_scene():
+    return SceneState(objects=(
+        SchematicObject("assembly", "assembly", "generic", "Assembly"),
+        SchematicObject("lower", "component", "generic", "Lower", parent_id="assembly",
+                        layout="member", region_id="mount", anchors=(AnchorSpec("contact", side="upper"),)),
+        SchematicObject("lower-body", "body", "slab", "Lower body", parent_id="lower",
+                        layout="span", region_id="lower-inside"),
+        SchematicObject("upper", "component", "generic", "Upper", parent_id="assembly",
+                        layout="member", region_id="mount", anchors=(AnchorSpec("contact", side="lower"),)),
+        SchematicObject("upper-body", "body", "slab", "Upper body", parent_id="upper",
+                        layout="span", region_id="upper-inside"),
+        SchematicObject("link", "feature", "generic", "Link", parent_id="assembly",
+                        layout="span", region_id="mount"),
+    ), regions=(LayoutRegion("mount", "assembly"), LayoutRegion("lower-inside", "lower"),
+                LayoutRegion("upper-inside", "upper")), relations=(
+        SceneRelation("connection", "connects", "link", (AnchorRef("lower", "contact"),
+                                                          AnchorRef("upper", "contact"))),
+    ))
+
+
 class SceneRendererTests(unittest.TestCase):
+    def test_z_tolerance_is_shared_by_rectangles_components_clips_and_connection_anchors(self):
+        scene = stacked_scene()
+        for offset in (0, -100, 1_000_000):
+            boundary = offset + 10
+            for gap in (math.ulp(boundary), -0.0009, 0.0009, 0.001, 0.0011):
+                with self.subTest(offset=offset, gap=gap):
+                    upper_min = boundary + gap
+                    data = (physical("lower-body", offset, boundary),
+                            physical("upper-body", upper_min, offset + 20),
+                            physical("link", offset + 5, offset + 15, "Cu", 40))
+                    doc = render_scene(scene, data)
+                    items = {item["label"]: item for item in doc["items"]}
+                    shapes = {shape["itemId"]: shape for shape in doc["shapes"]}
+                    lower, upper = (shapes[items[label]["id"]] for label in ("Lower body", "Upper body"))
+                    link = shapes[items["Link"]["id"]]
+                    components = {component["label"]: component for component in doc["components"]}
+                    upper_bottom = upper["y"] + upper["height"]
+                    if gap < 0.001:
+                        self.assertEqual(lower["y"], upper_bottom)
+                    else:
+                        self.assertGreater(lower["y"], upper_bottom)
+                    self.assertEqual(link["points"][0][1], lower["y"])
+                    self.assertEqual(link["points"][1][1], upper_bottom)
+                    for label, shape in (("Lower", lower), ("Upper", upper)):
+                        component = components[label]
+                        for key in ("x", "y", "width", "height"):
+                            self.assertEqual(component[key], shape[key])
+                            self.assertEqual(shape["clip"][key], shape[key])
+                            self.assertTrue(math.isfinite(shape[key]))
+                        self.assertGreater(shape["height"], 0)
+                    self.assertEqual((items["Upper body"]["zMin"], items["Upper body"]["zMax"],
+                                      items["Upper body"]["thickness"]),
+                                     (upper_min, offset + 20, offset + 20 - upper_min))
+                    self.assertEqual(doc["warnings"], [])
+                    self.assertEqual(doc["totalThickness"], 20)
+                    self.assertEqual(doc, render_scene(scene, tuple(reversed(data))))
+
+    def test_positive_layers_at_or_below_tolerance_remain_visible(self):
+        scene = stacked_scene()
+        for offset in (0, -100, 1_000_000):
+            boundary = offset + 10
+            for thickness in (0.001, 0.0009, 0.0001, 2 * math.ulp(boundary)):
+                with self.subTest(offset=offset, thickness=thickness):
+                    upper_max = boundary + thickness
+                    data = (physical("lower-body", offset, boundary),
+                            physical("upper-body", boundary, upper_max))
+                    doc = render_scene(scene, data)
+                    item = next(item for item in doc["items"] if item["label"] == "Upper body")
+                    slab = next(shape for shape in doc["shapes"] if shape["itemId"] == item["id"])
+                    component = next(component for component in doc["components"] if component["label"] == "Upper")
+                    self.assertGreaterEqual(slab["height"], 10)
+                    self.assertEqual(component["height"], slab["height"])
+                    self.assertEqual(slab["clip"]["height"], slab["height"])
+                    self.assertEqual((item["zMin"], item["zMax"], item["thickness"]),
+                                     (boundary, upper_max, upper_max - boundary))
+                    self.assertEqual(doc["totalThickness"], upper_max - offset)
+                    self.assertEqual(doc["warnings"], [])
+                    self.assertEqual(doc, render_scene(scene, tuple(reversed(data))))
+
     def test_cow_lid_ring_render_actual_document_and_shared_selection_identity(self):
         scene = nested_scene()
         data = (physical("wafer", 0, 100), physical("silicon", 110, 130),

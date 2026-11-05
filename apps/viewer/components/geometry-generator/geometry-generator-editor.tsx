@@ -71,6 +71,29 @@ export function geometryGeneratorDefineResult(
   };
 }
 
+/** The same editing body is used by the generator page and flow input dialog. */
+export function GeometryGeneratorEditorContent({ definition, values, generator, onChange, feedback, children }: {
+  definition: GeometryGeneratorDefinition;
+  values: Record<string, unknown>;
+  generator: ReturnType<typeof useGeometryGeneratorPreview>;
+  onChange: (values: Record<string, unknown>) => void;
+  feedback?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0 space-y-5">
+      <GeometryGeneratorEngineeringPreview key={`${definition.id}@${definition.version}`}
+        preview={generator.preview} previewing={generator.previewing} />
+      <GeometryGeneratorValidation preview={generator.latestPreview} error={generator.requestError}
+        onRetry={generator.retry} />
+      {feedback}
+      <GeometryGeneratorParameters definition={definition} values={values} errors={generator.latestPreview?.errors}
+        onChange={onChange} />
+      {children}
+    </div>
+  );
+}
+
 export function GeometryGeneratorParameters({ definition, values, errors, onChange }: {
   definition: GeometryGeneratorDefinition;
   values: Record<string, unknown>;
@@ -85,8 +108,8 @@ export function GeometryGeneratorParameters({ definition, values, errors, onChan
   );
 }
 
-export function GeometryGeneratorEngineeringPreview({ preview, previewing, stacked = false }: {
-  preview: GeometryGeneratorPreview | null; previewing: boolean; stacked?: boolean;
+export function GeometryGeneratorEngineeringPreview({ preview, previewing }: {
+  preview: GeometryGeneratorPreview | null; previewing: boolean;
 }) {
   const [originalAspect, setOriginalAspect] = React.useState(false);
   return preview?.engineeringPreview ? (
@@ -99,7 +122,7 @@ export function GeometryGeneratorEngineeringPreview({ preview, previewing, stack
           Show original aspect ratio
         </label>
       </div>
-      <div className={stacked ? "grid min-w-0 gap-4" : "grid min-w-0 gap-4 lg:grid-cols-2"}>
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         {preview.engineeringPreview.views.map((view) => (
           <EngineeringPreviewRenderer key={view.id} view={view} unit={preview.engineeringPreview!.unit}
             maxRenderedAspectRatio={engineeringPreviewAspectRatioLimit(view.id, originalAspect)} />

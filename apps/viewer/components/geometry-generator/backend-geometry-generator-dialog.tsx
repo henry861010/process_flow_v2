@@ -6,9 +6,7 @@ import { ArrowLeft, Boxes, Database, Download, Loader2, X } from "lucide-react";
 import type { GeometryGeneratorDefinition } from "./geometry-generator-contracts";
 import { toGeneratorEditorValues } from "./geometry-generator-parameters";
 import {
-  GeometryGeneratorEngineeringPreview,
-  GeometryGeneratorParameters,
-  GeometryGeneratorValidation,
+  GeometryGeneratorEditorContent,
   geometryGeneratorDefineResult,
   useGeometryGeneratorPreview,
 } from "./geometry-generator-editor";
@@ -185,19 +183,17 @@ export function BackendGeometryGeneratorDialog({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-5 px-4 py-5 sm:px-5">
-            <GeometryGeneratorEngineeringPreview preview={generator.preview} previewing={previewing} />
-            <GeometryGeneratorValidation preview={latestPreview} error={generator.requestError}
-              onRetry={generator.retry} />
-            {actionError ? <p role="alert" className="text-sm text-destructive">{actionError}</p> : null}
-            {notice ? (
-              <div className="rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-sm text-primary">
-                {notice}
-              </div>
-            ) : null}
-
-            <GeometryGeneratorParameters definition={definition} values={editorValues} errors={latestPreview?.errors}
-              onChange={(values) => { setEditorValues(values); setNotice(null); setActionError(null); }} />
+          <div className="px-4 py-5 sm:px-5">
+            <GeometryGeneratorEditorContent definition={definition} values={editorValues} generator={generator}
+              onChange={(values) => { setEditorValues(values); setNotice(null); setActionError(null); }}
+              feedback={<>
+                {actionError ? <p role="alert" className="text-sm text-destructive">{actionError}</p> : null}
+                {notice ? (
+                  <div className="rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-sm text-primary">
+                    {notice}
+                  </div>
+                ) : null}
+              </>} />
           </div>
         </div>
 

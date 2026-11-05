@@ -3,7 +3,7 @@ title: Geometry Generator Framework
 status: normative
 owner: Process Flow UI
 last_verified: 2026-11-06
-last_verified_commit: b838db68cf0ec0ed
+last_verified_commit: aff005fa
 audience:
   - frontend
   - API
@@ -162,13 +162,17 @@ input constraints的generators合併，保留registry順序及`flowInputPicker`�
 不依賴resolved preview geometry是否成功。未設定、catalog來源或選擇其他generator時使用
 所選definition的defaults；不提供獨立的Edit current recipe或重設入口。
 
-共用 `geometry-generator-editor` 提供 parameter controls、工程預覽、validation 與 debounced
-preview hook；catalog 與新 input 建立入口繼續沿用原 dialog／page、Define result 及保存契約。
+共用 `geometry-generator-editor` 提供 `GeometryGeneratorEditorContent`，由 catalog page、
+新 input 建立入口及既有 flow input 編輯器直接使用同一份編輯主體。所有尺寸皆依序顯示
+工程預覽、validation、入口專屬回饋與參數表單，預覽 views 在 1024px 起雙欄、窄視窗單欄。
+呼叫端持有參數與 debounced preview hook 狀態，透過 props 傳入，不因共用內容重複請求。
+Catalog 保存／下載回饋放在參數前，flow 的 Advanced settings 接在參數後；各入口保留
+原 dialog／page、操作按鈕、Define result 及保存契約。
 Preview 只接受對應目前 generator/version/parameters 的結果；過期或取消的 request 不可更新
 畫面或重新允許送出。網路失敗顯示 Retry preview，無效參數保留 field errors。
 
 Flow 中既有 input 使用單一 GeometryInputEditorDialog：開啟即讀取保存版本與參數，
-1024px 起參數在左、預覽在右，窄視窗參數在前。來源選擇是同一 dialog 的內容頁，
+直接使用上述 Generator page 編輯版面，不另設參數／預覽左右欄。來源選擇是同一 dialog 的內容頁，
 查詢保存版本時停用來源選取；取消、關閉、卸載與切換來源後忽略過期回應。失敗留在
 該頁提供 Retry／Change source，不回退新版。參數、來源與 input 設定先暫存，只有
 Apply changes 才寫回 flow；Cancel／Close／Escape／背景點擊放棄。只有 input metadata

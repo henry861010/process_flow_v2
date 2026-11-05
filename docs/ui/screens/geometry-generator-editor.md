@@ -7,11 +7,12 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-09-15
-last_verified_commit: 04a77e132dd0777e3ddc029dd77f56a0c25b0692
+last_verified: 2026-11-06
+last_verified_commit: aff005fa
 source_of_truth:
   - apps/viewer/components/geometry-generator/geometry-generator-page.tsx
   - apps/viewer/components/geometry-generator/backend-geometry-generator-dialog.tsx
+  - apps/viewer/components/geometry-generator/geometry-generator-editor.tsx
 ---
 
 # Catalog Geometry Generator Editor
@@ -22,6 +23,12 @@ The static route reads the requested backend registry definition and opens only 
 `uiPlacements` includes `home` or `management`. It preserves parameter editing, debounced engineering preview, validation,
 JSON download, metadata dialog, and `Save to DB`. On tablet and desktop widths the editor is centered
 and limited to 70% of the viewport; narrow screens retain the full-width layout.
+
+`GeometryGeneratorEditorContent` supplies the same editing body to this page, the generator creation
+dialog, and the flow geometry input dialog: engineering preview first, then validation, action feedback,
+and parameters. Preview views use two columns from 1024px and one column on narrower screens. The
+flow dialog appends its Advanced settings after parameters and retains its own transactional Apply
+and Cancel actions. Preview state and parameter values remain owned by each caller.
 
 Successful DB save shows the new catalog geometry id without navigating or resetting parameters and
 preview. Home is available as a header command. A missing registry definition renders a recoverable

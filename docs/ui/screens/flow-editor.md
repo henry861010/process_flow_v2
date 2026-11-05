@@ -6,10 +6,11 @@ audience:
   - developers
   - QA
 last_verified: 2026-11-06
-last_verified_commit: eeb83566
+last_verified_commit: aff005fa
 source_of_truth:
   - apps/viewer/components/process-flow-editor/process-flow-editor.tsx
   - apps/viewer/components/process-flow-editor/geometry-input-editor-dialog.tsx
+  - apps/viewer/components/geometry-generator/geometry-generator-editor.tsx
   - apps/viewer/components/process-flow-parameters/recipe-parameter-summary.tsx
   - apps/viewer/components/process-flow-save/save-information-dialog.tsx
   - apps/viewer/lib/process-flow/recipes.ts
@@ -48,11 +49,14 @@ generator binding 直接查詢保存 ID／version 的 definition 並帶入完整
 resolved preview geometry；catalog binding 顯示唯讀資料與 Preview；未設定則直接選擇來源。
 不經摘要卡片、鉛筆或來源選擇器才能續編，不升級 generator 版本。
 
-Header 顯示 input 名稱、來源及 `Change source`。1024px 起左側參數、右側工程預覽；
-窄視窗參數在前、預覽在後，body 負責捲動，footer 固定提供 `Cancel`／`Apply changes`。
+Header 顯示 input 名稱、來源及 `Change source`。Generator 編輯主體直接共用 Geometry
+Generator page 的 `GeometryGeneratorEditorContent`：所有尺寸皆為工程預覽在上、驗證訊息與
+參數在下，預覽 views 在 1024px 起雙欄、窄視窗單欄。Body 負責捲動，footer 固定提供
+`Cancel`／`Apply changes`。
 `Advanced settings` 預設收合，提供 Name、Required、Description、entity/category constraints、
 唯讀連線數及 Flow input ID；修改 constraints 保留隱藏的 structureFormats。Delete geometry input
-位於進階區域，沿用刪除節點、binding 與連線的獨立操作並關閉視窗。
+位於進階區域，沿用刪除節點、binding 與連線的獨立操作並關閉視窗。Generator 的進階區域
+接在共用參數表單下方；catalog 繼續顯示唯讀資料與 Preview。
 
 `Change source` 在同一個 dialog 切換內容；`Back to geometry` 取消選來源、保留原編輯草稿，
 並忽略取消前尚未完成的來源請求。來源頁保留 catalog 搜尋與分類，每個 generator ID 只提供
@@ -110,8 +114,10 @@ Geometry library 建立新 input 仍使用既有 generator `Define` 流程。
 | UI-FLOW-014 | 雙擊 generator input 直接顯示參數與工程預覽，即使 resolved geometry 失敗也可續編；catalog 顯示唯讀資訊與 Preview，未設定直接選來源；單擊接線維持 |
 | UI-FLOW-015 | 參數、來源及 Advanced settings 僅 Apply 才一併寫回；Cancel／Close／Escape／背景點擊保留原 flow，無修改不能 Apply；套用只更新目標 input，位置、連線、其他設定與隱藏 constraints 保留；不寫 Geometry DB |
 | UI-FLOW-016 | 保存版本失敗可 Retry 或 Change source，失敗保留 binding；無效／失敗／尚未完成的 preview 禁止套用且可重試；重複操作不重複請求，關閉／卸載後的回應無效；catalog Preview 使用暫存 binding，關閉 Preview 不套用 |
-| UI-FLOW-017 | 1440×900、1024×768 顯示參數／預覽雙欄，390×844 參數在前且無 dialog 水平溢出；footer 固定，Tab focus trap／來源頁焦點切換／Escape／focus restore 正確，Preview Escape 只關閉最上層 |
+| UI-FLOW-017 | 1440×900、1024×768、390×844 的 generator 編輯主體與 Generator page 共用同一版面：預覽在上、參數在下、Advanced settings 最後；預覽 views 在桌面雙欄、窄視窗單欄，無 dialog 或 document 水平溢出；footer 固定，Tab focus trap／來源頁焦點切換／Escape／focus restore 正確，Preview Escape 只關閉最上層 |
 
 舊 flow-template-editor 和 flow-instance-editor route 已移除。既有 screenshots 是歷史參考；新驗收應使用以上路由與契約。
 
-Geometry 開啟即編輯的操作與三尺寸畫面見 [驗證紀錄](../evidence/geometry-input-editor/README.md)。
+Geometry 共用 Generator page 編輯主體的操作與三尺寸畫面見
+[驗證紀錄](../evidence/shared-geometry-generator/README.md)。先前開啟即編輯的操作見
+[歷史驗證紀錄](../evidence/geometry-input-editor/README.md)。

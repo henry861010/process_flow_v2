@@ -6,10 +6,15 @@ import unittest
 
 from process_flow_geometry_generators import GeometryGeneratorRegistry, register_builtin_generators
 from process_flow_geometry_generators.schematic_presenters import register_presenters as register_generator_presenters
-from process_flow_kernel import BoxGeometry, PolygonGeometry, ProcessGeometryState, normalize_geometry_structure
+from process_flow_kernel import (
+    BoxGeometry, GeometryArtifact, PolygonGeometry, ProcessGeometryState, ProcessStepContext,
+    normalize_geometry_structure,
+)
 from process_flow_kernel.application.material_instances import rewrite_geometry_materials
 from process_flow_schematic import SOLDER_FILL, UNDERFILL_FILL, SchematicRegistry, compose_schematic
 from process_flow_steps.schematic_presenters import register_presenters as register_step_presenters
+from process_flow_steps.pnp.pnp import execute as pnp
+from process_flow_steps.saw.saw import execute as saw
 
 
 def registry():
@@ -50,6 +55,61 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         self.assertAlmostEqual(left, right)
         self.assertGreater(left, 0)
         self.assertLess(left, 2 * radius)
+
+    def test_default_soc_pnp_and_saw_close_float_gap_without_changing_measurements(self):
+        generators = GeometryGeneratorRegistry()
+        register_builtin_generators(generators)
+        carrier = generators.generate("wafer-carrier", 1, {})
+        soc = generators.generate("soc", 1, {})
+        sources_before = copy.deepcopy((carrier, soc))
+        state = ProcessGeometryState.from_structure(carrier["structure"])
+        artifacts = {"main_geometry": GeometryArtifact.from_entity(carrier),
+                     "die_geometry": GeometryArtifact.from_entity(soc)}
+        artifacts_before = {name: copy.deepcopy(artifact.structure) for name, artifact in artifacts.items()}
+
+        def context(values):
+            return ProcessStepContext(
+                state=state, values=values, raw_parameter_values=values,
+                step_ref={}, step_template={}, step_configuration={}, geometry_inputs={},
+                input_geometry=None, geometry_resolver=lambda _: None,
+                geometry_artifact_resolver=artifacts.get,
+            )
+
+        pnp(context({"placements": [{
+            "targetRegion": {"type": "rectangle", "bottomLeftX": -4000, "bottomLeftY": -5000,
+                             "topRightX": 4000, "topRightY": 5000},
+            "pose": {"x": 0, "y": 0, "rotationZ": 0}, "anchor": "center",
+        }]}))
+        for cut in (False, True):
+            with self.subTest(saw=cut):
+                if cut:
+                    saw(context({"bottomLeftX": -5000, "bottomLeftY": -6000,
+                                 "topRightX": 5000, "topRightY": 6000}))
+                snapshot = state.to_geometry_structure()
+                before = copy.deepcopy(snapshot)
+                document = compose_schematic(snapshot, registry())
+                items = {item["label"]: item for item in document["items"]}
+                elk, silicon = items["soc.elk"], items["soc.si"]
+                shapes = {shape["itemId"]: shape for shape in document["shapes"]}
+                elk_shape, silicon_shape = shapes[elk["id"]], shapes[silicon["id"]]
+
+                self.assertEqual(document["warnings"], [])
+                self.assertEqual(document["totalThickness"], 984.83)
+                # Retain the actual arithmetic discrepancy in physical metadata.
+                self.assertEqual(elk["zMax"], 397.33)
+                self.assertEqual(silicon["zMin"], 397.33000000000004)
+                self.assertEqual(silicon["thickness"], 200)
+                self.assertEqual(elk_shape["y"], silicon_shape["y"] + silicon_shape["height"])
+                for body in snapshot["root"]["children"][0]["bodies"]:
+                    item = items[body["key"]]
+                    lower = body["geometry"]["bottom_left"][2]
+                    upper = lower + body["geometry"]["thk"]
+                    self.assertEqual((item["zMin"], item["zMax"], item["thickness"]),
+                                     (lower, upper, upper - lower))
+                self.assertEqual(snapshot, before)
+                self.assertEqual(state.to_geometry_structure(), before)
+                self.assertEqual((carrier, soc), sources_before)
+                self.assertEqual({name: artifact.structure for name, artifact in artifacts.items()}, artifacts_before)
 
     def test_carrier_and_hbm_before_joint_show_only_paired_reflowed_bumps(self):
         for stage in ("deposited", "reflowed"):

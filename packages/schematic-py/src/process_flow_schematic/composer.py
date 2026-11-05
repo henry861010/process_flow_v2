@@ -79,20 +79,57 @@ def _signature(container):
             tuple(sorted((_signature(c) for c in container.get("children", ())), key=repr)))
 
 
+_Z_DISPLAY_TOLERANCE_UM = 0.001
+
+
 class _ZDisplay:
-    def __init__(self, bounds):
-        self.z = sorted({value for b in bounds for value in (b.z_min, b.z_max)})
+    def __init__(self, bounds, *, display_bounds=()):
+        bounds = tuple(bounds)
+        self._raw_z = sorted({value for b in (*bounds, *display_bounds) for value in (b.z_min, b.z_max)})
+        # Even a computed layer thinner than the display tolerance must survive.
+        lower_surfaces = {}
+        for bound in bounds:
+            if bound.z_max > bound.z_min:
+                lower_surfaces.setdefault(bound.z_max, set()).add(bound.z_min)
+
+        self.z = []
+        self._canonical = {}
+        members = set()
+        for value in self._raw_z:
+            merge = False
+            if self.z:
+                lower = self.z[-1]
+                margin = 4 * max(math.ulp(lower), math.ulp(value), math.ulp(_Z_DISPLAY_TOLERANCE_UM))
+                merge = (value - lower < _Z_DISPLAY_TOLERANCE_UM - margin
+                         and members.isdisjoint(lower_surfaces.get(value, ())))
+            if not merge:
+                self.z.append(value)
+                members = set()
+            members.add(value)
+            self._canonical[value] = self.z[-1]
+
         self.distances = [0.0]
         for lower, upper in zip(self.z, self.z[1:]):
             self.distances.append(self.distances[-1] + max(10.0, min(110.0, math.sqrt(upper - lower) * 5)))
         self.height = self.distances[-1] if self.distances else 0
+        distances = dict(zip(self.z, self.distances))
+        self._raw_distances = [distances[self._canonical[value]] for value in self._raw_z]
 
     def y(self, value):
         if len(self.z) < 2:
             return 48.0
-        index = min(max(bisect.bisect_right(self.z, value) - 1, 0), len(self.z) - 2)
-        fraction = (value - self.z[index]) / (self.z[index + 1] - self.z[index])
-        distance = self.distances[index] + fraction * (self.distances[index + 1] - self.distances[index])
+        if value < self._raw_z[0]:
+            distance = ((value - self._raw_z[0]) / (self.z[1] - self.z[0])
+                        * (self.distances[1] - self.distances[0]))
+        elif value > self._raw_z[-1]:
+            distance = self.height + ((value - self._raw_z[-1]) / (self.z[-1] - self.z[-2])
+                                      * (self.distances[-1] - self.distances[-2]))
+        else:
+            # Interpolate through the original breakpoints. Merged spans are
+            # flat, including interior queries, so the transform stays monotone.
+            index = min(max(bisect.bisect_right(self._raw_z, value) - 1, 0), len(self._raw_z) - 2)
+            fraction = (value - self._raw_z[index]) / (self._raw_z[index + 1] - self._raw_z[index])
+            distance = self._raw_distances[index] + fraction * (self._raw_distances[index + 1] - self._raw_distances[index])
         return 48 + self.height - distance
 
 
@@ -383,7 +420,8 @@ def _compose_schematic(
     adjacent_placements = tuple(pair for sequence in placement_sequences.values()
                                 for pair in zip(sequence, sequence[1:]))
 
-    z = _ZDisplay([n.bounds for n in nodes])
+    z = _ZDisplay([n.bounds for n in nodes], display_bounds=[
+        part.display_bounds for node in nodes for part in node.parts if part.display_bounds is not None])
     height = max(240.0, z.height + 112)
     items = []
     item_index = {}

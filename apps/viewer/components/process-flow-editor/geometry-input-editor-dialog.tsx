@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ArrowLeft, Eye, Trash2, X } from "lucide-react";
 import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
-import { GeometryGeneratorEngineeringPreview, GeometryGeneratorParameters, GeometryGeneratorValidation,
+import { GeometryGeneratorEditorContent,
   geometryGeneratorDefineResult, useGeometryGeneratorPreview } from "@/components/geometry-generator/geometry-generator-editor";
 import { toGeneratorEditorValues } from "@/components/geometry-generator/geometry-generator-parameters";
 import { FlowInputAdvancedDisclosure } from "@/components/process-flow-fields/flow-input-controls";
@@ -195,15 +195,9 @@ export function GeometryInputEditorDialog({ flowInput, initialBinding, geometrie
               }}>Retry</Button>
             </div> : null}
             {definition && binding?.kind === "generator" ? (
-              <div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
-                <div className="min-w-0 space-y-4">
-                  <GeometryGeneratorValidation preview={generator.latestPreview} error={generator.requestError} onRetry={generator.retry} />
-                  <GeometryGeneratorParameters definition={definition} values={values} errors={generator.latestPreview?.errors} onChange={setValues} />
-                  {advancedSettings}
-                </div>
-                <GeometryGeneratorEngineeringPreview key={`${definition.id}@${definition.version}`} preview={generator.preview}
-                  previewing={generator.previewing} stacked />
-              </div>
+              <GeometryGeneratorEditorContent definition={definition} values={values} generator={generator} onChange={setValues}>
+                {advancedSettings}
+              </GeometryGeneratorEditorContent>
             ) : null}
             {binding?.kind === "catalog" ? (
               catalogGeometry ? <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border bg-white p-4">

@@ -15,6 +15,9 @@ source_of_truth:
 
 # Geometry input 編輯驗證
 
+本紀錄保留當時的參數／預覽左右欄畫面。現行編輯主體已共用 Generator page，最新版面與
+三尺寸驗證見 [共用 Generator 編輯主體驗證](../shared-geometry-generator/README.md)。
+
 Route：`/flow-editor/`，Viewer port 3001、現有本機 API port 8000。
 使用 Geometry library 建立尚未保存的 Wafer carrier input；只操作此瀏覽器的暫存 flow，
 沒有 reset、保存 flow／draft 或建立 catalog geometry。截圖是目前介面的操作證據，

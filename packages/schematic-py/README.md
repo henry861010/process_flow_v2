@@ -114,6 +114,18 @@ Z uses a shared monotonic piecewise transform, with a minimum height for thin
 intervals; the document always includes unscaled physical Z and thickness values.
 The SVG consumer understands only generic shapes, measurements and selection IDs.
 
+Both composition paths use a fixed Z display tolerance of `0.001 um`. Physical
+and declared presenter display boundaries are sorted and clustered against each
+cluster's lowest Z, so a chain of nearby boundaries cannot accumulate a larger
+merge. Only spans strictly below the tolerance merge; a four-ULP safety margin
+keeps translated differences numerically equal to `0.001 um` distinct. The two
+surfaces of any positive physical layer never merge, including computed layers
+thinner than the tolerance. Interpolation through a merged span is flat and the
+shared transform remains monotone for shapes, component bounds, clips and anchors.
+Remaining intervals retain the square-root height transform, clamped to 10–110
+display units. This affects presentation only: physical Z, thickness, total
+thickness, geometry hashes and the v1 document schema are unchanged.
+
 Circle primitives may set `repeat_x=True` (default `False`) to fill their display
 rectangle with an equally spaced row; this requires a positive radius and ignores
 `cx`. The composer uses radius `min(r * display_height, display_width / 2.8)` and

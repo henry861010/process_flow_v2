@@ -6,7 +6,9 @@ import geometryFixtures from "../../../api/src/process_flow_api/fixtures/geometr
 import { ProcessFlowEditor } from "./process-flow-editor";
 import { GeometryInputEditorDialog } from "./geometry-input-editor-dialog";
 import { GeometrySourcePicker } from "./geometry-source-picker";
-import { GeometryGeneratorParameters, GeometryGeneratorValidation } from "@/components/geometry-generator/geometry-generator-editor";
+import { GeometryGeneratorEditorContent, GeometryGeneratorParameters, GeometryGeneratorValidation } from "@/components/geometry-generator/geometry-generator-editor";
+import { BackendGeometryGeneratorDialog } from "@/components/geometry-generator/backend-geometry-generator-dialog";
+import { GeometryGeneratorSaveDialog } from "@/components/geometry-generator/geometry-generator-save-dialog";
 import { GeometryPreviewPanel } from "@/components/geometry-preview/geometry-preview-panel";
 import type { GeometryGeneratorPreview } from "@/components/geometry-generator/geometry-generator-contracts";
 import { ProcessFlowGraph } from "@/components/process-flow-graph/process-flow-graph";
@@ -20,7 +22,7 @@ import type { GeometryGeneratorDefineResult } from "@/components/geometry-genera
 import { createDefaultParameterValues } from "@/lib/process-flow/parameter-values";
 import {
   ApiRequestError, commitFlowDraft, createProcessFlow, deleteFlowDraft, getFlowDraft,
-  getGeometryGeneratorVersion, getProcessFlow, listFlowDrafts, loadBootstrap, saveFlowDraft, updateProcessFlow, previewGeneratedGeometry, createGeometry,
+  getGeometryGeneratorVersion, getProcessFlow, listFlowDrafts, loadBootstrap, saveFlowDraft, updateProcessFlow, previewGeneratedGeometry, createGeometry, materializeGeneratedGeometry,
 } from "@/lib/process-flow-api";
 import type { FlowDraft, ProcessFlow, ProcessStepTemplate, GeometryEntity, GeometryBinding, FlowInputDefinition } from "@/lib/process-flow/types";
 
@@ -56,7 +58,7 @@ vi.mock("@/lib/process-flow-api", async (importOriginal) => ({
   ...await importOriginal<object>(),
   loadBootstrap: vi.fn(), getProcessFlow: vi.fn(), createProcessFlow: vi.fn(), updateProcessFlow: vi.fn(),
   getFlowDraft: vi.fn(), listFlowDrafts: vi.fn(), saveFlowDraft: vi.fn(), commitFlowDraft: vi.fn(), deleteFlowDraft: vi.fn(),
-  getGeometryGeneratorVersion: vi.fn(), previewGeneratedGeometry: vi.fn(), createGeometry: vi.fn(),
+  getGeometryGeneratorVersion: vi.fn(), previewGeneratedGeometry: vi.fn(), createGeometry: vi.fn(), materializeGeneratedGeometry: vi.fn(),
 }));
 
 type Element = React.ReactElement;
@@ -124,6 +126,9 @@ function find(view: Element, predicate: (element: Element) => boolean) {
 }
 function props<P>(view: Element, type: React.ComponentType<P>): P {
   return find(view, (element) => element.type === type).props;
+}
+function generatorContent(view: Element) {
+  return GeometryGeneratorEditorContent(props(view, GeometryGeneratorEditorContent));
 }
 function text(node: React.ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
@@ -422,7 +427,7 @@ async function geometryInputEditor(binding: GeometryBinding | null = savedBindin
     const pickerProps = props(render(), GeometrySourcePicker);
     return pickerHooks.render(() => GeometrySourcePicker(pickerProps));
   };
-  const parameters = () => props(render(), GeometryGeneratorParameters);
+  const parameters = () => props(generatorContent(render()), GeometryGeneratorParameters);
   function update(values: Record<string, unknown>) { parameters().onChange({ ...parameters().values, ...values }); render(); }
   async function flush() { await app.flush(); render(); }
   async function preview() { render(); await vi.advanceTimersByTimeAsync(180); await flush(); }
@@ -484,7 +489,7 @@ describe("flow geometry input editing session", () => {
     session.update({ size: 25 }); await session.preview();
     session.update({ size: 50 }); await session.preview();
     resolve(await valid(pickerGenerator.id, 1, { size: 25 })); await session.flush();
-    expect(props(session.render(), GeometryGeneratorValidation).preview?.normalizedParameters.size).toBe(50);
+    expect(props(generatorContent(session.render()), GeometryGeneratorValidation).preview?.normalizedParameters.size).toBe(50);
     button(session.render(), "Apply changes").props.onClick();
     await saveNewDraft(session.app);
     expect(savedDraft.state.configuration.inputBindings[session.flowInputId]).toMatchObject({ parameters: { size: 50 } });
@@ -557,7 +562,7 @@ describe("flow geometry input editing session", () => {
     expect(button(render(), "Apply changes").props.disabled).toBe(true);
     expect(button(render(), "Change source")).toBeDefined();
     button(render(), "Retry").props.onClick(); await session.app.flush();
-    expect(props(render(), GeometryGeneratorParameters).definition).toEqual(savedGenerator);
+    expect(props(generatorContent(render()), GeometryGeneratorParameters).definition).toEqual(savedGenerator);
   });
 
   it.each(["close", "unmount", "change-source"] as const)("ignores delayed version responses after %s", async (action) => {
@@ -604,13 +609,13 @@ describe("flow geometry input editing session", () => {
     const valid = vi.mocked(previewGeneratedGeometry).getMockImplementation()!;
     vi.mocked(previewGeneratedGeometry).mockImplementationOnce(async (...args) => ({ ...await valid(...args), valid: false, errors: { size: "Must be positive" } }));
     session.update({ size: -1 }); await session.preview();
-    expect(props(session.render(), GeometryGeneratorValidation).preview?.errors).toEqual({ size: "Must be positive" });
+    expect(props(generatorContent(session.render()), GeometryGeneratorValidation).preview?.errors).toEqual({ size: "Must be positive" });
     expect(button(session.render(), "Apply changes").props.disabled).toBe(true);
     vi.mocked(previewGeneratedGeometry).mockRejectedValueOnce(new Error("Offline"));
     session.update({ size: 50 }); await session.preview();
-    expect(props(session.render(), GeometryGeneratorValidation).error).toBe("Offline");
+    expect(props(generatorContent(session.render()), GeometryGeneratorValidation).error).toBe("Offline");
     expect(button(session.render(), "Apply changes").props.disabled).toBe(true);
-    props(session.render(), GeometryGeneratorValidation).onRetry(); await session.preview();
+    props(generatorContent(session.render()), GeometryGeneratorValidation).onRetry(); await session.preview();
     expect(button(session.render(), "Apply changes").props.disabled).toBe(false);
   });
 
@@ -638,6 +643,112 @@ describe("flow geometry input editing session", () => {
     expect(savedDraft.state.configuration.inputBindings[session.flowInputId]).toEqual(savedBinding);
     expect((savedDraft.state.nodes.find((node) => node.id === session.node.id) as { definition: FlowInputDefinition }).definition.geometryConstraints?.structureFormats).toEqual(["standard"]);
     expect((savedDraft.state.nodes.find((node) => node.id === session.node.id) as { definition: FlowInputDefinition }).definition.geometryConstraints?.categories).toEqual(["die.other"]);
+  });
+});
+
+describe("catalog generator actions through the shared editor", () => {
+  function catalogEditor() {
+    const hooks = new HookHarness();
+    sessions.push(hooks);
+    const onClose = vi.fn();
+    const render = () => hooks.render(() => BackendGeometryGeneratorDialog({
+      definition: pickerGenerator, presentation: "page", onClose,
+    }));
+    const content = () => generatorContent(render());
+    const parameters = () => props(content(), GeometryGeneratorParameters);
+    async function preview() {
+      render();
+      await vi.advanceTimersByTimeAsync(180);
+      render();
+    }
+    render();
+    return { render, content, parameters, preview, onClose };
+  }
+
+  it("downloads the materialized structure only after a valid preview", async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:geometry");
+    const revokeObjectURL = vi.fn();
+    const link = { href: "", download: "", click: vi.fn(), remove: vi.fn() };
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    vi.stubGlobal("document", { body: { style: {}, appendChild: vi.fn() }, createElement: () => link });
+    vi.mocked(materializeGeneratedGeometry).mockResolvedValue({
+      geometryHash: "hash", geometryEntityJson: geometryFixtures[0],
+    });
+    const session = catalogEditor();
+    expect(button(session.render(), "Generate JSON").props.disabled).toBe(true);
+    expect(button(session.render(), "Save to DB").props.disabled).toBe(true);
+    await session.preview();
+    expect(previewGeneratedGeometry).toHaveBeenCalledTimes(1);
+    expect(button(session.render(), "Generate JSON").props.disabled).toBe(false);
+    button(session.render(), "Generate JSON").props.onClick();
+    await session.preview();
+    expect(materializeGeneratedGeometry).toHaveBeenCalledWith("token");
+    expect(JSON.parse(await createObjectURL.mock.calls[0][0].text())).toEqual(geometryFixtures[0].structure);
+    expect(link.download).toBe(`${pickerGenerator.id}-geometry.json`);
+    expect(link.click).toHaveBeenCalledOnce();
+    expect(link.remove).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:geometry");
+    expect(createGeometry).not.toHaveBeenCalled();
+    expect(session.onClose).not.toHaveBeenCalled();
+  });
+
+  it("saves a catalog snapshot in place and keeps parameter edits connected to one preview request", async () => {
+    vi.mocked(materializeGeneratedGeometry).mockResolvedValue({
+      geometryHash: "hash", geometryEntityJson: geometryFixtures[0],
+    });
+    vi.mocked(createGeometry).mockResolvedValue({ ...geometryFixtures[0], id: "new-catalog-geometry", name: "Saved generator" });
+    const session = catalogEditor();
+    await session.preview();
+    const originalValues = structuredClone(session.parameters().values);
+    button(session.render(), "Save to DB").props.onClick();
+    props(session.render(), GeometryGeneratorSaveDialog).onChange({ name: " Saved generator ", owner: " RD ", vendor: " " });
+    await props(session.render(), GeometryGeneratorSaveDialog).onSubmit();
+    expect(materializeGeneratedGeometry).toHaveBeenCalledWith("token");
+    expect(createGeometry).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      id: null, name: "Saved generator", owner: "RD", vendor: null,
+      structure: geometryFixtures[0].structure,
+    }));
+    expect(text(session.content())).toContain("new-catalog-geometry");
+    expect(session.parameters().values).toEqual(originalValues);
+    expect(session.onClose).not.toHaveBeenCalled();
+    session.parameters().onChange({ ...originalValues, size: 125 });
+    expect(text(session.content())).not.toContain("new-catalog-geometry");
+    expect(button(session.render(), "Save to DB").props.disabled).toBe(true);
+    await session.preview();
+    expect(previewGeneratedGeometry).toHaveBeenCalledTimes(2);
+    expect(previewGeneratedGeometry).toHaveBeenLastCalledWith(pickerGenerator.id, pickerGenerator.version,
+      expect.objectContaining({ size: 125 }), expect.any(AbortSignal));
+    expect(button(session.render(), "Save to DB").props.disabled).toBe(false);
+  });
+
+  it("shows a download failure in the shared body and clears it when parameters change", async () => {
+    vi.mocked(materializeGeneratedGeometry).mockResolvedValue({
+      geometryHash: "different-hash", geometryEntityJson: geometryFixtures[0],
+    });
+    const session = catalogEditor();
+    await session.preview();
+    button(session.render(), "Generate JSON").props.onClick();
+    await session.preview();
+    expect(text(session.content())).toContain("Preview geometry changed before materialization.");
+    session.parameters().onChange({ ...session.parameters().values, size: 150 });
+    expect(text(session.content())).not.toContain("Preview geometry changed before materialization.");
+    expect(createGeometry).not.toHaveBeenCalled();
+  });
+
+  it("keeps metadata and the editor open when catalog persistence fails", async () => {
+    vi.mocked(materializeGeneratedGeometry).mockResolvedValue({
+      geometryHash: "hash", geometryEntityJson: geometryFixtures[0],
+    });
+    vi.mocked(createGeometry).mockRejectedValueOnce(new Error("Catalog offline"));
+    const session = catalogEditor();
+    await session.preview();
+    button(session.render(), "Save to DB").props.onClick();
+    props(session.render(), GeometryGeneratorSaveDialog).onChange({ name: "Keep draft", owner: "RD" });
+    await props(session.render(), GeometryGeneratorSaveDialog).onSubmit();
+    expect(props(session.render(), GeometryGeneratorSaveDialog)).toMatchObject({
+      metadata: { name: "Keep draft", owner: "RD" }, error: "Catalog offline", saving: false,
+    });
+    expect(session.onClose).not.toHaveBeenCalled();
   });
 });
 
