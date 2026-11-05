@@ -6,6 +6,7 @@ from typing import Any
 
 from ..serialization.schema import deep_copy, normalize_geometry_structure
 from ..domain.process_geometry_state import ProcessGeometryState
+from ..domain.provenance import GeometryNodeProvenance, structure_nodes
 
 
 JsonObject = dict[str, Any]
@@ -24,6 +25,7 @@ class GeometryArtifact(Mapping[str, Any]):
         repr=False,
         compare=False,
     )
+    provenance: Mapping[str, GeometryNodeProvenance] = field(default_factory=dict, repr=False, compare=False)
 
     @classmethod
     def from_entity(
@@ -56,15 +58,30 @@ class GeometryArtifact(Mapping[str, Any]):
         structure: Mapping[str, Any],
         *,
         preserve_runtime_state: bool = False,
+        node_id_remap: Mapping[str, str] | None = None,
     ) -> "GeometryArtifact":
+        normalized = normalize_geometry_structure(structure)
+        node_ids = {node["id"] for node in structure_nodes(normalized)}
         return replace(
             self,
-            structure=normalize_geometry_structure(structure),
+            structure=normalized,
             runtime_state=self.runtime_state if preserve_runtime_state else None,
+            provenance={(node_id_remap or {}).get(node_id, node_id): deep_copy(entry)
+                        for node_id, entry in self.provenance.items()
+                        if (node_id_remap or {}).get(node_id, node_id) in node_ids},
         )
 
     def with_runtime_state(self, state: ProcessGeometryState) -> "GeometryArtifact":
-        return replace(self, runtime_state=state.clone())
+        cloned = state.clone()
+        provenance = cloned.provenance()
+        for node_id, entry in provenance.items():
+            if not entry["sources"] and entry["createdBy"] is None and node_id in self.provenance:
+                provenance[node_id] = deep_copy(self.provenance[node_id])
+        cloned.set_provenance(provenance)
+        return replace(self, runtime_state=cloned, provenance=provenance)
+
+    def with_provenance(self, provenance: Mapping[str, GeometryNodeProvenance]) -> "GeometryArtifact":
+        return replace(self, provenance=deep_copy(dict(provenance)))
 
     def descriptor(self) -> JsonObject:
         result: JsonObject = {

@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - developers
   - QA
-last_verified: 2026-10-25
-last_verified_commit: 7d49bf0b
+last_verified: 2026-11-05
+last_verified_commit: eeb83566
 source_of_truth:
   - apps/api/src/process_flow_api/main.py
   - apps/api/src/process_flow_api/models.py
@@ -33,6 +33,8 @@ source_of_truth:
 | POST | /api/process-flow-drafts/{draft_id}/commit | `{revision, flow: ProcessFlowCreate}`；原子建立 flow 並刪除草稿 |
 
 不存在為 404；revision 或唯一性衝突為 409；domain validation 為 400；payload schema 無效為 422。草稿建立、更新或 commit 若帶 `target` 均回 422。409 不會清掉草稿或改動正式資料。既有 flow 使用 PUT 更新；更新忽略客戶端嘗試改寫的 origin 並保留原值。
+
+編輯器 Start from 使用既有 POST create 或草稿 commit：提交來源 definition／configuration 的獨立快照，origin 為直接來源的 flowId 與載入時 revision，不傳來源 id／revision 作為更新目標。第一次 Save 前不建立正式 flow；成功後取得新 ID、revision 1。此操作沿用既有 name＋version 唯一性及新 flow 驗證，不需要新的 API 或 DB schema。
 
 ## Preview 與 export
 

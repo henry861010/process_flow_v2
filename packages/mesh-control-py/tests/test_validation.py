@@ -18,6 +18,22 @@ def control(method="Z_SECTION_AVG", mode="reference"):
 
 
 class UniformContractTests(unittest.TestCase):
+    def test_optional_region_meshing_is_global_and_does_not_rewrite_input(self):
+        for optional in ({}, {"regionMeshing": "grid"}, {"regionMeshing": "adapter"}):
+            document = {**build_mesh_control([control()]), **optional}
+            before = copy.deepcopy(document)
+            with self.subTest(optional=optional):
+                validate_mesh_control(document)
+                self.assertEqual(document, before)
+        entry = {**control(), "regionMeshing": "adapter"}
+        with self.assertRaisesRegex(ValueError, "Control 1.*regionMeshing"):
+            validate_mesh_control(build_mesh_control([entry]))
+
+    def test_rejects_invalid_region_meshing_values(self):
+        for mode in ("", "adaptive", "Grid", " adapter ", None, True, 1, [], {}):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, "meshControl.regionMeshing"):
+                validate_mesh_control({**build_mesh_control([]), "regionMeshing": mode})
+
     def test_all_z_methods_both_modes_and_no_input_mutation(self):
         controls = [control(method, mode) for method in ("Z_SECTION_AVG", "Z_SECTION_TOP", "Z_SECTION_BOT", "Z_SECTION_CENTER", "Z_POINT") for mode in ("reference", "absolute")]
         document = build_mesh_control(controls)

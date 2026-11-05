@@ -37,7 +37,9 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
             "center",
             anchor_bounds,
         )
-        adapted = ProcessGeometryState.from_structure(transformed_structure)
+        adapted = ProcessGeometryState.from_structure(
+            transformed_structure, {"provenance": source.provenance},
+        )
         bottom_z = state.bump_placement_bottom_z(
             adapted, x=center_x, y=center_y, anchor="origin", main_z=main_z,
         )

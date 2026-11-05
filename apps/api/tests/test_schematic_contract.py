@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from flow_requests import fixture_flow
 from process_flow_api.main import create_app
 from process_flow_api.models import PreviewSnapshot, SchematicDocument
+from process_flow_schematic import CONDUCTOR_FILL, SOLDER_FILL
 
 
 def document_payload():
@@ -73,6 +74,15 @@ class SchematicContractTests(unittest.TestCase):
     def test_legacy_items_omit_density_in_default_response_serialization(self):
         parsed = SchematicDocument.model_validate(document_payload())
         self.assertNotIn("densityValues", parsed.model_dump(mode="json")["items"][0])
+
+    def test_optional_diagram_labels_round_trip_and_legacy_documents_omit_them(self):
+        payload = document_payload()
+        legacy = SchematicDocument.model_validate(payload).model_dump(mode="json")
+        self.assertNotIn("diagramLabel", legacy["items"][0])
+        self.assertNotIn("diagramLabel", legacy["components"][0])
+        payload["items"][0]["diagramLabel"] = "Carrier"
+        payload["components"][0]["diagramLabel"] = "LSI"
+        self.assertEqual(SchematicDocument.model_validate(payload).payload(), payload)
 
     def test_invalid_density_values_are_rejected_without_coercion(self):
         for value in (-1, 101, math.nan, math.inf, "50", True):
@@ -213,8 +223,15 @@ class SchematicContractTests(unittest.TestCase):
                     self.assertEqual({shape["kind"] for shape in documents["main_bump"]["shapes"]}, {"rect"})
                     self.assertIn("path", {shape["kind"] for shape in documents["pnp"]["shapes"]})
                     self.assertNotIn("circle", {shape["kind"] for shape in documents["pnp"]["shapes"]})
-                    self.assertIn("circle", {shape["kind"] for shape in documents["joint"]["shapes"]})
-                    self.assertNotIn("path", {shape["kind"] for shape in documents["joint"]["shapes"]})
+                    self.assertNotIn("circle", {shape["kind"] for shape in documents["joint"]["shapes"]})
+                    for step in ("pnp", "joint"):
+                        symbols = [shape for shape in documents[step]["shapes"] if shape["kind"] == "path"]
+                        self.assertEqual({shape["fill"] for shape in symbols}, {SOLDER_FILL, CONDUCTOR_FILL})
+                    solder = [shape for shape in documents["joint"]["shapes"] if shape["fill"] == SOLDER_FILL]
+                    self.assertTrue(solder)
+                    for body in solder:
+                        self.assertAlmostEqual(max(p[1] for p in body["points"]) - min(p[1] for p in body["points"]),
+                                               body["clip"]["height"] * 4 / 6)
             finally:
                 app.state.store.close()
 

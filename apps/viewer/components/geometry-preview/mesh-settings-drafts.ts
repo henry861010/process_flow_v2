@@ -1,5 +1,5 @@
-import type { MeshControlSetApplyResponse, MeshControlSetDefinition, MeshControlSetRuleDetail, SymmetryMode } from "./file-export-client";
-import { MESH_CONTROL_METHODS, type MeshControlDraft } from "./file-export-mesh-control";
+import type { MeshControlSetApplyResponse, MeshControlSetDefinition, MeshControlSetRuleDetail, RegionMeshingMode, SymmetryMode } from "./file-export-client";
+import { draftsFromMeshControlConfiguration, MESH_CONTROL_METHODS, type MeshControlDraft } from "./file-export-mesh-control";
 
 export const MESH_SETTINGS_STORAGE_KEY = "process-flow:mesh-settings-drafts";
 const MAX_DRAFTS = 20;
@@ -8,6 +8,7 @@ type DraftStorage = Pick<Storage, "getItem" | "setItem">;
 export type MeshSettingsDraft = {
   globalElementSize: string;
   symmetry: SymmetryMode;
+  regionMeshing: RegionMeshingMode;
   controls: MeshControlDraft[];
   appliedSet: MeshControlSetDefinition | null;
   setDetails: MeshControlSetRuleDetail[];
@@ -15,10 +16,28 @@ export type MeshSettingsDraft = {
 };
 
 type StoredEntry = { geometryHash: string; draft: MeshSettingsDraft };
+type StoredMeshSettingsDraft = Omit<MeshSettingsDraft, "regionMeshing"> & { regionMeshing?: RegionMeshingMode };
 
 export function defaultMeshSettingsDraft(): MeshSettingsDraft {
-  return { globalElementSize: "500", symmetry: "full", controls: [],
+  return { globalElementSize: "500", symmetry: "full", regionMeshing: "grid", controls: [],
     appliedSet: null, setDetails: [], setCustomized: false };
+}
+
+/** Sets replace their authored settings while retaining the user's region strategy. */
+export function meshSettingsFromAppliedSet(
+  current: MeshSettingsDraft,
+  applied: MeshControlSetApplyResponse,
+  definition: MeshControlSetDefinition,
+): MeshSettingsDraft {
+  return {
+    globalElementSize: String(applied.meshControl.globalElementSize),
+    symmetry: applied.meshControl.symmetry,
+    regionMeshing: current.regionMeshing,
+    controls: draftsFromMeshControlConfiguration(applied.meshControl),
+    appliedSet: { ...definition, version: applied.setVersion },
+    setDetails: applied.details,
+    setCustomized: current.regionMeshing !== (applied.meshControl.regionMeshing ?? "grid"),
+  };
 }
 
 export function needsResolvedRuleMetadata(details: MeshControlSetRuleDetail[]): boolean {
@@ -76,8 +95,9 @@ function readEntries(storage: DraftStorage): StoredEntry[] {
   let value: unknown;
   try { value = JSON.parse(raw); } catch { return []; }
   if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.entries)) return [];
-  return value.entries.filter((entry): entry is StoredEntry =>
-    isRecord(entry) && typeof entry.geometryHash === "string" && isMeshSettingsDraft(entry.draft));
+  return value.entries.filter((entry): entry is { geometryHash: string; draft: StoredMeshSettingsDraft } =>
+    isRecord(entry) && typeof entry.geometryHash === "string" && isMeshSettingsDraft(entry.draft))
+    .map(entry => ({ ...entry, draft: { ...entry.draft, regionMeshing: entry.draft.regionMeshing ?? "grid" } }));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -140,9 +160,10 @@ function isDetail(value: unknown): boolean {
       isRecord(region) && (region.sourceId == null || typeof region.sourceId === "string") && isBounds(region.bounds))));
 }
 
-function isMeshSettingsDraft(value: unknown): value is MeshSettingsDraft {
+function isMeshSettingsDraft(value: unknown): value is StoredMeshSettingsDraft {
   if (!isRecord(value) || typeof value.globalElementSize !== "string"
     || !["full", "upper_half", "right_half", "upper_right_quarter"].some(mode => mode === value.symmetry)
+    || (value.regionMeshing !== undefined && value.regionMeshing !== "grid" && value.regionMeshing !== "adapter")
     || !Array.isArray(value.controls) || !value.controls.every(isControl)
     || !isDefinition(value.appliedSet) || !Array.isArray(value.setDetails) || !value.setDetails.every(isDetail)
     || typeof value.setCustomized !== "boolean") return false;

@@ -30,6 +30,18 @@ function control(overrides: Partial<MeshControlDraft> = {}): MeshControlDraft {
 }
 
 describe("CDB mesh-control form", () => {
+  it("selects Adaptive globally and switches back to the original Grid payload without changing controls", () => {
+    const controls = [control(), control({ method: "3D_REGION" })];
+    const before = structuredClone(controls);
+    const original = buildMeshControlConfiguration("500", "full", controls);
+    const adaptive = buildMeshControlConfiguration("500", "full", controls, "adapter");
+    expect(adaptive).toEqual({ ...original, regionMeshing: "adapter" });
+    expect(adaptive.controls.every(entry => !("regionMeshing" in entry))).toBe(true);
+    expect(buildMeshControlConfiguration("500", "full", controls, "grid")).toEqual(original);
+    expect(controls).toEqual(before);
+    expect(buildMeshControlConfiguration("500", "full", [], "adapter")).toHaveProperty("regionMeshing", "adapter");
+  });
+
   it("loads a set result into editable drafts and exports the same canonical settings", () => {
     const generated = buildMeshControlConfiguration("500", "full", [
       control({

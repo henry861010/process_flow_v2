@@ -7,6 +7,7 @@ from typing import Any
 
 from ..serialization.geometry_hydration import process_geometry_state_to_geometry_structure
 from ..serialization.schema import deep_copy, normalize_geometry_structure
+from ..domain.provenance import structure_nodes
 
 CONTAINER_ITEM_FIELDS = ("bodies", "vias", "circuits", "bumps")
 MAIN_GEOMETRY_PORT_ID = "main_geometry"
@@ -19,6 +20,7 @@ _DUP_SUFFIX_WITH_INDEX_PATTERN = re.compile(r"(.+)_dup([0-9]+)$")
 class MaterialInstancePreparation:
     geometry_inputs: dict[str, Any]
     values: dict[str, Any]
+    geometry_node_remaps: dict[str, dict[str, str]]
 
 
 def prepare_step_material_instances(
@@ -69,6 +71,16 @@ def prepare_step_material_instances(
     return MaterialInstancePreparation(
         geometry_inputs=prepared_geometry_inputs,
         values=prepared_values,
+        # Material rewriting preserves every node and its position. Capture
+        # this correspondence here, where the transformation guarantees it,
+        # before consumers see regenerated feature IDs.
+        geometry_node_remaps={
+            port_id: {before["id"]: after["id"] for before, after in zip(
+                structure_nodes(normalize_geometry_structure(original)),
+                structure_nodes(prepared_geometry_inputs[port_id]),
+            )}
+            for port_id, original in geometry_inputs.items()
+        },
     )
 
 

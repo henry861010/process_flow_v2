@@ -7,8 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-11-03
-last_verified_commit: 039906db
+last_verified: 2026-11-05
 source_of_truth:
   - docs/architecture/decisions/0012-process-owned-schematic-preview.md
   - docs/conformance.md
@@ -182,38 +181,54 @@ Escape 關卡後將焦點還給原圖形。若 Export form 開啟，其 Escape�
 | --- | --- |
 | Silicon | `#bcbcbc` |
 | SoC／HBM 的 Pass2、USG、ELK，HBM 內部 molding，LSI 的 USG 與 PM 層 | `#808182` |
-| Molding／dielectric | `#424547` |
-| LSI 的 DAF／FOW | `#a8d8f0` |
-| Underfill | `#00b7df` |
-| Conductor／bump | `#ffcf00` |
+| RDL 的 PM／dielectric | `#e5e7eb`（淺灰） |
+| Molding／其他 dielectric | `#424547` |
+| DAF／FOW（含 flow 材料別名） | `#a8d8f0`（淺藍） |
+| Underfill | `#1e40af`（深藍） |
+| Conductor／bump 接點 | `#ffcf00`（黃色） |
+| Bump 焊料 | `#a3a6aa`（灰色） |
+| Carrier（含 LSI Si carrier） | `#ddd6fe`（淺紫） |
 | Substrate／support | `#006b57` |
 | 未分類材料 | `#a3a6aa` |
 
+Schematic 圖預設顯示 Carrier、LSI、SoC、HBM、DMY 的文字 label；其餘 component 與
+layer 名稱維持隱藏，名稱資料、工程參數卡、hover title 與鍵盤操作的 accessible name 仍保留。
+Producer 以可選 `diagramLabel` 指定圖面名稱，viewer 不從材料名稱推測元件種類。
+共用預覽與繪圖元件的 `showLabels` 預設為 `"primary"`，只顯示 producer 指定的名稱；
+`true` 顯示所有既有名稱，`false` 隱藏全部 label，目前 UI 不提供開關。
 Component 名稱以粗體優先放在其最大可見矩形區域；不足以容納時放在部件上方。
-同一部件不重複標示內層名稱，其餘主要層在最大的可見區域標示一次。文字必須避開
+同一部件不重複標示內層名稱，carrier 在最大的可見區域標示一次。文字必須避開
 裁切孔洞、被覆蓋的實體與線路，並依背景亮度採黑／白文字。長名稱可以縮寫，完整名稱
 保留在工程參數卡。圖內不重複放厚度數字；實際厚度與材料在選取後的卡片呈現。
 配色與文字佈局不得改變原始幾何、厚度、代表顆數或匯出資料。
 
 ## Schematic 行為
 
-- 每組 `wafer-dmy` 兩顆置於最左與最右；LSI 三顆；DRAM、SoC、SoIC 與其他類型各一顆。
-  相同結構合併，厚度、放置高度或內部堆疊不同則分組保留，子層不當成額外 die。
-  一般 die 示意寬度為 320、左右 dummy 為 224，水平間距為 24（SVG 顯示單位）；
+- 共用 schematic kernel 決定代表策略：每組 `wafer-dmy` 兩顆置於最左與最右；LSI、DRAM、SoC、SoIC 與其他類型各一顆。
+  Flow preview 每個 PnP step／來源 class 保留獨立 cohort；相同來源分兩次 PnP 不合併，實際 placement 數不影響代表數。
+  Standalone preview 仍依當步相同結構分組；子層不當成額外 die，flow cohort 不因後續厚度或 bump stage 改變而重建。
+  一般 die 示意寬度為 320、左右 dummy 為 224，水平間距為 36（SVG 顯示單位）；
   畫布依代表顆數展開，呈現寬扁外觀，實際厚度與共用 Z 顯示轉換不受影響。
 - RDL via 使用較細的梯形：`-z` 為上寬下窄，`+z` 為上窄下寬，flip 後依最終方向翻轉。
   TIV／TMV 與其他未位於同範圍 RDL dielectric 層的 via 使用上下等寬的矩形直柱。
+  Flow 的直柱位置由共用 region plan 決定，預留後續 die slots 並在剩餘間隔分布；同 revision／assembly phase
+  不因後續 LSI 出現而重新移動既有 TIV，HBM 內部柱則保留在該 component 的局部範圍。
   Circuit 每個實際層只畫同一排較寬的長方形導線，不在同一層內上下錯開。兩者各使用固定 9 根代表符號，
   完全不依 density（含零或缺省）改變。各路徑採可重現的隨機錯位，上下 via 分別接於 circuit 左右對側；
   flip 保留水平位置並反轉上下方向。符號填滿各自層厚，僅連接同一 footprint 且實際 Z 接觸的層，
-  不跨越間隙；重新開啟預覽不重新亂排，也不改變原始幾何。Joint presenter 以完整圓形顯示 `joined` bump。
+  不跨越間隙；重新開啟預覽不重新亂排，也不改變原始幾何。Joint presenter 以黃色上接點、灰色鼓形焊料、
+  黃色下接點顯示 `joined` bump，三段顯示高度比例為 1:4:1。
   PnP presenter 僅在上下兩側 reflowed bump 有唯一的 XY 正面積重疊與 Z 接觸、且雙側 density 大於零時，
-  畫成平面貼本體、弧面相對的上下半圓；兩側共用顆數與水平中心，各自保留實際高度和厚度明細。
+  畫成接點貼本體、圓底焊料相對的上下鏡像 bump；各側黃色接點與灰色焊料高度比例為 1:2。
+  兩側共用顆數與水平中心，各自保留實際高度和厚度明細。
   下側只畫在上側 bump 的代表寬度內，carrier 外側保持空白。正 density 大小不影響符號疏密。
   單側 reflowed、deposited 與零 density 不畫符號或列入部件明細，原始幾何及總厚度仍保留。
-  已配對與未配對元件分組保留；Joint 後改為完整圓球，沒有同一接點的殘留半圓。
-- 只有 target 實際存在 UF body 才顯示 UF，依其 Z 區間畫在 scope 內有 bump 的 die 下方，
-  及相鄰合格代表 die 間。不依 dummy key 排除、不穿越未入選 die。
+  已配對與未配對元件分組保留；Joint 後改為單顆鼓形焊料與上下接點，沒有同一接點的殘留 reflowed 符號。
+- 只有 target 實際存在 `uf` body 才顯示 UF；元件內 cavity UF 只畫 slab，無需當步仍有 bump。
+  Die 間爬升依保留 gap polygon 的連通區域、孔洞與實際接觸決定，不限制 die 種類或有無 bump。
+  同一連通區域的參與者映射至同 mounting region 的相鄰代表 slots 時才畫 bridge，其他層的
+  水平交錯 slot 不阻擋；高度取 UF 與兩端元件的共同 Z 區間。
+  不穿越其他元件或空白 slots；非相鄰、同一代表內或不足兩個當步端點的連接保留明細與 notes。
 - 厚度使用最終 snapshot 的實際 Z 區間，包含磨薄、整層移除與翻轉。零厚度不畫成有厚度實體。
   薄層可放大，但所有部件共用 Z 顯示轉換，保持同高度邊界對齊。
 - 明示「示意圖，不等比例」；明細與總厚度維持實際值。總厚度取最高與最低 Z 的差，
@@ -241,8 +256,8 @@ capture handler 之前攔截，且僅在 preview 為最上層 dialog 時生效�
 | `UI-SCHEMATIC-005` | 滑鼠點選或 Enter／Space 選取 feature | 開啟單張工程參數卡且不因圖形區重新分配尺寸自行關卡；所有同 item 圖形同步顯示至少 4px 的紅框與淡外暈，保留材料填色，縮放後線寬不變；鍵盤選取不變回綠框。顯示結構、名稱、Material、實際 THK；bump／via／circuit 另有 Density。 |
 | `UI-SCHEMATIC-006` | 缺 presenter／presenter 失敗 | 通用 fallback 與提示可讀；原始匯出仍可用。 |
 | `UI-SCHEMATIC-007` | 390px 與桌面 viewport，含長卡片與 notes／warnings | 未選取時圖全寬；選取後桌面卡片置右側 288px，窄螢幕置下方且最多佔 review 區高度 40%，可卡內捲動。卡片不覆蓋圖，圖依剩餘寬高顯示全貌、不捲動且圓形不扭曲；notes 預設收合在右上角驚嘆號按鈕，開啟不壓縮圖面；總厚度、獨立限高 25% 的 warnings 區與 footer 可達。 |
-| `UI-SCHEMATIC-008` | 寬 carrier 與窄 HBM 的 bump geometry | 各自沿顯示寬度等間距鋪滿，圓形不超界；接合區不重複，選取卡片對應各側原始來源的材料、厚度與 density。 |
-| `UI-SCHEMATIC-009` | 多材料、裁切與深色部件 | 使用封裝剖面配色與黑／白粗體名稱，名稱避開遮蔽區，厚度數值在選取卡片呈現，圖與卡片材料相符。 |
+| `UI-SCHEMATIC-008` | 寬 carrier 與窄 HBM 的 bump geometry | 依上側代表寬度等間距排列黃色接點與灰色焊料，符號不超界；接合區不重複，選取卡片對應各側原始來源的材料、厚度與 density。 |
+| `UI-SCHEMATIC-009` | 多材料、裁切與深色部件 | 使用封裝剖面配色，預設只顯示 Carrier、LSI、SoC、HBM、DMY label，避開遮蔽區並採黑／白對比文字；同一 component 不重複標示內層名稱，實際厚度與材料在選取卡片呈現。 |
 | `UI-SCHEMATIC-010` | 前步已完整、下游缺 recipe／參數／geometry／wiring | 前步預覽可開啟；request 保留完整 flow，後端在該路徑第一個不完整 step 停止 lookahead。 |
 | `UI-SCHEMATIC-011` | 相同 viewport 的連續 PnP steps 與不同結構高度，含開關工程參數卡 | Document 的共用 die 水平位置與 carrier 寬度一致；viewer 依當下可用寬高 fit 全圖，容許螢幕縮放比例隨 target 高度與卡片版面改變，無裁切、圖卡重疊或圖面捲動。 |
 | `UI-SCHEMATIC-012` | 後續 die 已預留位置、尚未實際放置 | 該位置留白，沒有 future die 標籤、厚度明細或選取目標。 |

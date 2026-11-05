@@ -130,6 +130,56 @@ class ProcessFlowTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/api/process-flows/{child['id']}").json(), child)
         self.assertEqual(self.client.post(f"/api/process-flows/{child['id']}/execute").status_code, 200)
 
+    def test_start_from_creates_independent_flow_and_only_updates_new_identity(self):
+        source = self.create(name='Branch source')
+        origin = {'flowId': source['id'], 'revision': source['revision']}
+        before_count = len(self.app.state.store.list_process_flows())
+        body = {**create_body(source), 'name': source['name'] + ' (branch)', 'origin': origin}
+        response = self.client.post('/api/process-flows', json=body)
+        self.assertEqual(response.status_code, 201, response.text)
+        branch = response.json()
+        self.assertNotEqual(branch['id'], source['id'])
+        self.assertEqual(branch['revision'], 1)
+        self.assertEqual(branch['origin'], origin)
+        self.assertEqual(branch['definition'], source['definition'])
+        self.assertEqual(branch['configuration'], source['configuration'])
+        self.assertEqual(len(self.app.state.store.list_process_flows()), before_count + 1)
+        update = {**create_body(branch), 'revision': 1}
+        values(update, 'mold_cap')['thickness'] += 7
+        updated = self.client.put('/api/process-flows/' + branch['id'], json=update)
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()['revision'], 2)
+        self.assertEqual(updated.json()['origin'], origin)
+        self.assertEqual(self.client.get('/api/process-flows/' + source['id']).json(), source)
+
+    def test_start_from_draft_resume_and_commit_preserve_origin_and_source(self):
+        source = self.create(name='Draft branch source')
+        origin = {'flowId': source['id'], 'revision': source['revision']}
+        draft = self.draft(source)
+        draft_body = {key: copy.deepcopy(value) for key, value in draft.items()
+                      if key not in ('id', 'createdAt', 'updatedAt')}
+        draft_body['origin'] = origin
+        draft_body['state']['metadata']['name'] = source['name'] + ' (branch)'
+        response = self.client.put('/api/process-flow-drafts/' + draft['id'], json=draft_body)
+        self.assertEqual(response.status_code, 200, response.text)
+        resumed = self.client.get('/api/process-flow-drafts/' + draft['id']).json()
+        self.assertEqual(resumed['origin'], origin)
+        self.assertEqual(resumed['state']['configuration'], source['configuration'])
+        before_count = len(self.app.state.store.list_process_flows())
+        commit = {'revision': resumed['revision'], 'flow': {
+            **create_body(source), **resumed['state']['metadata'], 'origin': resumed['origin']}}
+        result = self.client.post('/api/process-flow-drafts/' + draft['id'] + '/commit', json=commit)
+        self.assertEqual(result.status_code, 200, result.text)
+        branch = result.json()
+        self.assertNotEqual(branch['id'], source['id'])
+        self.assertEqual(branch['revision'], 1)
+        self.assertEqual(branch['origin'], origin)
+        self.assertEqual(branch['definition'], source['definition'])
+        self.assertEqual(branch['configuration'], source['configuration'])
+        self.assertEqual(len(self.app.state.store.list_process_flows()), before_count + 1)
+        self.assertIsNone(self.app.state.store.get_flow_draft(draft['id']))
+        self.assertEqual(self.client.get('/api/process-flows/' + source['id']).json(), source)
+
     def test_step_default_updates_never_refill_saved_recipes(self):
         saved = self.create()
         result = self.client.post(f"/api/process-flows/{saved['id']}/execute").json()

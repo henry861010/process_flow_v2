@@ -41,6 +41,23 @@ export function canEditGeneratorBinding(
   );
 }
 
+export function generatorsForFlowInputPicker(
+  definitions: GeometryGeneratorDefinition[],
+  flowInput: FlowInputDefinition,
+  binding: GeometryBinding | undefined,
+): GeometryGeneratorDefinition[] {
+  const matchingIds = new Set(generatorsForFlowInput(definitions, flowInput).map((definition) => definition.id));
+  if (binding?.kind === "generator" && canEditGeneratorBinding(definitions, binding)) {
+    matchingIds.add(binding.generatorId);
+  }
+  const seen = new Set<string>();
+  return generatorsForPlacement(definitions, "flowInputPicker").filter((definition) => {
+    if (!matchingIds.has(definition.id) || seen.has(definition.id)) return false;
+    seen.add(definition.id);
+    return true;
+  });
+}
+
 export function catalogGeneratorHref(definition: GeometryGeneratorDefinition): string {
   return `/geometry-generator?generatorId=${encodeURIComponent(definition.id)}`;
 }

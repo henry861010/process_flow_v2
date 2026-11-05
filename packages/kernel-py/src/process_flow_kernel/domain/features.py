@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .bump_stage import BumpStage, validate_bump_stage
 from .semantic_keys import validate_body_key, validate_via_key
+from .provenance import copy_node_provenance
 
 
 class Body:
@@ -30,13 +31,13 @@ class Body:
         return self._key
 
     def copy(self):
-        return Body(self._geometry.copy(), self._material, self._key, self._structure_id)
+        return copy_node_provenance(self, Body(self._geometry.copy(), self._material, self._key, self._structure_id))
 
     def copy_with_thk(self, thk):
-        return Body(self._geometry.copy_with_thk(thk), self._material, self._key, self._structure_id)
+        return copy_node_provenance(self, Body(self._geometry.copy_with_thk(thk), self._material, self._key, self._structure_id))
 
     def copy_with_key(self, key):
-        return Body(self._geometry.copy(), self._material, key, self._structure_id)
+        return copy_node_provenance(self, Body(self._geometry.copy(), self._material, key, self._structure_id))
 
     def clear_structure_id(self):
         self._structure_id = None
@@ -111,10 +112,10 @@ class Via:
         return self._key
 
     def copy(self):
-        return Via(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id, key=self._key)
+        return copy_node_provenance(self, Via(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id, key=self._key))
 
     def copy_with_thk(self, thk):
-        return Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id, key=self._key)
+        return copy_node_provenance(self, Via(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id, key=self._key))
 
     def clear_structure_id(self):
         self._structure_id = None
@@ -184,10 +185,10 @@ class Circuit:
         return self._koz
 
     def copy(self):
-        return Circuit(self._geometry.copy(), self._density, self._material, self._koz, self._structure_id)
+        return copy_node_provenance(self, Circuit(self._geometry.copy(), self._density, self._material, self._koz, self._structure_id))
 
     def copy_with_thk(self, thk):
-        return Circuit(self._geometry.copy_with_thk(thk), self._density, self._material, self._koz, self._structure_id)
+        return copy_node_provenance(self, Circuit(self._geometry.copy_with_thk(thk), self._density, self._material, self._koz, self._structure_id))
 
     def clear_structure_id(self):
         self._structure_id = None
@@ -267,10 +268,10 @@ class Bump:
         return copied
 
     def copy(self):
-        return Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id, stage=self._stage)
+        return copy_node_provenance(self, Bump(self._geometry.copy(), self._density, self._material, self._direction, self._koz, self._structure_id, stage=self._stage))
 
     def copy_with_thk(self, thk):
-        return Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id, stage=self._stage)
+        return copy_node_provenance(self, Bump(self._geometry.copy_with_thk(thk), self._density, self._material, self._direction, self._koz, self._structure_id, stage=self._stage))
 
     def clear_structure_id(self):
         self._structure_id = None

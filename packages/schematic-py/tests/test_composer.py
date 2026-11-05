@@ -4,7 +4,7 @@ import math
 import unittest
 
 from process_flow_schematic import (
-    CONDUCTOR_FILL, GENERIC_FILL, MATRIX_FILL, SILICON_FILL, SUPPORT_FILL, UNDERFILL_FILL,
+    ADHESIVE_FILL, CARRIER_FILL, CONDUCTOR_FILL, GENERIC_FILL, MATRIX_FILL, SILICON_FILL, SUPPORT_FILL, UNDERFILL_FILL,
     Bounds, ComponentHint, Primitive, SchematicPart, SchematicRegistry, compose_schematic,
     geometry_bounds, material_color, slab,
 )
@@ -38,7 +38,9 @@ class ComposerTests(unittest.TestCase):
         families = (
             (SILICON_FILL, ("Si", "silicon", "Si-Photonics", "HBM-package", "DRAM-package", "SoIC-stack")),
             (MATRIX_FILL, ("Epoxy-Mold-Compound", "lsi_top_molding", "EMC", "PI", "polyimide", "SiO2", "usg", "pass2")),
-            (SUPPORT_FILL, ("glass", "carrier", "substrate", "FR4")),
+            (SUPPORT_FILL, ("glass", "substrate", "FR4")),
+            (CARRIER_FILL, ("carrier", "Si carrier", "glass carrier")),
+            (ADHESIVE_FILL, ("DAF", "FOW", "flow")),
             (UNDERFILL_FILL, ("UF", "underfill")),
             (CONDUCTOR_FILL, ("Cu", "copper", "SnAg", "solder")),
         )

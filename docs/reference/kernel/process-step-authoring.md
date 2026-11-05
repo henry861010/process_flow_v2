@@ -5,8 +5,7 @@ owner: integration.platform
 audience:
   - process-step authors
   - backend engineers
-last_verified: 2026-10-31
-last_verified_commit: 039906db
+last_verified: 2026-11-05
 source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/application/context.py
   - packages/kernel-py/src/process_flow_kernel/infrastructure/module_resolver.py
@@ -93,21 +92,60 @@ Kernel 在 module 執行前：
 
 Module 使用收到的 material string，不自行 append `_dup<number>`。
 
-## Schematic presenter companion
+## Schematic descriptor 與 presenter companions
+
+Step 的 geometry execution 與 schematic 描述分開註冊。`execute(context)` 繼續只操作實體 geometry；
+`process_flow_steps.schematic_layout` 的 `SchematicDescriptorRegistry` 提供全流程預讀使用的
+`describe_schematic(context: SchematicDescriptorContext) -> SchematicDelta`。
+
+Descriptor context 提供由 `FlowCompiler.normalize_step_parameters` 正規化後的唯讀 `parameter_values`
+（包括 RDL repeatable-group，不是原始 recipe wire 格式）、各 port 的 `SceneState`、`main`、`source(port)`、
+`local_id(key)` 與 `physical_ref(key)`。Descriptor 只宣告結構，不呼叫 execute、materialize、geometry
+boolean operations，亦不計算全域 X、實際 placement 數或未來精確 Z。新增程序需要註冊 descriptor；
+未註冊時只停止該路徑的 layout lookahead，不猜測它是 preserve。
+
+主要契約與使用方式：
+
+| 契約 | Step 的責任 |
+| --- | --- |
+| `SchematicObject`／`SceneObject` | 宣告物件 identity、role、parent、source reference、symbol、色彩角色及 anchors；`member`／`span`／`distributed`／`boundary` 選擇空間需求 |
+| `LayoutRegion`／`SceneRegion` | 用穩定 ID 指出承載面或局部排版範圍；新增覆蓋層可產生新的 symbolic cursor region |
+| `SceneRelation` | 指出附著／連接端點、包含區域、排除對象、填充、包圍或覆蓋；不傳任意 layout callback |
+| `SchematicDelta` | 宣告 create、完整 object update、remove、reparent，以及 region／relation 的 add、update、remove；`apply_delta` 負責驗證與套用 |
+| `SceneDerivation` | 記錄來源、目標 logical object ID 與 input port；clone/crop/transform 保留跨步來源對應 |
+| `clone_scene` | 以 step namespace 宣告一份 auxiliary source 子樹，保留原始 physical refs 並新增 derivations |
+
+一次 PnP 的多個實際 placement 只需一份抽象 source 描述，來源 class 與 PnP step 共同決定 cohort。
+分開的 PnP step 即使放同一 class 仍有各自 cohort。HBM 等 `structural` composite 保留內部堆疊；
+需要在複合組裝內重新排列子物件時使用 `arranged` nesting 與局部 regions。
+代表顆數由 schematic kernel 的角色策略決定：`wafer-dmy` 左右各一個，其餘內建角色（包括 LSI）各一個。
+
+可選 `active_ports` selector 讓 registry 在解析 auxiliary geometry 前決定此 recipe 的語意依賴。
+例如空的 PnP placements 不需要讀取 die source；selector 同樣只讀參數，不執行幾何。
+Saw／grind 等無法僅由抽象結構確認存活物件的 operation 保守保留 reservation，由所選實際 snapshot
+決定可見性與量測。不要在 descriptor 另寫一套裁切或磨薄模擬。
+
+Geometry kernel 的 execution provenance 記錄來源 port/node identity 與建立 operation/ordinal。
+自訂幾何 copy／replace operation 必須維持這份來源資料；透過 `GeometryArtifact.with_structure`
+改寫 node IDs 時提供 `node_id_remap`。資料應保存在 execution sidecar，不塞入輸出的 geometry JSON，
+也不能依新物件在 children 陣列的位置重建來源。
+
+### 當步局部圖樣
 
 製程專屬圖樣放在同一 step 套件的獨立 companion module，例如 RDL 的
 `process_flow_steps.layer.rdl_schematic`。它提供
 `present_schematic(context: SchematicContext) -> list[SchematicPart]`；`execute` 與 kernel
-不 import companion。`process-flow-schematic` 只提供共用契約、圖形與 composer，不收納製程規則。
+不 import companion。`process-flow-schematic` 擁有共用排版與代表策略，不依製程名稱選擇圖樣。
 
-Presenter 讀取最終 snapshot 的唯讀節點與實際 Z 範圍，回傳一般圖形與排列提示；不重新執行 recipe、
+Presenter 讀取最終 snapshot 的唯讀節點與實際 Z 範圍，回傳局部圖形與語意提示；不重新執行 recipe、
 不保存 step 當下的圖形、不修改 geometry。後續 grind／flip／debond 的結果直接由最終結構反映。
 以 semantic body role 或 feature kind 註冊至 `process_flow_steps.schematic_presenters`，
 API composition root 組合 step 與 generator registries。新增註冊或改變圖樣語意時更新 API 的
 presentation registry version；自訂 body key 必須先擴充正式 vocabulary，不能以 material 名稱分派。
 
-Presenter tests 覆蓋形狀、零 density、後續 geometry 改變與 input immutability；一般 step tests
-仍只驗證 geometry operation。Generator 的內部堆疊與代表顆數由 generator presenter 擁有。
+Presenter tests 覆蓋形狀、零 density、後續 geometry 改變與 input immutability；descriptor tests 另外驗證
+不可變輸入、合法 SceneDelta、穩定 identity／來源 lineage、region／relation 及未知後段的停止行為。
+一般 step tests 仍驗證 geometry operation。Generator 宣告內部堆疊與元件角色，不決定代表顆數。
 完整依賴與 document 契約見 [ADR-0012](../../architecture/decisions/0012-process-owned-schematic-preview.md)。
 
 ## 新增 process step
@@ -117,7 +155,8 @@ Presenter tests 覆蓋形狀、零 density、後續 geometry 改變與 input imm
 3. 建立或更新 `ProcessStepTemplate` fixture；ports、parameter definitions 與 program 必須與 module assumptions 一致。
 4. 在 [process-steps/README.md](../process-steps/README.md) 登錄 operation purpose 與重要 side effects。
 5. 新增 kernel execution test，至少涵蓋 valid path、invalid parameter、auxiliary port（若有）與 serialize round trip。
-6. 執行 kernel/API tests；確認 template module 可被 resolver import。
+6. 加入 schematic descriptor；有專屬局部圖樣時再加入 presenter，並新增 descriptor／preview regression tests。
+7. 執行 kernel/API/schematic tests；確認 template module 可被 resolver import，execution 不依賴 schematic 套件。
 
 ## Review checklist
 
@@ -126,6 +165,9 @@ Presenter tests 覆蓋形狀、零 density、後續 geometry 改變與 input imm
 - Density、direction、`koz` 與 units 是否保存？
 - Parameter name 是否與 fixture 完全一致？
 - Output 是否仍可由 `normalize_geometry_structure` hydrate？
+- Descriptor 是否只宣告語意，沒有重算未來 geometry 或分配全域座標？
+- Clone／replace／crop 後的 provenance、logical identity 與 cohort 是否保持正確對應？
+- 新來源或缺失描述是否保留前段可用 preview，並以明確 notes／warnings 說明限制？
 - Consumer limitations 是否已更新在 geometry semantics 或 exporter reference？
 
 ## 未決 future considerations（非 contract）

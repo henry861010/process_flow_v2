@@ -3,19 +3,15 @@
 import * as React from "react";
 import { ArrowLeft, Boxes, Database, Download, Loader2, X } from "lucide-react";
 
-import type {
-  GeometryGeneratorDefinition,
-  GeometryGeneratorPreview,
-} from "@/components/geometry-generator/geometry-generator-contracts";
+import type { GeometryGeneratorDefinition } from "./geometry-generator-contracts";
+import { toGeneratorEditorValues } from "./geometry-generator-parameters";
 import {
-  fromGeneratorEditorValues,
-  toGeneratorEditorValues,
-  visibleGeneratorParameters,
-} from "@/components/geometry-generator/geometry-generator-parameters";
-import { EngineeringPreviewRenderer } from "@/components/geometry-generator/engineering-preview-renderer";
-import {
-  engineeringPreviewAspectRatioLimit,
-} from "@/components/geometry-generator/engineering-preview-transform";
+  GeometryGeneratorEngineeringPreview,
+  GeometryGeneratorParameters,
+  GeometryGeneratorValidation,
+  geometryGeneratorDefineResult,
+  useGeometryGeneratorPreview,
+} from "./geometry-generator-editor";
 import {
   GeometryGeneratorSaveDialog,
   generatorSaveMetadataIsValid,
@@ -25,13 +21,10 @@ import type {
   GeometryGeneratorDefineResult,
   GeometryGeneratorMode,
 } from "@/components/geometry-generator/geometry-generator-types";
-import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import { Button } from "@/components/ui/button";
-import type { GeometryDocument } from "@/lib/process-flow/types";
 import {
   createGeometry,
   materializeGeneratedGeometry,
-  previewGeneratedGeometry,
 } from "@/lib/process-flow-api";
 
 export function BackendGeometryGeneratorDialog({
@@ -58,12 +51,9 @@ export function BackendGeometryGeneratorDialog({
     [definition, initialParameters],
   );
   const [editorValues, setEditorValues] = React.useState(initialEditorValues);
-  const [preview, setPreview] = React.useState<GeometryGeneratorPreview | null>(null);
-  const [previewKey, setPreviewKey] = React.useState<string | null>(null);
-  const [previewing, setPreviewing] = React.useState(false);
-  const [requestError, setRequestError] = React.useState<string | null>(null);
-  const [showOriginalAspectRatio, setShowOriginalAspectRatio] =
-    React.useState(false);
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const generator = useGeometryGeneratorPreview(definition, editorValues);
+  const { latestPreview, previewing, canMaterialize, canDefine } = generator;
   const [saveDialogOpen, setSaveDialogOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -76,51 +66,6 @@ export function BackendGeometryGeneratorDialog({
     owner: "",
     description: "",
   });
-  const visibleDefinitions = React.useMemo(
-    () => visibleGeneratorParameters(definition.parameterDefinitions, editorValues),
-    [definition.parameterDefinitions, editorValues],
-  );
-  const parameters = React.useMemo(
-    () => fromGeneratorEditorValues(definition.parameterDefinitions, editorValues),
-    [definition.parameterDefinitions, editorValues],
-  );
-  const parametersKey = React.useMemo(() => JSON.stringify(parameters), [parameters]);
-  const latestPreview = previewKey === parametersKey ? preview : null;
-  const canMaterialize =
-    latestPreview?.valid === true && typeof latestPreview.previewToken === "string";
-  const canDefine = latestPreview?.valid === true && latestPreview.geometryEntityJson !== null;
-
-  React.useEffect(() => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setPreviewing(true);
-      setRequestError(null);
-      previewGeneratedGeometry(
-        definition.id,
-        definition.version,
-        parameters,
-        controller.signal,
-      )
-        .then((result) => {
-          setPreview(result);
-          setPreviewKey(parametersKey);
-        })
-        .catch((error) => {
-          if (controller.signal.aborted) return;
-          setRequestError(
-            error instanceof Error ? error.message : "Unable to generate preview.",
-          );
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setPreviewing(false);
-        });
-    }, 180);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [definition.id, definition.version, parameters, parametersKey]);
-
   React.useEffect(() => {
     if (presentation !== "dialog") return;
     const previousOverflow = document.body.style.overflow;
@@ -141,19 +86,9 @@ export function BackendGeometryGeneratorDialog({
     return materialized.geometryEntityJson;
   }
 
-  async function defineGeometry() {
-    if (!onDefine || !latestPreview?.valid || !latestPreview.geometryEntityJson) return;
-    setRequestError(null);
-    onDefine({
-      binding: {
-        kind: "generator",
-        generatorId: definition.id,
-        generatorVersion: definition.version,
-        parameters: structuredClone(latestPreview.normalizedParameters),
-      },
-      suggestedFlowInputName: `${definition.label.replace(/\s+generator$/i, "")} input`,
-      geometry: embeddedGeometryFromEntity(latestPreview.geometryEntityJson),
-    });
+  function defineGeometry() {
+    const result = geometryGeneratorDefineResult(definition, latestPreview);
+    if (result && onDefine) onDefine(result);
   }
 
   async function saveGeometry() {
@@ -182,7 +117,7 @@ export function BackendGeometryGeneratorDialog({
   }
 
   async function downloadGeometry() {
-    setRequestError(null);
+    setActionError(null);
     try {
       const entity = await resolveMaterializedGeometry();
       const blob = new Blob([`${JSON.stringify(entity.structure, null, 2)}\n`], {
@@ -197,7 +132,7 @@ export function BackendGeometryGeneratorDialog({
       link.remove();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setRequestError(error instanceof Error ? error.message : "Unable to download geometry.");
+      setActionError(error instanceof Error ? error.message : "Unable to download geometry.");
     }
   }
 
@@ -251,76 +186,18 @@ export function BackendGeometryGeneratorDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="space-y-5 px-4 py-5 sm:px-5">
-            {preview?.engineeringPreview ? (
-              <section aria-label="Engineering preview" className="space-y-3">
-                <div className="flex justify-end">
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-                    <input
-                      checked={showOriginalAspectRatio}
-                      className="h-4 w-4 rounded border-input accent-primary"
-                      type="checkbox"
-                      onChange={(event) =>
-                        setShowOriginalAspectRatio(event.target.checked)
-                      }
-                    />
-                    Show original aspect ratio
-                  </label>
-                </div>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {preview.engineeringPreview.views.map((view) => (
-                    <EngineeringPreviewRenderer
-                      key={view.id}
-                      maxRenderedAspectRatio={engineeringPreviewAspectRatioLimit(
-                        view.id,
-                        showOriginalAspectRatio,
-                      )}
-                      view={view}
-                      unit={preview.engineeringPreview!.unit}
-                    />
-                  ))}
-                </div>
-              </section>
-            ) : (
-              <div className="grid min-h-56 place-items-center rounded-md border border-dashed bg-muted/10 text-sm text-muted-foreground">
-                {previewing ? "Generating engineering preview…" : "Enter valid parameters to preview geometry."}
-              </div>
-            )}
-
-            {requestError ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {requestError}
-              </div>
-            ) : null}
-            {latestPreview && !latestPreview.valid ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm text-destructive">
-                <div className="font-medium">Resolve the generator parameters:</div>
-                <ul className="mt-2 list-disc space-y-1 pl-5">
-                  {Object.entries(latestPreview.errors).map(([field, message]) => (
-                    <li key={field}>
-                      <span className="font-mono text-xs">{field}</span>: {message}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+            <GeometryGeneratorEngineeringPreview preview={generator.preview} previewing={previewing} />
+            <GeometryGeneratorValidation preview={latestPreview} error={generator.requestError}
+              onRetry={generator.retry} />
+            {actionError ? <p role="alert" className="text-sm text-destructive">{actionError}</p> : null}
             {notice ? (
               <div className="rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-sm text-primary">
                 {notice}
               </div>
             ) : null}
 
-            <section aria-label="Geometry generator parameters">
-              <ParameterValueEditor
-                definitions={visibleDefinitions}
-                groups={definition.parameterGroups}
-                values={editorValues}
-                errors={latestPreview?.errors}
-                onChange={(values) => {
-                  setEditorValues(values);
-                  setNotice(null);
-                }}
-              />
-            </section>
+            <GeometryGeneratorParameters definition={definition} values={editorValues} errors={latestPreview?.errors}
+              onChange={(values) => { setEditorValues(values); setNotice(null); setActionError(null); }} />
           </div>
         </div>
 
@@ -369,15 +246,4 @@ export function BackendGeometryGeneratorDialog({
       ) : null}
     </div>
   );
-}
-
-function embeddedGeometryFromEntity(
-  entity: GeometryDocument & { id?: string | null },
-): GeometryDocument {
-  const { id: _id, ...geometry } = entity;
-  return {
-    ...geometry,
-    owner: geometry.owner ?? null,
-    description: geometry.description ?? null,
-  };
 }

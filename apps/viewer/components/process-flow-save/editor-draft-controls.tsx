@@ -184,6 +184,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   const markClean = React.useCallback((captured: State = stateRef.current) => {
     setBaseline(draftFingerprint(captured));
   }, []);
+  const markDirty = React.useCallback(() => setBaseline(""), []);
   function confirmReplace() { return !dirty || window.confirm("Discard changes since the last save?"); }
   function openSave() {
     if (target) return;
@@ -257,7 +258,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   const status = dirty && active ? `Draft "${active.name}" has unsaved changes.` : notice;
   return {
     active, dirty, controls, saveControl, dialogs: dialogContent, notice: status, error, busy,
-    saving: operation === "save", loading, lastSavedAt, detach, markClean, confirmReplace, confirmReplaceAsync,
+    saving: operation === "save", loading, lastSavedAt, detach, markClean, markDirty, confirmReplace, confirmReplaceAsync,
     pickerContent, selectedDraft, setPickerOpen, load,
   };
 }

@@ -9,7 +9,7 @@ import type {
   SchematicRectangle,
   SchematicShape,
 } from "./schematic-types";
-import { schematicLabels, schematicTextColor } from "./schematic-labels";
+import { schematicLabels, schematicTextColor, type SchematicLabelVisibility } from "./schematic-labels";
 import { formatSchematicLength, schematicInspectorPosition, SchematicItemDetails } from "./schematic-inspector";
 
 export { formatSchematicLength } from "./schematic-inspector";
@@ -25,9 +25,12 @@ type SchematicSelection = {
 export function SchematicPreview({
   document,
   warnings = [],
+  showLabels = "primary",
 }: {
   document: SchematicDocument | null;
   warnings?: string[];
+  /** Show producer-selected names by default; true shows all labels, false hides them. */
+  showLabels?: SchematicLabelVisibility;
 }) {
   const [selection, setSelection] = React.useState<SchematicSelection | null>(null);
   const [notesOpen, setNotesOpen] = React.useState(false);
@@ -191,7 +194,7 @@ export function SchematicPreview({
       <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30 p-2 md:p-3">
         {document.shapes.length > 0 ? (
           <div className="h-full min-h-0 min-w-0 w-full overflow-hidden rounded-xl border border-border/60 bg-white p-1 md:p-2">
-            <SchematicDrawing document={document} selectedItemId={selectedItem?.id ?? null} onSelect={selectItem} inspectorId={inspectorId} />
+            <SchematicDrawing document={document} selectedItemId={selectedItem?.id ?? null} onSelect={selectItem} inspectorId={inspectorId} showLabels={showLabels} />
           </div>
         ) : (
           <p className="flex h-full items-center justify-center p-3 text-center text-sm text-muted-foreground" role="status">
@@ -241,11 +244,13 @@ export function SchematicDrawing({
   selectedItemId,
   onSelect,
   inspectorId,
+  showLabels = "primary",
 }: {
   document: SchematicDocument;
   selectedItemId: string | null;
   onSelect: (itemId: string, event: React.MouseEvent<SVGGElement> | React.KeyboardEvent<SVGGElement>) => void;
   inspectorId?: string;
+  showLabels?: SchematicLabelVisibility;
 }) {
   const instanceId = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const items = new Map(document.items.map((item) => [item.id, item]));
@@ -255,7 +260,7 @@ export function SchematicDrawing({
   }
   const titleId = `${instanceId}-title`;
   const descriptionId = `${instanceId}-description`;
-  const labels = React.useMemo(() => schematicLabels(document), [document]);
+  const labels = React.useMemo(() => schematicLabels(document, showLabels), [document, showLabels]);
 
   return (
     <svg

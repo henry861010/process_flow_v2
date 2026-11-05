@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { MeshControlSetApplyResponse } from "./file-export-client";
-import { changeCoordinateMode, MESH_CONTROL_METHODS, newMeshControlDraft } from "./file-export-mesh-control";
+import type { MeshControlSetApplyResponse, RegionMeshingMode } from "./file-export-client";
+import { buildMeshControlConfiguration, changeCoordinateMode, MESH_CONTROL_METHODS, newMeshControlDraft } from "./file-export-mesh-control";
 import {
   defaultMeshSettingsDraft, loadMeshSettingsDraft, MESH_SETTINGS_STORAGE_KEY, saveMeshSettingsDraft,
   needsResolvedRuleMetadata, restoreResolvedRuleMetadata,
+  meshSettingsFromAppliedSet,
   type MeshSettingsDraft,
 } from "./mesh-settings-drafts";
 
@@ -15,7 +16,7 @@ function memoryStorage() {
 
 function completeDraft(): MeshSettingsDraft {
   return {
-    globalElementSize: " 125.00 ", symmetry: "upper_right_quarter", setCustomized: true,
+    globalElementSize: " 125.00 ", symmetry: "upper_right_quarter", regionMeshing: "adapter", setCustomized: true,
     appliedSet: { id: "meshModel1", version: "old-version", label: "Saved set", description: "Original description" },
     setDetails: [{ label: "Focus", method: "3D_REGION", elementSize: 5, status: "applied", startZ: 0, endZ: 10, sourceIds: ["body:source"],
       resolvedRegions: [{ sourceId: "body:source", bounds: { xMin: 0, xMax: 1, yMin: 0, yMax: 1, zMin: 0, zMax: 10 } }] }],
@@ -41,7 +42,7 @@ function completeDraft(): MeshSettingsDraft {
 describe("mesh settings drafts", () => {
   it("uses defaults for a geometry with no saved draft", () => {
     expect(loadMeshSettingsDraft("new", memoryStorage())).toEqual({ draft: null, storageError: false });
-    expect(defaultMeshSettingsDraft()).toEqual({ globalElementSize: "500", symmetry: "full", controls: [],
+    expect(defaultMeshSettingsDraft()).toEqual({ globalElementSize: "500", symmetry: "full", regionMeshing: "grid", controls: [],
       appliedSet: null, setDetails: [], setCustomized: false });
   });
 
@@ -53,6 +54,19 @@ describe("mesh settings drafts", () => {
     // Restored objects do not share mutable references with the source or later reads.
     loadMeshSettingsDraft("full-api-hash", storage).draft!.controls[0].label = "changed";
     expect(loadMeshSettingsDraft("full-api-hash", storage).draft).toEqual(draft);
+  });
+
+  it("restores pre-selector drafts as Grid without losing edits or other geometries", () => {
+    const storage = memoryStorage();
+    const draft = completeDraft();
+    const { regionMeshing: _mode, ...legacy } = draft;
+    storage.setItem(MESH_SETTINGS_STORAGE_KEY, JSON.stringify({ version: 1, entries: [
+      { geometryHash: "legacy", draft: legacy }, { geometryHash: "adaptive", draft },
+    ] }));
+    expect(loadMeshSettingsDraft("legacy", storage).draft).toEqual({ ...draft, regionMeshing: "grid" });
+    expect(saveMeshSettingsDraft("new", defaultMeshSettingsDraft(), storage)).toBe(true);
+    expect(loadMeshSettingsDraft("legacy", storage).draft).toEqual({ ...draft, regionMeshing: "grid" });
+    expect(loadMeshSettingsDraft("adaptive", storage).draft).toEqual(draft);
   });
 
   it("isolates geometries, overwrites the last draft and retains deletion of all controls", () => {
@@ -109,6 +123,8 @@ describe("mesh settings drafts", () => {
     (draft: any) => { draft.controls[0].coordinateMode = "unknown"; },
     (draft: any) => { draft.controls[1].clientId = draft.controls[0].clientId; },
     (draft: any) => { draft.symmetry = "unknown"; },
+    (draft: any) => { draft.regionMeshing = "adaptive"; },
+    (draft: any) => { draft.regionMeshing = null; },
     (draft: any) => { draft.appliedSet.version = 1; },
     (draft: any) => { draft.setDetails[0].resolvedRegions[0].bounds = {}; },
     (draft: any) => { draft.setDetails[0].method = "UNKNOWN"; },
@@ -139,6 +155,35 @@ describe("mesh settings drafts", () => {
     const manual = { ...draft, appliedSet: null, setDetails: [], setCustomized: false };
     saveMeshSettingsDraft("same-geometry", manual, storage);
     expect(loadMeshSettingsDraft("same-geometry", storage).draft).toEqual(manual);
+  });
+});
+
+describe("applying mesh control sets", () => {
+  it.each(["grid", "adapter"] as RegionMeshingMode[])("retains %s across sets and exports the selected strategy", regionMeshing => {
+    const current = { ...completeDraft(), regionMeshing };
+    const before = structuredClone(current);
+    const response: MeshControlSetApplyResponse = {
+      setId: "meshModel2", setVersion: "1.0.0", geometryHash: "geometry",
+      meshControl: buildMeshControlConfiguration("200", "full", [
+        { ...changeCoordinateMode(newMeshControlDraft(), "reference"), label: "Region", method: "3D_REGION" },
+      ]),
+      details: [],
+    };
+    const definition = { id: response.setId, version: "old", label: "Model 2", description: "Set" };
+    // Includes sets that explicitly specify the opposite strategy.
+    for (const setMode of [undefined, "grid", "adapter"] as const) {
+      const applied = { ...response, meshControl: { ...response.meshControl, regionMeshing: setMode } };
+      const result = meshSettingsFromAppliedSet(current, applied, definition);
+      expect(result.regionMeshing).toBe(regionMeshing);
+      expect(result.globalElementSize).toBe("200");
+      expect(result.symmetry).toBe("full");
+      expect(result.controls[0]).toMatchObject({ label: "Region", method: "3D_REGION" });
+      expect(result.setCustomized).toBe(regionMeshing !== (setMode ?? "grid"));
+      expect(result.appliedSet?.version).toBe(response.setVersion);
+      const exported = buildMeshControlConfiguration(result.globalElementSize, result.symmetry, result.controls, result.regionMeshing);
+      expect(exported.regionMeshing).toBe(regionMeshing === "adapter" ? "adapter" : undefined);
+    }
+    expect(current).toEqual(before);
   });
 });
 

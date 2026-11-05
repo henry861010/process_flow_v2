@@ -24,6 +24,21 @@ def validate_parameter_default_values(step_template: Mapping[str, Any]) -> None:
 
 
 class FlowCompiler:
+    @staticmethod
+    def normalize_step_parameters(
+        step_template: Mapping[str, Any], values: Mapping[str, Any], *, require_complete: bool = True,
+    ) -> dict[str, Any]:
+        """Resolve recipe wire values without compiling or loading resources.
+
+        Abstract consumers use exactly the same grouped/typed parameter values
+        that execute(context) receives, without executing future geometry.
+        """
+        if not isinstance(values, Mapping):
+            raise ValueError("parameterValues must be an object")
+        return _normalize_parameter_values(
+            step_template.get("parameterDefinitions", []), values, require_complete=require_complete,
+        )
+
     def __init__(
         self,
         geometry_catalog: GeometryCatalogResolver,
@@ -127,11 +142,7 @@ class FlowCompiler:
             step_ref = analysis.step_refs_by_id[step_ref_id]
             step_template = analysis.step_templates_by_ref_id[step_ref_id]
             raw_values = selected_parameter_values(step_configurations.get(step_ref_id, {}), required=True, step_ref_id=step_ref_id)
-            values = _normalize_parameter_values(
-                step_template.get("parameterDefinitions", []),
-                raw_values,
-                require_complete=True,
-            )
+            values = self.normalize_step_parameters(step_template, raw_values)
             geometry_inputs = {}
             for port in step_template.get("inputPorts", []):
                 port_id = port["portId"]

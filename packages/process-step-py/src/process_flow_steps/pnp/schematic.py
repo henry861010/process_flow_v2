@@ -4,7 +4,10 @@ from math import cos, pi, sin
 
 from process_flow_kernel.domain.bump_operations import footprints_overlap
 from process_flow_kernel.utils.math_utils import math
-from process_flow_schematic import CONDUCTOR_FILL, CONDUCTOR_OUTLINE, Bounds, Primitive, SchematicContext, SchematicPart, base_material, geometry_bounds
+from process_flow_schematic import (
+    CONDUCTOR_FILL, CONDUCTOR_OUTLINE, OUTLINE, SOLDER_FILL,
+    Bounds, Primitive, SchematicContext, SchematicPart, base_material, geometry_bounds,
+)
 
 from .._schematic_helpers import footprint_geometry, walk
 
@@ -37,14 +40,19 @@ def _paired_lower_bumps(scope):
     return pairs
 
 
-def _half_circle(*, upper):
-    # Both motifs have a flat edge on their body and meet at their arc tips.
-    points = tuple(((1 - cos(pi * index / 32)) / 2,
-                    sin(pi * index / 32) if upper else 1 - sin(pi * index / 32))
-                   for index in range(33))
-    edge = 0.0 if upper else 1.0
-    return Primitive(kind="path", points=((0.0, edge), *points[1:-1], (1.0, edge)),
-                     closed=True, repeat_x=True, r=1, fill=CONDUCTOR_FILL, stroke=CONDUCTOR_OUTLINE)
+def _reflowed_bump(*, upper):
+    # One yellow contact above a gray cup; mirror the lower bump so the cups
+    # meet. Equal-height pairs have the same overall 1:4:1 color ratio as joints.
+    right_arc = tuple((0.7 + 0.3 * cos(pi * index / 32),
+                       0.55 + 0.45 * sin(pi * index / 32)) for index in range(17))
+    left_arc = tuple((1 - x, y) for x, y in reversed(right_arc))
+    solder = ((0.0, 1 / 3), (1.0, 1 / 3), *right_arc, *left_arc)
+    contact = ((0.0, 0.0), (1.0, 0.0), (1.0, 1 / 3), (0.0, 1 / 3))
+    return tuple(Primitive(
+        kind="path", points=tuple((x, y if upper else 1 - y) for x, y in points),
+        closed=True, repeat_x=True, r=1, fill=fill, stroke=stroke,
+    ) for points, fill, stroke in (
+        (solder, SOLDER_FILL, OUTLINE), (contact, CONDUCTOR_FILL, CONDUCTOR_OUTLINE)))
 
 
 def present_schematic(context: SchematicContext) -> list[SchematicPart]:
@@ -59,7 +67,7 @@ def present_schematic(context: SchematicContext) -> list[SchematicPart]:
     upper_bounds = context.bounds
     return [SchematicPart(
         label="Reflowed bump · " + base_material(source.get("material", "Bump")),
-        fill=CONDUCTOR_FILL, primitives=(_half_circle(upper=is_upper),),
+        fill=SOLDER_FILL, primitives=_reflowed_bump(upper=is_upper),
         source_id=source["id"], repeat_group="opposing-bumps",
         display_bounds=Bounds(upper_bounds.x_min, upper_bounds.y_min, bounds.z_min,
                               upper_bounds.x_max, upper_bounds.y_max,

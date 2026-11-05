@@ -8,7 +8,7 @@ from process_flow_geometry_generators import GeometryGeneratorRegistry, register
 from process_flow_geometry_generators.schematic_presenters import register_presenters as register_generator_presenters
 from process_flow_kernel import BoxGeometry, PolygonGeometry, ProcessGeometryState, normalize_geometry_structure
 from process_flow_kernel.application.material_instances import rewrite_geometry_materials
-from process_flow_schematic import UNDERFILL_FILL, SchematicRegistry, compose_schematic
+from process_flow_schematic import SOLDER_FILL, UNDERFILL_FILL, SchematicRegistry, compose_schematic
 from process_flow_steps.schematic_presenters import register_presenters as register_step_presenters
 
 
@@ -17,6 +17,10 @@ def registry():
     register_step_presenters(result)
     register_generator_presenters(result)
     return result
+
+
+def solder_symbols(document):
+    return [shape for shape in document["shapes"] if shape["kind"] == "path" and shape["fill"] == SOLDER_FILL]
 
 
 def bump(id, geometry, stage):
@@ -38,11 +42,11 @@ def carrier_hbm_snapshot():
 class SchematicSnapshotIntegrationTests(unittest.TestCase):
     def assert_filled_bump_row(self, symbols):
         self.assertTrue(symbols)
-        self.assertTrue(all(shape["kind"] == "circle" for shape in symbols))
+        self.assertTrue(all(shape["kind"] == "path" and shape["fill"] == SOLDER_FILL for shape in symbols))
         rect = symbols[0]["clip"]
-        radius = symbols[0]["r"]
-        left = symbols[0]["cx"] - radius - rect["x"]
-        right = rect["x"] + rect["width"] - symbols[-1]["cx"] - radius
+        radius = (max(p[0] for p in symbols[0]["points"]) - min(p[0] for p in symbols[0]["points"])) / 2
+        left = min(p[0] for p in symbols[0]["points"]) - rect["x"]
+        right = rect["x"] + rect["width"] - max(p[0] for p in symbols[-1]["points"])
         self.assertAlmostEqual(left, right)
         self.assertGreater(left, 0)
         self.assertLess(left, 2 * radius)
@@ -77,7 +81,7 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         self.assertFalse(any("carrier-bump" in item["sourceIds"] for item in document["items"]))
         joint = next(item for item in document["items"] if "hbm-bump" in item["sourceIds"])
         self.assertEqual((joint["zMin"], joint["zMax"], joint["thickness"]), (700, 715, 15))
-        symbols = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
+        symbols = solder_symbols(document)
         self.assert_filled_bump_row(symbols)
         self.assertTrue(all(shape["itemId"] == joint["id"] for shape in symbols))
         hbm = document["components"][0]
@@ -92,7 +96,7 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
             self.assertEqual(compose_schematic(variant, registry()), expected)
         absent = copy.deepcopy(snapshot)
         absent["root"]["children"][0]["bumps"][0]["density"] = 0
-        self.assertFalse(any(shape["kind"] == "circle" for shape in compose_schematic(absent, registry())["shapes"]))
+        self.assertFalse(solder_symbols(compose_schematic(absent, registry())))
         self.assertEqual(snapshot, before)
 
     def test_partial_width_joint_hides_all_unjoined_subcolumns(self):
@@ -110,7 +114,7 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         component = document["components"][0]
         source_ids = {source for item in document["items"] for source in item["sourceIds"]}
         self.assertEqual(source_ids, {"partial-joint", "silicon"})
-        symbols = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
+        symbols = solder_symbols(document)
         self.assert_filled_bump_row(symbols)
         for symbol in symbols:
             self.assertEqual(symbol["clip"]["exclusions"], [])
@@ -134,14 +138,14 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         snapshot = main.to_geometry_structure()
         document = compose_schematic(snapshot, registry())
         self.assertEqual(document["warnings"], [])
-        self.assertEqual(len(document["components"]), 3)
+        self.assertEqual(len(document["components"]), 1)
         lsi_items = [item for item in document["items"] if item["groupLabel"] == "LSI"]
         self.assertEqual(len(lsi_items), 4)
         self.assertTrue(all(len(item["sourceIds"]) == 2 for item in lsi_items))
-        circles = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
-        self.assertGreater(len(circles), 9)
+        solder = solder_symbols(document)
+        self.assertGreater(len(solder), 9)
         for component in document["components"]:
-            self.assert_filled_bump_row([shape for shape in circles if shape["clip"]["x"] == component["x"]])
+            self.assert_filled_bump_row([shape for shape in solder if shape["clip"]["x"] == component["x"]])
 
     def test_actual_generated_lsi_after_joint_underfill_and_grind(self):
         generators = GeometryGeneratorRegistry()
@@ -165,19 +169,19 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         document = compose_schematic(snapshot, registry())
 
         self.assertEqual(document["warnings"], [])
-        self.assertEqual([component["label"] for component in document["components"]], ["LSI"] * 3)
+        self.assertEqual([component["label"] for component in document["components"]], ["LSI"])
         carrier = next(body for body in snapshot["root"]["children"][0]["bodies"] if body.get("key") == "lsi.si_carrier")
         carrier_row = next(item for item in document["items"] if carrier["id"] in item["sourceIds"])
         self.assertEqual(carrier_row["thickness"], 190)
         self.assertAlmostEqual(document["totalThickness"], 581.5)
         uf_shapes = [shape for shape in document["shapes"] if shape["fill"] == UNDERFILL_FILL]
-        self.assertEqual(len(uf_shapes), 5)  # Three cavities and two representative gaps.
+        self.assertEqual(len(uf_shapes), 1)  # One cavity for the single LSI representative.
         lower_id = snapshot["root"]["bumps"][0]["id"]
         self.assertFalse(any(lower_id in item["sourceIds"] for item in document["items"]))
-        circles = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
+        solder = solder_symbols(document)
         for component in document["components"]:
-            self.assert_filled_bump_row([shape for shape in circles if shape["clip"]["x"] == component["x"]])
-        self.assertTrue(all(shape["clip"]["exclusions"] == [] for shape in circles))
+            self.assert_filled_bump_row([shape for shape in solder if shape["clip"]["x"] == component["x"]])
+        self.assertTrue(all(shape["clip"]["exclusions"] == [] for shape in solder))
         self.assertEqual(snapshot, snapshot_before)
         self.assertEqual(source, before)
 
@@ -198,9 +202,9 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
         document = compose_schematic(snapshot, registry())
         self.assertEqual(document["warnings"], [])
         self.assertFalse(any("lower" in item["sourceIds"] for item in document["items"]))
-        circles = [shape for shape in document["shapes"] if shape["kind"] == "circle"]
+        solder = solder_symbols(document)
         for component in document["components"]:
-            self.assert_filled_bump_row([shape for shape in circles if shape["clip"]["x"] == component["x"]])
+            self.assert_filled_bump_row([shape for shape in solder if shape["clip"]["x"] == component["x"]])
         self.assertEqual(snapshot, before)
 
 

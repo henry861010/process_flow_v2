@@ -45,13 +45,13 @@ export function FlowSourceDialog({ flows, drafts, onUseFlow, onClose }: {
   }
 
   return <EditorDialog title="Start from…" description={tab === "flows"
-    ? "Open a saved flow to edit its complete topology and configuration."
+    ? "Use a saved flow's complete topology and configuration as a starting point. Save creates a new flow; the source stays unchanged."
     : "Resume a draft with its complete configuration and graph layout."}
     className="h-[min(620px,calc(100dvh-32px))] max-w-[720px]" busy={busy} onClose={onClose}
     footer={<><Button variant="outline" disabled={busy} onClick={onClose}>Cancel</Button>
       <Button disabled={busy || (tab === "drafts" ? drafts.loading || !drafts.selectedDraft : !selectedId)} onClick={() => void loadSource()}>
         {busy ? <Loader2 className="animate-spin" /> : tab === "drafts" ? <FileClock /> : <Workflow />}
-        {busy ? "Loading…" : tab === "drafts" ? "Resume draft" : "Open flow"}
+        {busy ? "Loading…" : tab === "drafts" ? "Resume draft" : "Use as starting point"}
       </Button></>}>
     <Tabs value={tab} onValueChange={(value) => { setTab(value); setError(null); }} className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b px-5 py-3"><TabsList aria-label="Starting source" className="w-full justify-start bg-transparent p-0">

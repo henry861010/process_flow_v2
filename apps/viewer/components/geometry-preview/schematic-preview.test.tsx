@@ -40,7 +40,8 @@ describe("schematic preview", () => {
     expect(markup).toContain("220 µm");
     expect(drawingStart).toBeGreaterThan(0);
     expect(markup.indexOf("220 µm")).toBeLessThan(drawingStart);
-    expect(markup).toContain("Component A");
+    expect(markup).not.toContain("<text");
+    expect(markup).not.toContain("Component A");
     expect(markup).toContain('aria-label="Reading this schematic"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('aria-label="Schematic notes"');
@@ -106,14 +107,15 @@ describe("schematic preview", () => {
     const diagram = { ...document, viewBox: [0, 0, 2400, 400] } as SchematicDocument;
     const markup = renderToStaticMarkup(<SchematicPreview document={diagram} />);
     expect(markup).toContain('viewBox="0 0 2400 400"');
-    expect(markup.match(/data-component-label=/g)).toHaveLength(1);
-    expect(markup.match(/data-layer-label=/g)).toHaveLength(schematicLabels(document).filter((label) => !label.component).length);
+    expect(markup).not.toContain("data-component-label=");
+    expect(markup).not.toContain("data-layer-label=");
+    expect(markup).not.toContain("<text");
     expect(markup.match(/role="button"/g)).toHaveLength(document.items.length);
     expect(markup.match(/data-item-id=/g)).toHaveLength(document.shapes.length);
   });
 
-  it("keeps measurements in the details and places labels in exposed layer regions", () => {
-    const markup = renderToStaticMarkup(<SchematicDrawing document={document} selectedItemId={null} onSelect={() => {}} />);
+  it("can explicitly enable labels in exposed layer regions while keeping measurements in the details", () => {
+    const markup = renderToStaticMarkup(<SchematicPreview document={document} showLabels />);
     expect(markup).toContain('data-layer-label="body"');
     expect(markup).toContain('>Support<title>');
     expect(markup).not.toContain('<tspan');
@@ -122,12 +124,37 @@ describe("schematic preview", () => {
       { id: "child", itemId: "fill", kind: "rect", x: 300, y: 180, width: 200, height: 80,
         fill: "#abc", stroke: "none", strokeWidth: 0 },
     ] } as SchematicDocument;
-    const coveredMarkup = renderToStaticMarkup(<SchematicDrawing document={covered} selectedItemId={null} onSelect={() => {}} />);
+    const coveredMarkup = renderToStaticMarkup(<SchematicDrawing document={covered} selectedItemId={null} onSelect={() => {}} showLabels />);
     const parentLabel = schematicLabels(covered).find((label) => label.itemId === "body");
     expect(parentLabel).toBeDefined();
     expect(parentLabel!.x).toBeLessThan(300);
     expect(coveredMarkup).toContain('data-layer-label="body"');
     expect(coveredMarkup).toContain('data-layer-label="fill"');
+  });
+
+  it("shows only producer-selected carrier and component labels by default", () => {
+    const names = ["LSI", "SoC", "HBM", "DMY", "DMY"];
+    const diagram: SchematicDocument = { ...document,
+      components: names.map((name, index) => ({ id: `component-${index}`, label: name === "DMY" ? "Wafer DMY" : name,
+        diagramLabel: name, sourceIds: [`source-${index}`], x: 40 + index * 140, y: 80, width: 120, height: 60 })),
+      items: [{ ...document.items[0], diagramLabel: "Carrier" }, document.items[1], ...names.map((name, index) => ({
+        ...document.items[0], id: `body-${index}`, label: `${name} silicon`, groupLabel: name === "DMY" ? "Wafer DMY" : name,
+      }))],
+      shapes: [document.shapes[0], document.shapes[1], ...names.map((_, index) => ({ ...document.shapes[0],
+        id: `shape-${index}`, itemId: `body-${index}`, x: 40 + index * 140, y: 80, width: 120, height: 60,
+      }))],
+    };
+    const labels = schematicLabels(diagram, "primary");
+    expect(labels.map((label) => label.text)).toEqual([...names, "Carrier"]);
+    for (const label of labels.filter((label) => label.component)) {
+      expect(label.y).toBe(110);
+    }
+    const markup = renderToStaticMarkup(<SchematicPreview document={diagram} />);
+    expect(markup.match(/data-component-label=/g)).toHaveLength(5);
+    expect(markup.match(/data-layer-label=/g)).toHaveLength(1);
+    expect(markup).toContain('>Carrier<title>Support</title>');
+    expect(markup).not.toContain('>Fill<title>');
+    expect(renderToStaticMarkup(<SchematicPreview document={diagram} showLabels={false} />)).not.toContain("<text");
   });
 
   it("centers component names inside visible bodies with contrasting text and no duplicate layer name", () => {
@@ -137,7 +164,7 @@ describe("schematic preview", () => {
     const labels = schematicLabels(component);
     expect(labels).toHaveLength(1);
     expect(labels[0]).toMatchObject({ component: true, text: "Component A", x: 325, y: 110, background: "#424547" });
-    const markup = renderToStaticMarkup(<SchematicDrawing document={component} selectedItemId={null} onSelect={() => {}} />);
+    const markup = renderToStaticMarkup(<SchematicDrawing document={component} selectedItemId={null} onSelect={() => {}} showLabels />);
     expect(markup).toContain('data-component-label="component"');
     expect(markup).toContain('fill="#ffffff"');
     expect(markup).not.toContain('data-layer-label="body"');

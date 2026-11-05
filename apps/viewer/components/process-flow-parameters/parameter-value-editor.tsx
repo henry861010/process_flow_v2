@@ -37,6 +37,7 @@ export function ParameterValueEditor({
   errors = {},
   disabled = false,
   groups = [],
+  presentation = "default",
   onChange,
 }: {
   definitions: ParameterDefinition[];
@@ -44,6 +45,7 @@ export function ParameterValueEditor({
   errors?: Record<string, string>;
   disabled?: boolean;
   groups?: ParameterDefinitionGroup[];
+  presentation?: "default" | "compact";
   onChange: (values: Record<string, unknown>) => void;
 }) {
   if (definitions.length === 0) {
@@ -69,6 +71,25 @@ export function ParameterValueEditor({
   const ungroupedDefinitions = definitions.filter(
     (definition) => !groupedParameterIds.has(definition.id),
   );
+
+  if (presentation === "compact") {
+    const sections = resolvedGroups.length
+      ? [...resolvedGroups, ...(ungroupedDefinitions.length ? [{ id: "ungrouped", label: "Other parameters", definitions: ungroupedDefinitions }] : [])]
+      : [{ id: "parameters", label: "", definitions }];
+    return (
+      <div className="divide-y divide-border/60">
+        {sections.map((section) => (
+          <section key={section.id} aria-label={section.label || "Parameters"} className="space-y-3 px-4 py-4 sm:px-5">
+            {section.label ? <h4 className="text-xs font-semibold text-muted-foreground">{section.label}</h4> : null}
+            <div className="space-y-3">
+              <ParameterRows definitions={section.definitions} values={values} errors={errors}
+                disabled={disabled} onChange={onChange} compact />
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+  }
 
   if (resolvedGroups.length > 0) {
     return (
@@ -127,17 +148,20 @@ function ParameterRows({
   errors,
   disabled,
   onChange,
+  compact = false,
 }: {
   definitions: ParameterDefinition[];
   values: Record<string, unknown>;
   errors: Record<string, string>;
   disabled: boolean;
   onChange: (values: Record<string, unknown>) => void;
+  compact?: boolean;
 }) {
   return definitions.map((definition) => (
     <ParameterRow
       key={definition.id}
       definition={definition}
+      compact={compact}
       value={values[definition.id]}
       error={errors[definition.id]}
       disabled={disabled}
@@ -152,18 +176,21 @@ function ParameterRow({
   error,
   disabled,
   onChange,
+  compact = false,
 }: {
   definition: ParameterDefinition;
   value: unknown;
   error?: string;
   disabled: boolean;
   onChange: (value: unknown) => void;
+  compact?: boolean;
 }) {
   if (definition.valueType === "fieldGroupArray" && definition.repeatDefinition) {
     return (
       <div className={cn(error && "bg-destructive/5")}>
         <RepeaterControl
           definition={definition}
+          compact={compact}
           value={value}
           disabled={disabled}
           onChange={onChange}
@@ -182,10 +209,11 @@ function ParameterRow({
     return (
       <div className={cn("px-4 py-4 text-sm", error && "bg-destructive/5")}>
         <div className="mb-3">
-          <ParameterLabel definition={definition} />
+          <ParameterLabel definition={definition} minimal={compact} />
         </div>
         <PrimitiveControl
           definition={definition}
+          compact={compact}
           value={value}
           disabled={disabled}
           onChange={onChange}
@@ -198,14 +226,17 @@ function ParameterRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1",
+        compact
+          ? "grid min-w-0 grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] items-start gap-3 text-sm"
+          : "grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1",
         error && "bg-destructive/5",
       )}
     >
-      <ParameterLabel definition={definition} />
-      <div>
+      <div className={compact ? "pt-2" : undefined}><ParameterLabel definition={definition} minimal={compact} /></div>
+      <div className="min-w-0">
         <PrimitiveControl
           definition={definition}
+          compact={compact}
           value={value}
           disabled={disabled}
           onChange={onChange}
@@ -221,11 +252,13 @@ function RepeaterControl({
   value,
   disabled,
   onChange,
+  compact = false,
 }: {
   definition: ParameterDefinition;
   value: unknown;
   disabled: boolean;
   onChange: (value: RepeatableGroupValue) => void;
+  compact?: boolean;
 }) {
   const repeat = definition.repeatDefinition!;
   const repeatValue = isRepeatableGroupValue(value)
@@ -307,9 +340,9 @@ function RepeaterControl({
   }
 
   return (
-    <div className="px-4 py-4">
+    <div className={compact ? "min-w-0" : "px-4 py-4"}>
       <div className="mb-3">
-        <ParameterLabel definition={definition} />
+        <ParameterLabel definition={definition} minimal={compact} />
       </div>
 
       {canImportRepeatableGroupCsv(definition) ? (
@@ -379,11 +412,12 @@ function RepeaterControl({
                       child.valueType === "fieldGroupArray" && "md:col-span-2",
                     )}
                   >
-                    <ParameterLabel definition={child} compact />
+                    <ParameterLabel definition={child} compact minimal={compact} />
                     <div className="mt-2">
                       {child.valueType === "fieldGroupArray" ? (
                         <RepeaterControl
                           definition={child}
+                          compact={compact}
                           value={item.values[child.id]}
                           disabled={disabled}
                           onChange={(nextValue) =>
@@ -396,6 +430,7 @@ function RepeaterControl({
                       ) : (
                         <PrimitiveControl
                           definition={child}
+                          compact={compact}
                           value={item.values[child.id]}
                           disabled={disabled}
                           onChange={(nextValue) =>
@@ -462,11 +497,13 @@ function PrimitiveControl({
   value,
   disabled,
   onChange,
+  compact = false,
 }: {
   definition: ParameterDefinition;
   value: unknown;
   disabled: boolean;
   onChange: (value: unknown) => void;
+  compact?: boolean;
 }) {
   if (definition.valueType === "placements" || definition.controlType === "placementList") {
     return (
@@ -561,9 +598,11 @@ function PrimitiveControl({
 
   if (isNumericValueType(definition.valueType)) {
     return (
-      <div className="flex items-center gap-2">
+      <div className={compact
+        ? "flex min-w-0 items-center overflow-hidden rounded-md border border-input bg-white shadow-sm focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20"
+        : "flex items-center gap-2"}>
         <input
-          className={inputClass}
+          className={cn(inputClass, compact && "min-w-0 rounded-none border-0 font-mono text-right tabular-nums shadow-none focus:ring-0")}
           aria-label={definition.name}
           type="number"
           step={isIntegerValueType(definition.valueType) ? 1 : "any"}
@@ -580,7 +619,9 @@ function PrimitiveControl({
           }
         />
         {definition.unit ? (
-          <span className="shrink-0 text-sm text-muted-foreground">
+          <span className={compact
+            ? "flex h-9 min-w-9 shrink-0 items-center justify-center border-l border-border/60 bg-muted/20 px-2 font-mono text-[11px] text-muted-foreground"
+            : "shrink-0 text-sm text-muted-foreground"}>
             {definition.unit}
           </span>
         ) : null}
@@ -652,22 +693,24 @@ function OptionCheckboxes({
 function ParameterLabel({
   definition,
   compact = false,
+  minimal = false,
 }: {
   definition: ParameterDefinition;
   compact?: boolean;
+  minimal?: boolean;
 }) {
   return (
     <div className="min-w-0">
       <div className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
         {definition.name}
         {definition.required === false ? null : (
-          <span className="ml-1 text-destructive">*</span>
+          <span className={cn("ml-1", minimal ? "text-muted-foreground/60" : "text-destructive")}>*</span>
         )}
       </div>
-      <div className="mt-1 flex flex-wrap gap-1 font-mono text-[11px] text-muted-foreground">
+      {!minimal ? <div className="mt-1 flex flex-wrap gap-1 font-mono text-[11px] text-muted-foreground">
         <span>{definition.id}</span>
         {definition.unit ? <span>/ {definition.unit}</span> : null}
-      </div>
+      </div> : null}
       {definition.description && !compact ? (
         <p data-parameter-description className="mt-2 text-xs leading-relaxed text-muted-foreground">
           {definition.description}

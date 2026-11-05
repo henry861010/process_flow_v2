@@ -239,6 +239,14 @@ The envelope remains schema `1.0.0`, unit `um`, mesher `process_flow_2_5d`.
 The local `validate_mesh_control(document, state=...)` validates the entire
 contract; the installed mesher validator is not used by the API.
 
+- Optional top-level `regionMeshing` selects one strategy for all `3D_REGION`
+  controls: `"grid"` (also the default when omitted) or `"adapter"` (Adaptive).
+  It is not a per-control field. The validator accepts only those exact strings
+  and never inserts a default or rewrites the supplied document. Schema remains
+  `1.0.0`. The viewer omits the field for Grid and sends `"adapter"` for Adaptive.
+  Adaptive requires a supporting mesher; the currently linked local checkout
+  provides it, while the project's pinned revision does not yet include it.
+  Unsupported adaptive layouts report worker errors without retrying as Grid.
 - Reference mode requires `reference`. Every coordinate is `{anchor, offset}`;
   the anchor must be the matching axis's `<axis>_min` or `<axis>_max`.
 - Absolute mode forbids `reference`. Every coordinate is a finite JSON number.

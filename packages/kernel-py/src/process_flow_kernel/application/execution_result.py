@@ -5,12 +5,13 @@ from ..serialization.schema import deep_copy, normalize_geometry_structure
 
 class GeometryKernelExecutionResult:
     def __init__(self, *, geometry_structure, step_outputs=None, terminal_step_ref_ids=None,
-                 execution_warnings=None, step_execution_warnings=None):
+                 execution_warnings=None, step_execution_warnings=None, step_provenance=None):
         self._geometry_structure = normalize_geometry_structure(geometry_structure)
         self._step_outputs = dict(step_outputs or {})
         self._terminal_step_ref_ids = list(terminal_step_ref_ids or [])
         self._execution_warnings = deep_copy(list(execution_warnings or []))
         self._step_execution_warnings = deep_copy(dict(step_execution_warnings or {}))
+        self._step_provenance = deep_copy(dict(step_provenance or {}))
 
     def geometry(self):
         return deep_copy(self._geometry_structure)
@@ -21,6 +22,10 @@ class GeometryKernelExecutionResult:
 
     def step_outputs(self):
         return deep_copy(self._step_outputs)
+
+    def step_provenance(self, step_ref_id):
+        """Qualified physical node origins, separate from geometry JSON."""
+        return deep_copy(self._step_provenance.get(step_ref_id, {}))
 
     def terminal_step_ref_ids(self):
         return list(self._terminal_step_ref_ids)

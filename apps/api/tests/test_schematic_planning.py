@@ -3,6 +3,7 @@ import asyncio
 import copy
 import json
 import unittest
+from dataclasses import asdict
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -165,9 +166,10 @@ class SchematicPlanningTests(unittest.TestCase):
         self.assertEqual(next(item for item in document["items"] if item["material"] == "PI")["thickness"], 2)
         self.assertNotIn("layout-presence", json.dumps(document))
         self.assertNotIn("layout-presence", json.dumps([snapshot.geometry_structure for snapshot in snapshots]))
-        for inventory in (*planning.inputs.values(), *planning.outputs.values()):
-            self.assertEqual(inventory.prototype, {})
-            self.assertEqual(inventory.bindings, {})
+        for scene in (*planning.inputs.values(), *planning.outputs.values()):
+            self.assertNotIn("geometry", asdict(scene))
+            self.assertTrue(all(obj.source_ref for obj in scene.objects))
+            self.assertNotIn("layout-presence", json.dumps(asdict(scene)))
 
     def test_grind_removing_imported_wrapper_body_keeps_surviving_child_in_its_slot(self):
         child = entity("inner")["structure"]["root"]

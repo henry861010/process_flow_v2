@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from process_flow_geometry_generators import GeometryGeneratorRegistry
@@ -13,6 +13,8 @@ from process_flow_kernel import (
     FlowCompiler,
     GeometryKernel,
     InMemoryGeometryCatalog,
+    GeometryProvenance,
+    qualify_provenance,
     validate_flow_graph,
     validate_process_step_template as validate_step_contract,
 )
@@ -73,6 +75,7 @@ class PreviewSnapshotGeometry:
     target: JsonObject
     geometry_structure: JsonObject
     execution_warnings: tuple[JsonObject, ...] = ()
+    provenance: GeometryProvenance = field(default_factory=dict)
 
 
 def bootstrap_payload(store: SQLiteStore) -> JsonObject:
@@ -439,6 +442,9 @@ async def materialize_preview_snapshots(
                 order=0,
                 target=target,
                 geometry_structure=geometry_structure,
+                provenance=qualify_provenance(
+                    geometry_structure, kind="flowInput", owner_id=flow_input_id,
+                ),
             ),
         )
 
@@ -475,6 +481,7 @@ async def materialize_preview_snapshots(
                 },
                 geometry_structure=geometry_structure,
                 execution_warnings=tuple(result.step_execution_warnings(planned_step.step_ref_id)),
+                provenance=result.step_provenance(planned_step.step_ref_id),
             )
         )
     if not snapshots or snapshots[-1].step_ref_id != output_step_ref_id:

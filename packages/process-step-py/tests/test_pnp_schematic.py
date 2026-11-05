@@ -8,7 +8,7 @@ from process_flow_kernel import BoxGeometry, CylinderGeometry, PolygonGeometry, 
 from process_flow_steps.joint.mr_joint import execute as mr_joint
 from process_flow_steps.joint.tcb_joint import execute as tcb_joint
 from test_schematic_snapshot_integration import bump, registry
-from process_flow_schematic import compose_schematic
+from process_flow_schematic import CONDUCTOR_FILL, SOLDER_FILL, compose_schematic
 
 
 def snapshot(*, lower_height=20, upper_height=15, x=10):
@@ -28,9 +28,10 @@ def die(id, x, lower_height=20, upper_height=15):
                       material="UpperSolder")]}
 
 
-def motifs(document, source_id):
+def motifs(document, source_id, fill=SOLDER_FILL):
     ids = {item["id"] for item in document["items"] if source_id in item["sourceIds"]}
-    return [shape for shape in document["shapes"] if shape["kind"] == "path" and shape["itemId"] in ids]
+    return [shape for shape in document["shapes"]
+            if shape["kind"] == "path" and shape["itemId"] in ids and shape["fill"] == fill]
 
 
 class PnpSchematicTests(unittest.TestCase):
@@ -43,14 +44,23 @@ class PnpSchematicTests(unittest.TestCase):
             self.assertEqual([point[0] for point in upper["points"]], [point[0] for point in lower["points"]])
             self.assertAlmostEqual(max(point[1] for point in upper["points"]),
                                    min(point[1] for point in lower["points"]))
-            self.assertEqual(upper["points"][0][1], upper["clip"]["y"])
-            self.assertEqual(lower["points"][0][1], lower["clip"]["y"] + lower["clip"]["height"])
             for shape in (upper, lower):
                 self.assertTrue(shape["closed"])
                 self.assertEqual(shape["clip"]["x"], component["x"])
                 self.assertEqual(shape["clip"]["width"], component["width"])
                 self.assertGreater(min(point[0] for point in shape["points"]), component["x"])
                 self.assertLess(max(point[0] for point in shape["points"]), component["x"] + component["width"])
+        for source_id, is_upper in ((upper_id, True), (lower_id, False)):
+            contacts = motifs(document, source_id, CONDUCTOR_FILL)
+            cups = motifs(document, source_id)
+            self.assertEqual(len(contacts), len(cups))
+            for contact, cup in zip(contacts, cups):
+                top, bottom = min(p[1] for p in contact["points"]), max(p[1] for p in contact["points"])
+                self.assertAlmostEqual(bottom - top, contact["clip"]["height"] / 3)
+                self.assertAlmostEqual(top if is_upper else bottom,
+                                       contact["clip"]["y"] + (0 if is_upper else contact["clip"]["height"]))
+                self.assertAlmostEqual(bottom if is_upper else top,
+                                       min(p[1] for p in cup["points"]) if is_upper else max(p[1] for p in cup["points"]))
         self.assertEqual(document["warnings"], [])
 
     def test_pair_has_shared_centers_and_correct_source_measurements(self):
@@ -175,7 +185,7 @@ class PnpSchematicTests(unittest.TestCase):
         self.assertTrue(motifs(document, "lower"))
         self.assertEqual(document["warnings"], [])
 
-    def test_mr_and_tcb_joint_replace_halves_with_existing_circles(self):
+    def test_mr_and_tcb_joint_replace_opposing_cups_with_two_contact_joint(self):
         for execute in (mr_joint, tcb_joint):
             with self.subTest(joint=execute.__module__):
                 state = ProcessGeometryState.from_structure(snapshot())
@@ -186,8 +196,16 @@ class PnpSchematicTests(unittest.TestCase):
                     input_geometry=state.to_geometry_structure(), geometry_resolver=lambda port: state))
                 after = state.to_geometry_structure()
                 document = compose_schematic(after, registry())
-                self.assertFalse(any(shape["kind"] == "path" for shape in document["shapes"]))
-                self.assertTrue(any(shape["kind"] == "circle" for shape in document["shapes"]))
+                solder = motifs(document, "die-upper")
+                contacts = motifs(document, "die-upper", CONDUCTOR_FILL)
+                self.assertTrue(solder)
+                self.assertEqual(len(contacts), 2 * len(solder))
+                for body in solder:
+                    height = max(p[1] for p in body["points"]) - min(p[1] for p in body["points"])
+                    self.assertAlmostEqual(height, body["clip"]["height"] * 4 / 6)
+                for contact in contacts:
+                    height = max(p[1] for p in contact["points"]) - min(p[1] for p in contact["points"])
+                    self.assertAlmostEqual(height, contact["clip"]["height"] / 6)
                 self.assertFalse(any("lower" in item["sourceIds"] for item in document["items"]))
                 self.assertEqual(after["root"]["bumps"][0]["stage"], "reflowed")
                 self.assertEqual(after["root"]["children"][0]["bumps"][0]["stage"], "joined")

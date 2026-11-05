@@ -12,6 +12,8 @@ type Label = {
   background: string;
 };
 
+export type SchematicLabelVisibility = boolean | "primary";
+
 /** Choose the stronger text contrast on the illustration's white background. */
 export function schematicTextColor(background: string) {
   const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(background);
@@ -77,7 +79,8 @@ function fitText(text: string, area: SchematicRectangle, maximumSize: number) {
 }
 
 /** Work only from display shapes; no material or process-specific layout rules. */
-export function schematicLabels(document: SchematicDocument): Label[] {
+export function schematicLabels(document: SchematicDocument, visibility: SchematicLabelVisibility = true): Label[] {
+  if (!visibility) return [];
   const items = new Map(document.items.map((item) => [item.id, item]));
   const shapeBounds = document.shapes.map(bounds);
   const visibleBounds = document.shapes.map((shape, index) => {
@@ -108,10 +111,12 @@ export function schematicLabels(document: SchematicDocument): Label[] {
       componentShapes.add(index);
       return areas[index].map((area) => ({ area, shape }));
     }).sort((a, b) => b.area.width * b.area.height - a.area.width * a.area.height);
+    const text = visibility === "primary" ? component.diagramLabel : component.label;
+    if (!text) continue;
     const candidate = candidates[0];
     const area = candidate?.area ?? { x: component.x, y: Math.max(document.viewBox[1], component.y - 36), width: component.width, height: 28 };
     labels.push({ id: component.id, itemId: candidate?.shape.itemId, component: true, fullText: component.label,
-      ...fitText(component.label, area, candidate ? 24 : 16), x: area.x + area.width / 2, y: area.y + area.height / 2,
+      ...fitText(text, area, candidate ? 24 : 16), x: area.x + area.width / 2, y: area.y + area.height / 2,
       background: candidate?.shape.fill ?? "#ffffff" });
   }
   const labeledItems = new Set<string>();
@@ -122,9 +127,11 @@ export function schematicLabels(document: SchematicDocument): Label[] {
   for (const { shape, area } of candidates) {
     const item = items.get(shape.itemId);
     if (!item || labeledItems.has(item.id)) continue;
+    const text = visibility === "primary" ? item.diagramLabel : item.label;
+    if (!text) continue;
     labeledItems.add(item.id);
     labels.push({ id: `label-${shape.id}`, itemId: item.id, component: false, fullText: item.label,
-      ...fitText(item.label, area, 20), x: area.x + area.width / 2, y: area.y + area.height / 2,
+      ...fitText(text, area, 20), x: area.x + area.width / 2, y: area.y + area.height / 2,
       background: shape.fill });
   }
   return labels;

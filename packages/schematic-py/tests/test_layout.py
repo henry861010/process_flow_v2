@@ -66,6 +66,27 @@ class LayoutPlanTests(unittest.TestCase):
                 for left, right in zip(layout.slots, layout.slots[1:]):
                     self.assertLess(left.x + left.width, right.x)
 
+    def test_standalone_adapter_and_flow_scene_share_semantic_layout_policy(self):
+        from process_flow_schematic.scene import LayoutRegion, SceneState, SchematicObject
+        from process_flow_schematic.scene_layout import make_scene_layout_plan
+
+        roles = (("soc", "soc"), ("lsi", "lsi"), ("dummy", "wafer-dmy"))
+        flat = make_layout_plan([
+            SchematicLayoutGroup(key, ComponentHint(key, representative_count=7, placement="edges", role=role))
+            for key, role in roles
+        ], fingerprint="same-core")
+        state = SceneState(
+            objects=(SchematicObject("assembly", "assembly", "assembly", "Assembly"), *(
+                SchematicObject(key, "component", role, key, parent_id="assembly", group_key=key,
+                                layout="member", region_id="mount") for key, role in roles)),
+            regions=(LayoutRegion("mount", "assembly"),),
+        )
+        scene = make_scene_layout_plan(state, fingerprint="same-core")
+        project = lambda slots: [(slot.group_key, slot.x, slot.width) for slot in sorted(slots, key=lambda slot: slot.x)]
+        self.assertEqual(flat.width, scene.width)
+        self.assertEqual(project(flat.slots), project(scene.slots))
+        self.assertEqual([slot.group_key for slot in flat.slots], ["dummy", "soc", "lsi", "dummy"])
+
     def test_rejects_duplicate_groups_and_invalid_manual_slots(self):
         with self.assertRaises(ValueError):
             make_layout_plan([SchematicLayoutGroup("same", ComponentHint("A")),
@@ -142,14 +163,15 @@ class LayoutPlanTests(unittest.TestCase):
         self.assertEqual(sum(shape["fill"] == "#112233" for shape in complete["shapes"]), 2)
         self.assertTrue(any(item["sourceIds"] == ["uf"] for item in absent["items"]))
 
-    def test_unbound_components_keep_measurements_without_resizing_the_plan(self):
+    def test_unbound_components_remain_visible_with_a_local_layout_warning(self):
         layout = plan("reserved")
         document = compose_schematic(structure(die("unknown")), registry(), layout_plan=layout)
-        self.assertEqual(document["viewBox"][2], layout.width)
-        self.assertEqual(document["components"], [])
-        self.assertEqual(len(document["shapes"]), 1)
+        self.assertEqual(len(document["components"]), 1)
+        self.assertEqual(document["components"][0]["sourceIds"], ["unknown"])
+        self.assertEqual(len(document["shapes"]), 2)
         self.assertTrue(any(item["sourceIds"] == ["unknown-body"] for item in document["items"]))
-        self.assertTrue(any("no reserved schematic slot" in warning for warning in document["warnings"]))
+        self.assertTrue(any("no reserved schematic slot" in warning and "local layout" in warning
+                            for warning in document["warnings"]))
 
     def test_descriptions_use_the_same_selection_and_preserve_each_physical_id(self):
         first = die("first")

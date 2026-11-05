@@ -4,11 +4,13 @@ from process_flow_schematic import SchematicRegistry
 
 from .die_schematic import present_internal_matrix, present_schematic as present_die
 from .lsi_schematic import present_adhesive, present_schematic as present_lsi
-from .support_schematic import present_schematic as present_support
+from .support_schematic import present_carrier, present_schematic as present_support
 from .wafer_dmy_schematic import present_schematic as present_dummy
 
 
 def register_presenters(registry: SchematicRegistry) -> None:
+    for key in ("carrier", "lsi.si_carrier"):
+        registry.register("body", present_carrier, key=key)
     for key in ("lsi.daf", "lsi.fow"):
         registry.register("body", present_adhesive, key=key)
     for key in (

@@ -25,13 +25,13 @@ import {
   type FileExportJob,
   type FileExportKind,
   type MeshControlSetDefinition,
+  type RegionMeshingMode,
   type SymmetryMode,
 } from "@/components/geometry-preview/file-export-client";
 import {
   buildMeshControlConfiguration,
   changeCoordinateMode,
   collectKeyedGeometryReferences,
-  draftsFromMeshControlConfiguration,
   filterKeyedGeometryReferences,
   meshControlDisplayLabel,
   MESH_CONTROL_METHODS,
@@ -50,6 +50,7 @@ import { MeshResolvedRules } from "./mesh-resolved-rules";
 import {
   defaultMeshSettingsDraft,
   loadMeshSettingsDraft,
+  meshSettingsFromAppliedSet,
   needsResolvedRuleMetadata,
   restoreResolvedRuleMetadata,
   saveMeshSettingsDraft,
@@ -113,7 +114,7 @@ function FileExportDialogForm({
   const [meshSettings, setMeshSettings] = React.useState<MeshSettingsDraft>(defaultMeshSettingsDraft);
   const [draftLoaded, setDraftLoaded] = React.useState(false);
   const [storageError, setStorageError] = React.useState(false);
-  const { globalElementSize, symmetry, controls, appliedSet, setDetails, setCustomized } = meshSettings;
+  const { globalElementSize, symmetry, regionMeshing, controls, appliedSet, setDetails, setCustomized } = meshSettings;
   const [availableSets, setAvailableSets] = React.useState<MeshControlSetDefinition[]>([]);
   const [libraryError, setLibraryError] = React.useState<string | null>(null);
   const [applyingSet, setApplyingSet] = React.useState(false);
@@ -241,14 +242,7 @@ function FileExportDialogForm({
       }
       const definition = availableSets.find((item) => item.id === applied.setId);
       if (!definition) throw new Error("The selected mesh control set is no longer available.");
-      setMeshSettings({
-        globalElementSize: String(applied.meshControl.globalElementSize),
-        symmetry: applied.meshControl.symmetry,
-        controls: draftsFromMeshControlConfiguration(applied.meshControl),
-        appliedSet: { ...definition, version: applied.setVersion },
-        setDetails: applied.details,
-        setCustomized: false,
-      });
+      setMeshSettings(current => meshSettingsFromAppliedSet(current, applied, definition));
       setExpandedControlIds([]);
       pendingControlNavigationRef.current = null;
       setError(null);
@@ -292,7 +286,7 @@ function FileExportDialogForm({
     try {
       const meshControl =
         kind === "cdb"
-          ? buildMeshControlConfiguration(globalElementSize, symmetry, controls)
+          ? buildMeshControlConfiguration(globalElementSize, symmetry, controls, regionMeshing)
           : undefined;
       const job = await createFileExportJob({
         analyticsContext,
@@ -441,6 +435,29 @@ function FileExportDialogForm({
                       <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">µm</span>
                     </span>
                   </label>
+
+                  <div className="space-y-1.5">
+                    <label className="block space-y-1.5">
+                      <span className="text-xs font-medium text-foreground">3D region control method</span>
+                      <select
+                        className={inputClass}
+                        value={regionMeshing}
+                        disabled={submitting || applyingSet}
+                        aria-describedby={`${exportDialogTitleId}-region-method-help`}
+                        onChange={event => {
+                          const value = event.target.value as RegionMeshingMode;
+                          editMeshSettings(() => ({ regionMeshing: value }));
+                        }}
+                      >
+                        <option value="grid">Grid (original)</option>
+                        <option value="adapter">Adaptive (experimental)</option>
+                      </select>
+                    </label>
+                    <p id={`${exportDialogTitleId}-region-method-help`} className="text-xs text-muted-foreground">
+                      Applies to all 3D_REGION controls, including controls added later.
+                      {regionMeshing === "adapter" && " Uses local refinement with transitions. Unsupported layouts report an export error without switching methods."}
+                    </p>
+                  </div>
 
                   <fieldset className="space-y-2" disabled={submitting || applyingSet}>
                     <legend className="text-xs font-medium text-foreground">Symmetry</legend>

@@ -4,7 +4,7 @@ from math import isclose
 from random import Random
 
 from process_flow_schematic import (
-    CONDUCTOR_FILL, MATRIX_FILL, Primitive, SchematicContext, SchematicPart,
+    CONDUCTOR_FILL, RDL_DIELECTRIC_FILL, Primitive, SchematicContext, SchematicPart,
     base_material, geometry_bounds, slab,
 )
 
@@ -99,27 +99,25 @@ def _routes(context):
 
 
 def present_schematic(context: SchematicContext) -> list[SchematicPart]:
-    return [slab("RDL · " + base_material(context.node.get("material", "Dielectric")), MATRIX_FILL)]
+    return [slab("RDL · " + base_material(context.node.get("material", "Dielectric")), RDL_DIELECTRIC_FILL)]
 
 
 def present_via(context: SchematicContext) -> list[SchematicPart]:
-    centers = _routes(context)[0].get(id(context.node)) or _via_centers(0)
     # Only vias occupying an RDL dielectric layer use the etched taper.
     # TMV and other component vias are illustrated as straight pillars.
     is_rdl = any(body.get("key") == "rdl"
                  and geometry_bounds(body.get("geometry", {})) == context.bounds
                  for body in context.container.get("bodies", ()))
     if not is_rdl:
-        primitives = tuple(
-            Primitive(kind="rect", x=x - _VIA_HALF_WIDTH, y=0,
-                      width=2 * _VIA_HALF_WIDTH, height=1,
-                      fill=CONDUCTOR_FILL, stroke="none")
-            for x in centers
-        )
+        # A straight pillar is one local motif. The kernel reserves its global
+        # positions against every member declared in this assembly's flow.
+        primitives = (Primitive(kind="rect", fill=CONDUCTOR_FILL, stroke="none"),)
         return [SchematicPart(label="Via · " + base_material(context.node.get("material", "Conductor")),
-                              fill=CONDUCTOR_FILL, primitives=primitives)]
+                              fill=CONDUCTOR_FILL, primitives=primitives,
+                              layout="distributed", distribution_count=_TRACK_COUNT)]
     # Local y=0 is the upper Z boundary. Etching narrows in the via's
     # direction; the kernel reverses that direction when the structure flips.
+    centers = _routes(context)[0].get(id(context.node)) or _via_centers(0)
     top, bottom = (0.008, 0.016) if context.node.get("direction") == "+z" else (0.016, 0.008)
     primitives = tuple(
         Primitive(kind="path", points=((x - top, 0), (x + top, 0),

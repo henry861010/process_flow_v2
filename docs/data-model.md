@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - developers
   - QA
-last_verified: 2026-10-25
-last_verified_commit: 7d49bf0b
+last_verified: 2026-11-05
+last_verified_commit: eeb83566
 source_of_truth:
   - apps/api/src/process_flow_api/models.py
   - packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py
@@ -171,7 +171,7 @@ FlowDraft 使用 schemaVersion 2：`id, user, name, revision, createdAt, updated
 
 ## 9. 更新與來源資訊
 
-更新保留原 id、origin，拓樸與 configuration 可修改。編輯器不提供複製或另存；第一次正式保存建立 revision 1 的 flow。既有 `origin` 歷史資訊保留；Origin 不設外鍵，也不追溯祖先鏈。
+更新保留原 id、origin，拓樸與 configuration 可修改。編輯器 Start from 可將既有 flow 的 definition 與 configuration 深複製為尚未儲存的新分支；第一次正式保存才建立新 id、revision 1，來源內容與 revision 不變。新分支的 `origin` 記錄直接來源的 flowId 與載入時 revision，草稿保存與恢復時保留此來源；不是繼承來源自身的 origin。Flow 內部識別碼保留，ProcessStepTemplate 與 geometry catalog 引用仍共用。Origin 不設外鍵，也不追溯祖先鏈；此操作不加入歷史還原或分支合併。
 
 ## 10. 版本與移除欄位
 

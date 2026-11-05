@@ -4,6 +4,7 @@ import type {
   MeshControlEntry,
   CoordinateMode,
   MeshControlPayload,
+  RegionMeshingMode,
   SymmetryMode,
 } from "./file-export-client";
 
@@ -135,6 +136,7 @@ export function buildMeshControlConfiguration(
   globalElementSize: string,
   symmetry: SymmetryMode,
   controls: MeshControlDraft[],
+  regionMeshing: RegionMeshingMode = "grid",
 ): MeshControlConfiguration {
   return {
     schemaVersion: "1.0.0",
@@ -142,6 +144,7 @@ export function buildMeshControlConfiguration(
     mesher: "process_flow_2_5d",
     globalElementSize: Number(globalElementSize),
     symmetry,
+    ...(regionMeshing === "adapter" ? { regionMeshing } : {}),
     controls: controls.map(buildMeshControlEntry),
   };
 }

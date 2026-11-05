@@ -15,7 +15,7 @@ from process_flow_steps.schematic_presenters import (
 
 # Bump the registry version when enabled presenters or their semantics change.
 # Geometry hashes intentionally remain independent of presentation versions.
-SCHEMATIC_REGISTRY_VERSION = 18
+SCHEMATIC_REGISTRY_VERSION = 24
 SCHEMATIC_PRESENTATION_VERSION = f"{SCHEMATIC_VERSION}:{SCHEMATIC_REGISTRY_VERSION}"
 
 

@@ -107,7 +107,7 @@ def _component_positions(document):
 
 
 def _carrier_span(document):
-    item_ids = {item["id"] for item in document["items"] if item["label"] == "carrier"}
+    item_ids = {item["id"] for item in document["items"] if item.get("diagramLabel") == "Carrier"}
     return [(shape["x"], shape["width"]) for shape in document["shapes"]
             if shape["itemId"] in item_ids and shape["kind"] == "rect"]
 

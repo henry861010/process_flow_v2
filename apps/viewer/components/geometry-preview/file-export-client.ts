@@ -19,6 +19,7 @@ export type MeshControlReference = {
 };
 
 export type CoordinateMode = "reference" | "absolute";
+export type RegionMeshingMode = "grid" | "adapter";
 export type ReferenceLocation<A extends "x" | "y" | "z"> = {
   anchor: `${A}_min` | `${A}_max`;
   offset: number;
@@ -58,6 +59,7 @@ export type MeshControlConfiguration = {
   mesher: "process_flow_2_5d";
   globalElementSize: number;
   symmetry: SymmetryMode;
+  regionMeshing?: RegionMeshingMode;
   controls: MeshControlEntry[];
 };
 

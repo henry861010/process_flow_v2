@@ -24,6 +24,10 @@ from .domain.features import Body, Bump, Circuit, Via
 from .domain.geometry import BoxGeometry, ConeGeometry, CylinderGeometry, Geometry, PolygonGeometry
 from .domain.process_geometry_state import ProcessGeometryState
 from .domain.region import Region, TYPE_DIE, TYPE_EMPTY, TYPE_TARGET
+from .domain.provenance import (
+    GeometryCreation, GeometryNodeProvenance, GeometryProvenance, GeometrySourceRef,
+    qualify_provenance,
+)
 from .domain.semantic_keys import (
     BODY_KEYS,
     CONTAINER_KEYS,
@@ -66,6 +70,10 @@ __all__ = [
     "GEOMETRY_SCHEMA_VERSION",
     "Geometry",
     "GeometryArtifact",
+    "GeometryCreation",
+    "GeometryNodeProvenance",
+    "GeometryProvenance",
+    "GeometrySourceRef",
     "GeometryCatalogResolver",
     "GeometryGeneratorResolver",
     "GeometryKernel",
@@ -92,6 +100,7 @@ __all__ = [
     "effective_adaptation_contract",
     "normalize_geometry_structure",
     "process_geometry_state_to_geometry_structure",
+    "qualify_provenance",
     "stable_id",
     "validate_flow_graph",
     "validate_body_key",

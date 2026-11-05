@@ -3,6 +3,7 @@ from __future__ import annotations
 from .features import Body, Bump, Circuit, Via
 from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
 from .semantic_keys import validate_container_key
+from .provenance import copy_node_provenance
 from ..serialization.schema import DEFAULT_UNIT_SYSTEM, GEOMETRY_SCHEMA_VERSION, normalize_geometry_structure
 
 
@@ -134,7 +135,7 @@ class Container:
             copied.add_bump(bump.copy())
         for child in self._children:
             copied.attach_child(child.copy())
-        return copied
+        return copy_node_provenance(self, copied)
 
     def clear_structure_ids(self):
         self._structure_id = None

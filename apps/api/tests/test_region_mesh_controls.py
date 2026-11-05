@@ -72,6 +72,29 @@ class RegionApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json()["job"]["meshControl"], config)
 
+    def test_both_export_endpoints_preserve_optional_region_meshing(self):
+        self.app.state.file_export_jobs.max_concurrent_jobs = 0
+        for endpoint in ("/api/geometry-preview/cdb-jobs", "/api/geometry-preview/export-jobs"):
+            for mode in (None, "grid", "adapter"):
+                config = configuration()
+                if mode is not None:
+                    config["regionMeshing"] = mode
+                with self.subTest(endpoint=endpoint, mode=mode):
+                    response = self.export(endpoint, config, f"{mode}-{endpoint.rsplit('/', 1)[-1]}")
+                    self.assertEqual(response.status_code, 200, response.text)
+                    job = response.json()["job"]
+                    self.assertEqual(job["meshControl"], config)
+
+    def test_both_export_endpoints_reject_invalid_region_meshing(self):
+        self.app.state.file_export_jobs.max_concurrent_jobs = 0
+        for endpoint in ("/api/geometry-preview/cdb-jobs", "/api/geometry-preview/export-jobs"):
+            for mode in ("adaptive", "Grid", None, True, 1, [], {}):
+                config = {**configuration(), "regionMeshing": mode}
+                with self.subTest(endpoint=endpoint, mode=mode):
+                    response = self.export(endpoint, config)
+                    self.assertEqual(response.status_code, 422, response.text)
+                    self.assertIn("meshControl.regionMeshing", response.json()["detail"])
+
     def test_both_export_endpoints_reject_invalid_regions_and_unknown_methods(self):
         self.app.state.file_export_jobs.max_concurrent_jobs = 0
         for endpoint in ("/api/geometry-preview/cdb-jobs", "/api/geometry-preview/export-jobs"):
@@ -101,7 +124,15 @@ class RegionApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
 
     def test_full_json_written_before_worker_and_retained_after_failure(self):
+        for endpoint in ("/api/geometry-preview/cdb-jobs", "/api/geometry-preview/export-jobs"):
+            for mode in (None, "grid", "adapter"):
+                with self.subTest(endpoint=endpoint, mode=mode):
+                    self.assert_failed_export_preserves_input(endpoint, mode)
+
+    def assert_failed_export_preserves_input(self, endpoint, mode):
         config = configuration()
+        if mode is not None:
+            config["regionMeshing"] = mode
         output = Path(self.tmp.name) / "failed.cdb"
         observed = []
 
@@ -115,7 +146,7 @@ class RegionApiTests(unittest.TestCase):
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
 
         with patch("process_flow_api.file_export_jobs.start_cdb_worker", new=failing_worker):
-            response = self.export("/api/geometry-preview/export-jobs", config, "failed")
+            response = self.export(endpoint, config, "failed")
             self.assertEqual(response.status_code, 200, response.text)
             job = response.json()["job"]
             deadline = time.monotonic() + 10

@@ -50,12 +50,14 @@ class SchematicItem(TypedDict):
     zMax: float
     thickness: float
     densityValues: NotRequired[list[float | None]]
+    diagramLabel: NotRequired[str]
 
 
 class SchematicComponent(SchematicRectangle):
     id: str
     label: str
     sourceIds: list[str]
+    diagramLabel: NotRequired[str]
 
 
 class SchematicDocument(TypedDict):
@@ -113,6 +115,9 @@ class ComponentHint:
     label: str
     representative_count: int = 1
     placement: str = "center"
+    # Producers declare semantics; the kernel resolves the representation policy.
+    role: str = ""
+    diagram_label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +133,18 @@ class SchematicSlot:
     group_key: str
     x: float
     width: float
+    region_id: str = ""
+
+
+@dataclass(frozen=True)
+class SchematicFeatureSlot:
+    object_id: str
+    region_id: str
+    centers: tuple[float, ...]
+    width: float
+
+    def __post_init__(self):
+        object.__setattr__(self, "centers", tuple(self.centers))
 
 
 @dataclass(frozen=True)
@@ -139,10 +156,12 @@ class SchematicLayoutPlan:
     support_width: float | None = None
     fingerprint: str = ""
     notes: tuple[str, ...] = ()
+    features: tuple[SchematicFeatureSlot, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "slots", tuple(self.slots))
         object.__setattr__(self, "notes", tuple(self.notes))
+        object.__setattr__(self, "features", tuple(self.features))
 
 
 @dataclass(frozen=True)
@@ -173,6 +192,13 @@ class SchematicPart:
     display_bounds: Bounds | None = None
     # Local to one emitting node: members share horizontal repetition metrics.
     repeat_group: str | None = None
+    # A local motif request; horizontal positions are planned by the kernel.
+    distribution_count: int = 9
+    diagram_label: str | None = None
+    # Each group describes one physically connected region, using current
+    # container IDs. Distinct groups must never create bridges between them.
+    # A singleton/empty group retains a relation without inventing an endpoint.
+    bridge_groups: tuple[tuple[str, ...], ...] = ()
 
 
 Presenter = Callable[[SchematicContext], list[SchematicPart]]

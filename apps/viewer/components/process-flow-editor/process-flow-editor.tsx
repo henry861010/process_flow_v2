@@ -31,8 +31,6 @@ import { CategoryLibraryBrowser } from "@/components/category-library/category-l
 import { GeometryGeneratorDialogLauncher } from "@/components/geometry-generator/geometry-generator-registry";
 import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
 import {
-  canEditGeneratorBinding,
-  generatorsForFlowInput,
   generatorsForPlacement,
 } from "@/components/geometry-generator/geometry-generator-placements";
 import { useGeneratorBindingGeometries } from "@/components/geometry-generator/use-generator-binding-geometries";
@@ -41,11 +39,7 @@ import {
   GeometryPreviewPanel,
   type GeometryPreviewContext,
 } from "@/components/geometry-preview/geometry-preview-panel";
-import {
-  FlowInputAdvancedDisclosure,
-  FlowInputAdvancedReadOnly,
-  FlowInputBindingControl,
-} from "@/components/process-flow-fields/flow-input-controls";
+import { GeometryInputEditorDialog, type GeometryInputEdit } from "./geometry-input-editor-dialog";
 import {
   GeometryCardDetails,
   geometrySearchText,
@@ -80,12 +74,10 @@ import {
   getStepConfigurationReadiness,
   geometryCategoryConstraints,
   geometryForFlowInput,
-  geometryMatchesFlowInput,
   isConfigurationComplete,
   type ConfigurationReadiness,
 } from "@/lib/process-flow/configuration";
 import {
-  geometryInputDisplayName,
   geometryInputNodePresentation,
   geometryInputStatusLabel,
   stepReadinessStatusLabel,
@@ -96,6 +88,8 @@ import { createStepConfiguration, createRecipe, removeRecipe } from "@/lib/proce
 
 
 import { flowConfigurationIssues, flowAuthoringIssues } from "@/lib/process-flow/flow-editor-save";
+import { createFlowBranch } from "@/lib/process-flow/flow-editor-source";
+import { libraryInsertionPosition } from "@/lib/process-flow/library-insertion";
 import type {
   FlowConfiguration,
   FlowDraftState,
@@ -109,7 +103,7 @@ import type {
 } from "@/lib/process-flow/types";
 import { clone, normalizeStepLabel } from "@/lib/process-flow/utils";
 import { disabledStepsForNewFlow, isTemplateEnabled } from "@/lib/process-flow/template-availability";
-import { createProcessFlow, updateProcessFlow, getGeometryGeneratorVersion, loadBootstrap } from "@/lib/process-flow-api";
+import { createProcessFlow, updateProcessFlow, loadBootstrap } from "@/lib/process-flow-api";
 import { cn } from "@/lib/utils";
 
 const STEP_TEMPLATE_DRAG_TYPE = "application/process-step-template-v2";
@@ -119,11 +113,10 @@ const inputClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 const selectClass =
   "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-const textareaClass =
-  "min-h-[72px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted";
 
 type FlowMetadata = FlowSaveInformation;
 type FlowSaveMode = "save";
+type FlowLoadMode = "edit" | "start-from";
 
 type FlowInputNodeData = ProcessFlowGraphNodeData & {
   nodeKind: "flowInput";
@@ -140,13 +133,6 @@ type FlowInputNode = Node<FlowInputNodeData, "flowInput">;
 type StepNode = Node<StepNodeData, "processStep">;
 type FlowNode = FlowInputNode | StepNode;
 type FlowEdge = Edge<ProcessFlowGraphEdgeData, "dataFlow">;
-
-type EditableFlowInputPatch = Partial<
-  Pick<
-    FlowInputDefinition,
-    "name" | "description" | "required" | "geometryConstraints"
-  >
->;
 
 type FlowAnalysis = {
   error: string | null;
@@ -172,17 +158,14 @@ function ProcessFlowEditorInner() {
   const flowGds = useFlowGdsFile();
   const router = useRouter();
   const reactFlow = useReactFlow<FlowNode, FlowEdge>();
+  const graphContainer = React.useRef<HTMLElement>(null);
   const [hydrated, setHydrated] = React.useState(false);
   const [stepTemplates, setStepTemplates] = React.useState<ProcessStepTemplate[]>([]);
   const [flows, setFlows] = React.useState<ProcessFlow[]>([]);
   const [geometries, setGeometries] = React.useState<GeometryEntity[]>([]);
   const [generatorDefinitions, setGeneratorDefinitions] = React.useState<GeometryGeneratorDefinition[]>([]);
   const templateLibraryGenerators = generatorsForPlacement(generatorDefinitions, "templateGeometryLibrary");
-  const [generatorEditor, setGeneratorEditor] = React.useState<{
-    targetNodeId: string | null;
-    definition: GeometryGeneratorDefinition;
-    initialParameters?: Record<string, unknown>;
-  } | null>(null);
+  const [generatorEditor, setGeneratorEditor] = React.useState<GeometryGeneratorDefinition | null>(null);
   const [metadata, setMetadata] = React.useState<FlowMetadata>(newMetadata());
   const [target, setTarget] = React.useState<FlowOrigin | undefined>();
   const [origin, setOrigin] = React.useState<FlowOrigin | undefined>();
@@ -193,7 +176,6 @@ function ProcessFlowEditorInner() {
   const [edges, setEdges] = React.useState<FlowEdge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
-  const [pickerNodeId, setPickerNodeId] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<GeometryPreviewContext | null>(null);
   const [savedFlow, setSavedFlow] = React.useState<ProcessFlow | null>(null);
   const [busyAction, setBusyAction] = React.useState<FlowSaveMode | null>(null);
@@ -242,7 +224,8 @@ function ProcessFlowEditorInner() {
 
   const [draftViewport, setDraftViewport] = React.useState({ x: 0, y: 0, zoom: 1 });
   const [graphInteractionKey, setGraphInteractionKey] = React.useState(0);
-  const cleanLoadedFlow = React.useRef(false);
+  const flowLoadVersion = React.useRef(0);
+  const loadedFlowLayout = React.useRef<{ version: number; mode: FlowLoadMode } | null>(null);
   const editorDraftState = React.useMemo<FlowDraftState>(() => ({
     metadata, configuration, editingRecipeIds,
     nodes: nodes.map((node) => isFlowInputNode(node)
@@ -271,10 +254,12 @@ function ProcessFlowEditorInner() {
               stepTemplate: stepTemplates.find((step) => step.id === node.stepRef.processStepTemplateId)! } });
       const restoredEdges = state.edges.map<FlowEdge>((edge) => ({ ...edge, type: "dataFlow",
         markerEnd: { type: MarkerType.ArrowClosed }, data: emptyEdgeData() }));
+      flowLoadVersion.current++;
+      loadedFlowLayout.current = null;
       flowGds?.clearFile();
       setMetadata(state.metadata);
       setTarget(undefined); setOrigin(draft.origin); setEditingRecipeIds(state.editingRecipeIds ?? {});
-      setSaveDialogMode(null); setSaveDialogError(null);
+      setSaveDialogMode(null); setSaveDialogError(null); setConflict(false);
       setRequirementsOpen(false); setLegacyCopyNotice(false);
       setConfiguration(state.configuration);
       setNodes(restoredNodes);
@@ -282,7 +267,7 @@ function ProcessFlowEditorInner() {
       setEdges(restoredEdges);
       setDraftViewport(state.viewport);
       setSavedFlow(null);
-      setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null);
+      setSelectedNodeId(null); setEditingNodeId(null);
       setGeneratorEditor(null); setPreview(null); setMessage(null);
       requestAnimationFrame(() => { void reactFlow.setViewport(state.viewport); });
       window.history.replaceState(null, "", `/flow-editor?draftId=${encodeURIComponent(draft.id)}`);
@@ -291,12 +276,16 @@ function ProcessFlowEditorInner() {
   });
   const markDraftClean = drafts.markClean;
   React.useEffect(() => {
-    if (!cleanLoadedFlow.current) return;
-    cleanLoadedFlow.current = false;
+    const loaded = loadedFlowLayout.current;
+    if (!loaded) return;
+    loadedFlowLayout.current = null;
     const loadedState = editorDraftState;
     requestAnimationFrame(() => {
+      if (loaded.version !== flowLoadVersion.current) return;
       void reactFlow.fitView({ padding: 0.18, duration: 0 }).then(() => {
-        markDraftClean({ ...loadedState, viewport: reactFlow.getViewport() });
+        if (loaded.mode === "edit" && loaded.version === flowLoadVersion.current) {
+          markDraftClean({ ...loadedState, viewport: reactFlow.getViewport() });
+        }
       });
     });
   }, [editorDraftState, markDraftClean, reactFlow]);
@@ -337,7 +326,6 @@ function ProcessFlowEditorInner() {
           ),
         )
       : null;
-  const pickerNode = nodes.find((node): node is FlowInputNode => node.id === pickerNodeId && isFlowInputNode(node)) ?? null;
 
   const dependencies = analyzeFlowDependencies(draftDefinition, stepTemplates, configuration);
 
@@ -377,7 +365,7 @@ function ProcessFlowEditorInner() {
                 ? geometryInputStatusLabel(readiness, binding?.kind)
                 : "Unused",
               pickId: node.id,
-              onPick: setPickerNodeId,
+              onPick: setEditingNodeId,
               onDelete: topologyLocked ? undefined : deleteNode,
             },
           };
@@ -500,7 +488,7 @@ function ProcessFlowEditorInner() {
 
   function openSaveDialog() {
     if (savingRef.current) return;
-    setEditingNodeId(null); setPickerNodeId(null); setGeneratorEditor(null); setPreview(null);
+    setEditingNodeId(null); setGeneratorEditor(null); setPreview(null);
     setSaveDialogError(null);
     setMessage(null);
     setSaveDialogMode("save");
@@ -512,28 +500,32 @@ function ProcessFlowEditorInner() {
     setSaveDialogError(null);
   }
 
-  function applyFlow(flow: ProcessFlow, oldCopyLink = false) {
+  function applyFlow(flow: ProcessFlow, mode: FlowLoadMode, oldCopyLink = false) {
     const missing = flow.definition.stepRefs.filter((ref) => !stepTemplates.some((step) => step.id === ref.processStepTemplateId));
     if (missing.length) throw new Error(`Missing step templates: ${missing.map((ref) => ref.processStepTemplateId).join(", ")}`);
-    const graph = graphFromDefinition(flow.definition, stepTemplates);
-    cleanLoadedFlow.current = true;
+    const content = mode === "start-from" ? createFlowBranch(flow, flows) : flow;
+    const graph = graphFromDefinition(content.definition, stepTemplates);
+    loadedFlowLayout.current = { version: ++flowLoadVersion.current, mode };
     flowGds?.clearFile(); drafts.detach();
-    setMetadata({ name: flow.name, version: flow.version, owner: flow.owner, description: flow.description });
-    setConfiguration(structuredClone(flow.configuration)); setEditingRecipeIds({});
-    setTarget({ flowId: flow.id, revision: flow.revision });
-    setOrigin(flow.origin);
-    setSavedFlow(flow);
+    if (mode === "start-from") drafts.markDirty();
+    setMetadata({ name: content.name, version: content.version, owner: content.owner, description: content.description });
+    setConfiguration(structuredClone(content.configuration)); setEditingRecipeIds({});
+    setTarget(mode === "edit" ? { flowId: flow.id, revision: flow.revision } : undefined);
+    setOrigin(content.origin);
+    setSavedFlow(mode === "edit" ? flow : null);
     setNodes(graph.nodes); setEdges(graph.edges); setGraphInteractionKey((key) => key + 1);
-    setSelectedNodeId(null); setEditingNodeId(null); setPickerNodeId(null); setGeneratorEditor(null); setPreview(null);
-    setSaveDialogMode(null); setSaveDialogError(null); setConflict(false); setMessage(null);
-    setLegacyCopyNotice(oldCopyLink);
-    window.history.replaceState(null, "", `/flow-editor?flowId=${encodeURIComponent(flow.id)}`);
+    setSelectedNodeId(null); setEditingNodeId(null); setGeneratorEditor(null); setPreview(null);
+    setSaveDialogMode(null); setSaveDialogError(null); setConflict(false); setMessage(null); setRequirementsOpen(false);
+    setLegacyCopyNotice(mode === "edit" && oldCopyLink);
+    window.history.replaceState(null, "", mode === "edit"
+      ? `/flow-editor?flowId=${encodeURIComponent(flow.id)}` : "/flow-editor");
   }
-  async function loadFlowSource(flowId: string, oldCopyLink = false) {
+  async function loadFlowSource(flowId: string, mode: FlowLoadMode, oldCopyLink = false) {
     if (savingRef.current || drafts.busy) return false;
     const flow = await getProcessFlow(flowId);
-    if (!await drafts.confirmReplaceAsync(`Open flow "${flow.name}"?`)) return false;
-    applyFlow(flow, oldCopyLink);
+    const destination = mode === "edit" ? `Open flow "${flow.name}"?` : `Start a new flow from "${flow.name}"?`;
+    if (!await drafts.confirmReplaceAsync(destination)) return false;
+    applyFlow(flow, mode, oldCopyLink);
     return true;
   }
   const entryLoaded = React.useRef(false);
@@ -545,7 +537,7 @@ function ProcessFlowEditorInner() {
     entryLoaded.current = true;
     const params = new URLSearchParams(window.location.search);
     const flowId = params.get("flowId"); const draftId = params.get("draftId");
-    if (flowId) void entryActions.current.loadFlowSource(flowId, params.get("copy") === "1").catch((error) => setMessage({ kind: "error", text: String(error) }));
+    if (flowId) void entryActions.current.loadFlowSource(flowId, "edit", params.get("copy") === "1").catch((error) => setMessage({ kind: "error", text: String(error) }));
     else if (draftId) void entryActions.current.loadDraft({ id: draftId }).then((loaded) => {
       if (!loaded) setUnavailableDraft(true);
     });
@@ -574,13 +566,25 @@ function ProcessFlowEditorInner() {
     );
   }
 
+  function libraryPosition(nodeType: "flowInput" | "processStep") {
+    const bounds = graphContainer.current?.getBoundingClientRect();
+    // Library controls are usable after the graph mounts. Keep a safe fallback
+    // for a temporarily unmounted surface without using window/sidebar bounds.
+    if (!bounds) return { x: 0, y: 0 };
+    const topLeft = reactFlow.screenToFlowPosition({ x: bounds.left, y: bounds.top }, { snapToGrid: false });
+    const bottomRight = reactFlow.screenToFlowPosition({ x: bounds.right, y: bounds.bottom }, { snapToGrid: false });
+    return libraryInsertionPosition({
+      ...topLeft, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y,
+    }, nodeType, nodes);
+  }
+
   function addFlowInput(
-    position: { x: number; y: number },
     source: {
       geometry: { id: string; category?: string | null; entityType?: string };
       binding: GeometryBinding;
       suggestedName?: string;
     },
+    position?: { x: number; y: number },
   ) {
     if (topologyLocked || savingRef.current) return;
     const geometryConstraints = geometryCategoryConstraints(source.geometry);
@@ -599,7 +603,7 @@ function ProcessFlowEditorInner() {
     const node: FlowInputNode = {
       id: internalId("flow-input"),
       type: "flowInput",
-      position,
+      position: position ?? libraryPosition("flowInput"),
       data: {
         nodeKind: "flowInput",
         definition: {
@@ -629,7 +633,7 @@ function ProcessFlowEditorInner() {
 
   function addStepTemplate(
     template: ProcessStepTemplate,
-    position = defaultDropPosition(nodes),
+    position?: { x: number; y: number },
   ) {
     if (topologyLocked || savingRef.current || !isTemplateEnabled(template)) return;
     const usedIds = new Set(nodes.filter(isStepNode).map((node) => node.data.stepRef.stepRefId));
@@ -637,7 +641,7 @@ function ProcessFlowEditorInner() {
     const node: StepNode = {
       id: internalId("step"),
       type: "processStep",
-      position,
+      position: position ?? libraryPosition("processStep"),
       data: {
         nodeKind: "processStep",
         stepRef: {
@@ -786,10 +790,10 @@ function ProcessFlowEditorInner() {
     const geometryId = event.dataTransfer.getData(GEOMETRY_DRAG_TYPE);
     if (geometryId) {
       const geometry = geometries.find((item) => item.id === geometryId);
-      if (geometry) addFlowInput(position, {
+      if (geometry) addFlowInput({
         geometry,
         binding: { kind: "catalog", geometryId: geometry.id },
-      });
+      }, position);
     }
   }
 
@@ -799,21 +803,14 @@ function ProcessFlowEditorInner() {
     event.dataTransfer.dropEffect = "copy";
   }
 
-  function updateFlowInput(node: FlowInputNode, patch: EditableFlowInputPatch) {
-    if (topologyLocked || savingRef.current) return;
-    setNodes((current) =>
-      current.map((item) =>
-        item.id === node.id && isFlowInputNode(item)
-          ? {
-              ...item,
-              data: {
-                ...item.data,
-                definition: { ...item.data.definition, ...patch },
-              },
-            }
-          : item,
-      ),
-    );
+  function applyInputEdit(node: FlowInputNode, edit: GeometryInputEdit) {
+    if (savingRef.current || !nodes.some((item) => item.id === node.id)) return;
+    setNodes((current) => current.map((item) => item.id === node.id && isFlowInputNode(item)
+      ? { ...item, data: { ...item.data, definition: structuredClone(edit.definition) } } : item));
+    setConfiguration((current) => ({ ...current, inputBindings: { ...current.inputBindings,
+      [node.data.definition.flowInputId]: structuredClone(edit.binding) } }));
+    setEditingNodeId(null);
+    setMessage(null);
   }
 
   function updateStepLabel(node: StepNode, stepLabel: string) {
@@ -833,72 +830,27 @@ function ProcessFlowEditorInner() {
     );
   }
 
-  function setInputGeometry(node: FlowInputNode, geometryId: string) {
-    if (savingRef.current) return;
-    const flowInputId = node.data.definition.flowInputId;
-    setConfiguration((current) => {
-      return {
-        ...current,
-        inputBindings: {
-          ...current.inputBindings,
-          [flowInputId]: { kind: "catalog", geometryId },
-        },
-      };
-    });
-    setPickerNodeId(null);
-    setMessage(null);
-  }
-
-  function setInputGenerator(node: FlowInputNode, binding: GeometryBinding) {
-    if (savingRef.current) return;
-    setConfiguration((current) => ({
-      ...current,
-      inputBindings: {
-        ...current.inputBindings,
-        [node.data.definition.flowInputId]: binding,
-      },
-    }));
-    setGeneratorEditor(null);
-    setMessage(null);
-  }
-
-  async function editCurrentGenerator(node: FlowInputNode) {
-    if (savingRef.current) return;
-    const binding = configuration.inputBindings[node.data.definition.flowInputId];
-    if (binding?.kind !== "generator") return;
-    try {
-      const definition = await getGeometryGeneratorVersion(
-        binding.generatorId, binding.generatorVersion,
-      );
-      if (savingRef.current) return;
-      setPickerNodeId(null);
-      setGeneratorEditor({ targetNodeId: node.id, definition, initialParameters: binding.parameters });
-    } catch (error) {
-      setMessage({ kind: "error", text: error instanceof Error ? error.message : "Generator version unavailable." });
-    }
-  }
-
   function changeStepConfiguration(stepRefId: string, value: StepConfiguration) {
     if (savingRef.current) return;
     setConfiguration((current) => ({ ...current, stepConfigurations: { ...current.stepConfigurations, [stepRefId]: value } }));
   }
 
-  function openFlowInputPreview(node: FlowInputNode) {
-    const geometry = geometryForFlowInput(
-      configuration,
-      node.data.definition.flowInputId,
-      resolvedGeometries,
-    );
-    if (!geometry) return;
+  function openFlowInputPreview(node: FlowInputNode, edit: GeometryInputEdit) {
+    const flowInputId = node.data.definition.flowInputId;
     setPreview({
-      previewId: `flow-input:${node.data.definition.flowInputId}`,
-      sourceLabel: node.data.definition.name,
+      previewId: `flow-input:${flowInputId}`,
+      sourceLabel: edit.definition.name,
       slotLabel: "Input",
       sourceKind: "flowInput",
       request: {
-        target: { type: "flowInput", flowInputId: node.data.definition.flowInputId },
-        sourceLabel: node.data.definition.name,
-        flow: { definition: draftDefinition, configuration },
+        target: { type: "flowInput", flowInputId },
+        sourceLabel: edit.definition.name,
+        flow: {
+          definition: { ...draftDefinition, flowInputs: draftDefinition.flowInputs.map((input) =>
+            input.flowInputId === flowInputId ? structuredClone(edit.definition) : input) },
+          configuration: { ...configuration, inputBindings: { ...configuration.inputBindings,
+            [flowInputId]: structuredClone(edit.binding) } },
+        },
         analyticsContext: { sourceKind: "inline_draft", ...(target ? { flowId: target.flowId, flowRevision: target.revision } : {}) },
       },
     });
@@ -944,7 +896,10 @@ function ProcessFlowEditorInner() {
       window.history.replaceState(null, "", `/flow-editor?flowId=${encodeURIComponent(saved.id)}`);
     } catch (error) {
       setConflict(Boolean(target) && error instanceof ApiRequestError && error.status === 409);
-      setSaveDialogError(error instanceof Error ? error.message : "Unable to save flow.");
+      const duplicateName = !target && error instanceof ApiRequestError && error.status === 409
+        && error.message.includes("name and version already exists");
+      setSaveDialogError(error instanceof Error
+        ? `${error.message}${duplicateName ? " Change the name or version and try again." : ""}` : "Unable to save flow.");
     } finally { savingRef.current = false; setBusyAction(null); }
   }
 
@@ -987,7 +942,7 @@ function ProcessFlowEditorInner() {
         issueKind={blockingIssues.length ? "Flow" : "Configuration"}
         expanded={requirementsOpen}
         onToggle={() => setRequirementsOpen(!requirementsOpen)} />
-      {legacyCopyNotice ? <div role="status" className="shrink-0 border-b bg-amber-50 px-5 py-2 text-sm text-amber-900">Copy flow is no longer available. You are editing the original flow.</div> : null}
+      {legacyCopyNotice ? <div role="status" className="shrink-0 border-b bg-amber-50 px-5 py-2 text-sm text-amber-900">This legacy link opens the original flow for editing. Use Start from… to create a new flow.</div> : null}
       {message || (drafts.error && !sourceOpen) ? <div role={message?.kind === "success" ? "status" : "alert"}
         className={cn("shrink-0 border-b px-5 py-2 text-sm", message?.kind === "success" ? "bg-emerald-50 text-emerald-800" : "bg-destructive/5 text-destructive")}>
         {message?.text ?? drafts.error}
@@ -1009,7 +964,7 @@ function ProcessFlowEditorInner() {
                   variant="outline"
                   className="w-full justify-start"
                   disabled={editingLocked}
-                  onClick={() => setGeneratorEditor({ targetNodeId: null, definition })}
+                  onClick={() => setGeneratorEditor(definition)}
                 >
                   {definition.label}
                 </Button>
@@ -1032,6 +987,10 @@ function ProcessFlowEditorInner() {
                   geometry={geometry}
                   showCategoryPath={showCategoryPath}
                   disabled={editingLocked}
+                  onAdd={() => addFlowInput({
+                    geometry,
+                    binding: { kind: "catalog", geometryId: geometry.id },
+                  })}
                 />
               )}
               onPathChange={setGeometryCategoryPath}
@@ -1041,12 +1000,12 @@ function ProcessFlowEditorInner() {
         </aside>
 
         <ProcessFlowGraph
+          containerRef={graphContainer}
           mode={editingLocked ? "view" : "edit"}
           interactionKey={`${graphInteractionKey}:${drafts.saving}`}
           nodes={displayNodes}
           edges={displayEdges}
           className="min-h-[560px] lg:min-h-0"
-          fitView
           edgesReconnectable
           reconnectRadius={12}
           topRightOverlay={
@@ -1129,7 +1088,7 @@ function ProcessFlowEditorInner() {
       </section>
 
       {sourceOpen ? <FlowSourceDialog flows={flows} drafts={drafts}
-        onUseFlow={loadFlowSource} onClose={() => setSourceOpen(false)} /> : null}
+        onUseFlow={(id) => loadFlowSource(id, "start-from")} onClose={() => setSourceOpen(false)} /> : null}
       {drafts.dialogs}
       {saveDialogMode ? (
         <SaveInformationDialog
@@ -1138,7 +1097,7 @@ function ProcessFlowEditorInner() {
           metadata={metadata}
           hasTarget={Boolean(target)}
           conflict={conflict}
-          onReload={() => { if (target) void loadFlowSource(target.flowId).catch((error) => setSaveDialogError(String(error))); }}
+          onReload={() => { if (target) void loadFlowSource(target.flowId, "edit").catch((error) => setSaveDialogError(String(error))); }}
           error={saveDialogError}
           submitting={busyAction !== null}
           onChange={updateMetadata}
@@ -1147,74 +1106,36 @@ function ProcessFlowEditorInner() {
         />
       ) : null}
 
-      {editingNode ? (
-        <NodeEditorDialog
-          key={editingNode.id}
-          node={editingNode}
-          topologyLocked={topologyLocked}
-          configuration={configuration}
-          geometries={resolvedGeometries}
-          generatorError={isFlowInputNode(editingNode) ? generated.errors[editingNode.data.definition.flowInputId] : undefined}
-          edges={edges}
-          onClose={() => setEditingNodeId(null)}
-          onFlowInputChange={(patch) =>
-            isFlowInputNode(editingNode) && updateFlowInput(editingNode, patch)
-          }
-          onStepLabelChange={(label) =>
-            isStepNode(editingNode) && updateStepLabel(editingNode, label)
-          }
-          onStepConfigurationChange={(value) => { if (isStepNode(editingNode)) changeStepConfiguration(editingNode.data.stepRef.stepRefId, value); }}
-          onPickGeometry={() =>
-            isFlowInputNode(editingNode) && setPickerNodeId(editingNode.id)
-          }
-          onPreviewFlowInput={() =>
-            isFlowInputNode(editingNode) && openFlowInputPreview(editingNode)
-          }
+      {editingNode && isFlowInputNode(editingNode) ? (
+        <GeometryInputEditorDialog key={editingNode.id} flowInput={editingNode.data.definition}
+          initialBinding={configuration.inputBindings[editingNode.data.definition.flowInputId]}
+          geometries={geometries} generatorDefinitions={generatorDefinitions}
+          outgoingCount={edges.filter((edge) => edge.source === editingNode.id).length}
+          onApply={(edit) => applyInputEdit(editingNode, edit)}
+          onPreview={(edit) => openFlowInputPreview(editingNode, edit)}
+          onDelete={() => deleteNode(editingNode.id)} onClose={() => setEditingNodeId(null)} />
+      ) : editingNode && isStepNode(editingNode) ? (
+        <NodeEditorDialog key={editingNode.id} node={editingNode} topologyLocked={topologyLocked}
+          configuration={configuration} onClose={() => setEditingNodeId(null)}
+          onStepLabelChange={(label) => updateStepLabel(editingNode, label)}
+          onStepConfigurationChange={(value) => changeStepConfiguration(editingNode.data.stepRef.stepRefId, value)}
           stepPreviewAvailability={editingStepPreviewAvailability}
-          onPreviewStep={() =>
-            isStepNode(editingNode) && openStepPreview(editingNode)
-          }
-          onDelete={() => deleteNode(editingNode.id)}
-        />
-      ) : null}
-
-      {pickerNode ? (
-        <GeometryPickerDialog
-          flowInput={pickerNode.data.definition}
-          selectedBinding={configuration.inputBindings[pickerNode.data.definition.flowInputId]}
-          geometries={geometries}
-          generatorDefinitions={generatorDefinitions}
-          onClose={() => setPickerNodeId(null)}
-          onSelect={(geometryId) => setInputGeometry(pickerNode, geometryId)}
-          onSelectGenerator={(definition) => {
-            setPickerNodeId(null);
-            setGeneratorEditor({ targetNodeId: pickerNode.id, definition });
-          }}
-          onEditCurrentGenerator={() => void editCurrentGenerator(pickerNode)}
-        />
+          onPreviewStep={() => openStepPreview(editingNode)} onDelete={() => deleteNode(editingNode.id)} />
       ) : null}
 
       {generatorEditor ? (
         <GeometryGeneratorDialogLauncher
-          definition={generatorEditor.definition}
-          initialParameters={generatorEditor.initialParameters}
+          definition={generatorEditor}
           onClose={() => setGeneratorEditor(null)}
           onDefine={(result) => {
-            if (generatorEditor.targetNodeId === null) {
-              addFlowInput(defaultDropPosition(nodes), {
-                geometry: {
-                  id: `generator:${result.binding.generatorId}`,
-                  category: result.geometry.category ?? "",
-                },
-                binding: result.binding,
-                suggestedName: result.suggestedFlowInputName,
-              });
-            } else {
-              const node = nodes.find((item): item is FlowInputNode =>
-                item.id === generatorEditor.targetNodeId && isFlowInputNode(item),
-              );
-              if (node) setInputGenerator(node, result.binding);
-            }
+            addFlowInput({
+              geometry: {
+                id: `generator:${result.binding.generatorId}`,
+                category: result.geometry.category ?? "",
+              },
+              binding: result.binding,
+              suggestedName: result.suggestedFlowInputName,
+            });
             setGeneratorEditor(null);
           }}
         />
@@ -1250,22 +1171,31 @@ function GeometryPaletteItem({
   geometry,
   showCategoryPath = false,
   disabled,
+  onAdd,
 }: {
   geometry: GeometryEntity;
   showCategoryPath?: boolean;
   disabled: boolean;
+  onAdd: () => void;
 }) {
+  const dragged = React.useRef(false);
   return (
-    <div
+    <button
+      type="button"
       draggable={!disabled}
-      aria-disabled={disabled}
+      disabled={disabled}
+      onPointerDown={() => { dragged.current = false; }}
       onDragStart={(event) => {
         if (disabled) return;
+        dragged.current = true;
         event.dataTransfer.setData(GEOMETRY_DRAG_TYPE, geometry.id);
         event.dataTransfer.effectAllowed = "copy";
       }}
+      onClick={(event) => {
+        if (!disabled && (!dragged.current || event.detail === 0)) onAdd();
+      }}
       className={cn(
-        "rounded-md border bg-white p-3 text-sm shadow-sm transition",
+        "w-full rounded-md border bg-white p-3 text-left text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         disabled
           ? "cursor-not-allowed opacity-50"
           : "cursor-grab hover:border-primary/60 hover:bg-muted/20 active:cursor-grabbing",
@@ -1278,7 +1208,7 @@ function GeometryPaletteItem({
           categoryPath={showCategoryPath ? formatCategoryPath(geometry.category) : null}
         />
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -1293,6 +1223,7 @@ function StepTemplatePaletteItem({
   disabled: boolean;
   onAdd: () => void;
 }) {
+  const dragged = React.useRef(false);
   return (
     <StepTemplateHoverPreview template={template} disabled={disabled}>
       {({ triggerProps, closePreview }) => (
@@ -1301,15 +1232,17 @@ function StepTemplatePaletteItem({
           {...triggerProps}
           draggable={!disabled}
           disabled={disabled}
+          onPointerDown={() => { dragged.current = false; }}
           onDragStart={(event) => {
             closePreview();
             if (disabled) return;
+            dragged.current = true;
             event.dataTransfer.setData(STEP_TEMPLATE_DRAG_TYPE, template.id);
             event.dataTransfer.effectAllowed = "copy";
           }}
-          onClick={() => {
+          onClick={(event) => {
             closePreview();
-            if (!disabled) onAdd();
+            if (!disabled && (!dragged.current || event.detail === 0)) onAdd();
           }}
           className="w-full rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary/60 hover:bg-muted/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -1332,226 +1265,42 @@ function StepTemplatePaletteItem({
   );
 }
 
-function NodeEditorDialog({
-  node,
-  topologyLocked,
-  configuration,
-  geometries,
-  generatorError,
-  edges,
-  onClose,
-  onFlowInputChange,
-  onStepLabelChange,
-  onStepConfigurationChange,
-  onPickGeometry,
-  onPreviewFlowInput,
-  stepPreviewAvailability,
-  onPreviewStep,
-  onDelete,
-}: {
-  node: FlowNode;
+function NodeEditorDialog({ node, topologyLocked, configuration, onClose, onStepLabelChange,
+  onStepConfigurationChange, stepPreviewAvailability, onPreviewStep, onDelete }: {
+  node: StepNode;
   topologyLocked: boolean;
   configuration: FlowConfiguration;
-  geometries: GeometryEntity[];
-  generatorError?: string;
-  edges: FlowEdge[];
   onClose: () => void;
-  onFlowInputChange: (patch: EditableFlowInputPatch) => void;
   onStepLabelChange: (label: string) => void;
   onStepConfigurationChange: (value: StepConfiguration) => void;
-  onPickGeometry: () => void;
-  onPreviewFlowInput: () => void;
   stepPreviewAvailability: PreviewAvailability | null;
   onPreviewStep: () => void;
   onDelete: () => void;
 }) {
   const panel = React.useRef<HTMLElement>(null);
   useEditorDialogFocus(panel, onClose, false);
-
-  const title = isFlowInputNode(node)
-    ? geometryInputDisplayName(node.data.definition.name)
-    : stepLabel(node);
-  const subtitle = isFlowInputNode(node)
-    ? node.data.definition.flowInputId
-    : node.data.stepTemplate.name;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
       <section ref={panel} role="dialog" aria-modal="true" aria-label="Edit flow node" tabIndex={-1} className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(920px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
         <header className="flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold">{title}</h2>
+            <h2 className="truncate text-lg font-semibold">{stepLabel(node)}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span className={cn("truncate", isFlowInputNode(node) && "font-mono")}>
-                {subtitle}
-              </span>
-              <Badge variant="outline">
-                {isFlowInputNode(node) ? "geometry input" : "process step"}
-              </Badge>
+              <span className="truncate">{node.data.stepTemplate.name}</span>
+              <Badge variant="outline">process step</Badge>
             </div>
           </div>
-          <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
-            <X />
-          </Button>
+          <Button variant="ghost" size="icon" title="Close" onClick={onClose}><X /></Button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {isFlowInputNode(node) ? (
-            <FlowInputInspector
-              node={node}
-              topologyLocked={topologyLocked}
-              configuration={configuration}
-              geometries={geometries}
-              generatorError={generatorError}
-              outgoingCount={edges.filter((edge) => edge.source === node.id).length}
-              onChange={onFlowInputChange}
-              onPick={onPickGeometry}
-              onPreview={onPreviewFlowInput}
-              onDelete={onDelete}
-            />
-          ) : (
-            <StepInspector
-              node={node}
-              topologyLocked={topologyLocked}
-              configuration={configuration}
-              onLabelChange={onStepLabelChange}
-              onConfigurationChange={onStepConfigurationChange}
-              previewAvailability={
-                stepPreviewAvailability ?? {
-                  ok: false,
-                  reason: "Preview is unavailable.",
-                }
-              }
-              onPreview={onPreviewStep}
-              onDelete={onDelete}
-            />
-          )}
+          <StepInspector node={node} topologyLocked={topologyLocked} configuration={configuration}
+            onLabelChange={onStepLabelChange} onConfigurationChange={onStepConfigurationChange}
+            previewAvailability={stepPreviewAvailability ?? { ok: false, reason: "Preview is unavailable." }}
+            onPreview={onPreviewStep} onDelete={onDelete} />
         </div>
       </section>
     </div>
-  );
-}
-
-function FlowInputInspector({
-  node,
-  topologyLocked,
-  configuration,
-  geometries,
-  generatorError,
-  outgoingCount,
-  onChange,
-  onPick,
-  onPreview,
-  onDelete,
-}: {
-  node: FlowInputNode;
-  topologyLocked: boolean;
-  configuration: FlowConfiguration;
-  geometries: GeometryEntity[];
-  generatorError?: string;
-  outgoingCount: number;
-  onChange: (patch: EditableFlowInputPatch) => void;
-  onPick: () => void;
-  onPreview: () => void;
-  onDelete: () => void;
-}) {
-  const definition = node.data.definition;
-  const geometry = geometryForFlowInput(configuration, definition.flowInputId, geometries);
-  const constraints = definition.geometryConstraints;
-
-  return (
-    <section className="p-4">
-      <div className="mb-2 flex min-h-8 items-center justify-between gap-2">
-        <div className="text-xs text-muted-foreground">{outgoingCount} connections</div>
-        {!topologyLocked ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="Delete geometry input"
-            aria-label="Delete geometry input"
-            onClick={onDelete}
-          >
-            <Trash2 />
-          </Button>
-        ) : null}
-      </div>
-
-      <FlowInputBindingControl
-        geometry={geometry}
-        hasBinding={Boolean(configuration.inputBindings[definition.flowInputId])}
-        canEdit
-        onPick={onPick}
-        onPreview={onPreview}
-      />
-      {generatorError ? <p className="mt-2 text-sm text-destructive">{generatorError}</p> : null}
-
-      <FlowInputAdvancedDisclosure>
-        {topologyLocked ? (
-          <FlowInputAdvancedReadOnly definition={definition} />
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Name" required>
-              <input
-                className={inputClass}
-                value={definition.name}
-                onChange={(event) => onChange({ name: event.target.value })}
-              />
-            </FormField>
-            <label className="flex items-end gap-2 pb-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={definition.required}
-                onChange={(event) => onChange({ required: event.target.checked })}
-              />
-              Required
-            </label>
-            <div className="sm:col-span-2">
-              <FormField label="Description">
-                <textarea
-                  className={textareaClass}
-                  value={definition.description ?? ""}
-                  onChange={(event) => onChange({ description: event.target.value })}
-                />
-              </FormField>
-            </div>
-            <FormField label="Allowed entity types">
-              <input
-                className={inputClass}
-                value={(constraints?.entityTypes ?? []).join(", ")}
-                onChange={(event) =>
-                  onChange({
-                    geometryConstraints: cleanConstraints({
-                      ...constraints,
-                      entityTypes: parseList(event.target.value),
-                    }),
-                  })
-                }
-              />
-            </FormField>
-            <FormField label="Allowed categories">
-              <input
-                className={inputClass}
-                value={(constraints?.categories ?? []).join(", ")}
-                onChange={(event) =>
-                  onChange({
-                    geometryConstraints: cleanConstraints({
-                      ...constraints,
-                      categories: parseList(event.target.value),
-                    }),
-                  })
-                }
-              />
-            </FormField>
-            <div className="sm:col-span-2">
-              <div className="text-xs font-medium text-muted-foreground">Flow input ID</div>
-              <div className="mt-1 font-mono text-[10px] text-foreground">
-                {definition.flowInputId}
-              </div>
-            </div>
-          </div>
-        )}
-      </FlowInputAdvancedDisclosure>
-    </section>
   );
 }
 
@@ -1744,105 +1493,6 @@ export function StepInspector({
         </EditorDialog>
       ) : null}
     </section>
-  );
-}
-
-function GeometryPickerDialog({
-  flowInput,
-  selectedBinding,
-  geometries,
-  generatorDefinitions,
-  onClose,
-  onSelect,
-  onSelectGenerator,
-  onEditCurrentGenerator,
-}: {
-  flowInput: FlowInputDefinition;
-  selectedBinding: FlowConfiguration["inputBindings"][string] | undefined;
-  geometries: GeometryEntity[];
-  generatorDefinitions: GeometryGeneratorDefinition[];
-  onClose: () => void;
-  onSelect: (geometryId: string) => void;
-  onSelectGenerator: (definition: GeometryGeneratorDefinition) => void;
-  onEditCurrentGenerator: () => void;
-}) {
-  const [query, setQuery] = React.useState("");
-  const [categoryPath, setCategoryPath] = React.useState<string[]>([]);
-  const matchingGeometries = geometries.filter((geometry) =>
-    geometryMatchesFlowInput(geometry, flowInput),
-  );
-  const matchingGenerators = generatorsForFlowInput(generatorDefinitions, flowInput);
-  const canEditCurrentGenerator = canEditGeneratorBinding(generatorDefinitions, selectedBinding);
-
-  const panel = React.useRef<HTMLElement>(null);
-  useEditorDialogFocus(panel, onClose, false);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
-      <section ref={panel} role="dialog" aria-modal="true" aria-label="Choose geometry source" tabIndex={-1} className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(820px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport">
-        <header className="flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
-          <div>
-            <h2 className="text-lg font-semibold">Choose geometry source</h2>
-            <div className="mt-1 text-sm text-muted-foreground">{flowInput.name}</div>
-          </div>
-          <Button variant="ghost" size="icon" title="Close" onClick={onClose}>
-            <X />
-          </Button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {canEditCurrentGenerator || matchingGenerators.length > 0 ? (
-            <div className="mb-4 space-y-2">
-              <div className="text-xs font-semibold uppercase text-muted-foreground">Generators</div>
-              {canEditCurrentGenerator && selectedBinding?.kind === "generator" ? (
-                <Button type="button" variant="outline" className="w-full justify-start" onClick={onEditCurrentGenerator}>
-                  Edit current {selectedBinding.generatorId}@{selectedBinding.generatorVersion} recipe
-                </Button>
-              ) : null}
-              {matchingGenerators.map((definition) => (
-                <Button key={`${definition.id}@${definition.version}`} type="button" variant="outline" className="w-full justify-start" onClick={() => onSelectGenerator(definition)}>
-                  {definition.label} · v{definition.version}
-                </Button>
-              ))}
-            </div>
-          ) : null}
-          <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Geometry catalog</div>
-          <CategoryLibraryBrowser
-            items={matchingGeometries}
-            path={categoryPath}
-            search={query}
-            searchPlaceholder="Search geometry"
-            emptyLabel="No matching geometry"
-            noSearchResultsLabel="No geometry matched the search"
-            noCategoryItemsLabel="No geometry in this category"
-            getSearchText={geometrySearchText}
-            itemKey={(geometry) => geometry.id}
-            itemListClassName="grid gap-2"
-            renderItem={(geometry, { showCategoryPath }) => (
-              <button
-                type="button"
-                className={cn(
-                  "rounded-md border bg-white p-3 text-left text-sm shadow-sm transition hover:border-primary hover:bg-muted/20",
-                  selectedBinding?.kind === "catalog" &&
-                    selectedBinding.geometryId === geometry.id &&
-                    "border-primary ring-2 ring-primary/20",
-                )}
-                onClick={() => onSelect(geometry.id)}
-              >
-                <GeometryCardDetails
-                  geometry={geometry}
-                  categoryPath={
-                    showCategoryPath ? formatCategoryPath(geometry.category) : null
-                  }
-                />
-              </button>
-            )}
-            onPathChange={setCategoryPath}
-            onSearchChange={setQuery}
-          />
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -2187,28 +1837,6 @@ function nodeSourceLabel(node: FlowNode) {
   return isFlowInputNode(node) ? node.data.definition.name : stepLabel(node);
 }
 
-function parseList(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function cleanConstraints(
-  constraints: FlowInputDefinition["geometryConstraints"],
-): FlowInputDefinition["geometryConstraints"] {
-  if (!constraints) return undefined;
-  const result = {
-    entityTypes: constraints.entityTypes?.length ? constraints.entityTypes : undefined,
-    categories: constraints.categories?.length ? constraints.categories : undefined,
-    // Hidden in the current UI, but preserved when the visible constraints change.
-    structureFormats: constraints.structureFormats?.length
-      ? constraints.structureFormats
-      : undefined,
-  };
-  return Object.values(result).some(Boolean) ? result : undefined;
-}
-
 function uniqueIdentifierError(ids: string[], label: string) {
   const seen = new Set<string>();
   for (const id of ids) {
@@ -2255,9 +1883,4 @@ function nextId(base: string, used: Set<string>) {
 
 function internalId(prefix: string) {
   return `${prefix}:${globalThis.crypto.randomUUID()}`;
-}
-
-function defaultDropPosition(nodes: FlowNode[]) {
-  const offset = nodes.length * 28;
-  return { x: 80 + (offset % 420), y: 100 + (offset % 280) };
 }

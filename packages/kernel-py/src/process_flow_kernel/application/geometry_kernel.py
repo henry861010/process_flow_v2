@@ -10,6 +10,7 @@ from .geometry_artifact import GeometryArtifact
 from .material_instances import prepare_step_material_instances
 from .options import ExecuteOptions
 from ..domain.process_geometry_state import ProcessGeometryState
+from ..domain.provenance import qualify_provenance
 from ..infrastructure.module_resolver import ProcessStepModuleResolver
 from ..serialization.geometry_hydration import (
     geometry_structure_to_process_geometry_state,
@@ -51,6 +52,7 @@ class GeometryKernel:
             runtime_geometry_artifacts = {
                 port_id: artifact.with_structure(
                     material_preparation.geometry_inputs[port_id],
+                    node_id_remap=material_preparation.geometry_node_remaps[port_id],
                     preserve_runtime_state=(
                         port_id == "main_geometry"
                         and geometry_input_sources.get(port_id) == "stepOutput"
@@ -65,6 +67,7 @@ class GeometryKernel:
                 if input_artifact is not None
                 else ProcessGeometryState.create()
             )
+            state.begin_provenance_step(planned_step.step_ref_id, planned_step.step_template.get("program", ""))
             serialized_geometry_inputs = _serialize_geometry_input_map(
                 runtime_geometry_artifacts
             )
@@ -106,6 +109,11 @@ class GeometryKernel:
 
             output = process_module.execute(context)
             output_state = _normalize_step_output_state(output, state)
+            output_state.begin_provenance_step(planned_step.step_ref_id, planned_step.step_template.get("program", ""))
+            # Raw-structure step implementations may return a new state. Retain
+            # known origins by ID and attribute new nodes to this execution.
+            if not isinstance(output, (ProcessGeometryState, GeometryArtifact)) and output is not None:
+                output_state.set_provenance(state.provenance())
             output_structure = process_geometry_state_to_geometry_structure(output_state)
             step_outputs[planned_step.step_ref_id] = (
                 input_artifact.with_structure(output_structure).with_runtime_state(
@@ -146,6 +154,8 @@ class GeometryKernel:
                 step_ref_id: [execution_warnings[index] for index in indices]
                 for step_ref_id, indices in step_warning_indices.items()
             },
+            step_provenance={step_ref_id: dict(output.provenance)
+                             for step_ref_id, output in step_outputs.items()},
         )
 
 
@@ -164,14 +174,21 @@ def _resolve_geometry_inputs(
                 raise ValueError(
                     f"Step {planned_step.step_ref_id}.{port_id} depends on missing external geometry {source.flow_input_id}"
                 )
-            geometry_inputs[port_id] = geometry
+            geometry_inputs[port_id] = geometry.with_provenance(qualify_provenance(
+                geometry.structure, geometry.provenance, kind="flowInput",
+                owner_id=source.flow_input_id, input_port_id=port_id,
+            ))
             continue
         geometry = step_outputs.get(source.step_ref_id)
         if geometry is None:
             raise ValueError(
                 f"Step {planned_step.step_ref_id}.{port_id} depends on missing output {source.step_ref_id}"
             )
-        geometry_inputs[port_id] = geometry
+        geometry_inputs[port_id] = geometry.with_provenance(qualify_provenance(
+            geometry.structure, geometry.provenance, kind="stepOutput",
+            owner_id=source.step_ref_id, output_port_id=source.output_port_id,
+            input_port_id=port_id,
+        ))
     return geometry_inputs, geometry_input_sources
 
 
@@ -193,8 +210,8 @@ def _normalize_step_output_state(output, fallback_state):
 def _geometry_input_to_process_geometry_state(value):
     if isinstance(value, GeometryArtifact):
         if value.runtime_state is not None:
-            return value.runtime_state.clone()
-        return geometry_structure_to_process_geometry_state(value.structure)
+            return value.runtime_state.clone().set_provenance(value.provenance)
+        return geometry_structure_to_process_geometry_state(value.structure, {"provenance": value.provenance})
     if isinstance(value, ProcessGeometryState):
         return value.clone()
     if hasattr(value, "to_geometry_structure") and callable(value.to_geometry_structure):

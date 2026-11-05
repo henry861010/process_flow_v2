@@ -541,19 +541,19 @@
     "owner": "integration.platform",
     "inputPorts": [
       {
-        "portId": "main_geometry",
-        "name": "main_geometry",
-        "description": "Main geometry state that receives bonded carrier direct root bodies.",
-        "dataType": "geometry",
-        "role": "primary",
-        "required": true
-      },
-      {
         "portId": "carrier_geometry",
         "name": "carrier_geometry",
         "description": "Carrier geometry state. Only root direct bodies are copied and their keys are preserved. At least one direct body must use key carrier; additional bodies may use other registered keys.",
         "dataType": "geometry",
         "role": "auxiliary",
+        "required": true
+      },
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Main geometry state that receives bonded carrier direct root bodies.",
+        "dataType": "geometry",
+        "role": "primary",
         "required": true
       }
     ],

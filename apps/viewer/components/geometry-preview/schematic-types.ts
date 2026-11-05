@@ -36,12 +36,15 @@ export type SchematicItem = {
   thickness: number;
   /** Unique source percentages, sorted numerically; null records an unspecified source. */
   densityValues?: (number | null)[] | null;
+  /** Optional display name selected by the producer for the diagram. */
+  diagramLabel?: string | null;
 };
 
 export type SchematicComponent = SchematicRectangle & {
   id: string;
   label: string;
   sourceIds: string[];
+  diagramLabel?: string | null;
 };
 
 export type SchematicDocument = {

@@ -1,7 +1,95 @@
 # process-flow-schematic
 
-Generic final-snapshot composition for cross-section previews. This package has
+Semantic scene planning and final-snapshot composition for cross-section previews. This package has
 no dependency on the kernel, process steps, generators, API, CAD, or a UI runtime.
+
+The schematic kernel owns the full-flow horizontal layout. Producers declare
+objects, regions and relationships; they do not assign global coordinates or
+choose built-in representative counts. Physical execution remains the only
+source of actual Z, thickness, material, density and surviving geometry.
+
+## Scene contract
+
+`scene.py` defines immutable dataclasses and validates the complete graph:
+
+- `SchematicObject` (`SceneObject`) records logical identity, role, source reference,
+  class/cohort identity, parent, local symbol/version, color role/override and anchors.
+  Its layout intent is `group`, `member`, `span`, `distributed` or `boundary`.
+- `LayoutRegion` (`SceneRegion`) names an assembly's mounting surface or local
+  display region. `AnchorSpec` distinguishes physical faces from region boundaries.
+- `SceneRelation` expresses attachment, connection, containment, exclusion,
+  fill, surrounding and coverage with typed object/region references.
+- `SceneState` contains the immutable objects, regions, relationships, symbolic
+  cursor region, orientation, assembly phase, derivations and notes.
+- `SchematicDelta` creates, replaces, removes or reparents objects, changes
+  relationships/regions and records port-qualified `SceneDerivation` lineage.
+  Regions and relations support explicit add/update/remove operations; a region
+  anchor can change while retaining its identity and horizontal reservation.
+  `apply_delta` applies the update atomically and rejects invalid references or cycles.
+- `PhysicalSample` and `ResolvedPhysicalData` bind the selected snapshot to logical
+  objects. Multiple sources retain their individual thickness and density values.
+
+Object identity, physical source identity and representative cohort identity are
+separate. Different PnP batches have different cohorts even for the same source
+class; physical placement count does not create more schematic representatives.
+Structural composites such as HBM retain one representative with their internal
+subtree. An `arranged` composite can own regions with separately arranged children.
+
+## Full-flow planning
+
+`flow.plan_flow` accepts flow nodes and resource/parameter/description callbacks.
+The application resolves catalog or generator resources and registers step
+descriptors; the package traverses dependencies deterministically, applies
+semantic deltas and plans all known states in each assembly phase. It does not
+invoke future step execution, calculate future exact thickness, or keep copied
+physical geometry in the scene.
+
+`make_scene_layout_plan` reserves member slots across the complete phase history,
+including future members and subsequently removed members. Ordinary region members use
+equal widths and spacing; arranged composites can grow to fit their local regions.
+The central `representation_for_role` policy gives
+`wafer-dmy` two edge representatives and every other built-in role one, including
+LSI. The dummy pair sits near the region's outer edges, reflecting its
+wafer-warpage control role. A small outer rim (36 display units by default)
+remains empty on each side and excludes distributed features. Free distributed
+features occupy the space between the dummies; member and feature clearance is
+reserved inside the pair. The physical placement count and density magnitude
+do not alter this policy.
+
+Distributed features receive fixed positions in the remaining region intervals,
+after future member slots have been reserved. A TIV density envelope therefore
+does not draw illustrative pillars through an LSI slot. Local features remain
+inside their structural component; attached features can occupy their target
+span. Boundary objects produce two intervals with one logical identity, while
+span and fill relations define the covered and excluded intervals. The solver
+contains no process-name branches.
+
+Missing recipes, parameters, resources or descriptors stop only that lookahead
+path and add a note. A contradictory region layout affects only its assembly
+phase and uses an explicitly noted local fallback; other phases keep their plans.
+Valid earlier previews remain usable. Unknown physical
+survival after grind/saw is resolved by the actual selected snapshot. A malformed
+current binding uses a visible local layout with a warning rather than hiding
+the current component. Layout identity is stable within a flow revision and
+assembly phase; vertical display mapping and viewport fitting remain per snapshot.
+
+`flow.bind_flow_snapshots` consumes execution provenance qualified by source kind,
+owner, output/input ports and node ID, plus creation operation/ordinal. It follows
+semantic derivations across copied subtrees without matching appended child
+positions. This metadata is separate from serialized geometry, geometry hashes
+and JSON/CDB export payloads.
+
+Future split/CoW/ring/lid behavior is exercised through synthetic scene contracts
+and generic layout fixtures. This does not add multi-output saw execution or
+shipping ring/lid process modules; the current saw operation remains XY cropping.
+
+## Snapshot composition
+
+Producers can set `diagram_label` on a `ComponentHint` or `SchematicPart` to opt
+that object into the viewer's default diagram labels. Both composition paths
+carry it as optional `diagramLabel` on document components/items; unmarked
+objects keep their inspection names without adding diagram text. Source scenes
+preserve this intent on `SchematicObject.diagram_label`.
 
 Installed producer packages register their companion `present_schematic(context)`
 functions in a `SchematicRegistry`. The API is the composition root:
@@ -14,7 +102,7 @@ document = compose_schematic(target_structure, registry)
 ```
 
 Presenters receive recursively read-only mappings and tuples. They return local
-rectangles, circles, paths, component hints, exclusions or relation eligibility;
+rectangles, circles, paths, semantic component roles, exclusions or relation eligibility;
 they must not mutate geometry or recompute recipe thickness. Exact role matches
 override generic feature-kind presenters. Duplicate selectors are rejected.
 Presenter exceptions and invalid primitives fall back per node with a warning.
@@ -45,6 +133,19 @@ relative to the emitting node's component without modifying physical geometry.
 Component grouping includes presentation differences and referenced measurement
 properties while ignoring source IDs, absolute XY and runtime material suffixes.
 
+Relation parts may supply `bridge_groups`, a tuple of current physical container-ID
+tuples. Each inner tuple describes one connected physical fill region; separate
+regions never create bridges between them. Producers resolve physical contact and
+holes; the composer has no geometry-engine dependency. Every physical instance maps
+to its representative cohort, including instances other than the first one drawn.
+Only adjacent occupied slots of different cohorts in the same mounting region can
+receive a bridge; overlapping slots in other regions do not interrupt that adjacency. Bridges are bounded by
+the fill and both physical/representative Z intervals. Nonadjacent, merged or missing
+endpoints retain their source measurements and a connection note without crossing
+other components or reserved empty slots. An empty/singleton inner tuple records a
+retained region without inventing a second endpoint. Legacy `eligible_container_ids`
+remains available to callers that declare only illustrative adjacency.
+
 `SchematicItem` may include `densityValues` for bump, via and circuit features.
 The composer collects density from each unique physical source ID, removes
 duplicates, and sorts numeric percentages ascending with `null` last. A missing
@@ -62,9 +163,10 @@ applicable, distinct density values. Missing density is shown as `Not specified`
 The values describe the physical snapshot, including grinding results, while
 representation counts and grouping remain unchanged.
 
-Representation counts, feature motifs and relation eligibility are supplied by
-the owning producer packages. No process program, die name or recipe is interpreted
-here. JSON/CDB consumers continue using the unchanged physical structure.
+Local feature motifs and actual contact eligibility are supplied by the owning
+producer packages. Shared layout and built-in representation counts are owned by
+this package; producers do not decide global X positions. JSON/CDB consumers
+continue using the unchanged physical structure.
 
 Applications can reserve a common horizontal layout for several snapshots:
 
@@ -78,17 +180,22 @@ document = compose_schematic(
 )
 ```
 
-`describe_schematic_components(structure, registry)` returns the selected physical
-container IDs and producer hints using the same selection as composition. The
-calling application owns cohort identity and bindings; this package never reads
-flow definitions. Plans are immutable and reserve component X positions, widths,
+`describe_schematic_components(structure, registry)` remains available for low-level
+snapshot callers. `describe_source_scene` adapts sources to the new semantic graph;
+the flow planner owns cohort identity and binding. Plans are immutable and reserve component X positions, widths,
 and a support span. Missing cohorts leave blank slots, including for adjacency
 checks, and do not add shapes or measurements. Z remains snapshot-specific.
 Within one bound cohort, the first remaining physical instance supplies the
 drawing. All current instance measurements remain available, and differing
 structures produce a presentation note. An unbound current component retains
-measurements and produces a warning rather than extending the reserved layout.
+its drawing and measurements through a warned local-layout fallback for that assembly.
 Omitting a plan preserves standalone composition.
+
+Standalone composition and local fallback use `make_layout_plan` as a compatibility
+adapter to the same semantic scene solver; there is no separate flat coordinate
+algorithm. Legacy `ComponentHint` values without a semantic role can retain their
+explicit count/edge policy (capped at 12). New producers declare a role and use
+the central representation policy instead.
 
 Run the core tests from the repository root:
 

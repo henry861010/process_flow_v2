@@ -8,6 +8,7 @@ import {
   canEditGeneratorBinding,
   catalogGeneratorHref,
   generatorsForFlowInput,
+  generatorsForFlowInputPicker,
   generatorsForPlacement,
   generatorDisplayName,
 } from "./geometry-generator-placements";
@@ -120,5 +121,29 @@ describe("generator UI placements", () => {
     }
     expect(generatorsForFlowInput(definitions, input("carrier")).map((item) => item.id))
       .toEqual(["wafer-carrier", "panel-carrier"]);
+  });
+
+  it("merges the editable current generator with matching choices once, in registry order", () => {
+    const binding = { kind: "generator" as const, generatorId: "soc", generatorVersion: 1, parameters: {} };
+    expect(generatorsForFlowInputPicker(definitions, input("die"), binding).map((item) => item.id))
+      .toEqual(["lsi", "soc", "wafer-dmy", "vrm"]);
+    // Changing input constraints must not remove an existing recipe's edit entry.
+    expect(generatorsForFlowInputPicker(definitions, input("die.vrm"), binding).map((item) => item.id))
+      .toEqual(["soc", "vrm"]);
+    expect(generatorsForFlowInputPicker([...definitions, definitions[5]], input("die"), binding).map((item) => item.id))
+      .toEqual(["lsi", "soc", "wafer-dmy", "vrm"]);
+  });
+
+  it("keeps placement and input restrictions for unavailable or catalog sources", () => {
+    for (const binding of [
+      undefined,
+      { kind: "catalog" as const, geometryId: "catalog-die" },
+      { kind: "generator" as const, generatorId: "hbm", generatorVersion: 2, parameters: {} },
+      { kind: "generator" as const, generatorId: "unknown", generatorVersion: 1, parameters: {} },
+    ]) {
+      expect(generatorsForFlowInputPicker(definitions, input("die.hbm"), binding)).toEqual([]);
+      expect(generatorsForFlowInputPicker(definitions, input("carrier"), binding).map((item) => item.id))
+        .toEqual(["wafer-carrier", "panel-carrier"]);
+    }
   });
 });

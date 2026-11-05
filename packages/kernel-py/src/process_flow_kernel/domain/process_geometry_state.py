@@ -7,6 +7,7 @@ from .features import Body, Bump, Circuit, Via
 from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
 from .region import Region, TYPE_DIE, TYPE_TARGET
 from .semantic_keys import container_key_matches, validate_body_key, validate_container_key
+from .provenance import GeometryProvenance, copy_node_provenance, structure_nodes
 from ..serialization.schema import DEFAULT_UNIT_SYSTEM, GEOMETRY_SCHEMA_VERSION, deep_copy, normalize_geometry_structure
 from ..utils.math_utils import math
 
@@ -34,6 +35,8 @@ class ProcessGeometryState:
         self._scopes_by_id = {}
         self._next_scope_id = 1
         self._next_handle_id = 1
+        self._provenance_step = None
+        self._provenance_ordinal = 0
         self._register_scope_tree(self._root)
 
     @classmethod
@@ -54,19 +57,74 @@ class ProcessGeometryState:
         cursor_option = options.get("cursor_z", options.get("cursorZ", "geometryTop"))
         cursor_z = root.z_max() if cursor_option == "geometryTop" else cursor_option
         footprint = _resolve_restore_footprint(root, options.get("footprint"))
-        return cls(
+        state = cls(
             root=root,
             cursor_z=cursor_z,
             process_footprint=footprint,
             schema_version=structure["schemaVersion"],
             unit_system=structure["unitSystem"],
         )
+        if options.get("provenance") is not None:
+            state.set_provenance(options["provenance"])
+        return state
 
     def clone(self):
-        return ProcessGeometryState.from_structure(
+        cloned = ProcessGeometryState.from_structure(
             self.to_geometry_structure(),
-            {"cursor_z": self._cursor_z, "footprint": self._process_footprint},
+            {"cursor_z": self._cursor_z, "footprint": self._process_footprint,
+             "provenance": self.provenance()},
         )
+        cloned._provenance_step = self._provenance_step
+        cloned._provenance_ordinal = self._provenance_ordinal
+        return cloned
+
+    def begin_provenance_step(self, step_ref_id, program):
+        """Set neutral execution metadata for objects created by the next step."""
+        if self._provenance_step != (step_ref_id, program):
+            self._provenance_ordinal = 0
+        self._provenance_step = (step_ref_id, program)
+        return self
+
+    def provenance(self) -> GeometryProvenance:
+        """Resolve lineage against the same IDs used by geometry serialization."""
+        result = {}
+        for node, payload in zip(self._provenance_nodes(), structure_nodes(self.to_geometry_structure())):
+            entry = getattr(node, "_provenance", None)
+            if entry is None or (not entry["sources"] and entry["createdBy"] is None
+                                 and self._provenance_step is not None):
+                self._record_node_creation(node, "create")
+            result[payload["id"]] = deep_copy(node._provenance)
+        return result
+
+    def set_provenance(self, provenance):
+        """Hydrate an optional sidecar; physical structure remains unchanged."""
+        for node, payload in zip(self._provenance_nodes(), structure_nodes(self.to_geometry_structure())):
+            entry = provenance.get(payload["id"])
+            if entry is not None:
+                node._provenance = deep_copy(entry)
+        return self
+
+    def _provenance_nodes(self, container=None):
+        container = self._root if container is None else container
+        yield container
+        yield from container._direct_features()
+        for child in container.children():
+            yield from self._provenance_nodes(child)
+
+    def _record_node_creation(self, node, operation, *, creation=None):
+        if creation is None and self._provenance_step is not None:
+            creation = {
+                "stepRefId": self._provenance_step[0],
+                "program": self._provenance_step[1],
+                "operation": operation,
+                "ordinal": self._provenance_ordinal,
+            }
+            self._provenance_ordinal += 1
+        entry = deep_copy(getattr(node, "_provenance", {"sources": [], "createdBy": None}))
+        if creation is not None:
+            entry["createdBy"] = creation
+        node._provenance = entry
+        return creation
 
     def to_geometry_structure(self, schema_version=None, unit_system=None):
         return self._root.json(
@@ -775,6 +833,7 @@ class ProcessGeometryState:
 
         for source_body in source_bodies:
             body = source_body.copy()
+            self._record_node_creation(body, "bond_carrier")
             body.clear_structure_id()
             body.move(z=z_offset)
             self._add_body_object(body)
@@ -815,6 +874,7 @@ class ProcessGeometryState:
         source_bottom_z = source_body.z_min()
         source_top_z = source_body.z_max()
         body = source_body.copy()
+        self._record_node_creation(body, "mount_frame")
         body.clear_structure_id()
         body.move(z=target_bottom_z - source_bottom_z)
         self._add_body_object(body)
@@ -897,6 +957,7 @@ class ProcessGeometryState:
             payload = snapshot["children"][children.index(child)]
             for original, replacement in plan.replacements:
                 replacement._structure_id = payload["bumps"][child.bumps().index(original)]["id"]
+                copy_node_provenance(original, replacement)
             if plan.offset:
                 child.move(z=plan.offset)
             child.replace_bumps(dict(plan.replacements))
@@ -956,6 +1017,10 @@ class ProcessGeometryState:
             z=_finite_number(self._cursor_z if bottom_z is None else bottom_z, "bottomZ") - source_bounds["zMin"],
         )
         parent = self._resolve_scope(scope)
+        creation = self._record_node_creation(placed, "place")
+        for node in self._provenance_nodes(placed):
+            if node is not placed:
+                self._record_node_creation(node, "place", creation=creation)
         placed.clear_structure_ids()
         parent.attach_child(placed)
         self._register_scope_tree(placed)
@@ -1015,11 +1080,15 @@ class ProcessGeometryState:
 
     def _add_body_object(self, body, *, scope=ROOT_SCOPE):
         target_scope = self._resolve_scope(scope)
+        if getattr(body, "_provenance", None) is None:
+            self._record_node_creation(body, "create")
         target_scope.add_body(body)
         return self._handle("body", target_scope)
 
     def _add_feature_object(self, feature, type_, scope):
         target_scope = self._resolve_scope(scope)
+        if getattr(feature, "_provenance", None) is None:
+            self._record_node_creation(feature, "create")
         if type_ == "via":
             target_scope.add_via(feature)
         elif type_ == "circuit":

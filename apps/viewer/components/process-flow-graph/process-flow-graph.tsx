@@ -104,6 +104,7 @@ type ProcessFlowGraphProps<
   nodes: TNode[];
   edges: TEdge[];
   className?: string;
+  containerRef?: React.Ref<HTMLElement>;
   fitView?: boolean;
   minZoom?: number;
   maxZoom?: number;
@@ -162,6 +163,7 @@ export function ProcessFlowGraph<
   nodes,
   edges,
   className,
+  containerRef,
   fitView,
   minZoom = 0.35,
   maxZoom = 1.4,
@@ -248,6 +250,7 @@ export function ProcessFlowGraph<
   return (
     <ClickConnectionContext.Provider value={connectionContext}>
       <section
+        ref={containerRef}
         onPointerDownCapture={() => { suppressHandleClick.current = false; }}
         onPointerMove={(event) => {
           if (!activeConnection) return;

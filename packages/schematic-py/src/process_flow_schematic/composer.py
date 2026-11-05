@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from .contracts import Bounds, ComponentHint, Primitive, SchematicContext, SchematicDocument, SchematicLayoutPlan, SchematicPart, SchematicRegistry
+from .contracts import Bounds, ComponentHint, Primitive, SchematicContext, SchematicDocument, SchematicLayoutGroup, SchematicLayoutPlan, SchematicPart, SchematicRegistry
 from .geometry import base_material, geometry_bounds, material_color, walk_containers
-from .layout import COMPONENT_EDGE_INSET, COMPONENT_GAP, _validate_layout_plan
+from .layout import _validate_layout_plan, make_layout_plan, resolve_component_hint
 from .palette import OUTLINE
 
 
@@ -104,8 +104,20 @@ def _validate_parts(parts):
             hint = part.component
             if not isinstance(hint, ComponentHint) or not isinstance(hint.representative_count, int) or hint.representative_count < 1:
                 raise ValueError("Invalid component hint")
-        if part.layout not in ("node", "bridges", "gaps"):
+        for label in (part.diagram_label, part.component.diagram_label if part.component else None):
+            if label is not None and (not isinstance(label, str) or not label.strip()):
+                raise ValueError("Invalid diagram label")
+        if part.layout not in ("node", "bridges", "gaps", "distributed"):
             raise ValueError("Unsupported schematic layout")
+        if (not isinstance(part.bridge_groups, tuple)
+                or any(not isinstance(group, tuple)
+                       or any(not isinstance(reference, str) or not reference for reference in group)
+                       for group in part.bridge_groups)
+                or (part.bridge_groups and part.layout not in ("bridges", "gaps"))):
+            raise ValueError("Invalid schematic bridge groups")
+        if (not isinstance(part.distribution_count, int) or isinstance(part.distribution_count, bool)
+                or not 1 <= part.distribution_count <= 100):
+            raise ValueError("Invalid distribution count")
         for reference in (part.source_id, part.repeat_group):
             if reference is not None and (not isinstance(reference, str) or not reference):
                 raise ValueError("Invalid schematic reference")
@@ -155,6 +167,7 @@ def _compose_schematic(
     unit = str(frozen.get("unitSystem", "um"))
     warnings = []
     containers = list(walk_containers(frozen))
+    containers_by_id = {str(container.get("id", "")): container for container, _ in containers}
     nodes: list[_Node] = []
     nodes_by_container: dict[int, list[_Node]] = {}
     container_bounds: dict[int, Bounds] = {}
@@ -180,7 +193,14 @@ def _compose_schematic(
             _validate_parts(parts)
             if any(part.source_id is not None and part.source_id not in nodes_by_id for part in parts):
                 raise ValueError("Unknown schematic source")
-            return list(parts)
+            if any(reference not in containers_by_id for part in parts
+                   for group in part.bridge_groups for reference in group):
+                raise ValueError("Unknown schematic bridge participant")
+            # Distributed motifs depict present columns; their density does
+            # not change the planned count, but zero means there are none.
+            # Other symbols (notably RDL) keep their own visibility contract.
+            return [part for part in parts if not (
+                part.layout == "distributed" and context.node.get("density") == 0)]
         except Exception:
             warnings.append(f"A presenter could not display {context.node.get('id', context.kind)}; a generic representation is used.")
             if context.kind == "container":
@@ -220,7 +240,7 @@ def _compose_schematic(
         context = SchematicContext(frozen, container, container, ancestors, "container", bounds, unit, query=query)
         for part in present(context):
             if part.component is not None:
-                hints[id(container)] = part.component
+                hints[id(container)] = resolve_component_hint(part.component)
 
     selected: list[Mapping] = []
     selected_ids = set()
@@ -234,7 +254,7 @@ def _compose_schematic(
         # Unlabelled imported components still get one representative. Empty
         # wrapper scopes and relation-only helper scopes do not become dies.
         direct_nodes = nodes_by_container.get(id(container), ())
-        has_visible_direct = any(p.primitives and p.layout == "node" for n in direct_nodes for p in n.parts)
+        has_visible_direct = any(p.primitives and p.layout in ("node", "distributed") for n in direct_nodes for p in n.parts)
         if (ancestors and has_visible_direct and registry.resolve("container", container.get("key")) is None
                 and not any(id(child) in hints for child in container.get("children", ()))):
             selected.append(container)
@@ -244,6 +264,25 @@ def _compose_schematic(
         return {str(container.get("id", "")): hints.get(
             id(container), ComponentHint(str(container.get("key") or "Component")))
             for container in selected}
+
+    # A partial binding must never hide current geometry.
+    if layout_plan is not None:
+        reserved = {slot.group_key for slot in layout_plan.slots}
+        logical = getattr(component_bindings, "logical", None)
+        missing_sources = logical is not None and any(
+            (part.source_id or node.id) not in logical
+            for node in nodes for part in node.parts
+            if part.primitives or part.layout in ("bridges", "gaps"))
+        missing_members = any((component_bindings or {}).get(str(container.get("id", ""))) not in reserved
+                              for container in selected)
+        if missing_members or missing_sources:
+            document = _compose_schematic(structure, registry)
+            document["notes"] = list(dict.fromkeys((*document["notes"], *layout_plan.notes)))
+            document["warnings"].append(
+                "A current schematic object cannot be bound to the shared plan; this assembly uses a local layout."
+                if missing_sources else
+                "A current component has no reserved schematic slot; this assembly uses a local layout.")
+            return document
 
     def presentation_signature(container):
         """Keep relational presentation differences without retaining source IDs or XY placement."""
@@ -267,7 +306,7 @@ def _compose_schematic(
                 repeat_group = None
                 if part.repeat_group is not None:
                     repeat_group = repeat_groups.setdefault(part.repeat_group, len(repeat_groups))
-                parts.append((base_material(part.label), part.fill, part.primitives, part.layout,
+                parts.append((base_material(part.label), part.diagram_label, part.fill, part.primitives, part.layout,
                               source.kind, base_material(str(source.node.get("material", ""))),
                               source.bounds.z_min, source.bounds.z_max, relative, repeat_group))
             signatures.append((node.kind, node.node.get("key"), tuple(parts)))
@@ -281,7 +320,7 @@ def _compose_schematic(
     planned_keys = {slot.group_key for slot in layout_plan.slots} if layout_plan is not None else set()
     for container in selected:
         hint = hints.get(id(container), ComponentHint(str(container.get("key") or "Component")))
-        signature = (hint.label, hint.representative_count, hint.placement, _signature(container),
+        signature = (hint.label, hint.diagram_label, hint.representative_count, hint.placement, _signature(container),
                      presentation_signature(container))
         bound_key = (component_bindings or {}).get(str(container.get("id", ""))) if layout_plan is not None else None
         grouping_key = signature if layout_plan is None else (("cohort", bound_key) if bound_key in planned_keys
@@ -294,8 +333,6 @@ def _compose_schematic(
             group_signatures.setdefault(group.id, set()).add(signature)
             if bound_key in planned_keys:
                 planned_groups[bound_key] = group
-            else:
-                warnings.append("A component has no reserved schematic slot; its measurements are retained without a drawing.")
     groups = list(groups_by_signature.values())
     if layout_plan is not None:
         for group in groups:
@@ -322,45 +359,29 @@ def _compose_schematic(
         return not group or any(container is first or any(ancestor is first for ancestor in ancestors)
                                 for first in group.containers[:1])
 
-    edge_groups = [g for g in groups if g.hint.placement == "edges"]
-    center_groups = [g for g in groups if g.hint.placement != "edges"]
-    # Broad footprints keep dies visually wider than their exaggerated layer
-    # thicknesses. These dimensions affect presentation only, never geometry.
-    die_width, edge_die_width, gap = 320.0, 224.0, COMPONENT_GAP
-    edge_space = sum(max(1, g.hint.representative_count // 2) * (edge_die_width + gap) for g in edge_groups)
-    center_count = sum(max(1, min(12, g.hint.representative_count)) for g in center_groups)
-    width = max(1000.0, COMPONENT_EDGE_INSET * 2 + edge_space * 2 + center_count * (die_width + gap))
-    placements: list[_Placement] = []
-    left, right = COMPONENT_EDGE_INSET, width - COMPONENT_EDGE_INSET
-    for group in edge_groups:
-        count = max(1, min(12, group.hint.representative_count))
-        for index in range(count):
-            if index % 2 == 0:
-                placements.append(_Placement(group, left, edge_die_width))
-                left += edge_die_width + gap
-            else:
-                right -= edge_die_width
-                placements.append(_Placement(group, right, edge_die_width))
-                right -= gap
-    center_width = center_count * die_width + max(center_count - 1, 0) * gap
-    cursor = left + max(0, (right - left - center_width) / 2)
-    for group in center_groups:
-        for _ in range(max(1, min(12, group.hint.representative_count))):
-            placements.append(_Placement(group, cursor, die_width))
-            cursor += die_width + gap
-    placements.sort(key=lambda p: p.x)
-    placement_sequence = placements
-    support_x, support_width = 36.0, width - 72
+    local_plan = make_layout_plan([SchematicLayoutGroup(group.id, group.hint) for group in groups])
+    local_groups = {group.id: group for group in groups}
+    width = local_plan.width
+    placements = [_Placement(local_groups[slot.group_key], slot.x, slot.width)
+                  for slot in local_plan.slots]
+    placement_sequences = {"": placements}
+    support_x, support_width = local_plan.support_x, local_plan.width - 72
     if layout_plan is not None:
         width = layout_plan.width
         support_x = layout_plan.support_x
         support_width = width - 72.0 if layout_plan.support_width is None else layout_plan.support_width
-        placement_sequence = [
-            _Placement(planned_groups[slot.group_key], slot.x, slot.width, slot.id)
-            if slot.group_key in planned_groups else None
-            for slot in sorted(layout_plan.slots, key=lambda slot: slot.x)
-        ]
-        placements = [placement for placement in placement_sequence if placement is not None]
+        placement_sequences = {}
+        placements = []
+        for slot in sorted(layout_plan.slots, key=lambda slot: slot.x):
+            placement = (_Placement(planned_groups[slot.group_key], slot.x, slot.width, slot.id)
+                         if slot.group_key in planned_groups else None)
+            # Different mounting regions can overlap horizontally. Only slots
+            # on the same surface can interrupt a relation, including blanks.
+            placement_sequences.setdefault(slot.region_id, []).append(placement)
+            if placement is not None:
+                placements.append(placement)
+    adjacent_placements = tuple(pair for sequence in placement_sequences.values()
+                                for pair in zip(sequence, sequence[1:]))
 
     z = _ZDisplay([n.bounds for n in nodes])
     height = max(240.0, z.height + 112)
@@ -376,13 +397,15 @@ def _compose_schematic(
             source = nodes_by_id.get(part.source_id, node)
             material = str(source.node.get("material", ""))
             label = base_material(part.label)
-            key = (group.id if group else "base", source.kind, label, base_material(material),
+            key = (group.id if group else "base", source.kind, label, part.diagram_label, base_material(material),
                    source.bounds.z_min, source.bounds.z_max)
             if key not in item_index:
                 item = {"id": f"item-{len(items) + 1}", "label": label, "material": base_material(material),
                         "groupLabel": group_labels[group.id] if group else "Structure", "sourceIds": [],
                         "zMin": source.bounds.z_min, "zMax": source.bounds.z_max, "thickness": source.bounds.thickness}
                 item_index[key] = item
+                if part.diagram_label is not None:
+                    item["diagramLabel"] = part.diagram_label
                 items.append(item)
                 item_source_ids[item["id"]] = set()
             item = item_index[key]
@@ -521,24 +544,128 @@ def _compose_schematic(
             shapes.append(shape)
 
     bridge_requests = []
+    feature_slots = {feature.object_id: feature for feature in layout_plan.features} if layout_plan is not None else {}
+
+    def append_distributed(node, part, placement, rect):
+        from .scene_layout import _centers, subtract_intervals
+        feature = feature_slots.get((component_bindings or {}).get(node.id))
+        if feature is not None:
+            centers, symbol_width = feature.centers, feature.width
+            if placement is not None:
+                first = next(p for p in placements if p.group is placement.group)
+                centers = tuple(center + placement.x - first.x for center in centers)
+        else:
+            # Standalone mode uses the same interval policy with current state.
+            blockers = [(p.x - 12, p.x + p.width + 12) for p in placements
+                        if placement is None and min(p.group.bounds.z_max, node.bounds.z_max)
+                        > max(p.group.bounds.z_min, node.bounds.z_min)]
+            intervals = subtract_intervals(((rect["x"], rect["x"] + rect["width"]),), blockers)
+            symbol_width = 12.0
+            centers = _centers(intervals, part.distribution_count, symbol_width)
+        for center in centers:
+            append_part(node, part, {**rect, "x": center - symbol_width / 2, "width": symbol_width})
+
     for node in sorted(nodes, key=lambda n: (len(n.ancestors), n.kind != "body")):
         group = owner.get(id(node.container))
         # Draw just the first physical instance in each equivalent group. All
         # equivalent source IDs remain in the associated measurement rows.
-        if not is_representative(node.container, node.ancestors):
-            continue
+        # Physical relations can also originate in a later instance.
+        representative = is_representative(node.container, node.ancestors)
         for part in node.parts:
             if part.layout in ("bridges", "gaps"):
-                bridge_requests.append((node, part))
+                if representative or part.bridge_groups:
+                    bridge_requests.append((node, part))
+                continue
+            if not representative:
                 continue
             for placement in ([p for p in placements if p.group is group] if group else [None]):
-                append_part(node, part, rectangle(part.display_bounds or node.bounds, placement,
-                                                  source_owner_bounds.get(id(node.container))))
+                rect = rectangle(part.display_bounds or node.bounds, placement,
+                                 source_owner_bounds.get(id(node.container)))
+                if part.layout == "distributed":
+                    append_distributed(node, part, placement, rect)
+                else:
+                    append_part(node, part, rect)
 
     seen_bridges = set()
+
+    def bridge_participant(reference):
+        container = containers_by_id[reference]
+        if id(container) in owner:
+            return container
+        # Imported assemblies may wrap one selected component in unlabelled
+        # scopes. Resolve that unambiguous boundary without assigning every
+        # descendant of a compound assembly the same physical contact.
+        members = [descendant for descendant, _ in walk_containers(container)
+                   if id(descendant) in selected_ids]
+        return members[0] if len(members) == 1 else None
+
+    def append_bridge(node, part, left_p, right_p, lower, upper):
+        if upper <= lower:
+            return False
+        key = (left_p.x, right_p.x, lower, upper, node_items[(node.id, id(part))])
+        if key not in seen_bridges:
+            seen_bridges.add(key)
+            append_part(node, part, {"x": left_p.x + left_p.width,
+                                     "width": right_p.x - left_p.x - left_p.width,
+                                     "y": z.y(upper), "height": z.y(lower) - z.y(upper)})
+        return True
+
+    def append_connected_bridges(node, part, participants):
+        # Bind every physical instance, including non-representative members of
+        # a cohort. The topology stays producer-owned; no XY inference occurs here.
+        by_group = {}
+        resolved_count = 0
+        for reference in dict.fromkeys(participants):
+            container = query(("bridge-participant", reference), lambda: bridge_participant(reference))
+            if container is not None:
+                group = owner[id(container)]
+                members = by_group.setdefault(group.id, [])
+                if all(container is not member for member in members):
+                    members.append(container)
+                resolved_count += 1
+        connected = {group_id: {group_id} for group_id in by_group}
+        for left_p, right_p in adjacent_placements:
+            if left_p is None or right_p is None or left_p.group is right_p.group:
+                continue
+            left = by_group.get(left_p.group.id, ())
+            right = by_group.get(right_p.group.id, ())
+            for left_c in left:
+                for right_c in right:
+                    bounds = (node.bounds, left_p.group.bounds, right_p.group.bounds,
+                              container_bounds[id(left_c)], container_bounds[id(right_c)])
+                    if append_bridge(node, part, left_p, right_p,
+                                     max(bound.z_min for bound in bounds),
+                                     min(bound.z_max for bound in bounds)):
+                        connected[left_p.group.id].add(right_p.group.id)
+                        connected[right_p.group.id].add(left_p.group.id)
+
+        # A connected physical fill can project to nonadjacent slots or collapse
+        # into one representative. Preserve it in items and explain the omission.
+        reached = set()
+        pending = list(connected)[:1]
+        while pending:
+            group_id = pending.pop()
+            if group_id not in reached:
+                reached.add(group_id)
+                pending.extend(connected[group_id] - reached)
+        merged = any(len(members) > 1 for members in by_group.values())
+        unresolved = resolved_count < len(set(participants))
+        if len(participants) < 2 or unresolved or merged or len(reached) != len(by_group):
+            labels = [group_labels[group_id] + (f" ({len(members)} instances)" if len(members) > 1 else "")
+                      for group_id, members in by_group.items()]
+            targets = ", ".join(labels) or "no resolved current component participants"
+            composition_notes.append(
+                f"{part.label}: retained fill connects {targets}. Connections in nonadjacent slots, "
+                "merged representatives or without two current endpoints are recorded in measurements; "
+                "no bridge is drawn across other or empty slots.")
+
     for node, part in bridge_requests:
+        if part.bridge_groups:
+            for participants in part.bridge_groups:
+                append_connected_bridges(node, part, participants)
+            continue
         eligible = set(part.eligible_container_ids)
-        for left_p, right_p in zip(placement_sequence, placement_sequence[1:]):
+        for left_p, right_p in adjacent_placements:
             if left_p is None or right_p is None:
                 continue
             left_ids = {str(c.get("id")) for c in (left_p.group.containers[:1] if layout_plan is not None
@@ -550,16 +677,10 @@ def _compose_schematic(
             # A relation cannot extend beyond the participating components.
             lower = max(node.bounds.z_min, left_p.group.bounds.z_min, right_p.group.bounds.z_min)
             upper = min(node.bounds.z_max, left_p.group.bounds.z_max, right_p.group.bounds.z_max)
-            if upper <= lower:
-                continue
-            key = (left_p.x, right_p.x, lower, upper, base_material(str(node.node.get("material", ""))))
-            if key in seen_bridges:
-                continue
-            seen_bridges.add(key)
-            append_part(node, part, {"x": left_p.x + left_p.width, "width": right_p.x - left_p.x - left_p.width,
-                                     "y": z.y(upper), "height": z.y(lower) - z.y(upper)})
+            append_bridge(node, part, left_p, right_p, lower, upper)
 
     components = [{"id": placement.slot_id or f"component-{index + 1}", "label": group_labels[placement.group.id],
+                   **({"diagramLabel": placement.group.hint.diagram_label} if placement.group.hint.diagram_label is not None else {}),
                    "x": placement.x, "width": placement.width, "y": z.y(placement.group.bounds.z_max),
                    "height": z.y(placement.group.bounds.z_min) - z.y(placement.group.bounds.z_max),
                    "sourceIds": [str(c.get("id", "")) for c in placement.group.containers]}
@@ -568,9 +689,9 @@ def _compose_schematic(
     # Assert transport is ordinary finite JSON, independent of frozen input.
     document = {"schemaVersion": 1, "unit": unit, "viewBox": [0, 0, width, height], "shapes": shapes,
                 "items": items, "components": components, "totalThickness": total,
-                "notes": ["Schematic · not to scale. Thickness values reflect the current structure.",
+                "notes": list(dict.fromkeys(["Schematic · not to scale. Thickness values reflect the current structure.",
                           "Component count, horizontal positions and feature symbols are illustrative.",
-                          *(layout_plan.notes if layout_plan is not None else ()), *composition_notes],
+                          *(layout_plan.notes if layout_plan is not None else ()), *composition_notes])),
                 "warnings": list(dict.fromkeys(warnings))}
     json.dumps(document, allow_nan=False)
     return document

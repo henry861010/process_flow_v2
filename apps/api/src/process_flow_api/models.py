@@ -689,12 +689,15 @@ class SchematicItem(StrictModel):
     zMax: SchematicFiniteFloat
     thickness: SchematicNonNegativeFloat
     densityValues: list[SchematicDensityPercentage | None] | None = Field(default=None, strict=True)
+    diagramLabel: str | None = None
 
     @model_serializer(mode="wrap")
     def omit_inapplicable_density(self, handler):
         payload = handler(self)
         if self.densityValues is None:
             payload.pop("densityValues", None)
+        if self.diagramLabel is None:
+            payload.pop("diagramLabel", None)
         return payload
 
     @model_validator(mode="after")
@@ -708,6 +711,14 @@ class SchematicComponent(SchematicRectangle):
     id: SchematicSourceId
     label: str
     sourceIds: list[SchematicSourceId]
+    diagramLabel: str | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_inapplicable_label(self, handler):
+        payload = handler(self)
+        if self.diagramLabel is None:
+            payload.pop("diagramLabel", None)
+        return payload
 
 
 class SchematicDocument(StrictModel):

@@ -9,6 +9,7 @@ from .regions import _coordinate_mode, _location, _number, _object, _resolve_reg
 
 Z_SECTION_METHODS = ("Z_SECTION_AVG", "Z_SECTION_TOP", "Z_SECTION_BOT", "Z_SECTION_CENTER")
 SYMMETRY_MODES = ("full", "upper_half", "right_half", "upper_right_quarter")
+REGION_MESHING_MODES = ("grid", "adapter")
 
 
 def validate_mesh_control(mesh_control: JsonObject, *, state: ProcessGeometryState | None = None) -> None:
@@ -18,13 +19,15 @@ def validate_mesh_control(mesh_control: JsonObject, *, state: ProcessGeometrySta
     validation; their reference resolution remains the mesher's responsibility.
     This function never rewrites the document passed to the export worker.
     """
-    _object(mesh_control, "meshControl", ("schemaVersion", "unitSystem", "mesher", "globalElementSize", "symmetry", "controls"))
+    _object(mesh_control, "meshControl", ("schemaVersion", "unitSystem", "mesher", "globalElementSize", "symmetry", "controls"), ("regionMeshing",))
     for field, expected in (("schemaVersion", "1.0.0"), ("unitSystem", "um"), ("mesher", "process_flow_2_5d")):
         if mesh_control[field] != expected:
             raise ValueError(f"meshControl.{field}: expected {expected}")
     _number(mesh_control["globalElementSize"], "meshControl.globalElementSize", positive=True)
     if mesh_control["symmetry"] not in SYMMETRY_MODES:
         raise ValueError(f"meshControl.symmetry: expected one of {', '.join(SYMMETRY_MODES)}")
+    if mesh_control.get("regionMeshing", "grid") not in REGION_MESHING_MODES:
+        raise ValueError(f"meshControl.regionMeshing: expected one of {', '.join(REGION_MESHING_MODES)}")
     if not isinstance(mesh_control["controls"], list):
         raise ValueError("meshControl.controls: expected a list")
     query = _GeometryQuery(state)

@@ -44,10 +44,16 @@ source label、Close；footer固定顯示validation error、`Cancel`、primary `
 CDB內容先顯示跨欄的 `Mesh configuration`，其下在 `lg` 以上是左側280px `Mesh setup` 與右側可伸縮的 `Mesh controls`，窄螢幕為單欄。
 左側包含唯讀 mesher、global element size與2×2 symmetry radio cards；左側在內容捲動時保持可見。
 CDB mesher固定顯示`process_flow_2_5d`，global element size default `500`，尺寸欄位顯示µm。
+Global element size 下方提供 `3D region control method` 下拉選單：`Grid (original)`（預設）與
+`Adaptive (experimental)`，作用於全部 `3D_REGION` controls；尚無region時也可預先選擇。
+切換方法保留尺寸、座標與controls，提交或套用set期間停用。Adaptive另說明使用局部細化與過渡，
+不支援的layout會回報匯出錯誤，不自動切回Grid。
 Symmetry依序顯示`Full`、`Upper Half`、`Right Half`、`Upper-right Quarter`，每次開啟預設`full`。
 上方 `Mesh control set` 下拉預設為 `Manual / custom`，文案明示set會同時填入基本mesh設定與local controls；選擇已登錄 set 會將目前 preview structure 送到
 `POST /api/mesh-control-sets/{id}/apply`，把回傳的 global size、symmetry 與 controls 展開為可編輯欄位，
 並顯示每條規則的解析區間。修改展開結果後標示 `Customized after applying`；套用失敗保留原草稿。
+套用set時保留目前的region控制方法；若與set指定的方法不同（set省略時視為Grid），也標示
+`Customized after applying`。方法選擇隨geometry草稿保存，舊草稿缺少欄位時補為Grid並保留其餘內容。
 Built-in set 提供 `meshModel1`、`meshModel2`、`meshModel3` 與 `meshControl3dTest`；前三者目前以相同的
 Tim、adhesive、uBump 與 UF rules 為初始值，但各自保留獨立實作與 control sizes。
 `Local controls`區塊預設收合，整列可點擊並顯示控制數量；收合不得清空draft。
@@ -103,7 +109,9 @@ Set details 可包含 `resolvedRegions`，顯示每筆來源與XYZ bounds；手�
 本次不加入3D區域疊圖或即時解析API。
 
 既有mesh-control schema marker維持1.0.0。每筆control必填coordinateMode，不接受舊逐點mode/value格式或混用座標。API將完整的原始座標描述寫入JSON sidecar，再照常啟動mesher。
-目前mesher尚未支援新版coordinateMode，包含只有Z controls的job也可能failed；JSON sidecar仍保留，不移除或忽略新controls。
+頂層選填`regionMeshing: "grid" | "adapter"`；UI選Grid時省略此欄位，選Adaptive時輸出`"adapter"`。
+API接受省略與兩種明確值，拒絕其他值，且不改寫輸入。Adaptive需要支援此選項的mesher；目前本機連結版本
+包含此功能，但專案固定的mesher版本尚未包含。匯出失敗仍保留JSON sidecar與原始錯誤，不自動切換方法。
 
 ## 六種 job 狀態
 

@@ -6,8 +6,8 @@ audience:
   - 產品與架構負責人
   - 開發者
   - QA
-last_verified: 2026-10-31
-last_verified_commit: 039906db
+last_verified: 2026-11-05
+last_verified_commit: eeb83566
 source_of_truth:
   - docs/data-model.md
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
@@ -72,7 +72,7 @@ PV-002／003 描述保留的 mesh／section endpoints；PV-004..006 只追蹤保
 
 | ID | Target | Current implementation / evidence | Owner | 狀態 |
 | --- | --- | --- | --- | --- |
-| UI-IA-001 | Home／Management 使用單一 Flow 列表，統一編輯器支援更新／另存／草稿恢復 | 已移除兩種 editor；見 UI-FLOW-001 至 008 與 `apps/viewer/app/management/page.tsx`。 | Process Flow UI | Closed |
+| UI-IA-001 | Home／Management 使用單一 Flow 列表，統一編輯器支援更新／Start from 新分支／草稿恢復 | 已移除兩種 editor；見 UI-FLOW-001 至 008、011 與 `apps/viewer/app/management/page.tsx`。 | Process Flow UI | Closed |
 | UI-GAP-A11Y-001 | Modal 有 dialog semantics、focus trap、initial focus 與 focus restore | Flow editor、Preview、Export 已使用共用 dialog stack／focus lifecycle；其他自製 overlay 與 background inert 仍需完整檢閱。`apps/viewer/components` | integration.platform | Open |
 | UI-GAP-DRAG-001 | Geometry Input 可由 keyboard/touch command 新增 | Flow Editor 的 geometry palette 只有 HTML drag；touch-only mobile 無 fallback。`apps/viewer/components/process-flow-editor/process-flow-editor.tsx` | integration.platform | Open |
 | UI-GAP-RESP-001 | Compact viewport 不遺失 command 或 pane | `lg` 三欄最小寬約 1140px，1024px viewport 可能裁切右 pane。`apps/viewer/components/process-flow-editor/process-flow-editor.tsx` | integration.platform | Open |
@@ -90,7 +90,7 @@ PV-002／003 描述保留的 mesh／section endpoints；PV-004..006 只追蹤保
 | ID | Contract | Evidence | 狀態 |
 | --- | --- | --- | --- |
 | FLOW-001 | Flow 自有 definition/configuration、候選與 null selection、無 embedded/舊 payload | models、recipes helpers、test_process_flows、viewer recipes tests | Closed |
-| FLOW-002 | 更新／刪除 CAS、原 origin 保留、編輯器不提供複製與另存 | test_process_flows、viewer save tests | Closed |
+| FLOW-002 | 更新／刪除 CAS、原 origin 保留；Start from 新分支第一次 Save 建立新 ID，記錄直接來源且不修改來源 | `apps/api/tests/test_process_flows.py` 的 start_from tests、`apps/viewer/components/process-flow-editor/process-flow-editor-sources.test.tsx`、`apps/viewer/lib/process-flow/flow-editor-source.test.ts`；UI-FLOW-011 | Closed |
 | FLOW-003 | 草稿 schema 2 僅供新 flow、atomic commit failure 保留草稿、14→16 清除舊 target 草稿 | test_process_flows、test_flow_migration | Closed |
 | FLOW-004 | 採用候選決定執行／PnP pruning／preview cache，input preview 不依賴無關站點 | kernel tests、test_process_flows、test_api | Closed |
 | FLOW-005 | 三檔 ZIP、bootstrap processFlows、舊 API 退場 | test_api、test_process_flows | Closed |

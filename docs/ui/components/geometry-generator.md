@@ -2,7 +2,7 @@
 title: Geometry Generator Framework
 status: normative
 owner: Process Flow UI
-last_verified: 2026-10-15
+last_verified: 2026-11-06
 last_verified_commit: b838db68cf0ec0ed
 audience:
   - frontend
@@ -12,6 +12,7 @@ audience:
 source_of_truth:
   - packages/geometry_generators/src/process_flow_geometry_generators
   - apps/viewer/components/geometry-generator/backend-geometry-generator-dialog.tsx
+  - apps/viewer/components/geometry-generator/geometry-generator-editor.tsx
   - apps/viewer/components/geometry-generator/engineering-preview-renderer.tsx
 ---
 
@@ -155,8 +156,24 @@ metadata dialog收集，optional欄位trim後為空時不寫入GeometryEntity。
 | `flowInput` | Define | 回傳versioned generator binding及當次preview geometry；不寫DB。 |
 
 Define result必須包含suggested flow input name、generator binding與當次preview geometry。
-重新編輯時呼叫端只在resolved geometry的generator id與選擇的definition一致時傳入saved
-parameters；backend仍須validate輸入。Malformed value顯示field errors，不可由前端另算geometry。
+Flow input picker對每個generator ID只顯示一個manifest label入口，將目前可續編來源與符合
+input constraints的generators合併，保留registry順序及`flowInputPicker`顯示限制。
+目前binding為同ID的generator時，呼叫端查詢保存版本的definition並傳入saved parameters，
+不依賴resolved preview geometry是否成功。未設定、catalog來源或選擇其他generator時使用
+所選definition的defaults；不提供獨立的Edit current recipe或重設入口。
+
+共用 `geometry-generator-editor` 提供 parameter controls、工程預覽、validation 與 debounced
+preview hook；catalog 與新 input 建立入口繼續沿用原 dialog／page、Define result 及保存契約。
+Preview 只接受對應目前 generator/version/parameters 的結果；過期或取消的 request 不可更新
+畫面或重新允許送出。網路失敗顯示 Retry preview，無效參數保留 field errors。
+
+Flow 中既有 input 使用單一 GeometryInputEditorDialog：開啟即讀取保存版本與參數，
+1024px 起參數在左、預覽在右，窄視窗參數在前。來源選擇是同一 dialog 的內容頁，
+查詢保存版本時停用來源選取；取消、關閉、卸載與切換來源後忽略過期回應。失敗留在
+該頁提供 Retry／Change source，不回退新版。參數、來源與 input 設定先暫存，只有
+Apply changes 才寫回 flow；Cancel／Close／Escape／背景點擊放棄。只有 input metadata
+改變時保留原 binding；修改參數時使用當次有效 preview 的 normalized parameters。
+Backend 仍驗證輸入，不可由前端另算 geometry。完整互動見 Flow Editor 的 UI-FLOW-013–017。
 
 Catalog geometry immutable。Generator binding是獨立於catalog的配方；後續instance save
 保存完整正規化參數，compile時產生structure，不建立新catalog snapshot。
