@@ -6,8 +6,8 @@ audience:
   - QA
   - frontend
   - reconstruction-agent
-last_verified: 2026-10-31
-last_verified_commit: 039906db
+last_verified: 2026-11-06
+last_verified_commit: 5e46f755
 source_of_truth:
   - docs/ui/screens
   - docs/ui/components
@@ -138,6 +138,7 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-025` | flow中step A成功匯入GDS | close A; open B GDS modal | 自動沿用檔案，body/footer完整顯示可選取換行的檔名、不顯示沿用提示，可換檔；各step的patterns與Defeature獨立。 |
 | `UI-PLACE-026` | GDS已有共用預設 | choose replacement; cancel picker/modal, fail, or complete import | picker取消保留選檔，modal取消保留pending；僅成功套用才更新預設，不改其他step placements；stale response無效。 |
 | `UI-PLACE-027` | editor記住GDS | load flow/source/draft/blank, cancel switch, or reload | 成功替換/reload清除，取消切換保留，獨立editor session不共用。 |
+| `UI-PLACE-030` | PNP Node Editor與Recipe保持開啟 | 開啟GDS portal，填layer／datatype／cell filter、切換include／exclude與Defeature、新增／移除pattern；Tab／Shift+Tab、Cancel／Close／backdrop／Escape，重開三次；失敗重試及成功匯入 | 欄位可持續聚焦輸入，外層不搶focus；Tab不離開GDS，Escape僅關最上層；focus還原trigger、draft保留；busy不可誤關，成功只套用一次。 |
 
 完整的 screen/component cases 分散在各規格的「Acceptance」段落。中央 suite 只列跨元件
 或 release-blocking path。
@@ -173,6 +174,7 @@ Journey 中的 current gap 必須保留原操作路徑並標記 gap ID；不可�
 - [ ] Loading/empty/error/disabled/locked states 都有 semantic case。
 - [ ] Keyboard focus sequence與 Escape behavior已驗證。
 - [ ] Nested modal 的最上層 close path 已驗證，Export form Escape 不會穿透到 Preview。
+- [ ] `UI-PLACE-030` 必須通過：PNP → Recipe → GDS各欄位可輸入、關閉重開不失效；不得只測獨立GDS表單。
 - [ ] Desktop、compact、mobile 的 scroll owner一致。
 - [ ] 新增或變更的 acceptance ID 已回連對應規格。
 
@@ -185,3 +187,22 @@ Journey 中的 current gap 必須保留原操作路徑並標記 gap ID；不可�
 新增流程、候選 recipes、草稿與衝突以 [Flow Editor cases](../screens/flow-editor.md) 為準；舊 FTE／FIE cases 已退場，歷史操作證據留在 evidence 目錄。新流程不鎖 topology，不要求完整設定才可保存。
 
 本次操作紀錄見 [Unified editor evidence](../evidence/unified-flow-editor/README.md)。
+
+## PNP GDS 輸入回歸（UI-PLACE-030）
+
+此case是每次Viewer開發完成後的必要測試，規格見[Placement List](../components/coordinate-list.md)。
+自動化測試使用真實React effects、portal、DOM focus事件及三層視窗，在StrictMode下驗證，
+worker回覆使用測試替身；不得mock掉共用focus hook。舊版會在聚焦Layer時被Recipe搶回focus，
+新測試已確認能重現該失敗。jsdom不驗證視覺遮擋，browser驗收仍須走完整PNP → Recipe → GDS路徑。
+
+```bash
+cd apps/viewer
+npm ci
+npm test
+npm run build
+```
+
+對應自動化測試：
+[輸入與focus回歸](../../../apps/viewer/components/process-flow-fields/gds-placement-import-focus.test.tsx)、
+[匯入與共用檔案生命週期](../../../apps/viewer/components/process-flow-fields/gds-placement-import.test.tsx)。
+CI監看所有Viewer變更，包含共用dialog管理；不得以build成功取代這組互動測試。

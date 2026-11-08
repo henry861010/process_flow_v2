@@ -13,11 +13,19 @@ export function useEditorDialogFocus(
   panel: React.RefObject<HTMLElement>, onClose: () => void, busy: boolean, returnFocus?: React.RefObject<HTMLElement>, enabled = true,
 ) {
   const latest = React.useRef({ onClose, busy });
+  const opener = React.useRef<{ element: HTMLElement; previous: HTMLElement | null } | null>(null);
   latest.current = { onClose, busy };
   React.useEffect(() => {
     const element = panel.current;
     if (!enabled || !element) return;
-    const previous = returnFocus?.current ?? document.activeElement as HTMLElement | null;
+    // StrictMode replays this effect after initial focus has moved into the
+    // dialog. Preserve the original opener instead of saving that inner control.
+    const previous = returnFocus?.current ?? (
+      opener.current?.element === element && element.contains(document.activeElement)
+        ? opener.current.previous
+        : document.activeElement as HTMLElement | null
+    );
+    opener.current = { element, previous };
     dialogs.push(element);
     const controls = () => Array.from(element.querySelectorAll<HTMLElement>(focusableSelector))
       .filter((control) => control.getClientRects().length > 0);

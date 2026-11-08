@@ -15,7 +15,7 @@ from process_flow_schematic.scene import (
     SceneRelation, SceneState, SchematicDelta, clone_scene, namespace_id,
 )
 
-SCHEMATIC_DESCRIPTOR_VERSION = 1
+SCHEMATIC_DESCRIPTOR_VERSION = 2
 
 
 def _freeze_parameters(value):
@@ -179,6 +179,32 @@ def _deposit(context):
     return SchematicDelta(creates=(body,), add_regions=(surface,), cursor_region_id=surface.id)
 
 
+def _coat(context):
+    role = context.program.split("/", 1)[1]
+    target_role = "cow" if role == "tim1" else "lid"
+    targets = [obj for obj in context.main.objects
+               if obj.kind in ("component", "assembly") and obj.role == target_role]
+    if not targets:
+        raise ValueError(f"{role.upper()} needs a {target_role} container")
+    bodies, relations = [], []
+    for target in targets:
+        body = replace(_created(context, f"coating:{target.id}", kind="body", role=role,
+                                label=role.upper(), layout="span", region_id=target.region_id,
+                                color_role="adhesive"), parent_id=target.id)
+        bodies.append(body)
+        # Apply coverage before attachment: attachment narrows the span to
+        # this target even when several targets share a mounting region.
+        relations.extend((
+            SceneRelation(context.local_id(f"covers:{target.id}"), "covers", body.id,
+                          targets=(_anchor(target),), region_id=target.region_id),
+            SceneRelation(context.local_id(f"attached:{target.id}"), "attached_to", body.id,
+                          targets=(_anchor(target),)),
+        ))
+    surface = _surface_region(context, _root(context.main), "coated-surface", _region(context.main))
+    return SchematicDelta(creates=tuple(bodies), add_relations=tuple(relations),
+                          add_regions=(surface,), cursor_region_id=surface.id)
+
+
 def _rdl(context):
     layers = context.parameter_values.get("layers")
     if not isinstance(layers, (list, tuple)) or not layers:
@@ -299,8 +325,28 @@ def _flip(context):
 
 def _saw(context):
     # Current saw crops one assembly; it does not split its output identity.
-    return SchematicDelta(derivations=tuple(SceneDerivation(obj.id, obj.id, "main_geometry", "crop")
-                                            for obj in context.main.objects))
+    root = _root(context.main)
+    outer_region = root.region_id or _region(context.main)
+    contents = SceneRegion(context.local_id("cow-contents"), root.id, parent_region_id=outer_region)
+    updates = tuple(
+        replace(obj, kind="component", role="cow", label="CoW", diagram_label="CoW",
+                nesting="arranged", region_id=outer_region)
+        if obj.id == root.id else
+        replace(obj, region_id=contents.id,
+                anchors=tuple(replace(anchor, source_ref=contents.id)
+                              if anchor.kind == "region-boundary" and anchor.source_ref == outer_region
+                              else anchor for anchor in obj.anchors))
+        if obj.region_id == outer_region else obj for obj in context.main.objects)
+    return SchematicDelta(
+        updates=updates, add_regions=(contents,),
+        update_regions=tuple(replace(region, parent_region_id=contents.id)
+                             for region in context.main.regions if region.parent_region_id == outer_region),
+        update_relations=tuple(replace(relation, region_id=contents.id)
+                               for relation in context.main.relations if relation.region_id == outer_region),
+        cursor_region_id=contents.id if context.main.cursor_region_id == outer_region else None,
+        phase_id=context.local_id("cow-phase"),
+        derivations=tuple(SceneDerivation(obj.id, obj.id, "main_geometry", "crop")
+                          for obj in context.main.objects))
 
 
 def _grind(context):
@@ -321,6 +367,8 @@ def register_descriptors(registry: SchematicDescriptorRegistry) -> None:
     registry.register("pnp/pnp", _place, active_ports=_placement_ports)
     for program in ("layer/molding", "layer/ecl", "layer/daf", "layer/fow"):
         registry.register(program, _deposit)
+    for program in ("layer/tim1", "layer/tim2"):
+        registry.register(program, _coat)
     registry.register("layer/rdl", _rdl)
     registry.register("tmv/tmv", _tmv)
     registry.register("uf/under_fill", _underfill)

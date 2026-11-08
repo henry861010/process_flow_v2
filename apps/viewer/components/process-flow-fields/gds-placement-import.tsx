@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useEditorDialogFocus } from "@/components/process-flow-save/editor-dialog";
 import type { PlacementValidationSummary } from "@/lib/process-flow/placement-validation";
 import { cn } from "@/lib/utils";
 import { useFlowGdsFile } from "./flow-gds-file-context";
@@ -71,59 +72,18 @@ export function GdsPlacementImport({
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const dialogRef = React.useRef<HTMLFormElement | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-  const chooseFileRef = React.useRef<HTMLButtonElement | null>(null);
-  const isImportingRef = React.useRef(false);
   const dialogId = React.useId();
   const titleId = React.useId();
   const descriptionId = React.useId();
   const fileLabelId = React.useId();
 
-  isImportingRef.current = isImporting;
+  // This portal is outside the node editor's DOM subtree. Register it in the
+  // same stack so the underlying editor yields focus and Escape to this modal.
+  useEditorDialogFocus(dialogRef, () => setDialogOpen(false), isImporting, triggerRef, dialogOpen && portalReady);
 
   React.useEffect(() => {
     setPortalReady(true);
   }, []);
-
-  React.useEffect(() => {
-    if (!dialogOpen) return;
-
-    const trigger = triggerRef.current;
-    const focusFrame = window.requestAnimationFrame(() => {
-      chooseFileRef.current?.focus();
-    });
-    const handleDialogKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!isImportingRef.current) setDialogOpen(false);
-        return;
-      }
-      if (event.key !== "Tab") return;
-
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]):not([hidden]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusable?.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      } else if (!dialogRef.current?.contains(document.activeElement)) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", handleDialogKeyDown, true);
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      document.removeEventListener("keydown", handleDialogKeyDown, true);
-      trigger?.focus();
-    };
-  }, [dialogOpen]);
 
   React.useEffect(
     () => () => {
@@ -348,6 +308,7 @@ export function GdsPlacementImport({
                 aria-describedby={descriptionId}
                 aria-labelledby={titleId}
                 aria-modal="true"
+                tabIndex={-1}
                 className="relative z-10 flex max-h-[calc(100vh-32px)] w-[min(900px,calc(100vw-32px))] flex-col overflow-hidden rounded-md border bg-background shadow-viewport"
                 role="dialog"
                 onSubmit={(event) => {
@@ -397,7 +358,7 @@ export function GdsPlacementImport({
                         clearFeedback();
                       }}
                     />
-                    <Button ref={chooseFileRef} type="button" variant="outline" size="sm"
+                    <Button data-autofocus type="button" variant="outline" size="sm"
                       onClick={() => fileInputRef.current?.click()}>
                       <FileUp aria-hidden="true" />
                       {gdsFile ? "Choose another file" : "Choose file"}

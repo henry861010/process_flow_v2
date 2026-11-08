@@ -6,7 +6,8 @@ owner: integration.platform
 audience:
   - process-step 與 generator 開發者
   - API、viewer 與 QA 開發者
-last_verified: 2026-11-05
+last_verified: 2026-11-08
+last_verified_commit: 5e46f755
 verified_against:
   - packages/schematic-py
   - packages/process-step-py/src/process_flow_steps/schematic_presenters.py
@@ -174,8 +175,11 @@ Composer 將所有實例 IDs 映射至 cohort（不限第一個代表），只�
 
 CoW、ring、lid 與 split lineage 以 synthetic Scene fixtures 驗證通用契約：複合 assembly 可保有局部
 region；ring 用 `boundary`／`surrounds` 產生左右兩段但共用同一物件 identity；lid 用 `span`／`covers`
-覆蓋指定區域；fill 可以扣除占用物。這些測試不新增實際 CoW、ring、lid 製程或多輸出 saw。
-目前 saw 仍是單一 geometry output 的 XY crop；真正分割多個 assembly 時需 execution output contract 配合。
+覆蓋指定區域；fill 可以扣除占用物。Saw 現在於單一 geometry output 的 XY crop 完成後，
+將 root 標記為 `cow`，其 descriptor 保留 identity／crop lineage 並進入 CoW 局部排列 phase。
+CoW source presenter 以 arranged component hint 保留內部代表元件；TIM1／TIM2 descriptors
+對應各個 `cow`／`lid` target，新增實體依 parent scope 與 creation provenance 綁定到正確 cohort。
+本版仍不新增 ring／lid producer 或多輸出 saw；真正分割多個 assembly 時需 execution output contract 配合。
 新的 assembly phase 可以重新安排局部版面，來源對應由 lineage 保留。
 
 ## 工程 review 互動

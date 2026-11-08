@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 from .bump_stage import BumpStage
 from .bump_operations import placement_bottom_z, plan_bump_joint
 from .container import Container
@@ -69,11 +71,47 @@ class ProcessGeometryState:
         return state
 
     def clone(self):
-        cloned = ProcessGeometryState.from_structure(
-            self.to_geometry_structure(),
-            {"cursor_z": self._cursor_z, "footprint": self._process_footprint,
-             "provenance": self.provenance()},
-        )
+        # Serialization assigns IDs to newly created nodes. Freeze those same
+        # IDs in the copy, as hydration did, so later transforms cannot change
+        # their identity. The internal geometry has already been validated.
+        structure = self.to_geometry_structure()
+        _validate_structure_ids(structure["root"])
+        seen_objects = set()
+        shared_objects = False
+        for node in self._provenance_nodes():
+            self._ensure_node_provenance(node)
+            geometry = getattr(node, "_geometry", None)
+            for owned in (node, geometry):
+                if owned is not None:
+                    if id(owned) in seen_objects:
+                        shared_objects = True
+                    seen_objects.add(id(owned))
+            if geometry is not None and _has_shared_mutable_data(vars(geometry), seen_objects):
+                shared_objects = True
+
+        if shared_objects:
+            # Manually assembled geometry can reuse features or coordinate
+            # lists, including a polygon's closing point. Hydration separates
+            # serialized occurrences; deepcopy would preserve their aliases.
+            cloned = ProcessGeometryState.from_structure(
+                structure,
+                {"cursor_z": self._cursor_z, "footprint": self._process_footprint,
+                 "provenance": self.provenance()},
+            )
+        else:
+            # A source placed with clone=False can have a parent in another
+            # state. Exclude it before copying, including all of its siblings.
+            parent = self._root.parent()
+            root = deepcopy(self._root, {} if parent is None else {id(parent): None})
+            cloned = ProcessGeometryState(
+                root=root,
+                cursor_z=self._cursor_z,
+                process_footprint=self._process_footprint,
+                schema_version=self._schema_version,
+                unit_system=self._unit_system,
+            )
+        for node, payload in zip(cloned._provenance_nodes(), structure_nodes(structure)):
+            node._structure_id = payload["id"]
         cloned._provenance_step = self._provenance_step
         cloned._provenance_ordinal = self._provenance_ordinal
         return cloned
@@ -89,12 +127,15 @@ class ProcessGeometryState:
         """Resolve lineage against the same IDs used by geometry serialization."""
         result = {}
         for node, payload in zip(self._provenance_nodes(), structure_nodes(self.to_geometry_structure())):
-            entry = getattr(node, "_provenance", None)
-            if entry is None or (not entry["sources"] and entry["createdBy"] is None
-                                 and self._provenance_step is not None):
-                self._record_node_creation(node, "create")
+            self._ensure_node_provenance(node)
             result[payload["id"]] = deep_copy(node._provenance)
         return result
+
+    def _ensure_node_provenance(self, node):
+        entry = getattr(node, "_provenance", None)
+        if entry is None or (not entry["sources"] and entry["createdBy"] is None
+                             and self._provenance_step is not None):
+            self._record_node_creation(node, "create")
 
     def set_provenance(self, provenance):
         """Hydrate an optional sidecar; physical structure remains unchanged."""
@@ -345,6 +386,35 @@ class ProcessGeometryState:
         if advance_cursor:
             self._cursor_z = bottom_z + layer_thickness
         return handle
+
+    def coat_targets(self, *, target_key, material, thickness, key=None):
+        """Coat every exact-key scope's original bounding box at its own top.
+
+        Plan the entire batch before attaching bodies. The coating belongs to
+        its target, independently of the global cursor and process footprint.
+        """
+        target_key = validate_container_key(_require_string(target_key, "targetKey"))
+        material = _require_string(material, "material")
+        thickness = _positive_number(thickness, "thickness")
+        body_key = _require_body_key(key)
+        targets = [self._resolve_scope(scope) for scope in self.find_scopes(key=target_key)]
+        if not targets:
+            raise ValueError(f"coat_targets requires at least one container with key={target_key!r}")
+        planned = []
+        for target in targets:
+            bounds = {name: _finite_number(value, name)
+                      for name, value in _container_bounds(target).items()}
+            if any(bounds[f"{axis}Max"] <= bounds[f"{axis}Min"] for axis in ("x", "y", "z")):
+                raise ValueError(f"coat_targets key={target_key!r} requires non-empty target bounds")
+            _finite_number(bounds["zMax"] + thickness, "coating top")
+            body = Body(BoxGeometry(
+                [bounds["xMin"], bounds["yMin"], bounds["zMax"]],
+                [bounds["xMax"], bounds["yMax"], bounds["zMax"]], thickness,
+            ), material, body_key)
+            planned.append((target, body))
+        handles = [self._add_body_object(body, scope=target) for target, body in planned]
+        self._cursor_z = max(body.z_max() for _, body in planned)
+        return handles
 
     def fill_to(self, *, material, z, scope=ROOT_SCOPE, key=None):
         target_z = _finite_number(z, "z")
@@ -1034,6 +1104,18 @@ class ProcessGeometryState:
     def root_scope_ref(self):
         return self._scope_ref(self._root)
 
+    def set_scope_key(self, key, scope=ROOT_SCOPE):
+        """Change a scope's role while retaining the existing node identities."""
+        key = validate_container_key(key)
+        target = self._resolve_scope(scope)
+        if target.key() != key:
+            # Implicit IDs include ancestor roles. Freeze them before changing
+            # a role so descendant identities and provenance remain stable.
+            for node, payload in zip(self._provenance_nodes(), structure_nodes(self.to_geometry_structure())):
+                node._structure_id = payload["id"]
+            target._key = key
+        return self
+
     def find_scopes(self, *, key=None, id=None, recursive=True, match="exact"):
         if match not in ("exact", "family"):
             raise ValueError('find_scopes match must be "exact" or "family"')
@@ -1158,6 +1240,18 @@ class ProcessGeometryState:
 
         _walk_container(self._root, visit)
         return counts
+
+
+def _has_shared_mutable_data(value, seen):
+    if isinstance(value, tuple):
+        return any(_has_shared_mutable_data(child, seen) for child in value)
+    if not isinstance(value, (list, dict)):
+        return False
+    if id(value) in seen:
+        return True
+    seen.add(id(value))
+    children = value.values() if isinstance(value, dict) else value
+    return any(_has_shared_mutable_data(child, seen) for child in children)
 
 
 def _validate_structure_ids(root):

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
+
 from ..utils.math_utils import math
 
 TYPE_EMPTY = 0
@@ -197,9 +199,16 @@ class Region:
         return [{"type": "POLYGON", "dim": loop, "holes": []} for loop in oriented]
 
     def _mark_box(self, box, set_to):
-        for i in range(self.cell_num_x):
+        # Cells outside these edge windows cannot have a midpoint inside the
+        # box. Keep the midpoint tests: rounding can put a midpoint exactly on
+        # an edge even when the cell's two endpoints are different floats.
+        x_start = max(0, bisect_right(self.table_x_dim, box[0]) - 1)
+        x_stop = min(self.cell_num_x, bisect_left(self.table_x_dim, box[2]))
+        y_start = max(0, bisect_right(self.table_y_dim, box[1]) - 1)
+        y_stop = min(self.cell_num_y, bisect_left(self.table_y_dim, box[3]))
+        for i in range(x_start, x_stop):
             cx = (self.table_x_dim[i] + self.table_x_dim[i + 1]) / 2
-            for j in range(self.cell_num_y):
+            for j in range(y_start, y_stop):
                 cy = (self.table_y_dim[j] + self.table_y_dim[j + 1]) / 2
                 if box[0] < cx < box[2] and box[1] < cy < box[3]:
                     self.cell_type[i][j] |= set_to
@@ -366,16 +375,31 @@ def _split_loop_at_repeated_points(loop):
 
 
 def _orient_nested_loops(loops, region):
+    bounds = [
+        (min(point[0] for point in loop), min(point[1] for point in loop),
+         max(point[0] for point in loop), max(point[1] for point in loop))
+        for loop in loops
+    ]
     result = []
-    for loop in loops:
+    for loop, loop_bounds in zip(loops, bounds):
         depth = sum(
             1
-            for other in loops
+            for other, other_bounds in zip(loops, bounds)
             if other is not loop
+            and _bounds_may_overlap(loop_bounds, other_bounds)
             and any(_point_strictly_in_loop(point, other) for point in loop)
         )
         result.append(region._ensure_orientation(loop, depth % 2 == 0))
     return result
+
+
+def _bounds_may_overlap(left, right):
+    # Only reject clearly separated loops. Tangency and separations within the
+    # existing coordinate tolerance still go through the original point tests.
+    return not (
+        math.f_lt(left[2], right[0]) or math.f_lt(right[2], left[0])
+        or math.f_lt(left[3], right[1]) or math.f_lt(right[3], left[1])
+    )
 
 
 def _remove_collinear_points(loop):

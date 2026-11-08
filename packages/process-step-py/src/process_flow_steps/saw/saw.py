@@ -9,4 +9,5 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
         top_right_x=context.require_finite_number("topRightX", "saw.topRightX"),
         top_right_y=context.require_finite_number("topRightY", "saw.topRightY"),
     )
+    state.set_scope_key("cow")
     return state

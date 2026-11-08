@@ -318,9 +318,27 @@ def bind_flow_snapshots(plan: FlowSchematicPlan, snapshots) -> dict[str | None, 
             created = entry.get("createdBy") or {}
             if created.get("stepRefId") == node_id:
                 pending[kind].append((physical_id, node, created))
+        # Repeated physical instances can share one logical parent/cohort.
+        # Bind a newly created child by that owner before ordinal fallback;
+        # batch operations must not mix distinct target cohorts.
+        owners = {str(child["id"]): parent_id
+                  for parent_id, parent_kind, parent in _physical_nodes(snapshot.geometry_structure)
+                  if parent_kind == "container"
+                  for collection in ("bodies", "vias", "circuits", "bumps", "children")
+                  for child in parent.get(collection, ())}
         for kind, nodes in pending.items():
             targets = by_kind.get(kind, ())
-            ordered = sorted(nodes, key=lambda value: (value[2].get("ordinal", 0), value[0]))
+            remaining = []
+            for physical_id, node, created in nodes:
+                owner = logical.get(owners.get(physical_id))
+                owned_targets = [target for target in targets if owner is not None and target.parent_id == owner]
+                if len(owned_targets) == 1:
+                    logical[physical_id] = owned_targets[0].id
+                else:
+                    remaining.append((physical_id, node, created))
+            bound_targets = set(logical.values())
+            targets = [target for target in targets if target.id not in bound_targets]
+            ordered = sorted(remaining, key=lambda value: (value[2].get("ordinal", 0), value[0]))
             if len(targets) == 1:
                 logical.update((physical_id, targets[0].id) for physical_id, _, _ in ordered)
             elif len(targets) == len(ordered):

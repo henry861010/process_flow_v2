@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from .layout import representation_for_role
 from .scene import SceneState, SchematicObject, validate_scene
 
-SCENE_LAYOUT_POLICY_VERSION = 3
+SCENE_LAYOUT_POLICY_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -300,6 +300,12 @@ def make_scene_layout_plan(scene: SceneState | Sequence[SceneState], *, fingerpr
         needed = sum(width * count for width, count in widths) + max(0, count - 1) * policy.member_gap + 2 * inset
         if any(representation(obj)[1] == "edges" for obj in members):
             needed += 2 * policy.edge_inset
+        # Non-member-owned surfaces share their parent's horizontal frame.
+        # A coating/RDL surface can carry more members than the lower surface;
+        # propagate that demand through a compound's local content region.
+        needed = max([needed, *(preferred_width(child.id) for child in state.regions
+                                if child.parent_region_id == region_id
+                                and objects[child.owner_id].layout != "member")])
         preferred[region_id] = max(policy.member_width if is_local else policy.minimum_width - 2 * policy.support_margin, needed)
         active.remove(region_id)
         return preferred[region_id]
@@ -311,7 +317,8 @@ def make_scene_layout_plan(scene: SceneState | Sequence[SceneState], *, fingerpr
     # A later deposition region can need more slots than the initial root.
     # Every region sharing the assembly frame contributes to its fixed width.
     width = max([policy.minimum_width, *(preferred[region.id] + 2 * policy.support_margin
-                                         for region in state.regions if not is_local_region(region.id))])
+                                         for region in state.regions if not is_local_region(region.id)
+                                         or region.parent_region_id is None)])
     region_placements: dict[str, SceneRegionPlacement] = {}
     slots: list[SceneMemberSlot] = []
     object_slots: dict[str, list[SceneMemberSlot]] = {}

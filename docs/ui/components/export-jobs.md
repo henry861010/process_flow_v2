@@ -56,6 +56,12 @@ Symmetry依序顯示`Full`、`Upper Half`、`Right Half`、`Upper-right Quarter`
 `Customized after applying`。方法選擇隨geometry草稿保存，舊草稿缺少欄位時補為Grid並保留其餘內容。
 Built-in set 提供 `meshModel1`、`meshModel2`、`meshModel3` 與 `meshControl3dTest`；前三者目前以相同的
 Tim、adhesive、uBump 與 UF rules 為初始值，但各自保留獨立實作與 control sizes。
+`meshModel2` 另找出每個 `soc`／`hbm` die 頂面四角的 `50 × 50 × 50 µm` 區域，
+並在相對 die 的 UF 通道中找出垂直與水平邊界切線交會的局部 `50 × 50 × 50 µm` 區域。
+只加入交會區塊，不沿整條通道建立細長控制區域；對角 die 的切線在 UF 相交時也會產生區塊。
+在完全相同的 Z 範圍內，以 `gap = 4000 µm` 遞迴合併 XY 方向相鄰區域；gap 為區域邊緣的距離，
+相距超過 gap 的區域保持分開，不同高度的區域也保持分開。合併後每個連通區域都使用 `element size = 5 µm`
+的 Absolute `3D_REGION`；矩形使用 Box，其餘保留 Polygon 外框與孔洞。解析資訊保留來源 die IDs 與合併後的邊界。
 `Local controls`區塊預設收合，整列可點擊並顯示控制數量；收合不得清空draft。
 `Add control` 位於右側標題旁，新增時自動展開並捲到新卡片；已有控制時展開清單底部也提供新增按鈕。
 Controls初始為空，可新增/刪除；展開後顯示resolved rules、empty state或control cards。

@@ -5,7 +5,7 @@ owner: integration.platform
 audience:
   - process-step authors
   - kernel consumers
-last_verified: 2026-10-12
+last_verified: 2026-11-08
 last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/__init__.py
@@ -79,11 +79,20 @@ Cursor 是 process operation reference，不是 geometry bounds 的 alias。
 - `deposit_layer(material, thickness, z=None, advance_cursor=True, scope="root", xy_inset=0, key=None)`
 - `fill_to(material, z, scope="root", key=None)`
 - `deposit_geometry(...)` 及 box/cylinder/polygon/cone variants
+- `coat_targets(target_key, material, thickness, key=None)`
 
 Initialization 建立第一層並可設定 footprint；所有 body-producing APIs 接受 optional registered
 `key`，copy、clip、resize 與 serialization 會保留。未指定時 serialization 省略欄位。Deposit
 預設使用 current process footprint。Positive thickness 與 non-empty footprint 由 runtime
 validation enforce。
+
+`coat_targets` 在 runtime scope tree 遞迴選取所有 exact-match containers（包含 root），先取得
+全部目標的原始 subtree bounds，再於每個目標新增一個直屬 Box body：完整 XY 外接矩形、底面
+為該目標 `zMax`、厚度為指定正有限值。不讀 cursor、不要求 process footprint，不執行 surface
+boolean；外接矩形包含孔洞、空隙與非矩形輪廓之外的範圍，也不向下填補頂面高低差。
+回傳 body handles list，並把 cursor 設為本批新增 bodies 的最高頂部，process footprint 不變。
+無匹配目標、目標 bounds 無正體積、非法 material／thickness／key 或非有限頂部皆於新增前 reject。
+所有 bounds 在新增前固定，因此一個批次內既有巢狀目標不會因先新增的 coating 而改變起點。
 
 ### Feature
 
@@ -146,6 +155,7 @@ primitive collapse 或非 BoxGeometry 都會在 attach 前 reject。
 ### Scope 與 inspection
 
 - `root_scope_ref()`
+- `set_scope_key(key, scope="root")`
 - `find_scopes(key=None, id=None, recursive=True, match="exact")`
 - `scope_summary(scope="root")`
 - `inspect()`
@@ -153,6 +163,10 @@ primitive collapse 或非 BoxGeometry 都會在 attach 前 reject。
 `find_scopes` 的 `match="family"` 允許 `carrier` 匹配 `carrier.panel`／`carrier.wafer`；預設
 `exact`。Scope argument 接受 root marker 或 kernel scope ref。Process-step author不應依賴
 underscore-prefixed state/container methods。
+
+`set_scope_key` 驗證 registered container key，保留既有 node IDs、provenance、cursor 與 footprint，
+回傳 state。為避免 ancestor role 改變連帶重建 implicit IDs，改 key 前會固定目前結構的 IDs。
+Saw step 使用它將裁切後的 root 標記為 `cow`；一般裁切 API 不隱含這個產業角色。
 
 ## Geometry/domain types
 

@@ -14,10 +14,7 @@ on:
       - "apps/api/src/process_flow_api/models.py"
       - "apps/api/tests/**"
       - "packages/geometry_generators/**"
-      - "apps/viewer/components/geometry-preview/file-export-*.ts*"
-      - "apps/viewer/components/process-flow-fields/gds-*"
-      - "apps/viewer/package.json"
-      - "apps/viewer/package-lock.json"
+      - "apps/viewer/**"
       - "script/geometry_viewer.py"
       - "script/test*.py"
   push:
@@ -33,10 +30,7 @@ on:
       - "apps/api/src/process_flow_api/models.py"
       - "apps/api/tests/**"
       - "packages/geometry_generators/**"
-      - "apps/viewer/components/geometry-preview/file-export-*.ts*"
-      - "apps/viewer/components/process-flow-fields/gds-*"
-      - "apps/viewer/package.json"
-      - "apps/viewer/package-lock.json"
+      - "apps/viewer/**"
       - "script/geometry_viewer.py"
       - "script/test*.py"
 

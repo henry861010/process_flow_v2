@@ -7,7 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-11-05
+last_verified: 2026-11-08
+last_verified_commit: 5e46f755
 source_of_truth:
   - docs/architecture/decisions/0012-process-owned-schematic-preview.md
   - docs/conformance.md
@@ -18,6 +19,11 @@ source_of_truth:
 ---
 
 # Geometry Preview
+
+Saw 的輸出以 CoW assembly 呈現，保留內部元件來源並允許進入新的局部排列 phase。
+TIM1／TIM2 各自在所有 CoW／lid targets 上顯示材料 slab，範圍取目標完整 XY 外接矩形，
+厚度取實際 snapshot；不得因上層 substrate 較大而將 TIM 延伸至整片 substrate。
+兩個 process steps 使用既有 material／number 表單與通用 schematic primitives。
 
 ## 目的與 context
 

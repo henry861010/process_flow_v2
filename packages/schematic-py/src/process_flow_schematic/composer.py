@@ -139,7 +139,8 @@ def _validate_parts(parts):
     for part in parts:
         if part.component is not None:
             hint = part.component
-            if not isinstance(hint, ComponentHint) or not isinstance(hint.representative_count, int) or hint.representative_count < 1:
+            if (not isinstance(hint, ComponentHint) or not isinstance(hint.representative_count, int)
+                    or hint.representative_count < 1 or hint.nesting not in ("structural", "arranged")):
                 raise ValueError("Invalid component hint")
         for label in (part.diagram_label, part.component.diagram_label if part.component else None):
             if label is not None and (not isinstance(label, str) or not label.strip()):
@@ -196,7 +197,7 @@ def describe_schematic_components(
 
 
 def _compose_schematic(
-    structure, registry, *, layout_plan=None, component_bindings=None, describe_only=False,
+    structure, registry, *, layout_plan=None, component_bindings=None, describe_only=False, arrange_contents=True,
 ):
     if layout_plan is not None:
         _validate_layout_plan(layout_plan)
@@ -282,7 +283,9 @@ def _compose_schematic(
     selected: list[Mapping] = []
     selected_ids = set()
     for container, ancestors in containers:
-        if id(container) not in container_bounds or any(id(ancestor) in selected_ids for ancestor in ancestors):
+        if id(container) not in container_bounds or any(
+                id(ancestor) in selected_ids and hints.get(id(ancestor), ComponentHint("")).nesting == "structural"
+                for ancestor in ancestors):
             continue
         if id(container) in hints:
             selected.append(container)
@@ -302,6 +305,16 @@ def _compose_schematic(
             id(container), ComponentHint(str(container.get("key") or "Component")))
             for container in selected}
 
+    if arrange_contents and layout_plan is None and any(hint.nesting == "arranged" for hint in hints.values()):
+        # A standalone compound uses the same local-region plan as a flow.
+        # It must not flatten its internal components into sibling packages.
+        from .flow import _display_bindings, transport_layout
+        from .scene_layout import make_scene_layout_plan
+        from .source import describe_source_scene
+        scene, logical = describe_source_scene(structure, registry, source_id="snapshot")
+        layout_plan = transport_layout(make_scene_layout_plan(scene))
+        component_bindings = _display_bindings(scene, logical, structure)
+
     # A partial binding must never hide current geometry.
     if layout_plan is not None:
         reserved = {slot.group_key for slot in layout_plan.slots}
@@ -313,7 +326,7 @@ def _compose_schematic(
         missing_members = any((component_bindings or {}).get(str(container.get("id", ""))) not in reserved
                               for container in selected)
         if missing_members or missing_sources:
-            document = _compose_schematic(structure, registry)
+            document = _compose_schematic(structure, registry, arrange_contents=False)
             document["notes"] = list(dict.fromkeys((*document["notes"], *layout_plan.notes)))
             document["warnings"].append(
                 "A current schematic object cannot be bound to the shared plan; this assembly uses a local layout."

@@ -188,7 +188,7 @@ class MeshControlSetApiTests(unittest.TestCase):
                 z_controls = [c for c in payload["meshControl"]["controls"] if c["method"] != "3D_REGION"]
                 z_details = [d for d in payload["details"] if not d.get("resolvedRegions")]
                 self.assertEqual(len(payload["meshControl"]["controls"]) - len(z_controls),
-                                 4 if set_id == "meshModel2" else 0)
+                                 1 if set_id == "meshModel2" else 0)
                 uf_controls = z_controls[2:]
                 self.assertEqual(
                     [(item["startZ"], item["endZ"]) for item in uf_controls],
@@ -302,7 +302,7 @@ class MeshControlSetApiTests(unittest.TestCase):
                         validate_mesher_mesh_control(document)
                         self.assertEqual(structure, snapshot)
 
-    def test_mm2_returns_four_top_corner_boxes_per_soc_and_hbm(self):
+    def test_mm2_merges_top_corners_per_z_range_and_retains_source_ids(self):
         structure = spatial_structure(with_hbm=True)
         structure["root"]["children"].extend(spatial_structure(with_hbm=False)["root"]["children"])
         # Both layouts reuse feature IDs, so give the SoC features distinct IDs.
@@ -318,25 +318,28 @@ class MeshControlSetApiTests(unittest.TestCase):
         controls = [c for c in payload["meshControl"]["controls"] if c["method"] == "3D_REGION"]
         details = [d for d in payload["details"] if d.get("resolvedRegions")]
         containers = [n for n in state.find_geometry(kind="container") if n["key"] in ("soc", "hbm")]
-        self.assertEqual(len(controls), 32)
-        self.assertEqual(len(details), 32)
-        self.assertEqual(payload["meshControl"]["controls"][-32:], controls)
-        self.assertEqual(payload["details"][-32:], details)
-        for index, container in enumerate(containers):
-            for corner, (x, y) in enumerate(((container["xMin"], container["yMin"]),
-                                           (container["xMin"], container["yMax"]),
-                                           (container["xMax"], container["yMin"]),
-                                           (container["xMax"], container["yMax"]))):
-                control, detail = controls[index * 4 + corner], details[index * 4 + corner]
-                self.assertEqual(control["reference"], {"kind": "container", "id": container["id"]})
-                self.assertEqual(control["coordinateMode"], "reference")
-                self.assertEqual(control["elementSize"], 5)
-                self.assertEqual(detail["sourceIds"], [container["id"]])
-                self.assertEqual(detail["label"], control["label"])
-                self.assertEqual(detail["resolvedRegions"], [{"sourceId": container["id"], "bounds": {
-                    "xMin": x - 25, "xMax": x + 25, "yMin": y - 25, "yMax": y + 25,
-                    "zMin": container["zMax"] - 25, "zMax": container["zMax"] + 25,
-                }}])
+        self.assertEqual(len(controls), 2)
+        self.assertEqual(len(details), 2)
+        self.assertEqual(payload["meshControl"]["controls"][-2:], controls)
+        self.assertEqual(payload["details"][-2:], details)
+        for control, detail, key, z_min, z_max in zip(
+            controls, details, ("hbm", "soc"), (95, 295), (145, 345),
+        ):
+            self.assertEqual(control["coordinateMode"], "absolute")
+            self.assertNotIn("reference", control)
+            self.assertEqual(control["elementSize"], 5)
+            self.assertEqual(control["region"], {
+                "type": "box", "min": {"x": -175, "y": -175, "z": z_min},
+                "max": {"x": 115, "y": 115, "z": z_max},
+            })
+            self.assertEqual(detail["sourceIds"], [c["id"] for c in containers if c["key"] == key])
+            self.assertEqual(detail["label"], control["label"])
+            self.assertEqual(detail["elementSize"], 5)
+            self.assertEqual((detail["startZ"], detail["endZ"]), (z_min, z_max))
+            self.assertEqual(detail["resolvedRegions"], [{"sourceId": None, "bounds": {
+                "xMin": -175, "xMax": 115, "yMin": -175, "yMax": 115,
+                "zMin": z_min, "zMax": z_max,
+            }}])
         for symmetry in ("full", "upper_half", "right_half", "upper_right_quarter"):
             with self.subTest(symmetry=symmetry):
                 document = copy.deepcopy(payload["meshControl"])
@@ -345,7 +348,7 @@ class MeshControlSetApiTests(unittest.TestCase):
                 validate_mesher_mesh_control(document)
         self.assertEqual(structure, snapshot)
 
-    def test_mm2_large_apply_uses_only_three_geometry_queries(self):
+    def test_mm2_large_apply_merges_corners_with_only_two_geometry_queries(self):
         children = [{"id": f"container:{i}", **({"key": "soc"} if i < 75 else {}), "bodies": [{
             "id": f"body:{i}", "material": "Si", "geometry": {
                 "type": "BoxGeometry", "bottom_left": [i * 100, 0, 0],
@@ -357,10 +360,17 @@ class MeshControlSetApiTests(unittest.TestCase):
                           side_effect=ProcessGeometryState.find_geometry) as query:
             response = self.client.post("/api/mesh-control-sets/meshModel2/apply", json={"geometryStructure": structure})
             self.assertEqual(response.status_code, 200, response.text)
-            self.assertEqual(query.call_count, 3)
+            self.assertEqual(query.call_count, 2)
         payload = response.json()
-        self.assertEqual(sum(c["method"] == "3D_REGION" for c in payload["meshControl"]["controls"]), 300)
-        self.assertEqual(sum(bool(d.get("resolvedRegions")) for d in payload["details"]), 300)
+        controls = [c for c in payload["meshControl"]["controls"] if c["method"] == "3D_REGION"]
+        details = [d for d in payload["details"] if d.get("resolvedRegions")]
+        self.assertEqual(len(controls), 1)
+        self.assertEqual(len(details), 1)
+        self.assertEqual(controls[0]["region"], {
+            "type": "box", "min": {"x": -25, "y": -25, "z": 275},
+            "max": {"x": 7465, "y": 65, "z": 325},
+        })
+        self.assertEqual(details[0]["sourceIds"], [f"container:{i}" for i in range(75)])
 
     def test_all_models_add_lsi_si_with_and_without_hbm_for_each_symmetry(self):
         for with_hbm in (True, False):

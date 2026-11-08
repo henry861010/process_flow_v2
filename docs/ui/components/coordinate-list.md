@@ -7,8 +7,8 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-16
-last_verified_commit: 5e9dd07d
+last_verified: 2026-11-06
+last_verified_commit: 5e46f755
 source_of_truth:
   - apps/viewer/components/process-flow-fields/placement-list-control.tsx
   - apps/viewer/components/process-flow-fields/placement-preview.tsx
@@ -17,6 +17,8 @@ source_of_truth:
   - apps/viewer/components/process-flow-fields/gds-placement-import.tsx
   - apps/viewer/components/process-flow-fields/flow-gds-file-context.tsx
   - apps/viewer/components/process-flow-fields/gds-placement-import.test.tsx
+  - apps/viewer/components/process-flow-fields/gds-placement-import-focus.test.tsx
+  - apps/viewer/components/process-flow-save/editor-dialog.tsx
   - apps/viewer/components/process-flow-fields/gds-import-criteria.ts
   - apps/viewer/components/process-flow-fields/gds-import-criteria.test.ts
   - apps/viewer/components/process-flow-fields/gds-coordinate-geometry.ts
@@ -123,7 +125,10 @@ structure的`STRNAME`，比對不區分大小寫，並支援include/exclude subs
 Success先整批取代placements，再自動關閉modal並將success、repair、preserved-outline、non-orthogonal與
 placement validation摘要顯示在placement list上方。Error留在modal內且不得關閉或修改placements。
 Close、Cancel、backdrop與Escape在idle時只關閉GDS modal、把focus還給trigger，不得連帶關閉外層
-Node Editor；modal開啟期間Tab focus必須留在modal內。修改任何GDS import設定會清除上一筆摘要。
+Node Editor；modal開啟期間Tab focus必須留在modal內。GDS portal必須註冊到Node Editor／Recipe共用的
+`useEditorDialogFocus` stack，只有最上層處理focus與Escape；不得另建獨立focus trap，
+也不得以提高z-index取代focus lifecycle。Layer、datatype、cell filter與Defeature必須能持續取得
+focus並修改，外層不得搶回focus。修改任何GDS import設定會清除上一筆摘要。
 
 Defeature是default-off、無尺寸參數的import-time-only設定，不寫入placement payload。
 本次只支援與外邊界相連的凹口，不新增完全封閉內孔或多loop資料格式。Worker先在套用hierarchy
@@ -189,3 +194,4 @@ Preview buttons 有 accessible names 與 visible focus ring；card headings 可�
 | `UI-PLACE-025` | step A成功匯入後關閉，開啟step B的GDS modal | 自動沿用同一檔案，body/footer完整顯示可選取換行的檔名、不顯示沿用提示，可換檔；patterns與Defeature不跨step繼承。 |
 | `UI-PLACE-026` | 換檔後取消picker、關閉modal、匯入失敗或完成 | 取消picker保留選檔；關閉modal保留pending選檔；只有成功套用placements才更新flow預設，且不改其他step的placements；stale response無效。 |
 | `UI-PLACE-027` | 成功載入template/source/draft/空白配置、取消切換或reload | 成功替換或reload清除共用檔案；取消切換保留；不同editor session不共用。 |
+| `UI-PLACE-030` | PNP Node Editor → Recipe → GDS portal；編輯各欄位、新增／移除pattern、Tab／Shift+Tab、關閉重開及匯入重試 | 欄位持續可輸入；只有最上層處理focus／Escape，關閉還原trigger，draft保留；busy不可誤關，失敗可修正重試、成功套用並還原focus。 |

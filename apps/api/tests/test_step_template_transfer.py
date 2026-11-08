@@ -116,6 +116,74 @@ def test_referenced_steps_allow_description_metadata_order_and_recursive_default
     assert client.put(f"/api/process-step-templates/{molding['id']}", json=changed).status_code == 409
 
 
+def test_import_updates_legacy_mr_joint_descriptions_without_changing_flows(service):
+    client, store = service
+    current = steps(client)["step_tpl_mr_joint"]
+    legacy = copy.deepcopy(current)
+    legacy["description"] = "Legacy MR joint description"
+    legacy["outputPorts"][0]["description"] = "Assembly with joined child bumps and adjusted child heights."
+    legacy["parameterDefinitions"][0]["description"] = "Total main-surface-to-die-body gap after joint, not an added upper-bump thickness."
+    store.update_process_step_template(legacy)
+    before = client.get("/api/bootstrap").json()
+
+    response = client.post("/api/process-step-templates/import", json=[current])
+
+    assert response.status_code == 200, response.text
+    assert response.json()["updatedCount"] == 1
+    assert steps(client)[current["id"]] == current
+    after = client.get("/api/bootstrap").json()
+    assert {key: value for key, value in after.items() if key != "processStepTemplates"} == {
+        key: value for key, value in before.items() if key != "processStepTemplates"}
+
+
+@pytest.mark.parametrize("operation", ["change", "omit"])
+def test_import_allows_port_and_recursive_parameter_descriptions_on_referenced_steps(service, operation):
+    client, _ = service
+    original = steps(client)["step_tpl_rdl"]
+    updated = copy.deepcopy(original)
+
+    def edit_description(value):
+        if isinstance(value, dict):
+            if "description" in value:
+                if operation == "change":
+                    value["description"] = "Updated human-facing explanation"
+                else:
+                    value.pop("description")
+            for child in value.values():
+                edit_description(child)
+        elif isinstance(value, list):
+            for child in value:
+                edit_description(child)
+
+    edit_description(updated)
+    response = client.post("/api/process-step-templates/import", json=[updated])
+    assert response.status_code == 200, response.text
+    assert steps(client)[original["id"]] == updated
+
+
+def test_draft_referenced_static_option_descriptions_can_change_but_option_values_cannot(service):
+    client, _ = service
+    source = copy.deepcopy(steps(client)["step_tpl_ecl"])
+    source["id"] = "option-description-test"
+    source["parameterDefinitions"][0]["optionSource"] = {"type": "static", "options": [
+        {"value": "PI", "name": "Polyimide", "description": "Old material explanation"},
+    ]}
+    created = client.post("/api/process-step-templates/import", json=[source])
+    assert created.status_code == 200, created.text
+    draft = make_draft(client, "template", source)
+    updated = copy.deepcopy(source)
+    updated["parameterDefinitions"][0]["optionSource"]["options"][0]["description"] = "New material explanation"
+    response = client.post("/api/process-step-templates/import", json=[updated])
+    assert response.status_code == 200, response.text
+    assert steps(client)[source["id"]] == updated
+    changed = copy.deepcopy(updated)
+    changed["parameterDefinitions"][0]["optionSource"]["options"][0]["value"] = "Other material"
+    response = client.post("/api/process-step-templates/import", json=[changed])
+    assert response.status_code == 409, response.text
+    assert draft["id"] in response.json()["message"]
+    assert steps(client)[source["id"]] == updated
+
+
 @pytest.mark.parametrize("change", [
     {"name": "Changed identity"}, {"version": "V9"}, {"parameterDefinitions": []},
 ])
@@ -151,6 +219,7 @@ def test_referenced_port_and_nested_parameter_structure_changes_are_locked(servi
     client, _ = service
     before = steps(client)
     changed = copy.deepcopy(before[step_id])
+    changed["description"] = "An explanation change does not permit structural changes"
     if step_id == "step_tpl_pnp":
         changed["inputPorts"][1]["name"] = "Changed auxiliary port"
     else:

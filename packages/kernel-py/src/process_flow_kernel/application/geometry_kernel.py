@@ -203,8 +203,11 @@ def _main_or_first_geometry(map_):
 
 
 def _normalize_step_output_state(output, fallback_state):
-    resolved_output = fallback_state if output is None else output
-    return _geometry_input_to_process_geometry_state(resolved_output)
+    # This state was already detached from input artifacts before execution.
+    # Keep the defensive copy for independently returned states or artifacts.
+    if output is None or output is fallback_state:
+        return fallback_state
+    return _geometry_input_to_process_geometry_state(output)
 
 
 def _geometry_input_to_process_geometry_state(value):

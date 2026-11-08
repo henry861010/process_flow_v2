@@ -248,13 +248,15 @@ class SchematicSemanticFlowTests(unittest.TestCase):
         self.assertTrue(all(item["id"] not in displayed_items for item in measured if bodies[1]["id"] in item["sourceIds"]))
         bound_samples = {sample.source_id: sample for data in bindings["grind"].physical_data for sample in data.samples}
         self.assertEqual({bound_samples[body["id"]].thickness for body in bodies}, {4, 8})
-        _, cut, _, _ = execute_document(_target(ctx, "cut"))
+        planning, cut, cut_snapshots, _ = execute_document(_target(ctx, "cut"))
         self.assertEqual(cut["warnings"], [])
-        self.assertEqual(cut["components"][0]["sourceIds"], [children[1]["id"]])
-        self.assertEqual((ground["components"][0]["id"], ground["components"][0]["x"], ground["components"][0]["width"]),
-                         (cut["components"][0]["id"], cut["components"][0]["x"], cut["components"][0]["width"]))
+        root = cut_snapshots[-1].geometry_structure["root"]
+        self.assertEqual(root["key"], "cow")
+        self.assertEqual(root["children"][0]["id"], children[1]["id"])
+        self.assertEqual(cut["components"][0]["label"], "CoW")
+        self.assertNotEqual(planning.outputs["grind"].phase_id, planning.outputs["cut"].phase_id)
         self.assertEqual([item["thickness"] for item in cut["items"]
-                          if item["groupLabel"] == "SoC" and item["material"] == "Si"], [4])
+                          if bodies[1]["id"] in item["sourceIds"]], [4])
         self.assertFalse(any("different instance structures" in note for note in cut["notes"]))
 
     def test_http_targets_rebuild_the_same_layout_after_cache_eviction(self):

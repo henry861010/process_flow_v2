@@ -24,6 +24,26 @@ def feature(id_, layout="distributed"):
 
 
 class SceneLayoutTests(unittest.TestCase):
+    def test_standalone_arranged_component_fits_its_larger_upper_surface(self):
+        component = SchematicObject("package", "component", "composite", "Package",
+                                    layout="member", region_id="outer", nesting="arranged")
+        lower = SchematicObject("lower", "component", "die", "Lower", parent_id="package",
+                                layout="member", region_id="inside")
+        layer = SchematicObject("layer", "body", "layer", "Layer", parent_id="package",
+                                layout="span", region_id="inside")
+        upper = tuple(SchematicObject(f"upper-{index}", "component", "die", "Upper", parent_id="package",
+                                       layout="member", region_id="upper") for index in range(3))
+        state = SceneState(objects=(component, lower, layer, *upper), regions=(
+            LayoutRegion("outer", "package"), LayoutRegion("inside", "package", parent_region_id="outer"),
+            LayoutRegion("upper", "layer", parent_region_id="inside")))
+        plan = make_scene_layout_plan(state)
+        package = next(slot for slot in plan.slots if slot.object_id == "package")
+        upper_slots = [slot for slot in plan.slots if slot.region_id == "upper"]
+        self.assertGreater(plan.width, 1000)
+        self.assertTrue(all(package.x <= slot.x and slot.x + slot.width <= package.x + package.width
+                            for slot in upper_slots))
+        self.assertTrue(all(0 <= slot.x and slot.x + slot.width <= plan.width for slot in plan.slots))
+
     def test_distribution_is_equal_along_cumulative_available_length(self):
         self.assertEqual(_centers(((0, 100), (200, 400)), 4, 12),
                          (37.5, 212.5, 287.5, 362.5))

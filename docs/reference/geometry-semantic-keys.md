@@ -6,7 +6,7 @@ audience:
   - geometry producers
   - process-step authors
   - kernel、CAD、viewer 與 API 開發者
-last_verified: 2026-10-31
+last_verified: 2026-11-08
 last_verified_commit: 039906db
 source_of_truth:
   - docs/reference/geometry-structure.md
@@ -40,6 +40,8 @@ Key 不存在表示 producer 未指定 semantic tag。Producer MUST omit 未指�
 - `soic`
 - `lsi`
 - `cpo`
+- `cow`：Saw 裁切完成的 CoW assembly，供 TIM1 定位。
+- `lid`：供 TIM2 定位的上蓋 assembly，由輸入幾何明確標記。
 - `vrm`
 - `wafer-dmy`
 
@@ -102,6 +104,11 @@ MUST NOT 放入 key。
   `daf` role 視為可選的 bonded DAF。
 - RDL 與 Under Fill 分別建立 `rdl`、`uf` body roles；這些 keys 不改變 CAD／mesh 的幾何或材料
   ownership。舊結構缺少 role 時維持通用呈現，不從 material 名稱推論，也不自動遷移。
-- Copy、PnP、move、flip、grind 與 saw MUST 保留既有 key，不得從 material、geometry、位置或
-  id 自動推論。
+- Saw step 在裁切成功後 MUST 將輸出 root container key 設為 `cow`，取代原 root key，保留
+  既有 IDs、來源 lineage 與內部 keys。底層 `saw_to_box` 本身仍只裁切，不改 key。
+- TIM1／TIM2 分別選取所有 exact key=`cow`／`lid` containers，在各目標內新增 body key=`tim`。
+  TIM1／TIM2 是 step 身分，不是不同的 body keys；複製、PnP 與幾何變換保留 TIM 的所屬結構。
+  本版不提供 lid producer；輸入幾何須明確提供 `lid` container key。
+- Copy、PnP、move、flip、grind 與底層 saw clipping MUST 保留既有 key，不得從 material、geometry、
+  位置或 id 自動推論。Saw step 的 root role 轉換是明確的製程規則。
 - 新增 vocabulary 必須同步本文件、kernel validation、fixtures/producers 與 contract tests。

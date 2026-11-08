@@ -76,12 +76,17 @@ assembly phase; vertical display mapping and viewport fitting remain per snapsho
 `flow.bind_flow_snapshots` consumes execution provenance qualified by source kind,
 owner, output/input ports and node ID, plus creation operation/ordinal. It follows
 semantic derivations across copied subtrees without matching appended child
-positions. This metadata is separate from serialized geometry, geometry hashes
+positions. New batch-created children bind by their physical parent scope before
+creation-ordinal fallback, so repeated instances stay in their own target cohorts.
+This metadata is separate from serialized geometry, geometry hashes
 and JSON/CDB export payloads.
 
-Future split/CoW/ring/lid behavior is exercised through synthetic scene contracts
-and generic layout fixtures. This does not add multi-output saw execution or
-shipping ring/lid process modules; the current saw operation remains XY cropping.
+Saw crops one output assembly and tags its root as CoW. Its descriptor preserves
+crop lineage and opens a local arranged component phase. Imported CoW components
+can request `ComponentHint.nesting="arranged"` to preserve their internal members.
+TIM1/TIM2 declare coating attachment to CoW/lid targets; actual bounds and material
+come from the executed snapshot. Multi-output saw and ring/lid producer modules
+remain future work.
 
 ## Snapshot composition
 

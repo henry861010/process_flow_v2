@@ -77,7 +77,8 @@ Process-step template deletion is not supported. `DELETE /api/process-step-templ
 
 JSON import replaces complete records with matching IDs and inserts new IDs; omitted IDs remain.
 Templates referenced by saved flows or any user's flow drafts only allow changes to status,
-owner, category, program, description, input-port order, and recursive parameter defaults. Other
+owner, category, program, descriptions at every level (including ports, nested parameters and
+static options), input-port order, and recursive parameter defaults. Other
 changes return `409` with the referenced step and resource ID. Validation and writes are atomic;
 other resources, drafts, and the analytics dataset ID are preserved. Description changes through
 JSON import do not change the existing single-template PUT restrictions.

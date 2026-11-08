@@ -11,6 +11,7 @@ from collections.abc import Collection, Iterable, Mapping
 
 from process_flow_kernel import ProcessGeometryState
 
+from ._corner_merge import _append_merged_corner_controls
 from ._geometry_query import _GeometryQuery
 from .contracts import JsonObject, MeshControlSetNotApplicable
 from .controls import (
@@ -305,8 +306,10 @@ def append_die_top_corner_controls(
     *,
     half_extent: float,
     element_size: float,
+    merge_gap: float | None = None,
+    include_intersections: bool = False,
 ) -> None:
-    """Append four reference Boxes at each nonempty soc/hbm container's top.
+    """Build top corner Boxes, optionally merging their same-Z XY footprints.
 
     Args:
         controls: Output control list, extended in place.
@@ -315,23 +318,32 @@ def append_die_top_corner_controls(
         containers: Container summaries in desired output order; never modified.
         half_extent: Positive distance from each corner along every axis, in um.
         element_size: Positive isotropic element size in um.
+        merge_gap: Non-negative XY gap in um, or None to keep reference Boxes.
+        include_intersections: Include local crossings of different die-edge
+            guides in the merged XY footprint.
 
     Corners follow (x_min, y_min), (x_min, y_max), (x_max, y_min),
     (x_max, y_max), all at z_max. Empty containers are skipped. Physical
-    descendant bounds are resolved once per call, without clipping
-    Boxes or merging overlaps. Invalid region parameters raise ValueError.
+    descendant bounds are resolved once per call without clipping. With a gap,
+    recursive XY merging emits absolute Box/Polygon controls per connected part
+    and exact Z interval, preserving all contributing source IDs in details.
+    Invalid region parameters raise ValueError.
     """
     query = _GeometryQuery(state)
+    corner_controls: list[JsonObject] = []
+    corner_details: list[JsonObject] = []
+    target_containers: list[JsonObject] = []
     for container in containers:
         if container["key"] not in {"soc", "hbm"}:
             continue
         if any(container.get(field) is None for field in ("xMin", "xMax", "yMin", "yMax")):
             continue
+        target_containers.append(container)
         for x_anchor in ("x_min", "x_max"):
             for y_anchor in ("y_min", "y_max"):
                 anchors = {"x": x_anchor, "y": y_anchor, "z": "z_max"}
                 _append_region_control(
-                    controls, details, query,
+                    corner_controls, corner_details, query,
                     label=f"{container['key']} {container['id']} top corner {x_anchor}/{y_anchor}",
                     element_size=element_size,
                     coordinate_mode="reference",
@@ -347,6 +359,18 @@ def append_die_top_corner_controls(
                         },
                     },
                 )
+
+    if include_intersections and merge_gap is None:
+        raise ValueError("include_intersections requires merge_gap")
+    if merge_gap is None:
+        controls.extend(corner_controls)
+        details.extend(corner_details)
+    else:
+        _append_merged_corner_controls(
+            controls, details, query, corner_details, gap=merge_gap, element_size=element_size,
+            containers=target_containers if include_intersections else None,
+            half_extent=half_extent,
+        )
 
 
 def _section_candidate(

@@ -22,7 +22,10 @@ GLOBAL_ELEMENT_SIZE = 1000
 BUMP_ELEMENT_SIZE = 10
 CARRIER_OFFSET = 10
 LSI_SI_SECTION_COUNT = 5
-TOP_CORNER_SETTINGS = {"half_extent": 25, "element_size": 5}
+TOP_CORNER_SETTINGS = {
+    "half_extent": 25, "element_size": 5, "merge_gap": 4000,
+    "include_intersections": True,
+}
 TIM_SETTINGS = {"metal_element_size": 250, "non_metal_element_size": 50}
 ADHESIVE_SETTINGS = {"metal_tim_element_size": 50, "non_metal_tim_element_size": 20}
 HBM_UF_SETTINGS = {
@@ -50,7 +53,7 @@ class MeshModel2Set:
             "id": "meshModel2",
             "version": "1",
             "label": "meshModel2",
-            "description": "Geometry-aware Tim, adhesive, uBump, UF, LSI Si, bottom carrier, and die top corner controls.",
+            "description": "Geometry-aware Tim, adhesive, uBump, UF, LSI Si, bottom carrier, and merged die corner/junction controls.",
         }
 
     def build(self, state: ProcessGeometryState) -> MeshControlSetResult:

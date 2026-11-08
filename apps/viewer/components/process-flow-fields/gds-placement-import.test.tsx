@@ -137,16 +137,12 @@ class FakeWorker {
   }
 }
 
-let keydown: ((event: Partial<KeyboardEvent>) => void) | undefined;
 beforeEach(() => {
   workers.length = 0;
-  keydown = undefined;
   vi.stubGlobal("Worker", FakeWorker);
   vi.stubGlobal("window", { requestAnimationFrame: (callback: () => void) => { callback(); return 1; }, cancelAnimationFrame() {} });
   vi.stubGlobal("document", {
     body: {}, activeElement: null,
-    addEventListener: (_: string, listener: typeof keydown) => { keydown = listener; },
-    removeEventListener: (_: string, listener: typeof keydown) => { if (keydown === listener) keydown = undefined; },
   });
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
@@ -267,49 +263,15 @@ describe("flow GDS session", () => {
     expect(provider().value().file).toBeNull(); // Reload creates a new provider.
   });
 
-  it("retains standalone selection without a provider and keeps keyboard close scoped to the modal", async () => {
+  it("retains standalone selection without a provider after closing", async () => {
     const a = step();
     a.open(); a.choose(file("standalone.gds")); a.criterion();
-    const stopPropagation = vi.fn();
-    keydown?.({ key: "Escape", preventDefault() {}, stopPropagation });
-    expect(stopPropagation).toHaveBeenCalledOnce();
-    expect(find(a.render(), (element) => element.type === "button" || element.props["aria-haspopup"] === "dialog").props["aria-expanded"]).toBe(false);
+    button(a.render(), "Cancel").props.onClick();
+    expect(find(a.render(), (element) => element.props["aria-haspopup"] === "dialog").props["aria-expanded"]).toBe(false);
     a.open();
     (await a.submit()).respond();
     expect(text(a.open())).toContain("standalone.gds");
     expect(text(a.render())).not.toContain("Using last imported GDS for this flow");
-  });
-
-  it("focuses the file chooser, traps Tab, and returns focus after idle Escape", () => {
-    const a = step();
-    const view = a.render();
-    function attach(element: Element, current: unknown) {
-      (element as Element & { ref: { current: unknown } }).ref.current = current;
-    }
-    const triggerFocus = vi.fn();
-    const chooseFocus = vi.fn();
-    const inputClick = vi.fn();
-    attach(button(view, "Import from GDS"), { focus: triggerFocus });
-    attach(button(view, "Choose file"), { focus: chooseFocus });
-    attach(find(view, (element) => element.props.type === "file"), { click: inputClick });
-    const first = { focus: vi.fn() };
-    const last = { focus: vi.fn() };
-    const querySelectorAll = vi.fn((_selector: string) => [first, last]);
-    attach(find(view, (element) => element.type === "form"), { querySelectorAll });
-    a.open();
-    expect(chooseFocus).toHaveBeenCalledOnce();
-    button(a.render(), "Choose file").props.onClick();
-    expect(inputClick).toHaveBeenCalledOnce();
-    Object.defineProperty(document, "activeElement", { value: first, configurable: true });
-    keydown?.({ key: "Tab", shiftKey: true, preventDefault() {} });
-    expect(last.focus).toHaveBeenCalledOnce();
-    Object.defineProperty(document, "activeElement", { value: last, configurable: true });
-    keydown?.({ key: "Tab", shiftKey: false, preventDefault() {} });
-    expect(first.focus).toHaveBeenCalledOnce();
-    expect(querySelectorAll.mock.calls[0]?.[0]).toContain(":not([hidden])");
-    keydown?.({ key: "Escape", preventDefault() {}, stopPropagation() {} });
-    a.render();
-    expect(triggerFocus).toHaveBeenCalledOnce();
   });
 
   it("identifies preserved outlines by placement and shows a compatibility warning", async () => {

@@ -234,7 +234,7 @@ class SQLiteStore:
             if template_id in structural_changes:
                 raise ResourceConflictError(
                     f"Cannot change the structure of process step template {template_id}: referenced by {resource}. "
-                    "Only status, owner, category, program, description, inputPorts order, "
+                    "Only status, owner, category, program, descriptions at any level, inputPorts order, "
                     "and parameter defaultValue fields can be imported for referenced steps."
                 )
 

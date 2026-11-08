@@ -212,16 +212,22 @@ class SchematicPlanningTests(unittest.TestCase):
         self.assertEqual(len(document["components"]), 1)
         self.assertEqual(len(document["components"][0]["sourceIds"]), 2)
 
-    def test_saw_removes_first_representative_but_keeps_horizontal_position(self):
+    def test_saw_removes_first_representative_and_preserves_survivor_in_cow(self):
         ctx = context(placements=[placement(), placement(20)])
         add_step(ctx, "cut", "saw/saw", out("first"), {"bottomLeftX": 20, "bottomLeftY": 0, "topRightX": 30, "topRightY": 10})
-        _, first, _, _ = execute_document(ctx)
+        _, _, snapshots, _ = execute_document(ctx)
+        surviving_id = snapshots[-1].geometry_structure["root"]["children"][1]["id"]
+        surviving_body_id = snapshots[-1].geometry_structure["root"]["children"][1]["bodies"][0]["id"]
         ctx = replace(ctx, target={"type": "stepOutput", "stepRefId": "cut", "outputPortId": "result_geometry"})
-        _, cut, _, _ = execute_document(ctx)
+        planning, cut, snapshots, _ = execute_document(ctx)
         self.assertEqual(cut["warnings"], [])
-        self.assertEqual(first["components"][0]["x"], cut["components"][0]["x"])
+        root = snapshots[-1].geometry_structure["root"]
+        self.assertEqual(root["key"], "cow")
+        self.assertEqual(root["children"][0]["id"], surviving_id)
+        self.assertEqual(cut["components"][0]["label"], "CoW")
         self.assertEqual(len(cut["components"][0]["sourceIds"]), 1)
-        self.assertNotEqual(first["components"][0]["sourceIds"][0], cut["components"][0]["sourceIds"][0])
+        self.assertNotEqual(planning.outputs["first"].phase_id, planning.outputs["cut"].phase_id)
+        self.assertTrue(any(surviving_body_id in item["sourceIds"] for item in cut["items"]))
 
     def test_grinding_changes_thickness_without_reallocating_slots(self):
         ctx = context()

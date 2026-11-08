@@ -440,7 +440,7 @@
     "name": "saw",
     "category": "saw",
     "program": "saw/saw",
-    "description": "切割分離（Saw／Dicing）：代表從晶圓、面板或較大結構中切出所需晶片或封裝單元的製程。模型會保留左下角與右上角座標所指定的 XY 矩形，裁除該範圍外的材料、特徵與子元件，並將後續製程的平面範圍更新為此矩形。此步以保留區域表示切割結果，不模擬刀具路徑或切割道寬度。",
+    "description": "切割分離（Saw／Dicing）：代表從晶圓、面板或較大結構中切出所需晶片或封裝單元的製程。模型會保留左下角與右上角座標所指定的 XY 矩形，裁除該範圍外的材料、特徵與子元件，並將後續製程的平面範圍更新為此矩形。此步以保留區域表示切割結果，不模擬刀具路徑或切割道寬度。 裁切成功後，輸出 assembly 的 root container 會標記為 cow，供後續 TIM1 定位；內部元件 keys 保留。",
     "owner": "integration.platform",
     "inputPorts": [
       {
@@ -1122,6 +1122,112 @@
         "valueType": "float",
         "controlType": "number",
         "required": true,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_tim1",
+    "version": "V0.0.0",
+    "name": "TIM1",
+    "category": "layer",
+    "program": "layer/tim1",
+    "description": "TIM1 成層：尋找所有 key=cow 的 container，依各自完整 XY 外接矩形，從各自 subtree 最高 Z 向上建立指定材料與厚度的 TIM。TIM 保存在目標 container 內；不填補頂部高低差或保留孔洞。完成後將 cursor 設為本批 TIM 最高頂部，process footprint 不變。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Geometry containing one or more containers keyed cow.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "TIM material",
+        "description": "TIM material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thickness",
+        "name": "TIM thickness",
+        "description": "Positive TIM thickness above each target top, in micrometres.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
+        "unit": "um",
+        "validation": {
+          "min": 0,
+          "exclusiveMin": true
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "status": "enabled",
+    "id": "step_tpl_tim2",
+    "version": "V0.0.0",
+    "name": "TIM2",
+    "category": "layer",
+    "program": "layer/tim2",
+    "description": "TIM2 成層：尋找所有 key=lid 的 container，依各自完整 XY 外接矩形，從各自 subtree 最高 Z 向上建立指定材料與厚度的 TIM。TIM 保存在目標 container 內；不填補頂部高低差或保留孔洞。完成後將 cursor 設為本批 TIM 最高頂部，process footprint 不變。",
+    "owner": "integration.platform",
+    "inputPorts": [
+      {
+        "portId": "main_geometry",
+        "name": "main_geometry",
+        "description": "Geometry containing one or more containers keyed lid.",
+        "dataType": "geometry",
+        "role": "primary",
+        "required": true
+      }
+    ],
+    "outputPorts": [
+      {
+        "portId": "result_geometry",
+        "name": "Result geometry",
+        "description": "Geometry state produced by this process step.",
+        "dataType": "geometry"
+      }
+    ],
+    "parameterDefinitions": [
+      {
+        "id": "material",
+        "name": "TIM material",
+        "description": "TIM material name or material entity id.",
+        "valueType": "materialRef",
+        "controlType": "text",
+        "selectionMode": null,
+        "unit": null
+      },
+      {
+        "id": "thickness",
+        "name": "TIM thickness",
+        "description": "Positive TIM thickness above each target top, in micrometres.",
+        "valueType": "float",
+        "controlType": "number",
+        "selectionMode": null,
         "unit": "um",
         "validation": {
           "min": 0,

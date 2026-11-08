@@ -6,8 +6,8 @@ audience:
   - backend engineers
   - CAD and mesher developers
   - operators
-last_verified: 2026-10-31
-last_verified_commit: 039906db
+last_verified: 2026-11-06
+last_verified_commit: 5e46f755
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/conformance.md
@@ -15,6 +15,10 @@ source_of_truth:
   - apps/api/src/process_flow_api/preview_sessions.py
   - apps/api/src/process_flow_api/geometry_preview_exporter.py
   - apps/api/src/process_flow_api/file_export_jobs.py
+  - packages/kernel-py/src/process_flow_kernel/domain/process_geometry_state.py
+  - packages/kernel-py/src/process_flow_kernel/utils/polygon.py
+  - packages/kernel-py/src/process_flow_kernel/domain/region.py
+  - scripts/benchmark_preview.py
   - packages/cad-py/src/process_flow_cad/worker.py
   - packages/cad-py/src/process_flow_cad/section.py
   - https://github.com/henry861010/mesher/blob/302ebe36663b727669901cbc766ccc0a2ae6f221/src/mesher/process_flow/worker.py
@@ -142,6 +146,63 @@ Cache、execution與admission設定：
 相同key在capacity已滿時仍會join既有single-flight task；只有新的unique work會收到`503`與
 `Retry-After: 1`。Python `asyncio.to_thread`無法強制中止已進入native CAD code的thread，因此client
 cancel只取消等待；server以bounded registries及concurrency避免slider unique positions無限排隊。
+
+### 滿片 wafer 的執行成本與冷啟動量測
+
+Kernel 複製已驗證的 `ProcessGeometryState` 時，以一次 normalized snapshot 固定 geometry IDs，
+再複製內部物件樹，避免每次 clone 都經過 JSON hydration 與 polygon 重驗。Clone 排除 root 的外部
+parent，重建 scope／handle，並隔離 geometry、provenance 與 footprint 等可變資料。手動共用 feature
+或 geometry 物件、含重複座標陣列別名的結構保留原有 hydration 路徑。Step 回傳 `None` 或原本的
+`context.state` 時重用該 execution-owned state；獨立回傳值與保存 runtime snapshot 時仍建立隔離副本。
+
+Polygon validation／classification 共用 process-local、thread-safe LRU，以完整 normalized XYZ 座標與
+數值型別作 key，只保存成功結果。上限為 128 筆與合計 100,000 vertices；超大項目直接計算。回傳的
+loops／regions 每次建立獨立可變資料，座標變更使用新 key。原有相切、孔洞、容差與錯誤判定不變。
+UF 的矩形標記以二分搜尋縮小網格範圍，再執行原有 strict midpoint 判斷；輪廓比較先排除 bounding
+box 明確分離的候選。這些優化不進行座標 snapping，也不更改 snapshots、schematic 或 export 契約。
+
+`scripts/benchmark_preview.py` 以唯讀方式讀取指定 SQLite DB，為每次 preview 啟動新的 Python process，
+因此 session 與 polygon caches 都從空白開始。量測包含 prepare、execution／snapshots、schematic
+planning／binding／composition；不含 interpreter startup、imports、正確性 capture 與 HTTP 傳輸。
+
+```bash
+venv/bin/python scripts/benchmark_preview.py \
+  --db /absolute/path/to/process-flow.sqlite3 \
+  --flow-name demo2 --target carrier_bond --runs 3 \
+  --output /tmp/preview-baseline.json --capture /tmp/preview-baseline.json.gz
+# 切換至優化版本後，以相同 DB 與 target 執行：
+venv/bin/python scripts/benchmark_preview.py \
+  --db /absolute/path/to/process-flow.sqlite3 \
+  --flow-name demo2 --target carrier_bond --runs 3 \
+  --output /tmp/preview-optimized.json --compare /tmp/preview-baseline.json
+```
+
+Report 保存各次及中位數耗時、分階段耗時、逐步 geometry hash，以及完整 provenance、execution
+warnings、schematic 與 schematic warnings 的 hashes；`--compare` 遇到任何差異即失敗。`--capture`
+另保存首次量測的完整 session 與 provenance，供逐欄檢查。也可將 `PYTHONPATH` 指向舊版 source archive，
+在相同環境量測 baseline，避免修改工作中的 checkout。
+
+2026-11-06 在同機器／Python 3.13，以 `5e46f755` source archive 比對本次優化，前後各三次冷啟動：
+
+| 測量（中位數） | 原版 | 優化後 | 加速 |
+| --- | ---: | ---: | ---: |
+| `demo2`，32 steps／2,427 placements | 120.242 s | 53.473 s | 2.25× |
+| 原始 `demo`，9 placements | 0.325 s | 0.241 s | 1.35× |
+| UF，256 個錯位矩形，建網格＋ordered outlines | 4.343 s | 0.156 s | 27.78× |
+
+`demo2` 三次原版為 118.765／120.242／120.910 s，優化後為 53.473／52.682／54.699 s。
+Execution／snapshot materialization 的階段中位數為 111.715 → 43.973 s，target schematic composition
+為 7.844 → 8.013 s。32 個逐步 geometry hashes、完整 provenance、execution warnings 與 schematic
+全部一致，完整 session 與 JSON／CDB export 使用的 geometry 也逐欄相同，response 大小同為
+19,404,881 bytes。這批合成配置符合至少 2× 的門檻；30 s 目標尚未達成，
+後續須繼續降低完整 snapshots 的複製／正規化成本與 schematic composition 成本。
+
+額外 profiling 確認，snapshot／provenance 路徑的 `deepcopy` 與 geometry 正規化仍是主要成本，
+`with_runtime_state` 還會將剛取得的 provenance 寫回 clone。Polygon 首次驗證與分類也仍執行大量
+segment／containment 比較；LRU 只省去相同座標的重複計算。後續可評估已固定 ID 的直接取用、
+只在 lineage 實際合併時回寫 provenance，以及 polygon 首次計算的保守 bounding-box 排除。
+這些方向尚未實作，需要額外的正確性與冷啟動驗證。Profiling 將 thread callbacks 改為 inline 以涵蓋
+CPU 工作，其耗時含 instrumentation 成本，未納入上述三次效能驗收。
 
 ### Exact section
 

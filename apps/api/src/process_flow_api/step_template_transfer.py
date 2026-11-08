@@ -56,11 +56,22 @@ def locked_process_step_template(
     for field in ("status", "owner", "category", "program"):
         locked.pop(field, None)
     if allow_description:
-        locked.pop("description", None)
+        _remove_descriptions(locked)
     # Input declaration order is presentation metadata.
     locked["inputPorts"] = sorted(locked["inputPorts"], key=lambda port: port["portId"])
     _remove_parameter_defaults(locked.get("parameterDefinitions", []))
     return locked
+
+
+def _remove_descriptions(value: Any) -> None:
+    """Descriptions are presentation metadata at every declaration level."""
+    if isinstance(value, dict):
+        value.pop("description", None)
+        for child in value.values():
+            _remove_descriptions(child)
+    elif isinstance(value, list):
+        for child in value:
+            _remove_descriptions(child)
 
 
 def _remove_parameter_defaults(definitions: Any) -> None:

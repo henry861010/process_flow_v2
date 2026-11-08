@@ -6,7 +6,7 @@ audience:
   - process developers
   - process-step authors
   - QA engineers
-last_verified: 2026-10-13
+last_verified: 2026-11-08
 last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
 source_of_truth:
   - apps/api/src/process_flow_api/fixtures/process-step-templates.json
@@ -29,7 +29,9 @@ step 必須同步 module、target contract、fixture 與 tests。
 | ECL | `layer/ecl` | `main_geometry` | `material`, `thk`, `koz` | 以 footprint inset deposit ECL body |
 | RDL layer | `layer/rdl` | `main_geometry` | `layers` | 逐層建立 dielectric body；奇數層建立 via、偶數層建立 circuit |
 | Grinding | `grinding/grinding` | `main_geometry` | `thk` | 以整體 geometry top 減去厚度計算 target Z 並 grind |
-| saw | `saw/saw` | `main_geometry` | `bottomLeftX/Y`, `topRightX/Y` | XY clip 到指定 box |
+| saw | `saw/saw` | `main_geometry` | `bottomLeftX/Y`, `topRightX/Y` | XY clip 到指定 box；輸出 root key 改為 `cow` |
+| TIM1 | `layer/tim1` | `main_geometry` | `material`, `thickness` | 在所有 `cow` containers 的完整 XY 外接矩形與各自頂部新增 TIM |
+| TIM2 | `layer/tim2` | `main_geometry` | `material`, `thickness` | 在所有 `lid` containers 的完整 XY 外接矩形與各自頂部新增 TIM |
 | DAF | `layer/daf` | `main_geometry` | `material`, `thk` | 在整體 geometry top 建立 keyed DAF body |
 | FOW | `layer/fow` | `main_geometry` | `material`, `thk` | 在整體 geometry top 建立 keyed FOW body；Debond 保留 FOW |
 | Carrier Bond | `carrier/bond` | `main_geometry`, `carrier_geometry` | — | 保留 source body keys，將 carrier root direct bodies 疊到整體 geometry top |
@@ -50,9 +52,9 @@ step 必須同步 module、target contract、fixture 與 tests。
 
 Material instance suffix 由 kernel 配置，module 不自行產生。所有 step output serialize 為 standard geometry structure。
 只有需要 semantic interaction 的 body-producing steps 指定 registered key：molding=`molding`、
-DAF=`daf`、FOW=`fow`；carrier catalog geometry 自行提供 `carrier`。Carrier Bond 不建立或改寫 body key。
-ECL、RDL dielectric 與 underfill 不指定
-body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transforms 保留來源 key。
+DAF=`daf`、FOW=`fow`、TIM1／TIM2=`tim`、RDL dielectric=`rdl`、underfill=`uf`；carrier catalog
+geometry 自行提供 `carrier`。Carrier Bond 不建立或改寫 body key，ECL 不指定 body key。
+Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transforms 保留來源 key。
 
 ### State transition matrix
 
@@ -61,7 +63,8 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 | molding、ECL | 前進新增層厚度 | 不變 | 在 target scope 新增 body。 |
 | RDL layer | 依 `items[]` order 前進各層 `thk` | 不變 | 新增 dielectric bodies 與交錯的 via/circuit features。 |
 | Grinding | Clamp 到 grind target Z | 不變 | Grind target scope；可能移除或截短 primitives。 |
-| saw | 不變 | 改成指定 box | 對 target scope subtree 做 XY clip。 |
+| saw | 不變 | 改成指定 box | 做 XY clip 後將輸出 root key 設為 `cow`；內部 keys／IDs 保留。 |
+| TIM1／TIM2 | 設為本批 TIM 最高頂部 | 不變 | 每個 matching container 新增直屬 `tim` Box body；使用各自原始 bounds。 |
 | DAF | 前進新增 DAF 厚度 | 不變 | 在 overall geometry top 使用 current footprint 新增 keyed DAF body。 |
 | FOW | 設為 overall geometry top 加上 FOW 厚度 | 不變 | 使用 current footprint 新增 key=`fow` 的 body。 |
 | Carrier Bond | 設為 bonded direct bodies 的 top Z | 不變 | 在 overall geometry top copy source root direct bodies 並保留 keys；不複製 children/features。 |
@@ -75,6 +78,12 @@ body key。Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometr
 
 ## 重要 operation 說明
 
+- TIM1／TIM2 category 為 `layer`，各只有 required `material`（materialRef）與 `thickness`
+  （正數，um），不設定 defaults。TIM1 在放置 lid 前執行；TIM2 使用已標記 `lid` 的幾何，
+  可先經 PnP 放置。本版不新增 lid generator 或 lid process step。
+  塗佈範圍採完整外接矩形，不做表面抽取、保孔洞或填補頂面高低差，也不檢查塗佈空間是否被其他
+  assembly 占用。Material、厚度、目標存在性與有效 bounds 必須整批驗證後才新增。
+  Saw 的 schematic 輸出進入 CoW phase；內部物件 identity／crop lineage 保留，版面允許重新排列。
 - MR joint 與 TCB joint 分類皆為 `joint`，共用相同接合實作與參數；目前不區分專屬物理行為。
   SOH 是下側 bump 底面至上側 bump 頂面的完整接合間距，不是單側 bump 或 UF 的厚度。
   Joint 以直接 bump 的最低層選取元件接點，不因 child 內填料降低 container 底面而略過接合。
@@ -177,5 +186,27 @@ Joint 只處理 root 直屬 children 的最底部 reflowed bumps，略過未配�
 
 新 template 與範例只加入 seed；已有本機資料庫須自行建立或匯入 template，不自動修改
 既有資料或插入 Joint。consumer ownership 與顯示規則見 [geometry semantics](../../concepts/geometry-semantics.md)。
+
+### 導入 TIM1／TIM2 至既有資料庫
+
+新資料庫會直接載入兩個 templates。既有資料庫不會因重新啟動而補 seed；可先從 canonical
+fixture 產生僅包含 TIM1、TIM2 的匯入檔，避免覆蓋其他既有或自訂 templates。於 repository root 執行：
+
+```bash
+venv/bin/python - <<'PY' > /tmp/process-flow-tim-only.json
+import json
+from pathlib import Path
+steps = json.loads(Path("apps/api/src/process_flow_api/fixtures/process-step-templates.json").read_text())
+ids = {"step_tpl_tim1", "step_tpl_tim2"}
+print(json.dumps([step for step in steps if step["id"] in ids], ensure_ascii=False, indent=2))
+PY
+```
+
+透過管理頁的 step template JSON import，或 `POST /api/process-step-templates/import` 匯入此檔。
+它會新增兩個 TIM templates，不更新其他既有 templates，也不重設 flow、geometry、draft 或 analytics
+dataset。不要匯入整份 canonical fixture；其中既有 steps 的結構可能和目前 DB 不同，會被引用保護
+拒絕。Saw 的 `cow` 標記來自更新後的 `saw/saw` 程式，重啟 API 即可生效，不需要覆寫 Saw template。
+舊的已儲存幾何不自動改 key；重新執行 Saw 才產生 `cow`。TIM2 的輸入須預先標記
+`structure.root.key="lid"`；PnP 會保留此角色。
 
 新增 operation 前先讀 [Process Step Authoring Guide](../kernel/process-step-authoring.md)。最低驗收為 template graph validation、module resolution、valid execution、invalid input、serialization round trip，以及會受影響的 CAD/CDB consumer test。

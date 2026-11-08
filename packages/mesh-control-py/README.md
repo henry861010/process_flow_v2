@@ -64,18 +64,36 @@ LSI. The generator provides the `lsi.si` key; old untagged geometry must be
 regenerated or explicitly tagged. `lsi.si_carrier` does not match generic
 `carrier` point rules.
 
-Only `meshModel2` also appends four reference `3D_REGION` Boxes for every
-nonempty container keyed exactly `soc` or `hbm`, after all existing controls.
-Container order remains DFS; corner centers follow `(xMin, yMin, zMax)`,
+Only `meshModel2` also adds die-top-corner `3D_REGION` controls after all
+existing controls. It starts with four Boxes for every nonempty container keyed
+exactly `soc` or `hbm`. Container order remains DFS; corner centers follow `(xMin, yMin, zMax)`,
 `(xMin, yMax, zMax)`, `(xMax, yMin, zMax)`, `(xMax, yMax, zMax)`.
 Each axis extends 25 um on either side of its corner, producing a 50 x 50 x 50 um
-Box with `elementSize = 5`. Model-local `TOP_CORNER_SETTINGS` controls
-`half_extent` and `element_size`. Twenty SoCs add eighty controls.
-Each Box references its container ID, with labels identifying key, ID and corner;
-details include source IDs and resolved XYZ bounds. Bounds include all physical
-descendant features; empty child containers do not affect them. An HBM uses its
-whole container's top, and nested matching containers each receive four Boxes.
-Boxes may extend outside the die and overlapping Boxes remain separate.
+candidate Box. Candidates with the exact same Z range are merged in XY using
+the kernel `Region` gap operation with `gap = 4000 um`, recursively filling
+horizontal or vertical gaps of at most 4000 um. Before merging, facing die pairs
+also add local 50 x 50 um candidates where an outward vertical edge guide from
+one die crosses an outward horizontal edge guide from the other in the inter-die
+UF channel. Only the crossing areas are added; no full guide strip is emitted.
+Guides may cross between diagonally placed dies or beyond the merge gap; an
+intermediate die in the same Z band stops a guide before it reaches a crossing.
+The gap is measured between Box edges, so only nearby candidate areas merge.
+Different Z ranges remain separate, and each result retains the original 50 um
+Z thickness.
+
+Each connected merged area becomes one absolute control with `elementSize = 5`.
+A rectangular area without holes uses a Box; other areas use a Polygon retaining
+its outline and holes. Details contain the contributing container IDs once each
+in DFS order, plus the merged XYZ bounds. Model-local `TOP_CORNER_SETTINGS`
+controls `half_extent`, `element_size`, `merge_gap`, and `include_intersections`.
+Calling the reusable
+`append_die_top_corner_controls()` helper with its default `merge_gap=None`
+preserves separate reference Boxes.
+
+Bounds include all physical descendant features; empty child containers do not
+affect them. An HBM uses its whole container's top, and nested matching
+containers each contribute corner candidates. Regions may extend outside the
+die. Merging overlapping candidates prevents duplicate controls over that area.
 
 ## Reusable functions
 
@@ -202,11 +220,13 @@ a query object. Snapshots are loaded only for reference regions, never stored
 on the state or reused across operations; geometry must remain unchanged during
 each operation.
 
-For 75 nonempty SoC/HBM targets, MM2 emits 300 corner regions. The complete
-build and validation now perform three `find_geometry()` calls: the existing
-model selection, corner authoring, and final validation. Query-count regression
-tests cover this budget, including the HTTP apply route; absolute-only region
-validation performs no geometry query.
+For 75 nonempty SoCs, MM2 starts with 300 corner candidates. The synthetic
+same-Z layout with 100 um spacing merges them into one absolute Box. The build
+performs two `find_geometry()` calls: model selection and corner resolution.
+Validation of the resulting absolute regions performs no geometry query.
+Query-count regression tests cover this budget, including the HTTP apply route.
+Reference regions authored through other helpers still share one validation
+query.
 
 Reproduce the synthetic benchmarks from the repository root:
 
@@ -215,8 +235,9 @@ venv/bin/python packages/mesh-control-py/benchmarks/mm2.py
 venv/bin/python packages/mesh-control-py/benchmarks/mm2.py --polygon-vertices 1536
 ```
 
-Local measurements on 2026-10-19, with 662 containers including root, 661 Box
-features, and 75 HBM targets:
+Historical measurements on 2026-10-19, before corner merging, used 662
+containers including root, 661 Box features, and 75 HBM targets. These measure
+the earlier query optimization and do not describe merged-control performance:
 
 | Geometry | Before build + validation | After build | After validation | After total |
 | --- | --- | --- | --- | --- |

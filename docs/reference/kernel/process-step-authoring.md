@@ -5,7 +5,8 @@ owner: integration.platform
 audience:
   - process-step authors
   - backend engineers
-last_verified: 2026-11-05
+last_verified: 2026-11-08
+last_verified_commit: 5e46f755
 source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/application/context.py
   - packages/kernel-py/src/process_flow_kernel/infrastructure/module_resolver.py
@@ -69,6 +70,11 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
 
 Module 可以 mutate 並 return `context.state`；`deposit_*`/`initialize_*` 等 method 可能回傳 handle，而不是 state，不可直接把 handle 當 step output。Module return `None` 時 kernel 使用 fallback state。為了清楚與 type checking，建議明確 return `ProcessGeometryState`。
 
+目標式塗佈可使用 `state.coat_targets(target_key="cow", material=material, thickness=thickness,
+key="tim")`；它使用每個 matching scope 的原始外接矩形與最高 Z，回傳 handles list。
+TIM1／TIM2 modules 固定選取 `cow`／`lid`，不用 temporary cursor 或 process footprint 來切換目標。
+需要明確轉換 assembly role 時使用 `set_scope_key`；Saw 在裁切成功後標記 `cow`。
+
 ## Auxiliary geometry
 
 Auxiliary input 必須透過 declared port 取得：
@@ -126,6 +132,8 @@ Saw／grind 等無法僅由抽象結構確認存活物件的 operation 保守保
 決定可見性與量測。不要在 descriptor 另寫一套裁切或磨薄模擬。
 
 Geometry kernel 的 execution provenance 記錄來源 port/node identity 與建立 operation/ordinal。
+同一步建立於不同既有 scopes 的物件，snapshot binding 優先依 parent scope 對應 logical owner，
+讓多批 placement cohorts 的 coating 各自保持來源；同 owner 的多個新物件才沿用 creation ordinal。
 自訂幾何 copy／replace operation 必須維持這份來源資料；透過 `GeometryArtifact.with_structure`
 改寫 node IDs 時提供 `node_id_remap`。資料應保存在 execution sidecar，不塞入輸出的 geometry JSON，
 也不能依新物件在 children 陣列的位置重建來源。

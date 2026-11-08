@@ -37,7 +37,7 @@ def normalize_scene_members(state: SceneState) -> SceneState:
         if eligible and not ancestor_member:
             selected.add(obj.id)
         for child in own_children:
-            visit(child, ancestor_member or obj.id in selected)
+            visit(child, ancestor_member or (obj.id in selected and obj.nesting == "structural"))
 
     for root in children.get(None, ()):
         visit(root)
@@ -67,6 +67,8 @@ def describe_source_scene(structure: Mapping, registry, *, source_id: str) -> tu
     region_id = namespace_id(source_id, "mount-region")
     bindings = {}
     objects = []
+    regions = [SceneRegion(region_id, root_id)]
+    content_regions = {}
     bounds_by_container = {}
     for container, _ in reversed(containers):
         bounds = [geometry_bounds(node.get("geometry", {})) for name in ("bodies", "vias", "circuits", "bumps")
@@ -91,6 +93,7 @@ def describe_source_scene(structure: Mapping, registry, *, source_id: str) -> tu
         ref = f"input:{source_id}:{physical_id}"
         bounds = bounds_by_container.get(physical_id, Bounds(0, 0, 0, 0, 0, 0))
         parent_id = namespace_id(source_id, str(ancestors[-1]["id"])) if ancestors else None
+        container_region = content_regions[str(ancestors[-1]["id"])] if ancestors else region_id
         presenter = registry.resolve("container", container.get("key"))
         hints = []
         if presenter is not None:
@@ -105,9 +108,15 @@ def describe_source_scene(structure: Mapping, registry, *, source_id: str) -> tu
         role = (hint.role or str(container.get("key") or "component")) if hint else (
             str(container.get("key") or "assembly") if kind == "assembly" else "component")
         label = hint.label if hint else str(container.get("key") or "Component")
+        nesting = hint.nesting if hint else "structural"
+        contents = container_region
+        if nesting == "arranged":
+            contents = namespace_id(source_id, f"{physical_id}:contents")
+            regions.append(SceneRegion(contents, logical_id, parent_region_id=container_region))
+        content_regions[physical_id] = contents
         objects.append(SceneObject(
             logical_id, kind, role, label, parent_id=parent_id, source_ref=ref,
-            class_key=_class_key(container), layout="group", region_id=region_id,
+            class_key=_class_key(container), layout="group", region_id=container_region, nesting=nesting,
             diagram_label=hint.diagram_label if hint else None,
             anchors=(AnchorSpec("lower", source_ref=ref, side="lower"),
                      AnchorSpec("upper", source_ref=ref, side="upper"),
@@ -144,11 +153,11 @@ def describe_source_scene(structure: Mapping, registry, *, source_id: str) -> tu
                     object_id, "body" if node_kind == "body" else "feature",
                     str(node.get("key") or node_kind), str(node.get("key") or node.get("material") or node_kind),
                     parent_id=logical_id, source_ref=node_ref, class_key=object_id,
-                    layout=layout, region_id=region_id, symbol=symbol,
+                    layout=layout, region_id=contents, symbol=symbol,
                     color_role="generic", fill_override=fill, diagram_label=diagram_label,
                     anchors=(AnchorSpec("lower", source_ref=node_ref, side="lower"),
                              AnchorSpec("upper", source_ref=node_ref, side="upper"))))
-    state = SceneState(tuple(objects), (SceneRegion(region_id, root_id),), cursor_region_id=region_id,
+    state = SceneState(tuple(objects), tuple(regions), cursor_region_id=region_id,
                        phase_id=namespace_id(source_id, "input-scene"))
     state = normalize_scene_members(state)
     return state, bindings

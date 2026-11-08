@@ -17,7 +17,7 @@ from test_regions import box_control, polygon_control, state_at
 
 
 class RegionQueryTests(unittest.TestCase):
-    def test_mm2_large_layout_uses_two_build_queries_and_one_validation_query(self):
+    def test_mm2_large_layout_uses_two_build_queries_and_no_absolute_validation_query(self):
         children = [soc(str(i), i * 100, 0, include_bumps=False) for i in range(75)]
         children.extend({"id": f"other:{i}", "bodies": [feature(f"other-body:{i}", 0, 0, 0, 10)]}
                         for i in range(586))
@@ -27,9 +27,15 @@ class RegionQueryTests(unittest.TestCase):
             _, result = MeshControlSetRegistry().apply("meshModel2", state)
             self.assertEqual(query.call_count, 2)
             validate_mesh_control(result.mesh_control, state=state)
+            self.assertEqual(query.call_count, 2)
+            with_reference = copy.deepcopy(result.mesh_control)
+            with_reference["controls"].extend(box_control() for _ in range(10))
+            validate_mesh_control(with_reference, state=state)
             self.assertEqual(query.call_count, 3)
-        self.assertEqual(sum(c["method"] == "3D_REGION" for c in result.mesh_control["controls"]), 300)
-        self.assertEqual(sum(bool(d.get("resolvedRegions")) for d in result.details), 300)
+        self.assertEqual(sum(c["method"] == "3D_REGION" for c in result.mesh_control["controls"]), 1)
+        self.assertEqual(sum(bool(d.get("resolvedRegions")) for d in result.details), 1)
+        self.assertTrue(all(c["coordinateMode"] == "absolute"
+                            for c in result.mesh_control["controls"] if c["method"] == "3D_REGION"))
 
     def test_corner_helper_reuses_one_query_and_skips_empty_targets_lazily(self):
         for children, expected_calls in (([soc(str(i), i * 100, 0) for i in range(20)], 1),
@@ -37,11 +43,16 @@ class RegionQueryTests(unittest.TestCase):
             state = ProcessGeometryState.from_structure(layout(children))
             containers = state.find_geometry(kind="container")
             snapshot = copy.deepcopy(containers)
-            controls, details = [], []
-            with patch.object(state, "find_geometry", wraps=state.find_geometry) as query:
-                append_die_top_corner_controls(controls, details, state, containers, half_extent=25, element_size=5)
-                self.assertEqual(query.call_count, expected_calls)
-            self.assertEqual(containers, snapshot)
+            for settings in ({}, {"merge_gap": 2000}):
+                with self.subTest(merge_gap=settings.get("merge_gap"), expected_calls=expected_calls):
+                    controls, details = [], []
+                    with patch.object(state, "find_geometry", wraps=state.find_geometry) as query:
+                        append_die_top_corner_controls(
+                            controls, details, state, containers, half_extent=25, element_size=5,
+                            **settings,
+                        )
+                        self.assertEqual(query.call_count, expected_calls)
+                    self.assertEqual(containers, snapshot)
 
     def test_validation_shares_query_but_checks_every_control_and_error_path(self):
         state = state_at()

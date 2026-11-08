@@ -101,6 +101,8 @@ class GeometryFixtureTests(unittest.TestCase):
                     "soic",
                     "lsi",
                     "cpo",
+                    "cow",
+                    "lid",
                     "vrm",
                     "wafer-dmy",
                 }

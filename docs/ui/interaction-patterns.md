@@ -7,12 +7,14 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-10-13
-last_verified_commit: 2b9cad3675483da156a92d0a08ec12671f4f1b62
+last_verified: 2026-11-06
+last_verified_commit: 5e46f755
 source_of_truth:
   - apps/viewer/components/process-flow-editor/process-flow-editor.tsx
   - apps/viewer/components/process-step-edit/process-step-edit-dialog.tsx
   - apps/viewer/components/geometry-preview
+  - apps/viewer/components/process-flow-save/editor-dialog.tsx
+  - apps/viewer/components/process-flow-fields/gds-placement-import-focus.test.tsx
 ---
 
 # 互動規格
@@ -80,11 +82,15 @@ Overlay 可以巢狀，但任一時間只有最上層 modal 接收 close command
 ```text
 screen
   -> Node Editor
+      -> Recipe
+          -> GDS import (portal)
       -> Geometry Catalog
   -> Geometry Preview
       -> Export form
 ```
 
+- GDS import portal與Node Editor／Recipe必須共用topmost dialog stack；外層不得把focus從GDS欄位搶回。
+  開啟、編輯、關閉重開與import retry以`UI-PLACE-030`驗證。
 - 開啟 Geometry Catalog 時，Node Editor 保持 mounted 但不得被 backdrop click 關閉。
 - 開啟 Export form 時，Geometry Preview 保持 mounted；Export form 的 backdrop、Close、Cancel、
   `Escape` 只關閉 Export form。

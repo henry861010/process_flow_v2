@@ -118,6 +118,7 @@ class ComponentHint:
     # Producers declare semantics; the kernel resolves the representation policy.
     role: str = ""
     diagram_label: str | None = None
+    nesting: Literal["structural", "arranged"] = "structural"
 
 
 @dataclass(frozen=True)
