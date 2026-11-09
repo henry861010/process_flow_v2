@@ -129,7 +129,12 @@ class JointExecutionWarningApiTests(unittest.TestCase):
     def test_joint_warning_reaches_downstream_preview_with_actual_geometry(self):
         for template in ("step_tpl_mr_joint", "step_tpl_tcb_joint"):
             with self.subTest(template=template):
-                session, snapshots = self.preview(joint_flow(joint_template=template))
+                flow = joint_flow(joint_template=template)
+                snapshots = {}
+                for step in ("joint", "mold", "finish"):
+                    session, selected = self.preview(flow, step)
+                    self.assertEqual(list(selected), [step])
+                    snapshots.update(selected)
                 for snapshot in snapshots.values():
                     self.assert_preserved_warning(snapshot["executionWarnings"])
                 joint = snapshots["joint"]["geometryEntityJson"]["structure"]["root"]

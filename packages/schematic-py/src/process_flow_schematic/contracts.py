@@ -51,6 +51,8 @@ class SchematicItem(TypedDict):
     thickness: float
     densityValues: NotRequired[list[float | None]]
     diagramLabel: NotRequired[str]
+    measurementSource: NotRequired[Literal["geometry", "process"]]
+    sourceStepRefId: NotRequired[str]
 
 
 class SchematicComponent(SchematicRectangle):
@@ -176,6 +178,23 @@ class SchematicContext:
     unit: str
     # Memoized read-only queries live only for this composition, never globally.
     query: Callable[[Any, Callable[[], Any]], Any] = field(default=lambda key, build: build(), repr=False, compare=False)
+    polygon_lookup: Callable[[str], Any] | None = field(default=None, repr=False, compare=False)
+    display_replaced: bool = False
+
+
+@dataclass(frozen=True)
+class SchematicLayerFill:
+    """A process-owned display interval, independent of polygon connectivity."""
+    object_id: str
+    source_step_ref_id: str
+    region_id: str
+    label: str
+    material: str
+    fill: str
+    z_min: float
+    z_max: float
+    group_keys: tuple[str, ...] = ()
+    source_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -185,7 +204,6 @@ class SchematicPart:
     primitives: tuple[Primitive, ...] = ()
     component: ComponentHint | None = None
     layout: str = "node"
-    eligible_container_ids: tuple[str, ...] = ()
     occluded_by: tuple[str, ...] = ()
     # Measurements come from source_id; display bounds remain relative to the
     # emitting node's component. Neither changes the physical source geometry.
@@ -196,10 +214,6 @@ class SchematicPart:
     # A local motif request; horizontal positions are planned by the kernel.
     distribution_count: int = 9
     diagram_label: str | None = None
-    # Each group describes one physically connected region, using current
-    # container IDs. Distinct groups must never create bridges between them.
-    # A singleton/empty group retains a relation without inventing an endpoint.
-    bridge_groups: tuple[tuple[str, ...], ...] = ()
 
 
 Presenter = Callable[[SchematicContext], list[SchematicPart]]

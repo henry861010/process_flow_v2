@@ -57,7 +57,7 @@ def normalize_scene_members(state: SceneState) -> SceneState:
     return result
 
 
-def describe_source_scene(structure: Mapping, registry, *, source_id: str) -> tuple[SceneState, dict[str, str]]:
+def describe_source_scene(structure: Mapping, registry, *, source_id: str, polygon_lookup=None) -> tuple[SceneState, dict[str, str]]:
     frozen = _freeze(structure)
     # Physical IDs are source-qualified and stable; payload child order is not
     # a layout priority. Parents precede descendants for bounds aggregation.
@@ -99,7 +99,7 @@ def describe_source_scene(structure: Mapping, registry, *, source_id: str) -> tu
         if presenter is not None:
             try:
                 context = SchematicContext(frozen, container, container, ancestors, "container", bounds,
-                                           str(frozen.get("unitSystem", "um")), query)
+                                           str(frozen.get("unitSystem", "um")), query, polygon_lookup)
                 hints = [part.component for part in presenter(context) if part.component is not None]
             except Exception:
                 presenter = None
@@ -140,7 +140,7 @@ def describe_source_scene(structure: Mapping, registry, *, source_id: str) -> tu
                 if renderer:
                     try:
                         context = SchematicContext(frozen, node, container, ancestors, node_kind, node_bounds,
-                                                   str(frozen.get("unitSystem", "um")), query)
+                                                   str(frozen.get("unitSystem", "um")), query, polygon_lookup)
                         parts = renderer(context)
                         if any(part.layout == "distributed" for part in parts):
                             layout = "distributed"

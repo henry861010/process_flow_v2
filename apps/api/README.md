@@ -118,7 +118,7 @@ missing token必須重新preview，不可在前端自行重建geometry。
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/preview-sessions` | Resolve/execute selected upstream closure once; return snapshots and target-only SVG schematic document |
+| `POST` | `/api/preview-sessions` | Resolve/execute selected upstream closure once; return only the selected target snapshot and its SVG schematic document |
 | `GET` | `/api/preview-sessions/{sessionId}/snapshots/{snapshotId}/mesh` | Retained lazy binary GLB route for CAD clients |
 | `GET` | `/api/preview-sessions/{sessionId}/snapshots/{snapshotId}/section` | Retained exact body section route for engineering clients |
 | `POST` | `/api/geometry-preview` | Resolve/execute target and return geometry JSON + GLB |
@@ -133,7 +133,7 @@ missing token必須重新preview，不可在前端自行重建geometry。
 Exact preview request shape、worker paths、timeouts 與 file replacement semantics 見 [Preview and Export Pipeline](../../docs/architecture/preview-export-pipeline.md)。
 
 Flow Editor 只使用 session 的 `initialSnapshotId` target。Target snapshot 新增 `schematic`
-document；upstream snapshots 為 null。`schematicWarnings` 提供非阻擋顯示錯誤，原始
+document；`snapshots` 固定一筆，不回傳上游 snapshots。`schematicWarnings` 提供非阻擋顯示錯誤，原始
 `geometryEntityJson` 仍可匯出。Diagram 不載入 GLB／section；既有 endpoints 保留。
 API 的 `schematic_builder` 明確註冊 step／generator presenters；presentation version 納入
 session 與 snapshot identity，`geometryHash` 只取原始 geometry。安裝 API 前須 editable install

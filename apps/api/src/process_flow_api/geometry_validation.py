@@ -5,9 +5,8 @@ import copy
 import math
 from typing import Any
 
-from process_flow_kernel import ProcessGeometryState, normalize_geometry_structure, validate_bump_stage
+from process_flow_kernel import ProcessGeometryState, validate_bump_stage
 from process_flow_kernel.domain.semantic_keys import validate_body_key, validate_container_key, validate_via_key
-from process_flow_kernel.utils.polygon import validate_polygon_loops
 
 
 def validate_catalog_structure(payload: dict[str, Any]) -> dict[str, Any]:
@@ -20,13 +19,12 @@ def validate_catalog_structure(payload: dict[str, Any]) -> dict[str, Any]:
         if structure.get(field) != expected:
             raise ValueError(f"structure.{field}: expected {expected!r}")
     _container(structure.get("root"), "structure.root")
-    normalized = normalize_geometry_structure(structure)
     # Reuse kernel hydration for global ID uniqueness and downstream compatibility.
     try:
-        ProcessGeometryState.from_structure(normalized)
+        state = ProcessGeometryState.from_structure(structure)
     except ValueError as error:
         raise ValueError(f"structure.root: {error}") from error
-    return normalized
+    return state.to_geometry_structure()
 
 
 def _object(value, path, allowed):
@@ -151,8 +149,3 @@ def _primitive(value, path):
                 raise ValueError(f"{path}.polys[{loop_index}]: expected an array")
             for index, point in enumerate(loop):
                 _point(point, f"{path}.polys[{loop_index}][{index}]")
-        try:
-            # Also normalize optional duplicate closing points using kernel rules.
-            value["polys"] = validate_polygon_loops(loops)
-        except ValueError as error:
-            raise ValueError(f"{path}.polys: {error}") from error

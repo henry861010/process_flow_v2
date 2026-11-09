@@ -127,6 +127,20 @@ class SceneState:
 
 
 @dataclass(frozen=True)
+class LayerFillIntent:
+    object_id: str
+    source_step_ref_id: str
+    label: str
+    material: str
+    fill: str
+    thickness: float
+
+    def __post_init__(self):
+        if isinstance(self.thickness, bool) or not math.isfinite(self.thickness) or self.thickness <= 0:
+            raise ValueError("Layer fill thickness must be positive and finite")
+
+
+@dataclass(frozen=True)
 class SchematicDelta:
     creates: tuple[SchematicObject, ...] = ()
     updates: tuple[SchematicObject, ...] = ()
@@ -144,11 +158,18 @@ class SchematicDelta:
     update_regions: tuple[LayoutRegion, ...] = ()
     remove_regions: tuple[str, ...] = ()
     update_relations: tuple[SceneRelation, ...] = ()
+    layer_fills: tuple[LayerFillIntent, ...] = ()
+    vertical_transform: Literal["identity", "mirror", "clip"] = "identity"
+    trim_depth: float = 0.0
 
     def __post_init__(self):
         for name in ("creates", "updates", "removes", "reparents", "add_regions", "add_relations", "remove_relations",
-                     "derivations", "notes", "update_regions", "remove_regions", "update_relations"):
+                     "derivations", "notes", "update_regions", "remove_regions", "update_relations", "layer_fills"):
             object.__setattr__(self, name, tuple(getattr(self, name)))
+        if self.vertical_transform not in ("identity", "mirror", "clip"):
+            raise ValueError("Invalid schematic vertical transform")
+        if not math.isfinite(self.trim_depth) or self.trim_depth < 0:
+            raise ValueError("Invalid schematic trim depth")
 
 
 def _name(value: object, label: str) -> None:

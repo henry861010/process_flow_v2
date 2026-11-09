@@ -150,18 +150,22 @@ relative to the emitting node's component without modifying physical geometry.
 Component grouping includes presentation differences and referenced measurement
 properties while ignoring source IDs, absolute XY and runtime material suffixes.
 
-Relation parts may supply `bridge_groups`, a tuple of current physical container-ID
-tuples. Each inner tuple describes one connected physical fill region; separate
-regions never create bridges between them. Producers resolve physical contact and
-holes; the composer has no geometry-engine dependency. Every physical instance maps
-to its representative cohort, including instances other than the first one drawn.
-Only adjacent occupied slots of different cohorts in the same mounting region can
-receive a bridge; overlapping slots in other regions do not interrupt that adjacency. Bridges are bounded by
-the fill and both physical/representative Z intervals. Nonadjacent, merged or missing
-endpoints retain their source measurements and a connection note without crossing
-other components or reserved empty slots. An empty/singleton inner tuple records a
-retained region without inventing a second endpoint. Legacy `eligible_container_ids`
-remains available to callers that declare only illustrative adjacency.
+Process companions may emit `LayerFillIntent` with a source step, material,
+color and recipe thickness. Snapshot binding resolves a `SchematicLayerFill`
+against the executed input cursor and its semantic mounting region. The bound
+interval follows copies, vertical mirroring and top clipping; zero-height fills
+are removed. The composer connects adjacent current eligible cohorts in each
+region, skipping empty reservations and stopping at excluded occupied slots.
+No polygon classification, footprint intersection or physical contact test is
+performed. Standalone geometry retains existing fill slabs without inferring
+connectivity. The `span` part layout renders a slab without selecting its helper
+scope as a component.
+
+Process-derived items use optional `measurementSource: "process"` and
+`sourceStepRefId`; `sourceIds` contains only physical IDs in the current snapshot
+and may be empty. Their thickness is explicitly schematic. Ordinary items keep
+geometry measurements, and `totalThickness` always uses physical geometry.
+These optional additions preserve document schema version 1.
 
 `SchematicItem` may include `densityValues` for bump, via and circuit features.
 The composer collects density from each unique physical source ID, removes
@@ -177,8 +181,7 @@ own referenced `source_id`.
 Consumers can use these measurements in a read-only feature review card showing
 the component, full feature name, material, actual snapshot thickness and, where
 applicable, distinct density values. Missing density is shown as `Not specified`.
-The values describe the physical snapshot, including grinding results, while
-representation counts and grouping remain unchanged.
+Geometry values describe the physical snapshot, including grinding results. Process layer-fill items explicitly identify schematic thickness instead; representation counts and grouping remain unchanged.
 
 Local feature motifs and actual contact eligibility are supplied by the owning
 producer packages. Shared layout and built-in representation counts are owned by

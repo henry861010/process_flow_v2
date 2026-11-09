@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import json
 
+from process_flow_kernel import GeometryArtifact
+
 from process_flow_schematic.flow import FlowNode, FlowSource, FlowSchematicPlan, bind_flow_snapshots, plan_flow
 from process_flow_schematic.scene import SCENE_VERSION
 from process_flow_schematic.scene_layout import SCENE_LAYOUT_POLICY_VERSION
@@ -57,10 +59,12 @@ def plan_flow_schematic(context, generators, *, resolved_inputs=None) -> FlowSch
     descriptors = SchematicDescriptorRegistry()
     register_descriptors(descriptors)
 
+    artifacts = {}
     def resolve_input(input_id):
-        if resolved_inputs is not None and input_id in resolved_inputs:
-            return resolved_inputs[input_id]
-        return resolve_preview_flow_input(context, generators, input_id, compiler=compiler)
+        value = (resolved_inputs[input_id] if resolved_inputs is not None and input_id in resolved_inputs
+                 else resolve_preview_flow_input(context, generators, input_id, compiler=compiler, as_artifact=True))
+        artifacts[input_id] = value if isinstance(value, GeometryArtifact) else GeometryArtifact.from_structure(value)
+        return artifacts[input_id].structure
 
     def parameters(step_id):
         validate_preview_step(context, generators, step_id, compiler=compiler)
@@ -74,8 +78,13 @@ def plan_flow_schematic(context, generators, *, resolved_inputs=None) -> FlowSch
 
     return plan_flow(nodes, fingerprint=schematic_layout_fingerprint(context), registry=schematic_registry(),
                      resolve_input=resolve_input, resolve_parameters=parameters, describe=describe,
+                     resolve_polygon_lookup=lambda input_id: artifacts[input_id].polygons.get,
                      active_ports=lambda node, values: descriptors.input_ports(node.program, values, tuple(port for port, _ in node.inputs)))
 
 
 def bind_schematic_snapshots(planning, prepared, snapshots):
-    return bind_flow_snapshots(planning, snapshots)
+    inputs = (prepared.execution_plan.external_geometries if prepared.execution_plan is not None else {})
+    return bind_flow_snapshots(planning, snapshots,
+                              input_structures={key: value.structure for key, value in inputs.items()},
+                              input_cursors={key: value.runtime_snapshot.cursor_z for key, value in inputs.items()
+                                             if value.runtime_snapshot is not None})

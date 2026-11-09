@@ -3,9 +3,13 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from process_flow_kernel import ProcessGeometryState, ProcessStepContext
+from process_flow_kernel import GeometryArtifact, ProcessGeometryState, ProcessStepContext
 
 from .adapters import adapt_geometry_for_placement, rotate_geometry
+
+
+# Increment when execution semantics change; execute depends only on its context.
+EXECUTION_CACHE_VERSION = 1
 
 
 def execute(context: ProcessStepContext) -> ProcessGeometryState:
@@ -17,7 +21,7 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
     main_artifact = context.get_geometry_artifact("main_geometry")
     main_z = (
         state.root_body_z_max()
-        if main_artifact is not None and main_artifact.runtime_state is None
+        if main_artifact is not None and main_artifact.runtime_snapshot is None
         else state.cursor_z()
     )
 
@@ -37,15 +41,16 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
             "center",
             anchor_bounds,
         )
-        adapted = ProcessGeometryState.from_structure(
-            transformed_structure, {"provenance": source.provenance},
+        generated = GeometryArtifact._from_generated_structure(transformed_structure, source=source)
+        adapted = ProcessGeometryState._from_polygon_structure(
+            generated.structure, generated.polygons, {"provenance": source.provenance},
         )
         bottom_z = state.bump_placement_bottom_z(
             adapted, x=center_x, y=center_y, anchor="origin", main_z=main_z,
         )
         prepared.append((adapted, center_x, center_y, bottom_z))
 
-    if main_artifact is not None and main_artifact.runtime_state is None:
+    if main_artifact is not None and main_artifact.runtime_snapshot is None:
         state.set_cursor_z(main_z)
     for adapted, center_x, center_y, bottom_z in prepared:
         state.place_geometry_state(

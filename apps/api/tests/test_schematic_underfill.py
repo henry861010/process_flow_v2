@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -174,7 +175,7 @@ class SchematicUnderfillTests(unittest.TestCase):
         self.assertEqual(bridge["x"] + bridge["width"], hbm["x"])
         self.assertFalse(any("retained fill connects" in note for note in filled["notes"]))
 
-    def test_empty_reserved_slot_in_same_upper_region_still_blocks_underfill_bridge(self):
+    def test_empty_reserved_slot_does_not_block_layer_fill(self):
         ctx = _layered_flow(remove_middle=True)
         _, before, _, _ = execute_document(_target(ctx, "cut"))
         planning, filled, snapshots, _ = execute_document(_target(ctx, "uf"))
@@ -192,28 +193,30 @@ class SchematicUnderfillTests(unittest.TestCase):
         self.assert_actual_uf_measurements(filled, snapshots[-1].geometry_structure)
         self.assertEqual(len(_uf_items(filled)), 1)
         self.assertEqual(_uf_items(filled)[0]["thickness"], 6)
-        self.assertEqual(_uf_shapes(filled), [])
-        self.assertTrue(any("retained fill connects" in note and "nonadjacent slots" in note
-                            for note in filled["notes"]))
+        self.assertEqual(len(_uf_shapes(filled)), 1)
+        self.assertFalse(any("retained fill connects" in note for note in filled["notes"]))
 
-    def test_gap_threshold_and_cavity_fill_do_not_create_spurious_bridges(self):
-        for physical_gap, bumped, bridge_count in ((4, False, 1), (5, False, 1),
-                                                  (6, False, 0), (6, True, 0)):
+    def test_layer_fill_ignores_physical_gap_and_retains_cavity_measurements(self):
+        for physical_gap, bumped in ((4, False), (5, False), (6, False), (1000, False), (6, True)):
             with self.subTest(physical_gap=physical_gap, bumped=bumped):
                 _, document, snapshots, _ = execute_document(_target(
                     _flow(physical_gap=physical_gap, bumped=bumped), "uf"))
                 self.assertEqual(document["warnings"], [])
-                self.assert_actual_uf_measurements(document, snapshots[-1].geometry_structure)
-                left, right = sorted(document["components"], key=lambda item: item["x"])
-                bridges = [shape for shape in _uf_shapes(document)
-                           if shape["x"] == left["x"] + left["width"] and
-                           shape["x"] + shape["width"] == right["x"]]
-                self.assertEqual(len(bridges), bridge_count)
+                process_items = [item for item in _uf_items(document) if item.get("measurementSource") == "process"]
+                self.assertEqual(len(process_items), 1)
+                item = process_items[0]
+                self.assertEqual((item["zMin"], item["zMax"], item["thickness"]), (10, 16, 6))
+                self.assertEqual(item["sourceStepRefId"], "uf")
+                bodies = _uf_bodies(snapshots[-1].geometry_structure["root"])
+                self.assertTrue(set(item["sourceIds"]) <= bodies.keys())
+                if physical_gap > 5 and not bumped:
+                    self.assertEqual(bodies, {})
+                    self.assertEqual(item["sourceIds"], [])
                 if bumped:
-                    self.assertEqual(len(_uf_shapes(document)), 2)
-                    self.assertTrue(all(item["thickness"] == 2 for item in _uf_items(document)))
-                elif physical_gap > 5:
-                    self.assertEqual(_uf_items(document), [])
+                    cavities = [item for item in _uf_items(document) if item.get("measurementSource") != "process"]
+                    self.assertEqual(len(cavities), 2)
+                    self.assertTrue(all(item["thickness"] == 2 for item in cavities))
+                self.assertEqual(sum(shape["itemId"] == item["id"] for shape in _uf_shapes(document)), 1)
 
     def test_gap_touching_non_first_cohort_instance_still_connects_its_slot(self):
         _, document, snapshots, _ = execute_document(_target(_flow(soc_positions=(0, 30)), "uf"))
@@ -247,6 +250,90 @@ class SchematicUnderfillTests(unittest.TestCase):
         self.assertEqual(_uf_bodies(snapshots[-1].geometry_structure["root"]), {})
         self.assertEqual(_uf_items(removed), [])
         self.assertEqual(_uf_shapes(removed), [])
+
+    def test_synthetic_fill_is_trimmed_removed_and_mirrored_without_a_gap_body(self):
+        ctx = _flow(physical_gap=1000)
+        add_step(ctx, "flip", "flip/flip", out("uf"), {})
+        add_step(ctx, "flip-back", "flip/flip", out("flip"), {})
+        add_step(ctx, "grind", "grinding/grinding", out("uf"), {"thk": 6})
+        add_step(ctx, "remove", "grinding/grinding", out("grind"), {"thk": 4})
+        for step, interval in (("uf", (10, 16)), ("flip", (4, 10)),
+                               ("flip-back", (10, 16)), ("grind", (10, 14))):
+            with self.subTest(step=step):
+                _, doc, snapshots, _ = execute_document(_target(ctx, step))
+                self.assertEqual(_uf_bodies(snapshots[-1].geometry_structure["root"]), {})
+                item, = [i for i in _uf_items(doc) if i.get("measurementSource") == "process"]
+                self.assertEqual((item["zMin"], item["zMax"]), interval)
+                self.assertEqual(item["sourceIds"], [])
+        _, removed, _, _ = execute_document(_target(ctx, "remove"))
+        self.assertEqual(_uf_shapes(removed), [])
+
+    def test_copied_synthetic_fill_keeps_source_step_and_moves_with_the_assembly(self):
+        from test_schematic_planning import entity
+        ctx = _flow(physical_gap=6)
+        ctx.referenced_catalog_geometries["outer"] = entity("outer", "carrier")
+        ctx.definition["flowInputs"].append({"flowInputId": "outer", "name": "outer", "dataType": "geometry", "required": True})
+        ctx.configuration["inputBindings"]["outer"] = {"kind": "catalog", "geometryId": "outer"}
+        target = placement()
+        target["targetRegion"].update(topRightX=100, topRightY=100)
+        add_step(ctx, "copy", "pnp/pnp", inp("outer"), {"placements": [target]}, out("uf"))
+        _, doc, _, bindings = execute_document(_target(ctx, "copy"))
+        self.assertEqual(doc["warnings"], [])
+        item, = [i for i in _uf_items(doc) if i.get("measurementSource") == "process"]
+        self.assertEqual((item["zMin"], item["zMax"]), (20, 26))
+        self.assertEqual(item["sourceStepRefId"], "uf")
+        self.assertEqual(item["sourceIds"], [])
+        self.assertNotEqual(bindings["copy"].layer_fills[0].object_id, bindings["uf"].layer_fills[0].object_id)
+
+    def test_wafer_dummy_is_excluded_from_layer_fill_endpoints(self):
+        ctx = _flow()
+        ctx.referenced_catalog_geometries["dummy"] = _die("dummy", "wafer-dmy")
+        ctx.definition["flowInputs"].append({"flowInputId": "dummy", "name": "dummy", "dataType": "geometry", "required": True})
+        ctx.configuration["inputBindings"]["dummy"] = {"kind": "catalog", "geometryId": "dummy"}
+        add_step(ctx, "dummy", "pnp/pnp", out("hbm-place"), {"placements": [placement(50)]}, inp("dummy"))
+        for edge in ctx.definition["flowEdges"]:
+            if edge["target"]["stepRefId"] == "uf":
+                edge["source"] = out("dummy")
+        _, doc, _, _ = execute_document(_target(ctx, "uf"))
+        components = {item["label"]: item for item in doc["components"] if item["label"] != "Wafer DMY"}
+        bridge, = _uf_shapes(doc)
+        left,right = sorted(components.values(), key=lambda item:item["x"])
+        self.assertEqual((bridge["x"], bridge["width"]),
+                         (left["x"]+left["width"], right["x"]-left["x"]-left["width"]))
+
+    def test_polygon_holes_islands_and_xy_placement_do_not_change_layer_climbs(self):
+        from process_flow_api.schematic_builder import build_schematic
+        ctx = _target(_flow(), "uf")
+        planning, expected, snapshots, bindings = execute_document(ctx)
+        for loops in (
+            [[[1000,1000,10],[2000,1000,10],[2000,2000,10],[1000,2000,10]],
+             [[1200,1200,10],[1200,1800,10],[1800,1800,10],[1800,1200,10]]],
+            [[[500,500,10],[501,500,10],[501,501,10],[500,501,10]],
+             [[800,800,10],[801,800,10],[801,801,10],[800,801,10]]],
+        ):
+            source = copy.deepcopy(snapshots[-1].geometry_structure)
+            for node in _uf_bodies(source["root"]).values():
+                node["geometry"]["polys"] = loops
+            for child in source["root"].get("children", ()):
+                if child.get("key") in ("soc", "hbm"):
+                    for body in child.get("bodies", ()):
+                        for corner in ("bottom_left", "top_right"):
+                            body["geometry"][corner][0] += 10000
+            doc = build_schematic(source, layout_plan=planning.layout_for(ctx.target),
+                                  component_bindings=bindings["uf"])
+            self.assertEqual(doc, expected)
+
+    def test_uf_composition_does_not_classify_or_intersect_polygons(self):
+        from process_flow_api.schematic_builder import build_schematic
+        from process_flow_kernel.utils import polygon
+        ctx = _target(_flow(), "uf")
+        planning, doc, snapshots, bindings = execute_document(ctx)
+        with patch.object(polygon, "_classify_indices", side_effect=AssertionError("polygon classification")), \
+             patch("shapely.intersection", side_effect=AssertionError("polygon intersection")), \
+             patch("shapely.set_precision", side_effect=AssertionError("polygon precision")):
+            repeated = build_schematic(snapshots[-1].geometry_structure, layout_plan=planning.layout_for(ctx.target),
+                                       component_bindings=bindings["uf"], polygon_lookup=snapshots[-1].polygons.get)
+        self.assertEqual(repeated, doc)
 
     def test_http_preview_serializes_gap_and_rebuilds_the_same_slots_after_cache_eviction(self):
         ctx = _flow()

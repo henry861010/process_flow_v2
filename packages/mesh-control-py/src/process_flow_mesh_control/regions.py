@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import math
 
-from process_flow_kernel import BoxGeometry, PolygonGeometry, ProcessGeometryState, validate_polygon_loops
+from process_flow_kernel import BoxGeometry, PolygonGeometry, ProcessGeometryState
 
 from ._geometry_query import _GeometryQuery
 from .contracts import JsonObject
@@ -115,7 +115,7 @@ def resolve_region_control(control: JsonObject, state: ProcessGeometryState | No
     return _resolve_region_control(control, _GeometryQuery(state), path=path)
 
 
-def _resolve_region_control(control: JsonObject, query: _GeometryQuery, *, path="control") -> list[JsonObject]:
+def _resolve_region_control(control: JsonObject, query: _GeometryQuery, *, path="control", polygon=None, polygon_factory=None) -> list[JsonObject]:
     """Resolve one control using the enclosing operation's geometry snapshot."""
     relative = validate_region_control(control, path=path)
     sources = query.sources(control["reference"], path=path) if relative else [None]
@@ -148,7 +148,8 @@ def _resolve_region_control(control: JsonObject, query: _GeometryQuery, *, path=
                 if end <= start:
                     raise ValueError(f"{path}.region.endZ: must be greater than startZ" + (f" (source {source['id']})" if source else ""))
                 loops = [[[coordinate(p["x"]), coordinate(p["y"]), start] for p in loop] for loop in region["loops"]]
-                primitive = PolygonGeometry(validate_polygon_loops(loops), end - start).json()
+                data = polygon if polygon is not None else (loops if polygon_factory is None else polygon_factory(loops))
+                primitive = PolygonGeometry(data, end - start).json()
                 points = [p for loop in primitive["polys"] for p in loop]
                 bounds = {"xMin": min(p[0] for p in points), "xMax": max(p[0] for p in points),
                           "yMin": min(p[1] for p in points), "yMax": max(p[1] for p in points), "zMin": start, "zMax": end}
@@ -169,11 +170,11 @@ def append_region_control(controls, details, state, *, label, element_size, coor
     )
 
 
-def _append_region_control(controls, details, query, *, label, element_size, coordinate_mode, region, reference=None):
+def _append_region_control(controls, details, query, *, label, element_size, coordinate_mode, region, reference=None, polygon=None):
     """Append one control using the enclosing operation's geometry snapshot."""
     control = {"method": "3D_REGION", "coordinateMode": coordinate_mode, "label": label, "elementSize": element_size,
                "region": copy.deepcopy(region), **({"reference": copy.deepcopy(reference)} if reference is not None else {})}
-    resolved = _resolve_region_control(control, query)
+    resolved = _resolve_region_control(control, query, polygon=polygon)
     controls.append(control)
     details.append({"label": label, "method": "3D_REGION", "elementSize": element_size, "status": "applied",
                     "startZ": min(r["bounds"]["zMin"] for r in resolved),

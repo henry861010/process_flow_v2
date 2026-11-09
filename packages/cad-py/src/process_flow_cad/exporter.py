@@ -4,11 +4,12 @@ import math
 import re
 import tempfile
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from process_flow_kernel import classify_polygon_loops, normalize_geometry_structure, stable_id
+from process_flow_kernel import GeometryArtifact, classify_polygon_loops, stable_id
 
 JsonObject = dict[str, Any]
 ProgressCallback = Callable[[JsonObject], None]
@@ -70,7 +71,7 @@ class CadExportResult:
 
 
 def export_cad_bytes(
-    geometry_structure: JsonObject,
+    geometry_structure: Mapping[str, Any] | GeometryArtifact,
     *,
     format: Literal["glb"],
     progress: ProgressCallback | None = None,
@@ -85,7 +86,7 @@ def export_cad_bytes(
 
 
 def convert_cad_bodies(
-    geometry_structure: JsonObject,
+    geometry_structure: Mapping[str, Any] | GeometryArtifact,
     *,
     progress: ProgressCallback | None = None,
 ) -> list[CadBody]:
@@ -111,12 +112,16 @@ class CadQueryConverter:
 
     def convert(
         self,
-        payload: JsonObject,
+        payload: Mapping[str, Any] | GeometryArtifact,
         *,
         formats: list[Literal["glb"]] | None = None,
     ) -> CadExportResult:
         requested_formats = formats or ["glb"]
-        structure = normalize_geometry_structure(payload)
+        artifact = payload if isinstance(payload, GeometryArtifact) else GeometryArtifact.from_structure(payload)
+        structure = artifact.structure
+        from process_flow_kernel.serialization.polygon_hydration import polygon_features
+        self._polygons = {id(node["geometry"]): artifact.polygons[node["id"]]
+                          for node, _ in polygon_features(structure["root"])}
         self._completed_source_bodies = 0
         self._total_source_bodies = _count_source_bodies(structure["root"])
         self._emit_progress("Converting CAD bodies.")
@@ -139,8 +144,12 @@ class CadQueryConverter:
             )
         return CadExportResult(files=files, bodies=bodies)
 
-    def convert_bodies(self, payload: JsonObject) -> list[CadBody]:
-        structure = normalize_geometry_structure(payload)
+    def convert_bodies(self, payload: Mapping[str, Any] | GeometryArtifact) -> list[CadBody]:
+        artifact = payload if isinstance(payload, GeometryArtifact) else GeometryArtifact.from_structure(payload)
+        structure = artifact.structure
+        from process_flow_kernel.serialization.polygon_hydration import polygon_features
+        self._polygons = {id(node["geometry"]): artifact.polygons[node["id"]]
+                          for node, _ in polygon_features(structure["root"])}
         self._completed_source_bodies = 0
         self._total_source_bodies = _count_source_bodies(structure["root"])
         self._emit_progress("Converting CAD bodies.")
@@ -325,7 +334,7 @@ class CadQueryConverter:
         return components
 
     def _geometry_to_shape(self, geometry: JsonObject):
-        if not isinstance(geometry, dict):
+        if not isinstance(geometry, Mapping):
             raise CadExportError(f"Unknown geometry payload: {geometry!r}")
 
         geometry_type = geometry.get("type")
@@ -387,7 +396,7 @@ class CadQueryConverter:
     def _polygons_to_shape(self, geometry: JsonObject):
         thickness = _positive_number(geometry["thk"], "PolygonGeometry.thk")
         shapes = []
-        for region in classify_polygon_loops(geometry["polys"]):
+        for region in classify_polygon_loops(self._polygons[id(geometry)]):
             shape = self._loop_to_prism(region.outer, thickness, region.z)
             for hole in region.holes:
                 shape = self._cut(shape, self._loop_to_prism(hole, thickness, region.z))
@@ -548,7 +557,7 @@ def _count_source_bodies(container: JsonObject) -> int:
     total += sum(
         _count_source_bodies(child)
         for child in container.get("children", [])
-        if isinstance(child, dict)
+        if isinstance(child, Mapping)
     )
     return total
 

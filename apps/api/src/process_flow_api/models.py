@@ -690,6 +690,8 @@ class SchematicItem(StrictModel):
     thickness: SchematicNonNegativeFloat
     densityValues: list[SchematicDensityPercentage | None] | None = Field(default=None, strict=True)
     diagramLabel: str | None = None
+    measurementSource: Literal["geometry", "process"] | None = None
+    sourceStepRefId: SchematicSourceId | None = None
 
     @model_serializer(mode="wrap")
     def omit_inapplicable_density(self, handler):
@@ -698,6 +700,10 @@ class SchematicItem(StrictModel):
             payload.pop("densityValues", None)
         if self.diagramLabel is None:
             payload.pop("diagramLabel", None)
+        if self.measurementSource is None:
+            payload.pop("measurementSource", None)
+        if self.sourceStepRefId is None:
+            payload.pop("sourceStepRefId", None)
         return payload
 
     @model_validator(mode="after")
@@ -775,7 +781,7 @@ class PreviewSnapshot(StrictModel):
 class PreviewSessionResponse(StrictModel):
     sessionId: str = Field(min_length=1)
     initialSnapshotId: str = Field(min_length=1)
-    snapshots: list[PreviewSnapshot] = Field(min_length=1)
+    snapshots: list[PreviewSnapshot] = Field(min_length=1, max_length=1)
 
 
 class PreviewSectionRegion(StrictModel):

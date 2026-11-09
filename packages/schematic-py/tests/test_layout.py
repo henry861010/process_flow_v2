@@ -32,8 +32,6 @@ def structure(*children, bridge=False):
 def registry(*, eligible=()):
     result = SchematicRegistry()
     result.register("container", lambda context: [SchematicPart("Die", component=ComponentHint("Die"))], key="die")
-    result.register("body", lambda context: [SchematicPart("UF", fill="#112233", layout="bridges",
-                                                          eligible_container_ids=eligible)], key="bridge")
     return result
 
 
@@ -149,19 +147,6 @@ class LayoutPlanTests(unittest.TestCase):
         document = compose_schematic(structure(), registry(), layout_plan=layout)
         self.assertEqual((document["shapes"][0]["x"], document["shapes"][0]["width"]), (80, 1000))
 
-    def test_blank_or_ineligible_slots_block_bridges_without_hiding_current_measurements(self):
-        layout = plan("a", "b", "c")
-        bindings = {key: key for key in ("a", "b", "c")}
-        absent = compose_schematic(structure(die("a"), die("c"), bridge=True), registry(eligible=("a", "c")),
-                                   layout_plan=layout, component_bindings=bindings)
-        ineligible = compose_schematic(structure(die("a"), die("b"), die("c"), bridge=True), registry(eligible=("a", "c")),
-                                       layout_plan=layout, component_bindings=bindings)
-        complete = compose_schematic(structure(die("a"), die("b"), die("c"), bridge=True), registry(eligible=("a", "b", "c")),
-                                     layout_plan=layout, component_bindings=bindings)
-        self.assertFalse(any(shape["fill"] == "#112233" for shape in absent["shapes"]))
-        self.assertFalse(any(shape["fill"] == "#112233" for shape in ineligible["shapes"]))
-        self.assertEqual(sum(shape["fill"] == "#112233" for shape in complete["shapes"]), 2)
-        self.assertTrue(any(item["sourceIds"] == ["uf"] for item in absent["items"]))
 
     def test_unbound_components_remain_visible_with_a_local_layout_warning(self):
         layout = plan("reserved")

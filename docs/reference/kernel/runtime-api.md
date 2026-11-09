@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - process-step authors
   - kernel consumers
-last_verified: 2026-11-08
-last_verified_commit: d245f9117808730f6460ad885cfc96bbb22bc1d1
+last_verified: 2026-11-09
+last_verified_commit: 3ca3d46f
 source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/__init__.py
   - packages/kernel-py/src/process_flow_kernel/domain/process_geometry_state.py
@@ -20,6 +20,22 @@ source_of_truth:
 
 ## Application API
 
+### 不可變執行快照
+
+- `GeometryArtifact.from_state(state, source=None)` 擷取完整不可變 runtime snapshot。
+- `GeometryArtifact.from_structure()` / `from_entity()` 在外部載入時正規化並驗證 polygon 一次。
+- `artifact.fork_state()` 建立本次執行擁有的可變 state，共用已驗證的不可變 polygon。
+- `artifact.geometry()` 回傳獨立 JSON；`structure`、`provenance`、`polygons` 與 `runtime_snapshot` 為唯讀。
+- `artifact.with_structure(raw)` 是外部替換入口，不能沿用舊座標的驗證結果。
+- `result.step_artifact(step_ref_id)` 供內部讀取快照；既有 `geometry()`、`step_output()`、
+  `step_outputs()`、`step_provenance()`、warning getters 仍回傳獨立可變 JSON。
+- `GeometryKernel(step_cache=cache)` 選擇性注入 application 層的 `StepExecutionCache`；
+  infrastructure 的 `MemoryStepExecutionCache` 提供有界 LRU 與並行共用。預設不啟用。
+- `result.execution_statistics()` 提供執行步數與分階段計時，不屬於 preview response schema。
+
+Python callers 改用 `from_state()` / `fork_state()`，不再保存可變 runtime state 於 artifact。
+完整 ownership 與 cache 契約見 [internals](internals.md)。
+
 ### `FlowCompiler`
 
 - `FlowCompiler(geometry_catalog, geometry_generator_resolver=None)`：catalog 必須提供
@@ -31,7 +47,7 @@ source_of_truth:
 
 ### `GeometryKernel`
 
-`GeometryKernel(module_resolver=None).execute(execution_plan, options=None)` 只接受 `ExecutionPlan`。`ExecuteOptions.output_step_ref_id` 可選擇 output；否則使用 terminal list 最後一個。沒有 executable terminal step 時會 raise `ValueError`。
+`GeometryKernel(module_resolver=None, step_cache=None).execute(execution_plan, options=None)` 只接受 `ExecutionPlan`。`ExecuteOptions.output_step_ref_id` 可選擇 output；否則使用 terminal list 最後一個。沒有 executable terminal step 時會 raise `ValueError`。
 
 Result `GeometryKernelExecutionResult` 提供：
 
@@ -40,7 +56,7 @@ Result `GeometryKernelExecutionResult` 提供：
 - `step_outputs()`
 - `terminal_step_ref_ids()`
 
-所有 getter 回傳 copy，避免 caller 修改 kernel result cache。
+JSON getters 回傳 copy，避免 caller 修改 kernel result cache；`step_artifact()` 回傳深層唯讀 artifact。
 
 ### Plan types
 
@@ -175,6 +191,13 @@ Package export `Container`、`Body`、`Via`、`Circuit`、`Bump` 以及 `BoxGeom
 `Body(geometry, material, key=None)` 接受 optional registered semantic role；`key()` 回傳
 string 或 `None`，copy family 會保留。這些 domain types 主要支援 hydration 與 kernel
 implementation；step authoring 的首選 surface 是 `ProcessGeometryState`。
+
+`PolygonGeometry(raw_loops, thk)` 會驗證並保存正規化後座標（移除容差內重複閉合點）。
+`geometry.polygon_snapshot()` 回傳共用不可變資料；`copy()` / `copy_with_thk()` 共用它，
+move/flip/clip 則替換載體。`polygons()` / `json()` 仍是獨立可變副本。
+`geometry.bounds()` 與 feature `bounds()` 提供直接唯讀查詢，不需先呼叫 `feature.geometry()`。
+`classify_polygon_loops(raw_loops)` 仍完整驗證原始資料；傳入 `PolygonSnapshot` 時重用分類索引。
+`validate_polygon_loops(raw_loops)` 始終完整驗證；供外部入口及演算法正確性測試使用。
 
 ## Serialization helper
 

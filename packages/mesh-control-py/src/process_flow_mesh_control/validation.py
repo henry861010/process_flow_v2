@@ -19,6 +19,16 @@ def validate_mesh_control(mesh_control: JsonObject, *, state: ProcessGeometrySta
     validation; their reference resolution remains the mesher's responsibility.
     This function never rewrites the document passed to the export worker.
     """
+    _validate_document(mesh_control, state=state)
+
+
+def _validate_generated_mesh_control(mesh_control, *, state):
+    """Built-in rule output owns topology; retain field/reference checks only."""
+    from process_flow_kernel.domain.geometry import PolygonSnapshot
+    _validate_document(mesh_control, state=state, polygon_factory=PolygonSnapshot._from_generated)
+
+
+def _validate_document(mesh_control, *, state, polygon_factory=None):
     _object(mesh_control, "meshControl", ("schemaVersion", "unitSystem", "mesher", "globalElementSize", "symmetry", "controls"), ("regionMeshing",))
     for field, expected in (("schemaVersion", "1.0.0"), ("unitSystem", "um"), ("mesher", "process_flow_2_5d")):
         if mesh_control[field] != expected:
@@ -37,7 +47,7 @@ def validate_mesh_control(mesh_control: JsonObject, *, state: ProcessGeometrySta
             raise ValueError(f"{path}: expected an object")
         method = control.get("method")
         if method == "3D_REGION":
-            _resolve_region_control(control, query, path=path)
+            _resolve_region_control(control, query, path=path, polygon_factory=polygon_factory)
             continue
         if method in Z_SECTION_METHODS:
             fields = ("elementSize", "startZ", "endZ")

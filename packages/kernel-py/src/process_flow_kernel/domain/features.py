@@ -21,6 +21,9 @@ class Body:
     def thk(self):
         return self._geometry.thk()
 
+    def bounds(self):
+        return self._geometry.bounds()
+
     def geometry(self):
         return self._geometry.copy()
 
@@ -92,6 +95,9 @@ class Via:
 
     def thk(self):
         return self._geometry.thk()
+
+    def bounds(self):
+        return self._geometry.bounds()
 
     def geometry(self):
         return self._geometry.copy()
@@ -172,6 +178,9 @@ class Circuit:
     def thk(self):
         return self._geometry.thk()
 
+    def bounds(self):
+        return self._geometry.bounds()
+
     def geometry(self):
         return self._geometry.copy()
 
@@ -243,6 +252,9 @@ class Bump:
 
     def thk(self):
         return self._geometry.thk()
+
+    def bounds(self):
+        return self._geometry.bounds()
 
     def geometry(self):
         return self._geometry.copy()

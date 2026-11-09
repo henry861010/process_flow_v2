@@ -138,11 +138,11 @@ class ExecutionWarningTests(unittest.TestCase):
 
     def test_result_defaults_and_constructor_copy_isolation(self):
         geometry = state_with_placed_die(fill=False).to_geometry_structure()
-        empty = GeometryKernelExecutionResult(geometry_structure=geometry)
+        empty = GeometryKernelExecutionResult(step_outputs={"joint": GeometryArtifact.from_structure(geometry)}, selected_step_ref_id="joint")
         self.assertEqual(empty.execution_warnings(), [])
         self.assertEqual(empty.step_execution_warnings("joint"), [])
         original = [{"details": {"materials": ["UF"]}}]
-        result = GeometryKernelExecutionResult(geometry_structure=geometry,
+        result = GeometryKernelExecutionResult(step_outputs={"joint": GeometryArtifact.from_structure(geometry)}, selected_step_ref_id="joint",
             execution_warnings=original, step_execution_warnings={"joint": original})
         original[0]["details"]["materials"].append("Other")
         self.assertEqual(result.execution_warnings(), [{"details": {"materials": ["UF"]}}])

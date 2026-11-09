@@ -11,11 +11,11 @@ from types import MappingProxyType
 from typing import Any
 
 from process_flow_schematic.scene import (
-    AnchorRef, AnchorSpec, SceneDerivation, SceneObject, SceneRegion,
+    AnchorRef, AnchorSpec, LayerFillIntent, SceneDerivation, SceneObject, SceneRegion,
     SceneRelation, SceneState, SchematicDelta, clone_scene, namespace_id,
 )
 
-SCHEMATIC_DESCRIPTOR_VERSION = 2
+SCHEMATIC_DESCRIPTOR_VERSION = 3
 
 
 def _freeze_parameters(value):
@@ -163,7 +163,11 @@ def _place(context):
         if feature.layout == "distributed" and feature.region_id == region_id and placed_members:
             relations.append(SceneRelation(context.local_id(f"exclude:{feature.id}"), "excludes", feature.id,
                                            targets=tuple(_anchor(obj) for obj in placed_members), region_id=region_id))
+    updated_fills = tuple(replace(relation, targets=tuple(dict.fromkeys((
+        *relation.targets, *(_anchor(obj) for obj in placed_members if obj.role != "wafer-dmy")))))
+        for relation in main.relations if relation.kind == "fills" and relation.region_id == region_id)
     return replace(cloned, creates=creates, add_relations=tuple(relations),
+                   update_relations=(*cloned.update_relations, *updated_fills),
                    cursor_region_id=None, phase_id=None, orientation=None)
 
 
@@ -244,12 +248,18 @@ def _tmv(context):
 
 
 def _underfill(context):
+    from process_flow_schematic import UNDERFILL_FILL, base_material
+
     region_id = _region(context.main)
     body = _created(context, "underfill", kind="body", role="uf", label="Under Fill",
                     layout="span", region_id=region_id, symbol="uf", color_role="underfill")
     relation = SceneRelation(context.local_id("underfill-fills"), "fills", body.id,
-                             targets=tuple(_anchor(obj) for obj in _members(context.main, region_id)), region_id=region_id)
-    return SchematicDelta(creates=(body,), add_relations=(relation,))
+                             targets=tuple(_anchor(obj) for obj in _members(context.main, region_id)
+                                           if obj.role != "wafer-dmy"), region_id=region_id)
+    material = str(context.parameter_values.get("material", "UF"))
+    intent = LayerFillIntent(body.id, context.step_ref_id, "UF · " + base_material(material),
+                             material, UNDERFILL_FILL, float(context.parameter_values["thk"]))
+    return SchematicDelta(creates=(body,), add_relations=(relation,), layer_fills=(intent,))
 
 
 def _bump(context):
@@ -320,7 +330,7 @@ def _flip(context):
                     for obj in context.main.objects)
     surface = _surface_region(context, _root(context.main), "flipped-surface", _region(context.main))
     return SchematicDelta(updates=updates, orientation=-context.main.orientation,
-                          add_regions=(surface,), cursor_region_id=surface.id)
+                          add_regions=(surface,), cursor_region_id=surface.id, vertical_transform="mirror")
 
 
 def _saw(context):
@@ -352,6 +362,7 @@ def _saw(context):
 def _grind(context):
     surface = _surface_region(context, _root(context.main), "ground-surface", _region(context.main))
     return SchematicDelta(add_regions=(surface,), cursor_region_id=surface.id,
+                          vertical_transform="clip", trim_depth=float(context.parameter_values["thk"]),
                           derivations=tuple(SceneDerivation(obj.id, obj.id, "main_geometry", "transform")
                                             for obj in context.main.objects))
 

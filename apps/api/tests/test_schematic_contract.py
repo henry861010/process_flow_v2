@@ -49,6 +49,14 @@ def snapshot_payload(document):
 
 
 class SchematicContractTests(unittest.TestCase):
+    def test_process_measurements_round_trip_without_physical_source_ids(self):
+        payload = document_payload()
+        payload["items"][0].update(sourceIds=[], measurementSource="process", sourceStepRefId="uf")
+        self.assertEqual(SchematicDocument.model_validate(payload).payload(), payload)
+        payload["items"][0]["measurementSource"] = "unknown"
+        with self.assertRaises(ValidationError):
+            SchematicDocument.model_validate(payload)
+
     def test_neutral_shapes_round_trip_with_signed_coordinates_and_coincident_points(self):
         payload = document_payload()
         parsed = SchematicDocument.model_validate(payload)

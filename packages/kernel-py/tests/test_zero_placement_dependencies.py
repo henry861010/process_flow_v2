@@ -57,7 +57,7 @@ class ZeroPlacementDependenciesTests(unittest.TestCase):
         self.assertEqual(set(plan.external_geometries), {"main"})
         result = GeometryKernel().execute(plan)
         self.assertEqual(set(result.step_outputs()), {"pnp"})
-        self.assertEqual(result.geometry(), plan.external_geometries["main"].structure)
+        self.assertEqual(result.geometry(), plan.external_geometries["main"].geometry())
         self.compiler.validate_configuration(self.flow, self.configuration, self.steps,
                                              require_complete=False)
 

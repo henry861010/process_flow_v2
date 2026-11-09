@@ -1,0 +1,203 @@
+{
+  "date": "2026-11-09",
+  "baselineCommit": "3ca3d46fc22e69a490e01b4ebd41a6746edbe1b2",
+  "python": "3.13.5",
+  "fixture": {
+    "name": "demo2",
+    "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+    "steps": 32,
+    "placements": 2427,
+    "responseBytes": 19405115
+  },
+  "method": "Read-only frozen SQLite backup; three fresh Python processes per cold configuration; five distinct upstream targets in one warm process. Timings exclude HTTP/imports/correctness capture. All numeric geometry comparisons exact.",
+  "demo2": {
+    "baseline": {
+      "runs": 3,
+      "kernelSeconds": [
+        39.75013199984096,
+        40.19297199998982,
+        40.097317249979824
+      ],
+      "kernelMedianSeconds": 40.097317249979824,
+      "snapshotMaterializationMedianSeconds": 2.6401382500771433,
+      "schematicMedianSeconds": 10.9757311262656,
+      "previewSeconds": [
+        54.07815054198727,
+        54.176438624970615,
+        54.065851083025336
+      ],
+      "previewMedianSeconds": 54.07815054198727
+    },
+    "cacheDisabled": {
+      "runs": 3,
+      "kernelSeconds": [
+        9.01596308290027,
+        8.99843216710724,
+        9.004307833034545
+      ],
+      "kernelMedianSeconds": 9.004307833034545,
+      "snapshotMaterializationMedianSeconds": 0.5745198738295585,
+      "schematicMedianSeconds": 10.704535915981978,
+      "previewSeconds": [
+        21.337844042107463,
+        21.592233957955614,
+        21.30522770807147
+      ],
+      "previewMedianSeconds": 21.337844042107463
+    },
+    "kernelSpeedup": 4.453125991858345,
+    "cacheEnabledColdSample": {
+      "kernelSeconds": 11.314392667030916,
+      "previewSeconds": 23.967461249791086,
+      "execution": {
+        "executedSteps": 32,
+        "reusedSteps": 0,
+        "identitySeconds": 0.04225462581962347,
+        "cacheSeconds": 2.2826374613214284,
+        "inputPreparationSeconds": 1.8792211262043566,
+        "processExecutionSeconds": 4.994443041039631,
+        "snapshotSeconds": 2.106444627745077,
+        "kernelSeconds": 11.314348583109677
+      }
+    },
+    "warmKernelMedianSeconds": 0.030217125080525875,
+    "warmTargets": [
+      {
+        "target": "mr_joint_2",
+        "kernelSeconds": 0.02322479197755456,
+        "previewSeconds": 1.4370211251080036,
+        "executedSteps": 0,
+        "reusedSteps": 24,
+        "schematicMatchesIndependentBaseline": true
+      },
+      {
+        "target": "pnp_5",
+        "kernelSeconds": 0.03015662496909499,
+        "previewSeconds": 1.6980342499446124,
+        "executedSteps": 0,
+        "reusedSteps": 28,
+        "schematicMatchesIndependentBaseline": true
+      },
+      {
+        "target": "under_fill",
+        "kernelSeconds": 0.03025366715155542,
+        "previewSeconds": 3.683910832973197,
+        "executedSteps": 0,
+        "reusedSteps": 29,
+        "schematicMatchesIndependentBaseline": true
+      },
+      {
+        "target": "molding_2",
+        "kernelSeconds": 0.030217125080525875,
+        "previewSeconds": 3.8602785838302225,
+        "executedSteps": 0,
+        "reusedSteps": 30,
+        "schematicMatchesIndependentBaseline": true
+      },
+      {
+        "target": "grinding_2",
+        "kernelSeconds": 0.03028162498958409,
+        "previewSeconds": 4.058096332941204,
+        "executedSteps": 0,
+        "reusedSteps": 31,
+        "schematicMatchesIndependentBaseline": true
+      }
+    ],
+    "cache": {
+      "generation": 0,
+      "entries": 32,
+      "bytes": 222863390,
+      "inflight": 0,
+      "hits": 142,
+      "misses": 32,
+      "waits": 0,
+      "evictions": 0,
+      "bypasses": 0
+    }
+  },
+  "demo": {
+    "baseline": {
+      "runs": 3,
+      "kernelSeconds": [
+        0.1873090830631554,
+        0.186342041939497,
+        0.18830783385783434
+      ],
+      "kernelMedianSeconds": 0.1873090830631554,
+      "snapshotMaterializationMedianSeconds": 0.012564250035211444,
+      "schematicMedianSeconds": 0.0252077910117805,
+      "previewSeconds": [
+        0.2390768330078572,
+        0.23786291712895036,
+        0.2405461659654975
+      ],
+      "previewMedianSeconds": 0.2390768330078572
+    },
+    "cacheDisabled": {
+      "runs": 3,
+      "kernelSeconds": [
+        0.03224254189990461,
+        0.029828042024746537,
+        0.0293072909116745
+      ],
+      "kernelMedianSeconds": 0.029828042024746537,
+      "snapshotMaterializationMedianSeconds": 0.0020161669235676527,
+      "schematicMedianSeconds": 0.025301123969256878,
+      "previewSeconds": [
+        0.07770233391784132,
+        0.07479495787993073,
+        0.07414691592566669
+      ],
+      "previewMedianSeconds": 0.07479495787993073
+    }
+  },
+  "correctness": {
+    "demo2All32StepHashesMatchBaseline": true,
+    "demoAll32StepHashesMatchBaseline": true,
+    "cacheEnabledColdHashesMatchBaseline": true,
+    "warmGeometryProvenanceWarningHashesMatchBaseline": true,
+    "fullSessionAndProvenanceExactEquality": true,
+    "independentKernelCases": 34,
+    "independentKernelModes": [
+      "off",
+      "cold",
+      "warm"
+    ]
+  },
+  "tests": {
+    "kernel": {
+      "passed": 237,
+      "subtestsPassed": 385
+    },
+    "processSteps": {
+      "passed": 53,
+      "subtestsPassed": 184
+    },
+    "schematic": {
+      "passed": 97,
+      "subtestsPassed": 122
+    },
+    "generators": {
+      "passed": 31,
+      "subtestsPassed": 670
+    },
+    "api": {
+      "passed": 330,
+      "subtestsPassed": 704,
+      "baselineFailuresUnchanged": 5
+    },
+    "newCacheAndPreviewTests": 23
+  },
+  "knownBaselineFailures": [
+    "Two CDB tests expect a mesher failure but installed mesher reports success.",
+    "Installed mesher lacks mesher.process_flow.pipeline for one joint test.",
+    "Schema 11 and 13 migration fixture hashes already differ on the archived baseline."
+  ],
+  "acceptance": {
+    "demo2UncachedKernelAtLeast2x": true,
+    "warmKernelAtMost1Second": true,
+    "allWarmStepsReused": true,
+    "smallDemoWithinRegressionLimit": true,
+    "cacheWithinDefaultBounds": true
+  }
+}

@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - process-step authors
   - backend engineers
-last_verified: 2026-11-08
-last_verified_commit: 5e46f755
+last_verified: 2026-11-09
+last_verified_commit: 3ca3d46f
 source_of_truth:
   - packages/kernel-py/src/process_flow_kernel/application/context.py
   - packages/kernel-py/src/process_flow_kernel/infrastructure/module_resolver.py
@@ -25,6 +25,22 @@ Process step 由 persisted `ProcessStepTemplate` contract 與一個 Python modul
 Path segment 只接受英數、underscore、hyphen；absolute path、`..`、空 segment 與 `.py`/`.js` extension 會被拒絕。Hyphen 在 import 時轉成 underscore。Resolved module 必須 expose callable `execute(context)`。
 
 目前是 runtime dynamic import；沒有 registration file、entry point discovery 或 sandbox。Step template 只可 reference 已安裝在 API Python environment 的 module。
+
+## 執行快取契約
+
+內建製程宣告 `EXECUTION_CACHE_VERSION = 1`。這表示 `execute(context)` 的輸出及 warnings
+只依賴 context，且沒有外部副作用。變更 execution 語意時必須遞增版本；不可讀取時間、未固定種子的
+亂數、環境設定、資料庫或網路，亦不可依賴跨 request 的可變 module 狀態。
+未宣告版本的 module 仍可執行，但該步驟及其相依下游不使用 execution cache。
+
+共用製程 helper 的語意改變時，須同步遞增所有使用它的 module 版本；kernel 的 snapshot、材料分配
+或 provenance 語意改變時，須調整 `application.step_cache.KERNEL_CACHE_VERSION`。
+
+命中時 `execute()` 不會被呼叫，故不能將必要的外部寫入或 logging side effect 放在可快取 module 中。
+使用 `context.warn()` 發出與結果相關的警告；cache 保存本步驟 warnings，由 kernel 重建 lineage。
+`GeometryArtifact.runtime_snapshot is None` 表示外部 JSON 沒有 runtime cursor/footprint，不可僅憑
+geometry top 假定它與 runtime snapshot 相同。需要可變 state 時使用 `artifact.fork_state()`；
+需要可修改的 JSON 時使用 `artifact.geometry()`；`artifact.structure/provenance` 為深層唯讀。
 
 ## 必要 template 結構
 
@@ -59,6 +75,8 @@ Process modules應優先用 `require_*` 表達 operation-specific precondition�
 
 ```python
 from process_flow_kernel import ProcessGeometryState, ProcessStepContext
+
+EXECUTION_CACHE_VERSION = 1
 
 
 def execute(context: ProcessStepContext) -> ProcessGeometryState:

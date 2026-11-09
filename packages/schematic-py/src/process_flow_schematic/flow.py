@@ -77,7 +77,8 @@ def plan_flow(nodes: tuple[FlowNode, ...], *, fingerprint: str, registry,
               resolve_input: Callable[[str], Mapping],
               resolve_parameters: Callable[[str], Mapping],
               describe: Callable[[FlowNode, Mapping, Mapping[str, SceneState]], SchematicDelta],
-              active_ports: Callable[[FlowNode, Mapping], tuple[str, ...]] | None = None) -> FlowSchematicPlan:
+              active_ports: Callable[[FlowNode, Mapping], tuple[str, ...]] | None = None,
+              resolve_polygon_lookup=None) -> FlowSchematicPlan:
     plan = FlowSchematicPlan(fingerprint, nodes={node.id: node for node in nodes})
     history: dict[str, list[SceneState]] = defaultdict(list)
     notes: dict[str, list[str]] = defaultdict(list)
@@ -89,7 +90,7 @@ def plan_flow(nodes: tuple[FlowNode, ...], *, fingerprint: str, registry,
 
     def input_scene(input_id):
         if input_id not in plan.inputs:
-            state, bindings = describe_source_scene(resolve_input(input_id), registry, source_id=input_id)
+            state, bindings = describe_source_scene(resolve_input(input_id), registry, source_id=input_id, polygon_lookup=None if resolve_polygon_lookup is None else resolve_polygon_lookup(input_id))
             plan.inputs[input_id], plan.input_bindings[input_id] = state, bindings
             remember(state)
         return plan.inputs[input_id]
@@ -214,6 +215,7 @@ class SnapshotBindings(dict):
         self.scene = scene
         self.logical = dict(logical)
         self.physical_data = tuple(physical_data)
+        self.layer_fills = ()
 
 
 def _display_bindings(state, logical, structure, snapshot_id="snapshot"):
@@ -245,7 +247,8 @@ def _display_bindings(state, logical, structure, snapshot_id="snapshot"):
     return SnapshotBindings(result, scene=state, logical=logical, physical_data=resolved)
 
 
-def bind_flow_snapshots(plan: FlowSchematicPlan, snapshots) -> dict[str | None, dict[str, str]]:
+def bind_flow_snapshots(plan: FlowSchematicPlan, snapshots, *, input_structures=None,
+                        input_cursors=None) -> dict[str | None, dict[str, str]]:
     """Consume qualified execution provenance. No process-specific matching."""
     logical_by_output = {}
     display = {}
@@ -345,4 +348,7 @@ def bind_flow_snapshots(plan: FlowSchematicPlan, snapshots) -> dict[str | None, 
                 logical.update((physical_id, target.id) for (physical_id, _, _), target in zip(ordered, targets))
         logical_by_output[node_id] = logical
         display[node_id] = _display_bindings(state, logical, snapshot.geometry_structure, node_id)
+    from .layer_fills import bind_layer_fills
+    bind_layer_fills(plan, snapshots, display, input_structures=input_structures,
+                     input_cursors=input_cursors)
     return display

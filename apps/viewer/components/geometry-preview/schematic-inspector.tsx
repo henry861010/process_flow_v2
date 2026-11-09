@@ -44,7 +44,7 @@ export function SchematicItemDetails({ item, unit }: { item: SchematicItem; unit
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
         <dt className="text-muted-foreground">Material</dt>
         <dd className="min-w-0 font-medium">{item.material || "Unspecified material"}</dd>
-        <dt className="text-muted-foreground">THK</dt>
+        <dt className="text-muted-foreground">{item.measurementSource === "process" ? "示意厚度" : "THK"}</dt>
         <dd className="min-w-0 font-mono tabular-nums">{formatSchematicLength(item.thickness, unit)}</dd>
         {item.densityValues != null ? (
           <>

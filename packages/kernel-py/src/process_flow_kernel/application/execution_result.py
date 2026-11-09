@@ -1,38 +1,55 @@
 from __future__ import annotations
 
-from ..serialization.schema import deep_copy, normalize_geometry_structure
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
+from typing import Any
+
+from .geometry_artifact import GeometryArtifact
+from ..serialization.immutable import freeze, thaw
 
 
 class GeometryKernelExecutionResult:
-    def __init__(self, *, geometry_structure, step_outputs=None, terminal_step_ref_ids=None,
-                 execution_warnings=None, step_execution_warnings=None, step_provenance=None):
-        self._geometry_structure = normalize_geometry_structure(geometry_structure)
-        self._step_outputs = dict(step_outputs or {})
-        self._terminal_step_ref_ids = list(terminal_step_ref_ids or [])
-        self._execution_warnings = deep_copy(list(execution_warnings or []))
-        self._step_execution_warnings = deep_copy(dict(step_execution_warnings or {}))
-        self._step_provenance = deep_copy(dict(step_provenance or {}))
+    """Immutable outputs internally, detached JSON at public boundaries."""
 
-    def geometry(self):
-        return deep_copy(self._geometry_structure)
+    def __init__(
+        self, *, step_outputs: Mapping[str, GeometryArtifact], selected_step_ref_id: str,
+        terminal_step_ref_ids: Sequence[str] = (),
+        execution_warnings: Sequence[Mapping[str, Any]] = (),
+        step_execution_warnings: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+        statistics: Mapping[str, int | float] | None = None,
+    ):
+        self._outputs = MappingProxyType(dict(step_outputs))
+        self._selected = selected_step_ref_id
+        self._terminals = tuple(terminal_step_ref_ids)
+        self._warnings = freeze(execution_warnings)
+        self._step_warnings = freeze(step_execution_warnings or {})
+        self._statistics = freeze(statistics or {})
 
-    def step_output(self, step_ref_id):
-        output = self._step_outputs.get(step_ref_id)
-        return None if output is None else deep_copy(output)
+    def step_artifact(self, step_ref_id: str) -> GeometryArtifact | None:
+        return self._outputs.get(step_ref_id)
 
-    def step_outputs(self):
-        return deep_copy(self._step_outputs)
+    def geometry(self) -> dict[str, Any]:
+        return self._outputs[self._selected].geometry()
 
-    def step_provenance(self, step_ref_id):
-        """Qualified physical node origins, separate from geometry JSON."""
-        return deep_copy(self._step_provenance.get(step_ref_id, {}))
+    def step_output(self, step_ref_id: str) -> dict[str, Any] | None:
+        artifact = self.step_artifact(step_ref_id)
+        return None if artifact is None else artifact.geometry()
 
-    def terminal_step_ref_ids(self):
-        return list(self._terminal_step_ref_ids)
+    def step_outputs(self) -> dict[str, dict[str, Any]]:
+        return {step: artifact.geometry() for step, artifact in self._outputs.items()}
 
-    def execution_warnings(self):
-        return deep_copy(self._execution_warnings)
+    def step_provenance(self, step_ref_id: str) -> dict[str, Any]:
+        artifact = self.step_artifact(step_ref_id)
+        return {} if artifact is None else thaw(artifact.provenance)
 
-    def step_execution_warnings(self, step_ref_id):
-        """Warnings from this output's actual dependencies, followed by its own."""
-        return deep_copy(self._step_execution_warnings.get(step_ref_id, []))
+    def terminal_step_ref_ids(self) -> list[str]:
+        return list(self._terminals)
+
+    def execution_warnings(self) -> list[dict[str, Any]]:
+        return thaw(self._warnings)
+
+    def step_execution_warnings(self, step_ref_id: str) -> list[dict[str, Any]]:
+        return thaw(self._step_warnings.get(step_ref_id, ()))
+
+    def execution_statistics(self) -> dict[str, int | float]:
+        return thaw(self._statistics)

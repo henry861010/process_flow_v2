@@ -352,6 +352,7 @@ def _same_xy_footprint(left: JsonObject, right: JsonObject) -> bool:
     from shapely.geometry import Point, Polygon, box
     from shapely.ops import unary_union
     from process_flow_kernel import classify_polygon_loops
+    from process_flow_kernel.domain.geometry import PolygonSnapshot
 
     def projected(geometry):
         kind = geometry.get("type")
@@ -364,7 +365,7 @@ def _same_xy_footprint(left: JsonObject, right: JsonObject) -> bool:
                     [point[:2] for point in polygon.outer],
                     [[point[:2] for point in hole] for hole in polygon.holes],
                 )
-                for polygon in classify_polygon_loops(geometry.get("polys", []))
+                for polygon in classify_polygon_loops(PolygonSnapshot._from_generated(geometry.get("polys", [])))
             ])
         if kind in {"CylinderGeometry", "ConeGeometry"}:
             radius = max(float(geometry.get("bottom_radius") or 0), float(geometry.get("top_radius") or 0))

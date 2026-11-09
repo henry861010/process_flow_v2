@@ -44,7 +44,7 @@ def uf_shapes(result):
 
 
 class UnderfillSnapshotTests(unittest.TestCase):
-    def test_gap_climbs_with_no_one_or_two_bumped_dies(self):
+    def test_standalone_retained_gap_is_a_slab_without_connectivity_inference(self):
         for bumped in ((), ("soc",), ("hbm",), ("soc", "hbm")):
             with self.subTest(bumped=bumped):
                 state, counts = assembly(bumped)
@@ -56,7 +56,7 @@ class UnderfillSnapshotTests(unittest.TestCase):
                 bridges = [shape for shape in uf_shapes(result)
                            if shape["x"] == left["x"] + left["width"]
                            and shape["x"] + shape["width"] == right["x"]]
-                self.assertEqual(len(bridges), 1)
+                self.assertEqual(len(bridges), 0)
                 self.assertEqual(len(uf_shapes(result)), 1 + len(bumped))
                 self.assertEqual(sorted(item["thickness"] for item in result["items"] if item["material"] == "UF"),
                                  sorted([6] + [2] * len(bumped)))
@@ -67,11 +67,11 @@ class UnderfillSnapshotTests(unittest.TestCase):
         result = document(state)
         self.assertEqual(result["warnings"], [])
         self.assertEqual([component["label"] for component in result["components"]], ["SoC"])
-        self.assertEqual(uf_shapes(result), [])
+        self.assertEqual(len(uf_shapes(result)), 1)
         retained = [item for item in result["items"] if item["material"] == "UF"]
         self.assertEqual(len(retained), 1)
         self.assertEqual((retained[0]["zMin"], retained[0]["zMax"], retained[0]["thickness"]), (4, 10, 6))
-        self.assertTrue(any("SoC" in note and "without two current endpoints" in note for note in result["notes"]))
+        self.assertFalse(any("retained fill connects" in note for note in result["notes"]))
 
 
 if __name__ == "__main__":

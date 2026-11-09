@@ -6,7 +6,7 @@ owner: integration.platform
 audience:
   - process-step 與 generator 開發者
   - API、viewer 與 QA 開發者
-last_verified: 2026-11-08
+last_verified: 2026-11-09
 last_verified_commit: 5e46f755
 verified_against:
   - packages/schematic-py
@@ -93,10 +93,9 @@ placement 數量、之後的 Z、厚度與 bump stage 不重建 cohort。跨步�
 因此先看 TIV step 也會避開後續 LSI slot。Density envelope 與 die 的 bounding-box 重疊本身不代表實體碰撞。
 區域兩側預留足夠空間容納共用符號策略；無法滿足的顯式排除限制會以 note 說明。
 
-尚未出現或已移除的 slot 留白，不產生未來 shapes、components、labels 或 items。UF 必須按完整
-slot 順序在各 mounting region 內判斷相鄰關係，不跨越同 region 的空白位置；其他 region 的元件
-即使水平位置交錯也不阻擋連接。實際連接映射到非相鄰 slots 或同一代表時，保留 UF
-量測與來源，並在 notes 註明參與元件。Composer 接收通用 plan 與來源 bindings，不讀 flow。
+尚未出現或已移除的 slot 留白，不產生未來 shapes、components、labels 或 items。UF 在各 mounting
+region 內連接當前可見的非 Wafer DMY 代表元件，空白預留 slot 不阻斷；Wafer DMY 不作端點，也不跨越
+其 slot。不同 region 分開處理。Composer 接收通用 plan、來源 bindings 與 layer fill，不讀 flow。
 當步存在未能綁定的 component 時，該 assembly 改用可見的 local layout 並發出 warning，不靜默隱藏物件。
 若某一 assembly phase 的 region constraints 無法排版，保存該 phase 的失敗原因與 local-layout note；
 其他 phase 繼續使用各自的 plan，受影響的當步 geometry 仍可透過 local fallback 顯示。
@@ -114,7 +113,7 @@ document 座標；各 snapshot 的垂直 Z 示意轉換繼續獨立計算。View
 ## Document 與相容性
 
 Snapshot 新增 nullable `schematic` 與 `schematicWarnings`。只有 `initialSnapshotId` 指定的
-target 有 document；upstream snapshots 不重複組圖。Document 含 `schemaVersion`、`unit`、
+只回傳 target snapshot 與 document；upstream snapshots 僅供內部 binding 使用。Document 含 `schemaVersion`、`unit`、
 `viewBox`、`shapes`、`items`、`components`、`totalThickness`、`notes` 與 `warnings`。
 完整型別由 schematic package 定義，API 不引入另一套製程規則。
 
@@ -157,19 +156,17 @@ Composer 不辨識製程，僅展開通用 primitive；文件維持普通 circle
 等價分組納入 presenter 輸出，忽略來源 ID、絕對 XY 與 runtime material 後綴，避免混併不同配對狀態。
 單側 reflowed 與 deposited 不畫符號或列入部件明細；原始 geometry、總厚度與匯出維持不變。
 
-UF 必須已有實際 `uf` body。元件內的 cavity UF 只畫 slab，不額外推導爬升，也不要求當步仍有 bump。
-Gap UF 沿用 kernel 的獨立無 key helper scope（只有 `uf` PolygonGeometry bodies，無其他 features／children）；
-producer 依保留 polygon 的連通區域、孔洞及同 assembly 元件的非 UF bounding box，判斷正面積重疊
-或正長度邊接觸，單點相切不算，XY 精度與正 Z 重疊採 kernel 的 1e-5 容差。不同 die 種類及有無 bump
-皆可參與；carrier／frame 等 support 不列為代表 die。每塊連通區域以 `SchematicPart.bridge_groups`
-提供實體 container IDs，不將分離區域的參與者混合。
-Composer 將所有實例 IDs 映射至 cohort（不限第一個代表），只有同一實際 UF 區域、且完整 slot
-順序在同一 mounting region 內相鄰的不同 cohort 才畫 bridge，高度限於保留 UF 與兩側實體及代表元件的共同 Z 範圍。
-非相鄰、合併成同一代表或不足兩個當步端點的連接保留 items、來源與 notes，不穿越其他元件或空白 slots，
-不自行新增 UF。RDL 與 UF producers 分別標記 `rdl`／`uf` body key，舊資料不從材料名稱推測角色。
+UF companion 提供製程層級 layer-fill intent，不要求當前 geometry 已有間隙 UF body。
+初始 Z 使用 UF 輸入 artifact 的 runtime cursor，厚度使用正規化 recipe `thk`；binding 階段沿已執行
+流程傳遞及複製，flip 轉換 Z 區間，grinding 以實際切削平面裁切，厚度為零即移除。
+同層非 Wafer DMY 元件依顯示順序一律連接，不解析 polygon 連通區、孔洞或元件接觸。
+舊 UF 接觸判斷、`bridge_groups`／`eligible_container_ids` 與對應 composer 分支移除。
+元件內實際 cavity UF 保留 slab；缺少製程 context 的 standalone composition 僅畫已有 UF slab。
+補畫的 item 帶 `measurementSource: "process"` 與 `sourceStepRefId`，厚度顯示為「示意厚度」，
+`sourceIds` 僅保留真實存在的 geometry IDs，無實體來源時為空。RDL／UF 實際 geometry 與匯出不變。
 
 所有部件共用 Z 顯示轉換，保持實際同高度邊界對齊；薄層可以放大並明示「示意圖，不等比例」。
-厚度數值取最終 snapshot；總厚度為最高與最低 Z 的差，不累加並排 die。本次不新增磨前比較或過磨判定。
+實際部件厚度取最終 snapshot，UF 示意厚度取加工後的展示區間；總厚度僅取實際 geometry 最高與最低 Z 的差，不累加並排 die。本次不新增磨前比較或過磨判定。
 
 ## 未來 assembly 轉換的驗證範圍
 

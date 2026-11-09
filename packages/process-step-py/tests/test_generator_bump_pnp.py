@@ -82,9 +82,7 @@ class GeneratorBumpPnpTests(unittest.TestCase):
         state = restore(entity)
         micro_bump(context(state, {"material": "lower-bump", "thk": 7,
                                    "density": 31, "koz": .4}))
-        artifact = GeometryArtifact.from_entity(entity).with_structure(
-            state.to_geometry_structure(),
-        ).with_runtime_state(state)
+        artifact = GeometryArtifact.from_state(state, source=GeometryArtifact.from_entity(entity))
         return state, artifact
 
     def test_all_generators_preserve_bumps_and_fixed_cores_through_pnp_and_joint(self):
@@ -105,9 +103,7 @@ class GeneratorBumpPnpTests(unittest.TestCase):
                             formation(context(source, {"material": "formed-bump", "thk": 20,
                                                        "density": 43, "koz": .7}))
                             flip(context(source, {}))
-                            artifact = GeometryArtifact.from_entity(entity).with_structure(
-                                source.to_geometry_structure(),
-                            ).with_runtime_state(source)
+                            artifact = GeometryArtifact.from_state(source, source=GeometryArtifact.from_entity(entity))
                             source_snapshot = copy.deepcopy(artifact.structure)
                             before = artifact.structure["root"]
                             x0, y0, x1, y1, _ = bounds(before["bodies"][0]["geometry"])

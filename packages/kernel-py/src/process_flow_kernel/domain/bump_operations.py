@@ -163,6 +163,6 @@ def _region(geometry):
     if isinstance(geometry, PolygonGeometry):
         return unary_union([
             Polygon([point[:2] for point in region.outer], [[point[:2] for point in hole] for hole in region.holes])
-            for region in classify_polygon_loops(geometry.polygons())
+            for region in classify_polygon_loops(geometry.polygon_snapshot())
         ])
     raise ValueError("Unsupported bump footprint")

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import unittest
+from process_flow_kernel.serialization.immutable import freeze
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -12,7 +13,7 @@ from process_flow_kernel import (
     qualify_provenance,
 )
 from process_flow_kernel.application import geometry_kernel as kernel_module
-from process_flow_kernel.domain import geometry as geometry_module
+from process_flow_kernel.utils import polygon as geometry_module
 from process_flow_kernel.domain.provenance import structure_nodes
 
 
@@ -136,7 +137,7 @@ class CloneOptimizationTests(unittest.TestCase):
         cloned = source.clone()
         original, trace, footprint = source.to_geometry_structure(), source.provenance(), source.process_footprint()
         cloned._process_footprint["polygons"][0][0][0] += 100
-        cloned._root._provenance["sources"].clear()
+        cloned._root._provenance = freeze({**cloned._root._provenance, "sources": []})
         cloned.move(x=100, y=200, z=3)
         cloned._root.detach_child(cloned._root.children()[0])
         self.assertEqual(source.to_geometry_structure(), original)
@@ -144,9 +145,9 @@ class CloneOptimizationTests(unittest.TestCase):
         self.assertEqual(source.process_footprint(), footprint)
         clone_before = cloned.to_geometry_structure()
         source.move(x=-20)
-        source._root._provenance["sources"].append({"kind": "test-only"})
+        source._root._provenance = freeze({**source._root._provenance, "sources": [{"kind": "test-only"}]})
         self.assertEqual(cloned.to_geometry_structure(), clone_before)
-        self.assertEqual(cloned._root._provenance["sources"], [])
+        self.assertEqual(cloned._root._provenance["sources"], ())
 
     def test_clone_copies_only_subtree_when_source_has_an_external_parent(self):
         class OutsideSubtree:
@@ -278,7 +279,7 @@ class OutputStateOwnershipTests(unittest.TestCase):
     def test_artifact_raw_and_custom_outputs_remain_detached(self):
         source = nested_state()
         raw = source.to_geometry_structure()
-        artifact = GeometryArtifact.from_structure(raw).with_runtime_state(source)
+        artifact = GeometryArtifact.from_state(source)
         custom = SimpleNamespace(to_geometry_structure=lambda: raw)
         for output in (raw, artifact, custom):
             with self.subTest(output=type(output).__name__):
@@ -288,7 +289,7 @@ class OutputStateOwnershipTests(unittest.TestCase):
                 normalized.move(x=100)
                 self.assertEqual(raw, before)
                 self.assertEqual(source.to_geometry_structure(), before)
-                self.assertEqual(artifact.runtime_state.to_geometry_structure(), before)
+                self.assertEqual(artifact.fork_state().to_geometry_structure(), before)
 
     def test_reused_output_keeps_snapshots_and_downstream_inputs_isolated(self):
         for returns_none in (False, True):
@@ -296,7 +297,7 @@ class OutputStateOwnershipTests(unittest.TestCase):
                 contexts = []
                 source = box_state("carrier")
                 source_snapshot = source.to_geometry_structure()
-                artifact = GeometryArtifact.from_structure(source_snapshot).with_runtime_state(source)
+                artifact = GeometryArtifact.from_state(source)
                 plan = ExecutionPlan(
                     steps=[planned_step("first", PlannedGeometryInput(kind="external", flow_input_id="main")),
                            planned_step("second", PlannedGeometryInput(kind="stepOutput", step_ref_id="first"))],
@@ -315,12 +316,12 @@ class OutputStateOwnershipTests(unittest.TestCase):
                 self.assertEqual(len(snapshots["first"]["root"]["bodies"]), 2)
                 self.assertEqual(len(snapshots["second"]["root"]["bodies"]), 3)
                 contexts[0].state.move(x=100)
-                contexts[0].state._root._provenance["sources"].clear()
+                contexts[0].state._root._provenance = freeze({**contexts[0].state._root._provenance, "sources": []})
                 contexts[1].state.move(y=200)
                 self.assertEqual(result.step_outputs(), snapshots)
                 self.assertEqual({name: result.step_provenance(name) for name in traces}, traces)
-                self.assertEqual(artifact.structure, source_snapshot)
-                self.assertEqual(artifact.runtime_state.to_geometry_structure(), source_snapshot)
+                self.assertEqual(artifact.geometry(), source_snapshot)
+                self.assertEqual(artifact.fork_state().to_geometry_structure(), source_snapshot)
 
                 def legacy_normalize(output, fallback):
                     return kernel_module._geometry_input_to_process_geometry_state(fallback if output is None else output)

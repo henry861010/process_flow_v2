@@ -10,6 +10,11 @@ class ProcessStepModuleResolver:
     def __init__(self, *, package_prefix="process_flow_steps", import_module=None):
         self._package_prefix = package_prefix
         self._import_module = import_module or importlib.import_module
+        self._supports_execution_cache = import_module is None
+
+    @property
+    def supports_execution_cache(self) -> bool:
+        return self._supports_execution_cache
 
     def module_specifier(self, step_template):
         if not step_template.get("id"):

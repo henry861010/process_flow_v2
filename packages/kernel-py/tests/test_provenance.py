@@ -115,9 +115,8 @@ class ProvenanceTests(unittest.TestCase):
         )
         rewritten = prepared.geometry_inputs["die_geometry"]
         artifact = GeometryArtifact.from_structure(original).with_provenance(trace)
-        runtime_artifact = artifact.with_runtime_state(ProcessGeometryState.from_structure(original))
-        self.assertEqual(runtime_artifact.provenance, trace)
-        self.assertEqual(runtime_artifact.runtime_state.provenance(), trace)
+        runtime_artifact = GeometryArtifact.from_state(ProcessGeometryState.from_structure(original), source=artifact)
+        self.assertEqual(runtime_artifact.fork_state().provenance(), trace)
         rewritten_artifact = artifact.with_structure(rewritten,
             node_id_remap=prepared.geometry_node_remaps["die_geometry"])
         restored = ProcessGeometryState.from_structure(rewritten, {"provenance": rewritten_artifact.provenance})

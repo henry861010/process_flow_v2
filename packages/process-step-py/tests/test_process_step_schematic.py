@@ -110,73 +110,22 @@ class StepPresenterTests(unittest.TestCase):
                 parts = present_underfill(context(uf, die, (root,)))
                 self.assertEqual([part.layout for part in parts], ["node"])
                 self.assertTrue(parts[0].primitives)
-                self.assertEqual(parts[0].bridge_groups, ())
 
-    def test_gap_underfill_connects_heterogeneous_no_bump_components(self):
-        uf, gap = underfill_gap([[(10, 0), (14, 0), (14, 10), (10, 10)]])
-        soc = underfill_component("soc", 0, 0, 10, 10, key="soc")
-        hbm = underfill_component("hbm", 14, 0, 24, 10, key="hbm")
-        root = {"id": "root", "children": [soc, hbm, gap]}
-        before = copy.deepcopy(root)
-        parts = present_underfill(context(uf, gap, (root,)))
-        self.assertEqual([part.layout for part in parts], ["bridges"])
-        self.assertEqual(parts[0].bridge_groups, (("soc", "hbm"),))
-        self.assertEqual(parts[0].primitives, ())
-        self.assertEqual(parts[0].eligible_container_ids, ())
-        self.assertEqual(root, before)
-
-    def test_gap_underfill_keeps_disconnected_islands_as_separate_relations(self):
-        uf, gap = underfill_gap([
-            [(10, 0), (14, 0), (14, 10), (10, 10)],
-            [(40, 0), (44, 0), (44, 10), (40, 10)],
-        ])
-        components = [underfill_component(id, x, 0, x + 10, 10)
-                      for id, x in (("a", 0), ("b", 14), ("c", 30), ("d", 44))]
-        root = {"id": "root", "children": [*components, gap]}
-        self.assertEqual(present_underfill(context(uf, gap, (root,)))[0].bridge_groups,
-                         (("a", "b"), ("c", "d")))
-
-    def test_gap_underfill_respects_holes_and_excludes_point_only_contact(self):
-        uf, gap = underfill_gap([
-            [(10, 0), (40, 0), (40, 30), (10, 30)],
-            [(20, 10), (30, 10), (30, 20), (20, 20)],
-        ])
-        components = [underfill_component("left", 0, 0, 10, 30),
-                      underfill_component("right", 40, 0, 50, 30),
-                      underfill_component("in-hole", 22, 12, 24, 14),
-                      underfill_component("corner", 40, 30, 50, 40),
-                      underfill_component("overlap", 11, 1, 12, 2)]
-        root = {"id": "root", "children": [*components, gap]}
-        self.assertEqual(present_underfill(context(uf, gap, (root,)))[0].bridge_groups,
-                         (("left", "right", "overlap"),))
-
-    def test_gap_underfill_uses_recursive_non_uf_bounds_with_positive_z_overlap(self):
-        uf, gap = underfill_gap([[(10, 0), (14, 0), (14, 10), (10, 10)]])
-        nested = {"id": "wrapper", "children": [underfill_component("inner", 0, 0, 10, 10)]}
-        touching_z = underfill_component("above", 14, 0, 24, 10, z=130)
-        distant = underfill_component("distant", 100, 0, 110, 10)
-        distant["bodies"].append({"id": "old-uf", "key": "uf", "material": "UF",
-                                   "geometry": BoxGeometry([14, 0, 100], [24, 10, 100], 30).json()})
-        support = underfill_component("support", 14, 0, 24, 10, key="carrier.panel")
-        root = {"id": "root", "children": [nested, touching_z, distant, support, gap]}
-        self.assertEqual(present_underfill(context(uf, gap, (root,)))[0].bridge_groups, (("wrapper",),))
-
-    def test_gap_underfill_preserves_an_explicit_empty_relation(self):
+    def test_standalone_gap_underfill_is_a_slab_without_topology_queries(self):
+        from unittest.mock import patch
+        from process_flow_kernel.utils import polygon
         uf, gap = underfill_gap([[(10, 0), (14, 0), (14, 10), (10, 10)]])
         root = {"id": "root", "children": [gap]}
-        self.assertEqual(present_underfill(context(uf, gap, (root,)))[0].bridge_groups, ((),))
+        with patch.object(polygon, "classify_polygon_loops", side_effect=AssertionError("topology query")):
+            parts = present_underfill(context(uf, gap, (root,)))
+        self.assertEqual([part.layout for part in parts], ["span"])
+        self.assertTrue(parts[0].primitives)
 
-    def test_polygon_underfill_only_uses_relations_in_a_recognized_gap_helper(self):
+    def test_process_replaced_gap_is_not_drawn_twice(self):
+        from dataclasses import replace
         uf, gap = underfill_gap([[(10, 0), (14, 0), (14, 10), (10, 10)]])
-        variants = [{**gap, "key": "lsi"}, {**gap, "bumps": [bump()]},
-                    {**gap, "children": [{"id": "child"}]},
-                    {**gap, "bodies": [uf, {"id": "si", "geometry": box()}]}]
-        for container in variants:
-            with self.subTest(container=container):
-                root = {"id": "root", "children": [container]}
-                self.assertEqual([part.layout for part in present_underfill(context(uf, container, (root,)))],
-                                 ["node"])
-        self.assertEqual([part.layout for part in present_underfill(context(uf, gap))], ["node"])
+        root = {"id": "root", "children": [gap]}
+        self.assertEqual(present_underfill(replace(context(uf, gap, (root,)), display_replaced=True)), [])
 
 
 if __name__ == "__main__":

@@ -38,6 +38,8 @@ export type SchematicItem = {
   densityValues?: (number | null)[] | null;
   /** Optional display name selected by the producer for the diagram. */
   diagramLabel?: string | null;
+  measurementSource?: "geometry" | "process" | null;
+  sourceStepRefId?: string | null;
 };
 
 export type SchematicComponent = SchematicRectangle & {

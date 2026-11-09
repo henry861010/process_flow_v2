@@ -7,7 +7,7 @@ audience:
   - frontend
   - QA
   - reconstruction-agent
-last_verified: 2026-11-08
+last_verified: 2026-11-09
 last_verified_commit: 5e46f755
 source_of_truth:
   - docs/architecture/decisions/0012-process-owned-schematic-preview.md
@@ -52,14 +52,14 @@ UI 依 target 有效 upstream closure 檢查 readiness；採用 recipe 為零 pl
 
 依 [ADR-0012](../../architecture/decisions/0012-process-owned-schematic-preview.md)，以
 `POST /api/preview-sessions` 建立 session。Step target 只執行 upstream closure 一次；manifest
-保留所有 upstream snapshots，但 panel 只使用 `initialSnapshotId` 指定的 target。
+僅保留與回傳 `initialSnapshotId` 指定的 target，`snapshots` 長度固定為 1。上游結果僅供內部 binding／step cache 使用。
 Target 的 `schematic` 由 step／generator presenters 與共用 composer 產生；viewer 只畫通用圖形，
 不依製程名稱或 semantic key 寫專屬分支。
 
 水平版面會考慮同一依賴路徑後續可解析的 steps，提前保留 die 位置並固定 carrier 顯示寬度。
 遇到第一個資料不足的 step 就停止該路徑的 lookahead，不跳過後繼續猜測；無關路徑不造成阻擋。
 Lookahead 可解析 catalog／generator inputs，但不執行後續製程。每張圖仍只呈現 target snapshot
-當下實際存在的結構；未來位置保持留白，不新增標籤、厚度明細或可選取的部件。
+當下實際存在的結構與已執行製程的簡化 UF 示意；未來位置保持留白，不新增標籤、厚度明細或可選取的部件。
 
 Preview 不建立 WebGL scene、不載入 GLB、不呼叫 exact section。沒有 process timeline、snapshot
 切換、旋轉、切面或 density 控制。既有 mesh／section routes、standalone CAD viewer 與 generator
@@ -156,7 +156,7 @@ Viewer 為顯示整張圖，可因 target 高度或 viewport 改變整體縮放�
 ### Feature 工程參數卡
 
 點選 feature，在圖形旁開啟一張唯讀資訊卡，顯示所屬結構、完整 feature 名稱、`Material` 與
-`THK`；bump、via、circuit 另顯示 `Density`。THK 使用目前 snapshot 的實際厚度及單位，包含
+`THK`；製程補畫 UF 顯示「示意厚度」，bump、via、circuit 另顯示 `Density`。一般 THK 使用目前 snapshot 的實際厚度及單位，包含
 grinding 後剩餘值。Material、THK 與 density 讀取同一實際來源，PnP 配對 bump 各自遵循
 presenter 的 `source_id`。所有對應同一 item 的 shapes 同步以 `--schematic-selection` 紅框標示，
 線寬為原始線寬加 `2px`、至少 `4px`，並加 `2px`、30% 不透明度的同色淡外暈；保留材料填色。
@@ -230,14 +230,15 @@ Component 名稱以粗體優先放在其最大可見矩形區域；不足以容�
   下側只畫在上側 bump 的代表寬度內，carrier 外側保持空白。正 density 大小不影響符號疏密。
   單側 reflowed、deposited 與零 density 不畫符號或列入部件明細，原始幾何及總厚度仍保留。
   已配對與未配對元件分組保留；Joint 後改為單顆鼓形焊料與上下接點，沒有同一接點的殘留 reflowed 符號。
-- 只有 target 實際存在 `uf` body 才顯示 UF；元件內 cavity UF 只畫 slab，無需當步仍有 bump。
-  Die 間爬升依保留 gap polygon 的連通區域、孔洞與實際接觸決定，不限制 die 種類或有無 bump。
-  同一連通區域的參與者映射至同 mounting region 的相鄰代表 slots 時才畫 bridge，其他層的
-  水平交錯 slot 不阻擋；高度取 UF 與兩端元件的共同 Z 區間。
-  不穿越其他元件或空白 slots；非相鄰、同一代表內或不足兩個當步端點的連接保留明細與 notes。
+- UF 由製程資訊宣告：同 mounting region 的可見非 Wafer DMY 元件之間一律畫爬升，
+  不要求實際 gap body、不判斷 XY 接觸、距離、孔洞或連通區。空白預留 slot 不阻斷，
+  Wafer DMY 不作端點也不跨越其 slot，不同 region 分開處理。
+  初始高度取 UF 輸入 runtime cursor 與 recipe 厚度；複製／翻轉沿流程轉換，磨薄縮短、磨除消失。
+  Cavity UF 保留實際 slab；補畫爬升以 `measurementSource: "process"`／`sourceStepRefId` 標記，
+  明細顯示「示意厚度」。缺少製程 context 時僅畫已有 UF slab。
 - 厚度使用最終 snapshot 的實際 Z 區間，包含磨薄、整層移除與翻轉。零厚度不畫成有厚度實體。
   薄層可放大，但所有部件共用 Z 顯示轉換，保持同高度邊界對齊。
-- 明示「示意圖，不等比例」；明細與總厚度維持實際值。總厚度取最高與最低 Z 的差，
+- 明示「示意圖，不等比例」；一般部件明細與總厚度維持實際值，UF 補畫明細顯示示意厚度。總厚度取實際 geometry 最高與最低 Z 的差，
   不累加並排 die。此次不提供 grinding 前後比較或自動過磨判定。
 
 完整 producer、分派與 fallback 契約以 ADR-0012 與 schematic package 為準。

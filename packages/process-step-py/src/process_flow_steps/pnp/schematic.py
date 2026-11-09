@@ -9,10 +9,14 @@ from process_flow_schematic import (
     Bounds, Primitive, SchematicContext, SchematicPart, base_material, geometry_bounds,
 )
 
-from .._schematic_helpers import footprint_geometry, walk
+from .._schematic_helpers import footprint_geometry, polygon_data, walk
 
 
-def _paired_lower_bumps(scope):
+def _paired_lower_bumps(scope, context):
+    def footprint(node):
+        return context.query(("footprint", id(node)), lambda: footprint_geometry(
+            node["geometry"], polygon=polygon_data(context, node)
+            if node["geometry"].get("type") == "PolygonGeometry" else None))
     pairs = {}
     lowers = [(bump, geometry_bounds(bump.get("geometry", {})))
               for bump in scope.get("bumps", ()) if bump.get("stage") == "reflowed"]
@@ -33,8 +37,8 @@ def _paired_lower_bumps(scope):
             matches = [(lower, lower_bounds) for lower, lower_bounds in lowers
                        if lower_bounds is not None and lower_bounds.thickness > 0
                        and math.f_eq(lower_bounds.z_max, upper_bounds.z_min)
-                       and footprints_overlap(footprint_geometry(lower["geometry"]),
-                                              footprint_geometry(upper["geometry"]))]
+                       and footprints_overlap(footprint(lower),
+                                              footprint(upper))]
             if len(matches) == 1 and matches[0][0].get("density", 0) > 0:
                 pairs[upper["id"]] = matches[0]
     return pairs
@@ -59,7 +63,7 @@ def present_schematic(context: SchematicContext) -> list[SchematicPart]:
     if context.node.get("stage") != "reflowed" or context.node.get("density", 0) <= 0 or not context.ancestors:
         return []
     scope = context.ancestors[-1]
-    pairs = context.query((__name__, "pairs", id(scope)), lambda: _paired_lower_bumps(scope))
+    pairs = context.query((__name__, "pairs", id(scope)), lambda: _paired_lower_bumps(scope, context))
     match = pairs.get(context.node["id"])
     if match is None:
         return []

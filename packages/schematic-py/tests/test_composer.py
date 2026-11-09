@@ -371,16 +371,6 @@ class ComposerTests(unittest.TestCase):
                 self.assertEqual(document["items"][0]["sourceIds"], ["layer"])
                 self.assertEqual(source, before)
 
-    def test_relation_cannot_cross_an_ineligible_component(self):
-        registry = SchematicRegistry()
-        registry.register("container", lambda context: [SchematicPart("Component", component=ComponentHint(context.node["id"]))], key="die")
-        registry.register("body", lambda context: [SchematicPart("Relation", layout="bridges", eligible_container_ids=("a", "c"))], key="relation")
-        source = structure(container("root", bodies=[body("r", 0, 5, key="relation")], children=[
-            container(name, key="die", bodies=[body(name+"-si", 0, 10)]) for name in ("a", "b", "c")
-        ]))
-        doc = compose_schematic(source, registry)
-        self.assertFalse(any(s["itemId"] == doc["items"][0]["id"] for s in doc["shapes"]))
-
     def test_geometry_types_and_zero_or_removed_layers(self):
         self.assertEqual(geometry_bounds({"type": "CylinderGeometry", "center": [0, 0, 4], "bottom_radius": 5, "thk": 6}).z_max, 10)
         self.assertEqual(geometry_bounds({"type": "ConeGeometry", "center": [0, 0, 1], "bottom_radius": 5, "top_radius": 7, "thk": 2}).x_max, 7)

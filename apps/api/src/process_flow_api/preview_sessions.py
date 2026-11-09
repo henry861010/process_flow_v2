@@ -11,8 +11,11 @@ import math
 import os
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Hashable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, Protocol, TypeVar, cast
+from process_flow_kernel.infrastructure.step_cache import MemoryStepExecutionCache, retained_size
+from process_flow_kernel import GeometryArtifact
+from process_flow_kernel.domain.geometry import PolygonSnapshot
 
 from .geometry_preview_exporter import export_geometry
 from .models import GeometryPreviewRequest
@@ -37,10 +40,10 @@ from .services import (
 JsonObject = dict[str, Any]
 Axis = Literal["x", "y"]
 PREVIEW_CACHE_CONTROL = "private, max-age=31536000, immutable"
-PREVIEW_SESSION_CONTRACT_VERSION = 3
-MESH_CACHE_VERSION = 1
-PREPARED_SECTION_CACHE_VERSION = 1
-SECTION_CACHE_VERSION = 3
+PREVIEW_SESSION_CONTRACT_VERSION = 5
+MESH_CACHE_VERSION = 2
+PREPARED_SECTION_CACHE_VERSION = 2
+SECTION_CACHE_VERSION = 4
 logger = logging.getLogger(__name__)
 
 
@@ -96,6 +99,7 @@ class PreviewSnapshotRecord:
     schematic: JsonObject | None = None
     schematic_warnings: tuple[str, ...] = ()
     execution_warnings: tuple[JsonObject, ...] = ()
+    polygons: Mapping[str, PolygonSnapshot] | None = field(default=None, repr=False, compare=False)
 
     @property
     def geometry_structure(self) -> JsonObject:
@@ -105,6 +109,10 @@ class PreviewSnapshotRecord:
         return structure
 
     def payload(self) -> JsonObject:
+        return copy.deepcopy(self._payload_view())
+
+    def _payload_view(self) -> JsonObject:
+        """Borrowed view for internal serialization; public payloads are detached."""
         return {
             "snapshotId": self.snapshot_id,
             "sourceKind": self.source_kind,
@@ -117,7 +125,7 @@ class PreviewSnapshotRecord:
             "sectionUrl": self.section_url,
             "schematic": self.schematic,
             "schematicWarnings": list(self.schematic_warnings),
-            "executionWarnings": copy.deepcopy(list(self.execution_warnings)),
+            "executionWarnings": list(self.execution_warnings),
         }
 
 
@@ -240,6 +248,10 @@ class PreviewSessionManager:
         max_mesh_inflight: int = 32,
         max_section_inflight: int = 64,
         max_prepared_section_inflight: int = 16,
+        step_cache_enabled: bool = True,
+        max_step_entries: int = 256,
+        max_step_bytes: int = 256 * 1024 * 1024,
+        max_step_inflight: int = 32,
     ) -> None:
         if min(
             max_prepared_sections,
@@ -254,6 +266,9 @@ class PreviewSessionManager:
             raise ValueError("Preview cache and concurrency limits must be positive")
         self._mesh_exporter = mesh_exporter or export_geometry
         self._geometry_generators = geometry_generators
+        self._step_cache = (MemoryStepExecutionCache(
+            max_entries=max_step_entries, max_bytes=max_step_bytes, max_inflight=max_step_inflight,
+        ) if step_cache_enabled else None)
         # A directly injected generator is retained for tests/custom adapters.
         # Production uses the prepare-once path when this value is None.
         self._section_generator = section_generator
@@ -306,6 +321,10 @@ class PreviewSessionManager:
     def from_environment(cls, *, geometry_generators=None) -> PreviewSessionManager:
         return cls(
             geometry_generators=geometry_generators,
+            step_cache_enabled=_boolean_env("PREVIEW_STEP_CACHE_ENABLED", True),
+            max_step_entries=_positive_env_int("PREVIEW_STEP_CACHE_ENTRIES", 256),
+            max_step_bytes=_positive_env_int("PREVIEW_STEP_CACHE_BYTES", 256 * 1024 * 1024),
+            max_step_inflight=_positive_env_int("PREVIEW_STEP_CACHE_INFLIGHT_LIMIT", 32),
             max_sessions=_positive_env_int("PREVIEW_SESSION_CACHE_ENTRIES", 16),
             max_session_bytes=_positive_env_int(
                 "PREVIEW_SESSION_CACHE_BYTES", 128 * 1024 * 1024
@@ -514,12 +533,15 @@ class PreviewSessionManager:
     ) -> _PreparedSectionEntry:
         cache_key = (snapshot.geometry_hash, PREPARED_SECTION_CACHE_VERSION)
 
+        def prepare():
+            payload = (GeometryArtifact(structure=snapshot.geometry_structure, polygons=snapshot.polygons)
+                       if self._section_preparer is _prepare_section and snapshot.polygons is not None
+                       else snapshot.geometry_structure)
+            return self._section_preparer(payload)
+
         async def build() -> _PreparedSectionEntry:
             async with self._section_slots:
-                model = await asyncio.to_thread(
-                    self._section_preparer,
-                    snapshot.geometry_structure,
-                )
+                model = await asyncio.to_thread(prepare)
             section_method = getattr(model, "section", None)
             if not callable(section_method):
                 raise RuntimeError("CAD section preparer returned an invalid model")
@@ -536,6 +558,8 @@ class PreviewSessionManager:
 
     async def clear(self) -> None:
         async with self._lock:
+            if self._step_cache is not None:
+                self._step_cache.clear()
             tasks = [
                 *self._session_tasks.values(),
                 *self._mesh_tasks.values(),
@@ -559,17 +583,25 @@ class PreviewSessionManager:
     async def shutdown(self) -> None:
         await self.clear()
 
+    def step_cache_info(self) -> JsonObject | None:
+        return self._step_cache.info() if self._step_cache is not None else None
+
     async def _build_session(
         self,
         context: PreviewRequestContext,
         session_id: str,
         request_hash: str,
     ) -> PreviewSessionRecord:
+        generation = self._step_cache.generation if self._step_cache is not None else None
         async with self._session_slots:
             prepared = await asyncio.to_thread(
                 prepare_preview_execution, context, self._geometry_generators
             )
-            snapshot_geometries = await materialize_preview_snapshots(prepared)
+            snapshot_geometries = await materialize_preview_snapshots(
+                prepared, step_cache=self._step_cache, cache_generation=generation,
+            )
+            if self._step_cache is not None:
+                logger.info("Preview step cache: %s", self._step_cache.info())
             planning = None
             planning_warning = None
             try:
@@ -578,9 +610,9 @@ class PreviewSessionManager:
                     planning = self._layout_plans.get(layout_key)
                 if planning is None:
                     resolved_inputs = (
-                        {key: artifact.structure for key, artifact in prepared.execution_plan.external_geometries.items()}
+                        dict(prepared.execution_plan.external_geometries)
                         if prepared.execution_plan is not None
-                        else {context.target["flowInputId"]: prepared.flow_input_geometry}
+                        else {context.target["flowInputId"]: prepared.flow_input_artifact or prepared.flow_input_geometry}
                     )
                     planning = await asyncio.to_thread(
                         plan_flow_schematic, context, self._geometry_generators,
@@ -618,6 +650,8 @@ class PreviewSessionManager:
                 logger.exception("Could not bind shared schematic layout for %s", session_id)
                 planning = None
                 planning_warning = "Shared flow layout could not be matched; this preview uses a local layout. Geometry exports are still available."
+        # Upstream outputs are transient inputs to provenance/layout binding.
+        # The interaction resource retains and serializes only the selected target.
         snapshots = tuple(
             self._snapshot_record(
                 session_id,
@@ -633,19 +667,20 @@ class PreviewSessionManager:
                 )),
             )
             for index, snapshot in enumerate(snapshot_geometries)
+            if index == len(snapshot_geometries) - 1
         )
         if not snapshots:
             raise RuntimeError("Preview session did not produce any snapshots")
         payload = {
             "sessionId": session_id,
             "initialSnapshotId": snapshots[-1].snapshot_id,
-            "snapshots": [snapshot.payload() for snapshot in snapshots],
+            "snapshots": [snapshot._payload_view() for snapshot in snapshots],
         }
         return PreviewSessionRecord(
             session_id=session_id,
             initial_snapshot_id=snapshots[-1].snapshot_id,
             snapshots=snapshots,
-            cache_weight=len(_canonical_json_bytes(payload)),
+            cache_weight=len(_canonical_json_bytes(payload)) + retained_size(tuple(s.polygons for s in snapshots)),
         )
 
     def _snapshot_record(
@@ -688,7 +723,8 @@ class PreviewSessionManager:
         if include_schematic:
             try:
                 schematic = build_schematic(source.geometry_structure, layout_plan=layout_plan,
-                                            component_bindings=component_bindings)
+                                            component_bindings=component_bindings,
+                                            polygon_lookup=None if source.polygons is None else source.polygons.get)
             except Exception:
                 # A display failure must not make the calculated structure or
                 # JSON/CDB exports unavailable.
@@ -709,6 +745,7 @@ class PreviewSessionManager:
             schematic=schematic,
             schematic_warnings=schematic_warnings,
             execution_warnings=copy.deepcopy(source.execution_warnings),
+            polygons=source.polygons,
         )
 
     async def _snapshot(
@@ -843,6 +880,15 @@ def _positive_env_int(name: str, default: int) -> int:
     if value < 1:
         raise ValueError(f"{name} must be a positive integer")
     return value
+
+
+def _boolean_env(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    if raw.lower() not in {"true", "false", "1", "0"}:
+        raise ValueError(f"{name} must be true, false, 1 or 0")
+    return raw.lower() in {"true", "1"}
 
 
 def _consume_task_exception(task: asyncio.Task[Any]) -> None:

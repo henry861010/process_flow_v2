@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 import hashlib
 import json
 import re
@@ -17,7 +18,7 @@ def normalize_geometry_structure(
     schema_version=GEOMETRY_SCHEMA_VERSION,
     unit_system=DEFAULT_UNIT_SYSTEM,
 ):
-    copied = _js_number_normalized(deep_copy(payload))
+    copied = _js_number_normalized(payload)
     if _is_structure(copied):
         structure = copied
     else:
@@ -64,7 +65,8 @@ def assign_container_ids(container, path, *, field_path="structure.root"):
     container_label = "container" if container_key is None else f"container:{container_key}"
     container_path = [*path, container_label]
     identity_payload = None if container_key is None else {"key": container_key}
-    container.setdefault("id", stable_id("container", container_path, identity_payload))
+    if "id" not in container:
+        container["id"] = stable_id("container", container_path, identity_payload)
 
     _assign_feature_ids(container["bodies"], "body", container_path, field_path=field_path)
     _assign_feature_ids(container["vias"], "via", container_path, field_path=field_path)
@@ -120,7 +122,7 @@ def _canonical_json(value):
 
 
 def _sort_for_json(value):
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_sort_for_json(item) for item in value]
     if not isinstance(value, dict):
         return value
@@ -132,9 +134,9 @@ def _js_number_normalized(value):
         return value
     if isinstance(value, float) and value.is_integer():
         return int(value)
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_js_number_normalized(item) for item in value]
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {key: _js_number_normalized(item) for key, item in value.items()}
     return value
 

@@ -1,6 +1,7 @@
 """Merge resolved die corner footprints without widening their Z intervals."""
 from __future__ import annotations
 
+from process_flow_kernel.domain.geometry import PolygonSnapshot
 from process_flow_kernel import Region, TYPE_DIE, TYPE_TARGET, classify_polygon_loops
 from shapely.geometry import Point, Polygon
 
@@ -136,7 +137,7 @@ def _append_merged_corner_controls(
         region.set_gap(gap, set_to=TYPE_TARGET, target_mask=TYPE_DIE, is_recursive=True)
         loops = [[[x, y, start_z] for x, y in loop]
                  for loop in region.get_outline(TYPE_DIE | TYPE_TARGET)]
-        for component in classify_polygon_loops(loops):
+        for component in classify_polygon_loops(PolygonSnapshot._from_generated(loops)):
             footprint = Polygon(component.outer, component.holes)
             members = [
                 (index, corner)
@@ -154,11 +155,11 @@ def _append_merged_corner_controls(
                 merged = {"type": "polygon", "startZ": start_z, "endZ": end_z,
                           "loops": [[{"x": x, "y": y} for x, y, _ in loop]
                                     for loop in [component.outer, *component.holes]]}
-            components.append((members[0][0], merged, source_ids))
+            components.append((members[0][0], merged, source_ids, PolygonSnapshot._from_generated([component.outer, *component.holes])))
 
-    for index, (_, merged, source_ids) in enumerate(sorted(components, key=lambda component: component[0]), 1):
+    for index, (_, merged, source_ids, polygon) in enumerate(sorted(components, key=lambda component: component[0]), 1):
         _append_region_control(
             controls, details, query, label=f"Die top corners merged {index}",
-            element_size=element_size, coordinate_mode="absolute", region=merged,
+            element_size=element_size, coordinate_mode="absolute", region=merged, polygon=polygon,
         )
         details[-1]["sourceIds"] = source_ids

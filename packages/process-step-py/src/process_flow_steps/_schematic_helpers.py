@@ -13,7 +13,15 @@ def has_bumps(container):
     return any(node.get("bumps") for node in walk(container))
 
 
-def footprint_geometry(payload):
+def polygon_data(context, node):
+    from process_flow_kernel.domain.geometry import PolygonSnapshot
+    def build():
+        data = None if context.polygon_lookup is None else context.polygon_lookup(str(node.get("id", "")))
+        return data if isinstance(data, PolygonSnapshot) else PolygonSnapshot.from_external(node["geometry"]["polys"])
+    return context.query(("polygon-data", id(node)), build)
+
+
+def footprint_geometry(payload, *, polygon=None):
     """Use the kernel's geometry semantics, including polygon holes."""
     kind = payload.get("type")
     thickness = payload.get("thk", payload.get("thickness", 0))
@@ -21,7 +29,7 @@ def footprint_geometry(payload):
         return BoxGeometry(payload.get("bottom_left", payload.get("bottomLeft")),
                            payload.get("top_right", payload.get("topRight")), thickness)
     if kind in ("PolygonGeometry", "polygon"):
-        return PolygonGeometry(payload.get("polys", payload.get("polygons")), thickness)
+        return PolygonGeometry(polygon if polygon is not None else payload.get("polys", payload.get("polygons")), thickness)
     if kind in ("CylinderGeometry", "cylinder"):
         return CylinderGeometry(payload["center"], payload.get("bottom_radius", payload.get("bottomRadius")), thickness)
     if kind in ("ConeGeometry", "cone"):

@@ -173,7 +173,7 @@ class SchematicDescriptorTests(unittest.TestCase):
         scene = die()
         for program, kind in (("saw/saw", "crop"), ("grinding/grinding", "transform")):
             with self.subTest(program=program):
-                delta = describe(scene, program)
+                delta = describe(scene, program, {"thk": 1})
                 result = apply_delta(scene, delta)
                 self.assertEqual(set(result.object_map), set(scene.object_map))
                 self.assertTrue(all(item.kind == kind for item in delta.derivations))

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import copy
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -12,13 +13,15 @@ from process_flow_kernel import (
     ExecutionPlan,
     FlowCompiler,
     GeometryKernel,
+    GeometryArtifact,
     InMemoryGeometryCatalog,
-    GeometryProvenance,
     qualify_provenance,
     validate_flow_graph,
     validate_process_step_template as validate_step_contract,
 )
 from process_flow_kernel.application.flow_validation import upstream_step_ref_ids
+from process_flow_kernel.application.step_cache import StepExecutionCache
+from process_flow_kernel.domain.geometry import PolygonSnapshot
 
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
@@ -34,6 +37,7 @@ from .step_template_transfer import locked_process_step_template as _locked_proc
 
 
 JsonObject = dict[str, Any]
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +68,7 @@ class PreparedPreviewExecution:
     context: PreviewRequestContext
     execution_plan: ExecutionPlan | None = None
     flow_input_geometry: JsonObject | None = None
+    flow_input_artifact: GeometryArtifact | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +80,9 @@ class PreviewSnapshotGeometry:
     target: JsonObject
     geometry_structure: JsonObject
     execution_warnings: tuple[JsonObject, ...] = ()
-    provenance: GeometryProvenance = field(default_factory=dict)
+    provenance: Mapping[str, Any] = field(default_factory=dict)
+    polygons: Mapping[str, PolygonSnapshot] | None = field(default=None, repr=False, compare=False)
+    cursor_z: float | None = field(default=None, repr=False, compare=False)
 
 
 def bootstrap_payload(store: SQLiteStore) -> JsonObject:
@@ -368,7 +375,8 @@ def resolve_preview_flow_input(
     flow_input_id: str,
     *,
     compiler: FlowCompiler | None = None,
-) -> JsonObject:
+    as_artifact: bool = False,
+) -> JsonObject | GeometryArtifact:
     """Resolve one input and its constraints independently of downstream wiring."""
 
     scope = project_preview_flow(context, {"type": "flowInput", "flowInputId": flow_input_id})
@@ -378,7 +386,7 @@ def resolve_preview_flow_input(
     artifact = (compiler or preview_compiler(context, generators)).resolve_geometry_binding(
         flow_input_id, scope.definition["flowInputs"][0], binding,
     )
-    return dict(artifact.structure)
+    return artifact if as_artifact else artifact.geometry()
 
 
 def prepare_preview_execution(
@@ -390,12 +398,13 @@ def prepare_preview_execution(
     compiler = preview_compiler(context, generators)
     target = context.target
     if target["type"] == "flowInput":
-        geometry_structure = resolve_preview_flow_input(
-            context, generators, target["flowInputId"], compiler=compiler,
+        artifact = resolve_preview_flow_input(
+            context, generators, target["flowInputId"], compiler=compiler, as_artifact=True,
         )
         return PreparedPreviewExecution(
             context=context,
-            flow_input_geometry=dict(geometry_structure),
+            flow_input_geometry=artifact.geometry(),
+            flow_input_artifact=artifact,
         )
 
     if target.get("outputPortId") != "result_geometry":
@@ -415,6 +424,8 @@ def prepare_preview_execution(
 
 async def materialize_preview_snapshots(
     prepared: PreparedPreviewExecution,
+    *, step_cache: StepExecutionCache | None = None,
+    cache_generation: int | None = None,
 ) -> tuple[PreviewSnapshotGeometry, ...]:
     """Execute one plan once and expose every ordered upstream step output."""
 
@@ -424,6 +435,8 @@ async def materialize_preview_snapshots(
         geometry_structure = prepared.flow_input_geometry
         if geometry_structure is None:
             raise RuntimeError("Resolved flow-input preview is missing geometry")
+        artifact = prepared.flow_input_artifact or GeometryArtifact.from_structure(geometry_structure)
+        geometry_structure = artifact.geometry()
         flow_input_id = target["flowInputId"]
         flow_input = next(
             (
@@ -442,6 +455,8 @@ async def materialize_preview_snapshots(
                 order=0,
                 target=target,
                 geometry_structure=geometry_structure,
+                polygons=artifact.polygons,
+                cursor_z=None if artifact.runtime_snapshot is None else artifact.runtime_snapshot.cursor_z,
                 provenance=qualify_provenance(
                     geometry_structure, kind="flowInput", owner_id=flow_input_id,
                 ),
@@ -452,16 +467,19 @@ async def materialize_preview_snapshots(
     if plan is None:
         raise RuntimeError("Step-output preview is missing its execution plan")
     output_step_ref_id = target["stepRefId"]
+    if step_cache is not None and cache_generation is None:
+        cache_generation = step_cache.generation
     result = await asyncio.to_thread(
         _execute_preview_plan,
         plan,
         output_step_ref_id,
+        step_cache,
+        cache_generation,
     )
-    step_outputs = result.step_outputs()
     snapshots = []
     for order, planned_step in enumerate(plan.steps):
-        geometry_structure = step_outputs.get(planned_step.step_ref_id)
-        if geometry_structure is None:
+        artifact = result.step_artifact(planned_step.step_ref_id)
+        if artifact is None:
             raise RuntimeError(
                 f"Preview execution did not return output for step {planned_step.step_ref_id}"
             )
@@ -479,9 +497,13 @@ async def materialize_preview_snapshots(
                     "stepRefId": planned_step.step_ref_id,
                     "outputPortId": planned_step.output_port_id,
                 },
-                geometry_structure=geometry_structure,
+                geometry_structure=artifact.geometry(),
                 execution_warnings=tuple(result.step_execution_warnings(planned_step.step_ref_id)),
-                provenance=result.step_provenance(planned_step.step_ref_id),
+                provenance=artifact.provenance,
+                # Retain only shared polygon data alongside the response JSON.
+                # The execution cache owns the complete runtime artifact.
+                polygons=artifact.polygons,
+                cursor_z=None if artifact.runtime_snapshot is None else artifact.runtime_snapshot.cursor_z,
             )
         )
     if not snapshots or snapshots[-1].step_ref_id != output_step_ref_id:
@@ -546,8 +568,13 @@ def _compiler(store: SQLiteStore, generators: GeometryGeneratorRegistry) -> Flow
     return FlowCompiler(StoreGeometryCatalog(store), generators)
 
 
-def _execute_preview_plan(plan: ExecutionPlan, output_step_ref_id: str):
-    return GeometryKernel().execute(
+def _execute_preview_plan(plan: ExecutionPlan, output_step_ref_id: str,
+                          step_cache: StepExecutionCache | None = None,
+                          cache_generation: int | None = None):
+    result = GeometryKernel(step_cache=step_cache).execute(
         plan,
         ExecuteOptions(output_step_ref_id=output_step_ref_id),
+        cache_generation=cache_generation,
     )
+    logger.info("Preview kernel execution: %s", result.execution_statistics())
+    return result

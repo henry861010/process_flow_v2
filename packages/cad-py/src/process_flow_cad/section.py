@@ -5,7 +5,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from process_flow_kernel import normalize_geometry_structure
+from process_flow_kernel import GeometryArtifact
 
 from .exporter import CadBody, CadExportError, CadExportOptions, CadQueryConverter
 
@@ -81,9 +81,10 @@ def prepare_section_geometry(
 ) -> PreparedSectionGeometry:
     """Normalize and resolve geometry once for repeated exact sections."""
 
-    structure = normalize_geometry_structure(geometry_structure)
+    artifact = geometry_structure if isinstance(geometry_structure, GeometryArtifact) else GeometryArtifact.from_structure(geometry_structure)
+    structure = artifact.structure
     converter = CadQueryConverter(CadExportOptions())
-    bodies = converter.convert_bodies(structure)
+    bodies = converter.convert_bodies(artifact)
     unit_system = structure.get("unitSystem", "um")
     if not isinstance(unit_system, str) or not unit_system:
         raise CadExportError("Geometry unitSystem must be a non-empty string.")

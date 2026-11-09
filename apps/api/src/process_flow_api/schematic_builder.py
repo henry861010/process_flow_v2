@@ -15,7 +15,7 @@ from process_flow_steps.schematic_presenters import (
 
 # Bump the registry version when enabled presenters or their semantics change.
 # Geometry hashes intentionally remain independent of presentation versions.
-SCHEMATIC_REGISTRY_VERSION = 28
+SCHEMATIC_REGISTRY_VERSION = 29
 SCHEMATIC_PRESENTATION_VERSION = f"{SCHEMATIC_VERSION}:{SCHEMATIC_REGISTRY_VERSION}"
 
 
@@ -31,6 +31,7 @@ def build_schematic(
     *,
     layout_plan: SchematicLayoutPlan | None = None,
     component_bindings: Mapping[str, str] | None = None,
+    polygon_lookup=None,
 ) -> dict[str, Any]:
     return compose_schematic(geometry_structure, schematic_registry(),
-                             layout_plan=layout_plan, component_bindings=component_bindings)
+                             layout_plan=layout_plan, component_bindings=component_bindings, polygon_lookup=polygon_lookup)

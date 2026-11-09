@@ -74,6 +74,7 @@ export type GeometryPreviewSnapshot = {
 export type GeometryPreviewSession = {
   sessionId: string;
   initialSnapshotId: string;
+  /** Exactly the selected target; upstream execution outputs stay on the server. */
   snapshots: GeometryPreviewSnapshot[];
 };
 

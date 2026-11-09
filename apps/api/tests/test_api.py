@@ -989,7 +989,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(missing_session.status_code, 404, missing_session.text)
         self.assertEqual(missing_snapshot.status_code, 404, missing_snapshot.text)
 
-    def test_preview_session_step_timeline_compiles_and_executes_once(self):
+    def test_preview_session_returns_only_target_and_executes_once(self):
         bootstrap = self.reset_poc_data()
         flow_template = fixture_flow(bootstrap)
         instance = fixture_flow(bootstrap)
@@ -1034,13 +1034,12 @@ class ProcessFlowApiTests(unittest.TestCase):
         snapshots = created.json()["snapshots"]
         self.assertEqual(
             [snapshot["stepRefId"] for snapshot in snapshots],
-            [step_ref["stepRefId"] for step_ref in flow_template["definition"]["stepRefs"][:2]],
+            [target_step_ref_id],
         )
-        self.assertEqual([snapshot["order"] for snapshot in snapshots], [0, 1])
+        self.assertEqual([snapshot["order"] for snapshot in snapshots], [1])
         self.assertTrue(all(snapshot["sourceKind"] == "stepOutput" for snapshot in snapshots))
         self.assertEqual(created.json()["initialSnapshotId"], snapshots[-1]["snapshotId"])
         self.assertEqual(snapshots[-1]["label"], "Mold target")
-        self.assertIsNone(snapshots[0]["schematic"])
         self.assertIsNotNone(snapshots[-1]["schematic"])
         manager._mesh_exporter.assert_not_awaited()
         manager._section_preparer.assert_not_called()

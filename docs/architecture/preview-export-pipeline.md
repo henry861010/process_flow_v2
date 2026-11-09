@@ -6,8 +6,8 @@ audience:
   - backend engineers
   - CAD and mesher developers
   - operators
-last_verified: 2026-11-06
-last_verified_commit: 5e46f755
+last_verified: 2026-11-09
+last_verified_commit: 3ca3d46f
 source_of_truth:
   - docs/architecture/decisions/0004-semantic-preview-sessions.md
   - docs/conformance.md
@@ -15,10 +15,13 @@ source_of_truth:
   - apps/api/src/process_flow_api/preview_sessions.py
   - apps/api/src/process_flow_api/geometry_preview_exporter.py
   - apps/api/src/process_flow_api/file_export_jobs.py
+  - packages/kernel-py/src/process_flow_kernel/application/step_cache.py
+  - packages/kernel-py/src/process_flow_kernel/infrastructure/step_cache.py
   - packages/kernel-py/src/process_flow_kernel/domain/process_geometry_state.py
   - packages/kernel-py/src/process_flow_kernel/utils/polygon.py
   - packages/kernel-py/src/process_flow_kernel/domain/region.py
   - scripts/benchmark_preview.py
+  - scripts/benchmark_polygon_runtime.py
   - packages/cad-py/src/process_flow_cad/worker.py
   - packages/cad-py/src/process_flow_cad/section.py
   - https://github.com/henry861010/mesher/blob/302ebe36663b727669901cbc766ccc0a2ae6f221/src/mesher/process_flow/worker.py
@@ -76,9 +79,10 @@ Legacy client 切換 step 會建立另一個 request 並重新 load 整份 GLB�
 ## Semantic preview session
 
 `POST /api/preview-sessions`沿用既有template/configuration/target validation。`stepOutput` target只執行
-target upstream closure一次，session manifest保存每個已執行upstream step（含target）的snapshot；
-`flowInput` target只保存resolved input snapshot。相同semantic request以content-derived `sessionId`在
-bounded LRU中coalesce/reuse；切換snapshot不會再次compile/execute。
+target upstream closure 一次；上游 snapshots 僅暫時供 provenance／layout binding 使用。Session manifest
+只保留並回傳選中的 target snapshot，`snapshots` 長度固定為 1，`initialSnapshotId` 指向該筆；
+`flowInput` target 同樣只保存 resolved input snapshot。相同 semantic request 以 content-derived `sessionId`
+在 bounded LRU 中 coalesce/reuse；切換 target 另 POST session，上游執行由 step cache 共用。
 
 ```mermaid
 sequenceDiagram
@@ -100,12 +104,12 @@ Endpoints：
 
 | Endpoint | Contract |
 | --- | --- |
-| `POST /api/preview-sessions` | 建立／reuse ephemeral session、ordered upstream snapshots 與 target-only schematic。 |
+| `POST /api/preview-sessions` | 建立／reuse ephemeral session，只回傳 target snapshot 與 schematic。 |
 | `GET /api/preview-sessions/{sessionId}/snapshots/{snapshotId}/mesh` | Lazy傳回以geometryHash/version cache的binary GLB；支援ETag/304。 |
 | `GET /api/preview-sessions/{sessionId}/snapshots/{snapshotId}/section` | 依`axis=x\|y`、finite position與positive tolerance回傳OCC body regions；支援ETag/304。 |
 
 每個 snapshot 包含 `geometryHash`、`geometryEntityJson`、`meshUrl`、`sectionUrl`、nullable `schematic`
-與 `schematicWarnings`；只有 `initialSnapshotId` target 有 document。API 的 composition root 載入
+與 `schematicWarnings`；唯一的 target snapshot 有 document。API 的 composition root 載入
 step／generator companion presenters，kernel execution 不依賴它們。Viewer 不發 mesh／section
 請求；這兩條 lazy routes 保留給工程 clients。
 
@@ -131,6 +135,9 @@ Cache、execution與admission設定：
 
 | Environment variable | Default | Responsibility |
 | --- | ---: | --- |
+| `PREVIEW_STEP_CACHE_ENABLED` | `true` | 跨 session 共用上游執行結果；可用 `false` / `0` 停用。 |
+| `PREVIEW_STEP_CACHE_ENTRIES` / `PREVIEW_STEP_CACHE_BYTES` | `256` / `268435456` | Step LRU 同時限制 entry 數與完整 runtime/provenance 保留量。 |
+| `PREVIEW_STEP_CACHE_INFLIGHT_LIMIT` | `32` | 不同 step key 的計算上限；超限執行但不保留。 |
 | `PREVIEW_SESSION_CACHE_ENTRIES` / `PREVIEW_SESSION_CACHE_BYTES` | `16` / `134217728` | Session manifest LRU bounds。 |
 | `PREVIEW_MESH_CACHE_ENTRIES` / `PREVIEW_MESH_CACHE_BYTES` | `64` / `268435456` | Binary GLB LRU bounds。 |
 | `PREVIEW_SECTION_CACHE_ENTRIES` / `PREVIEW_SECTION_CACHE_BYTES` | `256` / `67108864` | Position-specific section JSON LRU bounds。 |
@@ -149,21 +156,39 @@ cancel只取消等待；server以bounded registries及concurrency避免slider un
 
 ### 滿片 wafer 的執行成本與冷啟動量測
 
-Kernel 複製已驗證的 `ProcessGeometryState` 時，以一次 normalized snapshot 固定 geometry IDs，
-再複製內部物件樹，避免每次 clone 都經過 JSON hydration 與 polygon 重驗。Clone 排除 root 的外部
-parent，重建 scope／handle，並隔離 geometry、provenance 與 footprint 等可變資料。手動共用 feature
-或 geometry 物件、含重複座標陣列別名的結構保留原有 hydration 路徑。Step 回傳 `None` 或原本的
-`context.state` 時重用該 execution-owned state；獨立回傳值與保存 runtime snapshot 時仍建立隔離副本。
+`PreviewSessionManager` 擁有程序內共用的 step cache。切換 target、修改無關下游或 preview
+`sourceLabel` 時，先完成該 target 的 compile/validation，再重用內容 key 相同的上游 artifact。
+完整 session/schematic hash 仍包含 flow context，因此示意圖仍反映目前設定。
 
-Polygon validation／classification 共用 process-local、thread-safe LRU，以完整 normalized XYZ 座標與
-數值型別作 key，只保存成功結果。上限為 128 筆與合計 100,000 vertices；超大項目直接計算。回傳的
-loops／regions 每次建立獨立可變資料，座標變更使用新 key。原有相切、孔洞、容差與錯誤判定不變。
+Kernel 使用唯一的不可變 snapshot capture/restore 路徑：命中不 clone、不 hydrate、不準備材料；
+未命中建立該步驟擁有的可變 state，執行後一次正規化與 snapshot capture。Runtime snapshot
+保留 cursor/footprint/creation metadata；外部 JSON 仍完整驗證。Provenance 來源紀錄可安全共用。
+API 以 `step_artifact()` 傳遞內部快照，JSON getter/response 回傳獨立資料。架構與失效規則見
+[kernel internals](../reference/kernel/internals.md)。
+
+Reset/shutdown 增加 cache generation；已排入或執行中的舊 worker 不能寫回新 generation。
+Step cache 的容量估算包含 runtime、provenance、key 與 entry overhead，超大單筆直接略過；
+32 個 in-flight slots 額滿時正常執行，不使 preview 失敗。這與 session/mesh 的 503 admission 契約不同。
+
+Polygon 完整驗證集中於外部入口；正規化座標及 lazy 外框／孔洞索引由不可變 `PolygonSnapshot`
+保存，取代全域 polygon LRU。Underfill、copy、snapshot、Joint、PnP adapter、內部 mesh control
+規則以及 artifact 消費路徑不重驗。原始 mesh-control 文件仍在外部入口驗證。
+Schematic context 的可選 `polygon_lookup(node_id)` 由 API 注入，schematic 套件不依賴 kernel。
+獨立 composition 使用 raw structure 時，由 presenter 在該次 composition 解析並共用一次。
+Preview 內部僅保留 node-ID 對應的唯讀 polygon 資料，供 schematic 及 lazy CAD section 建立
+artifact 使用，不重複保留整棵 runtime tree，也不傳入 HTTP JSON。Session 容量估算包含新增
+資料，共用載體只計算一次；step cache 估算也預留 lazy 分類索引的空間。
 UF 的矩形標記以二分搜尋縮小網格範圍，再執行原有 strict midpoint 判斷；輪廓比較先排除 bounding
 box 明確分離的候選。這些優化不進行座標 snapping，也不更改 snapshots、schematic 或 export 契約。
 
 `scripts/benchmark_preview.py` 以唯讀方式讀取指定 SQLite DB，為每次 preview 啟動新的 Python process，
-因此 session 與 polygon caches 都從空白開始。量測包含 prepare、execution／snapshots、schematic
-planning／binding／composition；不含 interpreter startup、imports、正確性 capture 與 HTTP 傳輸。
+因此 session、step cache 與 polygon 分類索引都從空白開始。`--step-cache off`（預設）量測無快取冷執行，
+`cold` 量測建立 step cache 的成本，`warm` 先建立完整 target，再量測五個不同上游 target；
+可用 `--warm-targets` 明確指定至少五個不同 target，避免誤測整份 session cache。量測分開回報
+kernel、snapshot materialization、schematic planning／binding／composition 與完整 preview；不含 interpreter startup、imports、正確性 capture 與 HTTP 傳輸。
+另外回報完整 polygon 驗證次數／累計耗時／輪廓與頂點數、underfill Region／幾何建立／snapshot
+時間與 peak RSS。`scripts/benchmark_polygon_runtime.py` 提供大量 die／孔洞的獨立合成案例，
+同樣支援三次新 process 與 off/cold/warm；正確性驗證在計時結束後執行。
 
 ```bash
 venv/bin/python scripts/benchmark_preview.py \
@@ -180,7 +205,8 @@ venv/bin/python scripts/benchmark_preview.py \
 Report 保存各次及中位數耗時、分階段耗時、逐步 geometry hash，以及完整 provenance、execution
 warnings、schematic 與 schematic warnings 的 hashes；`--compare` 遇到任何差異即失敗。`--capture`
 另保存首次量測的完整 session 與 provenance，供逐欄檢查。也可將 `PYTHONPATH` 指向舊版 source archive，
-在相同環境量測 baseline，避免修改工作中的 checkout。
+在相同環境量測 baseline，避免修改工作中的 checkout。若歷史版本尚無 step-cache 介面，使用
+該 archive 自己的 benchmark script；缺少 kernel 分段的舊 report 仍可比對完整 preview 與正確性 hashes。
 
 2026-11-06 在同機器／Python 3.13，以 `5e46f755` source archive 比對本次優化，前後各三次冷啟動：
 
@@ -197,12 +223,142 @@ Execution／snapshot materialization 的階段中位數為 111.715 → 43.973 s�
 19,404,881 bytes。這批合成配置符合至少 2× 的門檻；30 s 目標尚未達成，
 後續須繼續降低完整 snapshots 的複製／正規化成本與 schematic composition 成本。
 
-額外 profiling 確認，snapshot／provenance 路徑的 `deepcopy` 與 geometry 正規化仍是主要成本，
-`with_runtime_state` 還會將剛取得的 provenance 寫回 clone。Polygon 首次驗證與分類也仍執行大量
-segment／containment 比較；LRU 只省去相同座標的重複計算。後續可評估已固定 ID 的直接取用、
-只在 lineage 實際合併時回寫 provenance，以及 polygon 首次計算的保守 bounding-box 排除。
-這些方向尚未實作，需要額外的正確性與冷啟動驗證。Profiling 將 thread callbacks 改為 inline 以涵蓋
-CPU 工作，其耗時含 instrumentation 成本，未納入上述三次效能驗收。
+### 上游快取與 snapshot 重構驗收（2026-11-09）
+
+以工作區基準 `3ca3d46f`（開始實作時無未提交修改）保存 source archive 與唯讀 SQLite backup，
+前後各三次新 Python 3.13 process。這一輪保留既有 schematic/UF 演算法，與上述前一輪分開比較。
+完整數據見 [step-cache-benchmark.json](../reference/kernel/step-cache-benchmark.json)。
+
+| 情境 | 修改前 | 修改後 | 結果 |
+| --- | ---: | ---: | --- |
+| demo2，關閉 step cache，kernel 中位數 | 40.097 s | 9.004 s | 4.45×；達到至少 2× |
+| demo2，關閉 step cache，完整 preview 中位數 | 54.078 s | 21.338 s | 2.53× |
+| demo，關閉 step cache，kernel 中位數 | 187.309 ms | 29.828 ms | 6.28× |
+| demo，關閉 step cache，完整 preview 中位數 | 239.077 ms | 74.795 ms | 沒有小型案例退步 |
+| demo2，啟用 step cache 的冷執行單次樣本 | — | kernel 11.314 s／preview 23.967 s | 含完整 retained-size 計算與寫入 |
+| 五個不同上游 target，全命中 kernel 中位數 | — | 30.217 ms | 五次均執行 0 個步驟；小於 1 s |
+
+暖快取 targets 是 `mr_joint_2`、`pnp_5`、`under_fill`、`molding_2`、`grinding_2`，避免重複使用
+同一 session。預設容量下保留 32 entries、222,863,390 bytes（212.54 MiB），142 hits、32 misses、
+0 evictions、0 in-flight；大小包含 runtime、provenance 與 entry overhead，跨 entry 的共用資料
+保守重複計入。來源使用固定欄位 frozen dataclass，避免每筆 source reference 的 dict 開銷。
+
+Demo2 與 demo 全部 32 個步驟的 geometry、IDs、完整 provenance、warning 內容/順序及 schematic
+hashes 一致；完整 session/provenance JSON 也逐欄一致，JSON/CDB export 的 geometry 輸入相同。
+另外把原有 kernel 測試擷取出的 34 組成功結果/錯誤，分別在修改前 archive 與修改後的 cache off、
+cold、warm 模式執行，結果完全相同。五個暖快取 target 的 schematic 另與 archive 各自執行的
+結果比較一致。沒有使用座標容差放寬比對。
+
+新增 23 個 cache/preview 測試（含 19 個 subtests），涵蓋 prefix reuse、局部失效、合流警告順序、
+完整外部 artifact 身分、return modes、JSON 隔離、相同 key 並行、失敗重試、容量/淘汰、oversize、
+reset generation 與反覆編輯後的引用釋放。Kernel 237、process steps 53、schematic 97、generators 31
+項測試通過；API 330 通過，5 個失敗與獨立 baseline 相同：兩個 mesher failure 預期不符、一個
+`mesher.process_flow.pipeline` 不存在，以及 schema 11/13 的既有 migration fixture hash 差異。
+
+```bash
+venv/bin/python scripts/benchmark_preview.py \
+  --db /absolute/path/to/process-flow.sqlite3 \
+  --flow-name demo2 --target carrier_bond --runs 1 --step-cache warm \
+  --output /tmp/preview-warm.json --compare /tmp/preview-baseline.json
+```
+
+完整 preview 仍包含 schematic 與 JSON materialization 成本；30 ms 僅代表全命中 kernel，
+不包含 schematic 或 HTTP。預設快取是每個 API process 各自擁有，重啟會清空。
+
+### Polygon 驗證邊界驗收（2026-11-09）
+
+基準是本次修改開始時的工作樹備份，包含先前未提交的 step-cache 重構。
+macOS arm64／Python 3.13；每種情境三個新 process，取中位數。Demo2 使用相同唯讀 DB
+快照與 `carrier_bond` target，共 32 個 snapshots。合成案例包含 576 顆 die、485 條輪廓、
+2,300 個頂點。完整分階段數值、逐次結果、輸出 hashes 與正規化 ID 差異見
+[polygon-runtime-benchmark.json](../reference/kernel/polygon-runtime-benchmark.json)。
+
+| 情境／項目 | 修改前 | 修改後 |
+| --- | ---: | ---: |
+| Demo2，關閉 step cache，完整 preview | 21.438 s | 14.157 s |
+| Demo2，關閉 step cache，underfill | 4.284 s | 1.162 s |
+| Demo2，underfill Region 計算 | 1.156 s | 1.143 s |
+| Demo2，underfill 其餘幾何建立／放置 | 3.127 s | 0.018 s |
+| Demo2，啟用 step cache 冷執行，完整 preview | 24.154 s | 16.759 s |
+| Demo2，五個上游 target 暖快取 preview（共 15 次） | 3.733 s | 3.178 s |
+| 576 die，無快取 kernel + schematic | 7.247 s | 2.794 s |
+| 576 die，無快取 underfill | 2.502 s | 0.433 s |
+| 576 die，啟用 step cache 冷執行，kernel + schematic | 7.308 s | 2.825 s |
+| 576 die，暖快取 kernel + schematic | 86.43 ms | 84.09 ms |
+
+Demo2 的冷啟動完整 polygon 驗證從 2 次（734 條輪廓／5,720 個頂點，累計 6.749 s）降至 0；
+合成案例從 2 次降至 0。Warm 路徑連驗證函式呼叫也為 0，沒有依靠舊全域 LRU 命中。
+每個 warm target 分別比較三次中位數，皆符合 preview 不退步超過 5% 的門檻。
+Region 演算法保持不變，現在佔 underfill 的主要時間。
+
+| Peak RSS 中位數（MiB） | 修改前 | 修改後 |
+| --- | ---: | ---: |
+| Demo2，無 step cache | 488.33 | 488.33 |
+| Demo2，step cache 冷啟動 | 583.53 | 641.56 |
+| Demo2，預熱及五個 warm target 後 | 879.66 | 867.28 |
+| 576 die，無 step cache | 74.98 | 73.98 |
+| 576 die，step cache 冷啟動 | 77.92 | 76.42 |
+| 576 die，warm 後 | 80.41 | 79.62 |
+
+RSS 是整個 process 的 high-water mark，包含 Python allocator 保留的記憶體；啟用 step cache
+的冷啟動樣本增加約 58 MiB，沒有以無快取數據掩蓋這項差異。Session 僅保留共用 polygon
+查詢資料，避免完整 artifact 的重複保留及容量估算造成 warm preview 退步。
+
+所有情境的幾何（包含材料與 IDs）、provenance、execution warnings 及 schematic hashes
+均與基準相同。完全重複及容差內重複閉合點另有 fixture，保存頂點由 5 個變成 4 個；
+明確 ID 保留，衍生 ID／hash 的預期差異列於報告。沒有批次改寫資料庫。
+CAD 測試確認體積、bounds、孔洞與原始輸入一致；演算法輸出在計時外經完整驗證。
+
+Kernel 241、steps 53、schematic 97、mesh control 85、generators 31 個測試通過；
+API 全套 293 個測試仍有與基準相同的 4 failures／1 error（CDB/mesher 與 migration digest），
+另外 5 個 polygon consumer 測試全部通過。Docs、PnP golden example 與 diff whitespace 檢查通過。
+Kernel cache 與 preview session／mesh／section cache 版本已更新。
+
+```bash
+venv/bin/python scripts/benchmark_polygon_runtime.py \
+  --side 24 --runs 3 --mode off --output /tmp/polygon-before.json
+# 同樣比較 cold / warm；正確性驗證不計入執行時間。
+venv/bin/python scripts/benchmark_polygon_runtime.py \
+  --side 24 --runs 3 --mode off --output /tmp/polygon-after.json \
+  --compare /tmp/polygon-before.json
+```
+
+### 單一 target 與 UF 簡化示意（2026-11-09）
+
+Session 只建立 target 的 record、geometry hash、下載資料與 payload deepcopy；不保留上游 HTTP
+snapshot records。內部 upstream execution／binding 與 step cache 保留。Target 的完整累積幾何、
+JSON／CDB 匯出輸入及 warnings 不受精簡 response 影響。
+
+UF companion 以 mounting region 宣告 layer fill，當前可見的非 Wafer DMY 元件依顯示順序連接；
+空白預留 slot 不阻斷，Wafer DMY 不作端點、不跨越其 slot，不同 region 不互連。
+不要求實際 gap body，也不查詢 XY 距離、孔洞、連通區或接觸。初始高度取已執行 UF 輸入的
+runtime cursor 與 recipe `thk`；沿來源傳遞／複製，套用 flip 的 Z 轉換與 grinding 的實際切削平面。
+純 geometry standalone composition 僅畫保留 UF slab，不推導接觸。
+
+製程補畫的 item 帶 `measurementSource: "process"`、`sourceStepRefId`，Inspector 標示「示意厚度」。
+`sourceIds` 只包含當前真實 geometry IDs；沒有實際 UF body 時為空。實際 cavity slab 維持 geometry
+厚度，總厚度僅由實際 geometry 計算。舊 `bridge_groups`／`eligible_container_ids` 契約及實體連通
+composer 路徑已移除。完整數據見 [single-target-preview-benchmark.json](../reference/kernel/single-target-preview-benchmark.json)。
+
+同一份唯讀 `demo2`／`carrier_bond`，前後各三個新 process 的中位數：
+
+| 項目 | 修改前 | 修改後 |
+| --- | ---: | ---: |
+| 啟用 step cache 的冷 preview | 17.070 s | 9.990 s |
+| Target schematic composition | 5.990 s | 0.204 s |
+| 五個不同 target 的暖 preview（15 次中位數） | 3.744 s | 1.135 s |
+| HTTP snapshot 數 | 32 | 1 |
+| Response bytes | 19,405,115 | 2,596,959 |
+
+修改後冷／暖 payload deepcopy 中位數為 35.83／36.07 ms，相同 session 再開的中位數為 0.503 s。
+32 個上游步驟 geometry、provenance、execution warnings hashes 全部一致；target
+`geometryEntityJson` 與 JSON／CDB 使用的 geometry structure 逐欄一致。Schematic 按新規則改變，
+沒有以舊示意圖 hash 相等作為驗收。Kernel 冷執行仍約 8.35 s，為目前冷 preview 的主要剩餘成本。
+
+Benchmark 的 `checks.geometry`／provenance／execution warnings 從內部所有已執行 snapshots 計算，
+HTTP snapshots 另要求固定為 1；warm targets 也從內部 execution 選取。刻意變更 schematic 時，
+使用 `--compare-execution-only --compare <baseline.json>`，仍逐步檢查所有執行結果；預設 compare
+繼續比較 schematic。結果另列 payload deepcopy、session cache hit 與 response bytes，不含 HTTP／瀏覽器時間。
 
 ### Exact section
 
@@ -338,7 +494,11 @@ Jobs、queue 與 history 都在 API process memory：
 
 ## Export 語意
 
-CAD worker normalize structure 後支援 Box、Polygon、Cylinder、Cone。GLB 只包含 materialized body solids。CDB 使用 2.5D mesher，其 primitive 與 feature semantics 較窄，詳見 [geometry-semantics.md](../concepts/geometry-semantics.md)。
+CAD 同一行程的 convert/export/section 入口接受 artifact 或原始 structure；artifact 直接使用
+polygon 資料，原始 structure 在入口解析一次。CAD worker 仍由 JSON 檔跨行程傳輸，新 worker
+載入時驗證一次，沒有跨行程信任旗標。支援 Box、Polygon、Cylinder、Cone；GLB 只包含
+materialized body solids。CDB 使用 2.5D mesher，其 primitive 與 feature semantics 較窄，詳見
+[geometry-semantics.md](../concepts/geometry-semantics.md)。
 
 Session display assets同樣只authoritative表示materialized bodies。Future display LOD不得改變body/material
 identity；engineering section精度由BRep exact section path負責，不由display mesh triangle density決定。

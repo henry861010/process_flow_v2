@@ -291,6 +291,16 @@ describe("schematic feature details", () => {
     expect(zero).not.toContain("Not specified");
   });
 
+  it("labels process-derived thickness as schematic without exposing internal IDs", () => {
+    const markup = renderToStaticMarkup(<SchematicItemDetails item={{
+      ...document.items[0], label: "UF", sourceIds: [], measurementSource: "process", sourceStepRefId: "under-fill-step",
+    }} unit="um" />);
+    expect(markup).toContain("示意厚度");
+    expect(markup).not.toContain(">THK<");
+    expect(markup).not.toContain("under-fill-step");
+    expect(markup).toContain("200 µm");
+  });
+
   it("escapes material text and allows long names to wrap within the card", () => {
     const material = `<script>alert("material")</script>${"VeryLongMaterial".repeat(30)}`;
     const markup = renderToStaticMarkup(<SchematicItemDetails item={{ ...document.items[2], material }} unit="um" />);

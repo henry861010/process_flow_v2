@@ -1,0 +1,2542 @@
+{
+  "date": "2026-11-09",
+  "environment": {
+    "platform": "macOS-14.6-arm64-arm-64bit-Mach-O",
+    "python": "3.13.5",
+    "shapely": "2.1.2",
+    "cadquery": "2.8.0"
+  },
+  "baseline": "Task-start workspace snapshot, including pre-existing uncommitted step-cache work; not git HEAD.",
+  "protocol": {
+    "runsPerScenario": 3,
+    "freshProcessPerRun": true,
+    "demo2Target": "carrier_bond",
+    "demo2Snapshots": 32,
+    "syntheticDies": 576,
+    "syntheticLoops": 485,
+    "syntheticVertices": 2300,
+    "timingExcludes": [
+      "interpreter/import startup",
+      "correctness capture and comparison",
+      "synthetic output validation oracle"
+    ],
+    "phaseNotes": "Nested instrumentation overlaps. polygonConstruction measures only PolygonGeometry.__init__; underfillDomain = underfill - underfillRegion includes immutable payload construction, bounds, and placement.",
+    "rss": "Process high-water RSS sampled after response serialization; warm RSS sampled after warm requests. Includes allocator retention.",
+    "modes": {
+      "off": "cold, step cache disabled",
+      "cold": "cold, step cache enabled",
+      "warm": "cold prefill followed by step-cache hits, not session-cache hits"
+    }
+  },
+  "cases": {
+    "demo2-off": {
+      "before": {
+        "medianSeconds": {
+          "preview": 21.438126458087936,
+          "prepare_preview_execution": 0.011026790831238031,
+          "kernel": 9.128724499838427,
+          "materialize_preview_snapshots": 9.704160375054926,
+          "plan_flow_schematic": 0.2326292907819152,
+          "bind_schematic_snapshots": 0.25825362489558756,
+          "build_schematic": 10.235785167198628,
+          "snapshotMaterialization": 0.575435875216499
+        },
+        "medianPolygonWork": {
+          "validationCalls": 2,
+          "fullValidations": 2,
+          "loops": 734,
+          "vertices": 5720
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 3.1048214167822152,
+          "snapshot": 2.012752999784425,
+          "underfill": 4.283667833078653,
+          "underfillDomain": 3.1274948331993073,
+          "underfillRegion": 1.1561729998793453,
+          "validation": 6.749356666812673
+        },
+        "medianPeakRssBytes": 512049152,
+        "runs": [
+          {
+            "seconds": {
+              "preview": 22.336333874845877,
+              "prepare_preview_execution": 0.010553458938375115,
+              "kernel": 9.201000124914572,
+              "materialize_preview_snapshots": 9.811058500083163,
+              "plan_flow_schematic": 0.2372481250204146,
+              "bind_schematic_snapshots": 0.26584045798517764,
+              "build_schematic": 10.83913766592741,
+              "snapshotMaterialization": 0.6100583751685917
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.0392947520595044,
+                "underfillRegion": 1.157123874872923,
+                "validation": 6.864820500137284,
+                "polygonConstruction": 3.1396590408403426,
+                "underfill": 4.319839667063206,
+                "underfillDomain": 3.1627157921902835
+              }
+            },
+            "peakRssBytes": 483672064,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 1.8290476873517036e-05,
+              "cacheSeconds": 2.203858457505703e-05,
+              "inputPreparationSeconds": 2.108761459821835,
+              "processExecutionSeconds": 5.032230497803539,
+              "snapshotSeconds": 2.0493299590889364,
+              "kernelSeconds": 9.200958208180964
+            }
+          },
+          {
+            "seconds": {
+              "preview": 21.438126458087936,
+              "prepare_preview_execution": 0.011026790831238031,
+              "kernel": 9.128724499838427,
+              "materialize_preview_snapshots": 9.704160375054926,
+              "plan_flow_schematic": 0.22859029192477465,
+              "bind_schematic_snapshots": 0.25515195820480585,
+              "build_schematic": 10.195092666894197,
+              "snapshotMaterialization": 0.575435875216499
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.012752999784425,
+                "underfillRegion": 1.1561729998793453,
+                "validation": 6.749356666812673,
+                "polygonConstruction": 3.1048214167822152,
+                "underfill": 4.283667833078653,
+                "underfillDomain": 3.1274948331993073
+              }
+            },
+            "peakRssBytes": 512049152,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 1.7917249351739883e-05,
+              "cacheSeconds": 1.9003869965672493e-05,
+              "inputPreparationSeconds": 2.0963905854150653,
+              "processExecutionSeconds": 5.001501038437709,
+              "snapshotSeconds": 2.0224298702087253,
+              "kernelSeconds": 9.128683000104502
+            }
+          },
+          {
+            "seconds": {
+              "preview": 21.32983541721478,
+              "prepare_preview_execution": 0.011029375018551946,
+              "kernel": 8.983905750093982,
+              "materialize_preview_snapshots": 9.55891841603443,
+              "plan_flow_schematic": 0.2326292907819152,
+              "bind_schematic_snapshots": 0.25825362489558756,
+              "build_schematic": 10.235785167198628,
+              "snapshotMaterialization": 0.5750126659404486
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 1.9523876674938947,
+                "underfillRegion": 1.1448526659514755,
+                "validation": 6.748582417145371,
+                "polygonConstruction": 3.0838190412614495,
+                "underfill": 4.250878875143826,
+                "underfillDomain": 3.1060262091923505
+              }
+            },
+            "peakRssBytes": 521207808,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 1.6624340787529945e-05,
+              "cacheSeconds": 2.0414358004927635e-05,
+              "inputPreparationSeconds": 2.0522994592320174,
+              "processExecutionSeconds": 4.961310832528397,
+              "snapshotSeconds": 1.9618339170701802,
+              "kernelSeconds": 8.98385479208082
+            }
+          }
+        ]
+      },
+      "after": {
+        "medianSeconds": {
+          "preview": 14.15659379097633,
+          "prepare_preview_execution": 0.0112958331592381,
+          "kernel": 5.9870417499914765,
+          "materialize_preview_snapshots": 6.566301749786362,
+          "plan_flow_schematic": 0.08973295893520117,
+          "bind_schematic_snapshots": 0.4031926249153912,
+          "build_schematic": 6.024635459063575,
+          "snapshotMaterialization": 0.5792599997948855
+        },
+        "medianPolygonWork": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 7.1248505264520645e-06,
+          "snapshot": 1.9667340393643826,
+          "underfill": 1.1616013329476118,
+          "underfillDomain": 0.01817324897274375,
+          "underfillRegion": 1.143498833058402,
+          "validation": 0
+        },
+        "medianPeakRssBytes": 512049152,
+        "runs": [
+          {
+            "seconds": {
+              "preview": 14.028428459074348,
+              "prepare_preview_execution": 0.0112958331592381,
+              "kernel": 5.985791458049789,
+              "materialize_preview_snapshots": 6.55831762496382,
+              "plan_flow_schematic": 0.08973295893520117,
+              "bind_schematic_snapshots": 0.40319062513299286,
+              "build_schematic": 5.918432125123218,
+              "snapshotMaterialization": 0.5725261669140309
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9667340393643826,
+                "underfillRegion": 1.1471920830663294,
+                "polygonConstruction": 7.1248505264520645e-06,
+                "underfill": 1.313063166104257,
+                "validation": 0,
+                "underfillDomain": 0.16587108303792775
+              }
+            },
+            "peakRssBytes": 506003456,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 1.6416655853390694e-05,
+              "cacheSeconds": 1.89170241355896e-05,
+              "inputPreparationSeconds": 1.9196088791359216,
+              "processExecutionSeconds": 2.081036912975833,
+              "snapshotSeconds": 1.9766994987148792,
+              "kernelSeconds": 5.985752917127684
+            }
+          },
+          {
+            "seconds": {
+              "preview": 14.348298624856398,
+              "prepare_preview_execution": 0.011182625079527497,
+              "kernel": 6.031582833034918,
+              "materialize_preview_snapshots": 6.624201915925369,
+              "plan_flow_schematic": 0.08924883394502103,
+              "bind_schematic_snapshots": 0.40507795801386237,
+              "build_schematic": 6.160134874982759,
+              "snapshotMaterialization": 0.592619082890451
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9723562449216843,
+                "underfillRegion": 1.1418124169576913,
+                "polygonConstruction": 6.4587220549583435e-06,
+                "underfill": 1.159985665930435,
+                "validation": 0,
+                "underfillDomain": 0.01817324897274375
+              }
+            },
+            "peakRssBytes": 520683520,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 1.7711427062749863e-05,
+              "cacheSeconds": 1.783273182809353e-05,
+              "inputPreparationSeconds": 2.1110940845683217,
+              "processExecutionSeconds": 1.92988346144557,
+              "snapshotSeconds": 1.9820718723349273,
+              "kernelSeconds": 6.031543458113447
+            }
+          },
+          {
+            "seconds": {
+              "preview": 14.15659379097633,
+              "prepare_preview_execution": 0.011300957994535565,
+              "kernel": 5.9870417499914765,
+              "materialize_preview_snapshots": 6.566301749786362,
+              "plan_flow_schematic": 0.09021941712126136,
+              "bind_schematic_snapshots": 0.4031926249153912,
+              "build_schematic": 6.024635459063575,
+              "snapshotMaterialization": 0.5792599997948855
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9614292897749692,
+                "underfillRegion": 1.143498833058402,
+                "polygonConstruction": 7.331836968660355e-06,
+                "underfill": 1.1616013329476118,
+                "validation": 0,
+                "underfillDomain": 0.018102499889209867
+              }
+            },
+            "peakRssBytes": 512049152,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 1.5170080587267876e-05,
+              "cacheSeconds": 2.167210914194584e-05,
+              "inputPreparationSeconds": 2.0769670389126986,
+              "processExecutionSeconds": 1.9304434198420495,
+              "snapshotSeconds": 1.971048248000443,
+              "kernelSeconds": 5.987002332927659
+            }
+          }
+        ]
+      },
+      "exactOutputMatch": true,
+      "outputHashes": {
+        "geometry": {
+          "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+          "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+          "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+          "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+          "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+          "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+          "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+          "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+          "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+          "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+          "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+          "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+          "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+          "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+          "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+          "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+          "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+          "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+          "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+          "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+          "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+          "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+          "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+          "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+          "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+          "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+          "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+          "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+          "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+          "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+          "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+          "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+        },
+        "provenance": {
+          "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+          "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+          "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+          "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+          "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+          "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+          "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+          "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+          "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+          "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+          "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+          "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+          "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+          "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+          "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+          "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+          "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+          "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+          "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+          "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+          "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+          "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+          "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+          "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+          "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+          "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+          "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+          "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+          "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+          "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+          "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+          "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+        },
+        "executionWarnings": {
+          "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "schematic": {
+          "tmv": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_7": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_9": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "daf": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "daf_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_6": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_8": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "mr_joint": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "molding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "grinding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "rdl_layer": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "mr_joint_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "under_fill": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "molding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "grinding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "carrier_bond": "ee7dcbe187e79b5cbeeca4fd957bd131fc2917f977c4c2726c2d3e1cca984197"
+        },
+        "schematicWarnings": {
+          "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "demo2-cold": {
+      "before": {
+        "medianSeconds": {
+          "preview": 24.153974500019103,
+          "prepare_preview_execution": 0.01115587493404746,
+          "kernel": 11.379624499939382,
+          "materialize_preview_snapshots": 11.965706166112795,
+          "plan_flow_schematic": 0.08937450009398162,
+          "bind_schematic_snapshots": 0.6636537499725819,
+          "build_schematic": 10.265453041996807,
+          "snapshotMaterialization": 0.5833954575937241
+        },
+        "medianPolygonWork": {
+          "validationCalls": 2,
+          "fullValidations": 2,
+          "loops": 734,
+          "vertices": 5720
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 3.080609085271135,
+          "snapshot": 2.14236179436557,
+          "underfill": 4.2596072079613805,
+          "underfillDomain": 3.1027995829936117,
+          "underfillRegion": 1.146842666901648,
+          "validation": 6.765713499858975
+        },
+        "medianPeakRssBytes": 611876864,
+        "runs": [
+          {
+            "seconds": {
+              "preview": 24.153974500019103,
+              "prepare_preview_execution": 0.01115587493404746,
+              "kernel": 11.394935292191803,
+              "materialize_preview_snapshots": 11.978330749785528,
+              "plan_flow_schematic": 0.08986612502485514,
+              "bind_schematic_snapshots": 0.6620351658202708,
+              "build_schematic": 10.265453041996807,
+              "snapshotMaterialization": 0.5833954575937241
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.14236179436557,
+                "underfillRegion": 1.146842666901648,
+                "validation": 6.765713499858975,
+                "polygonConstruction": 3.0938227500300854,
+                "underfill": 4.262637499952689,
+                "underfillDomain": 3.1157948330510408
+              }
+            },
+            "peakRssBytes": 668139520,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.039186457404866815,
+              "cacheSeconds": 2.29276650166139,
+              "inputPreparationSeconds": 1.9192416646983474,
+              "processExecutionSeconds": 4.982440252555534,
+              "snapshotSeconds": 2.1520082054194063,
+              "kernelSeconds": 11.394892000127584
+            }
+          },
+          {
+            "seconds": {
+              "preview": 24.135371499927714,
+              "prepare_preview_execution": 0.011367791099473834,
+              "kernel": 11.379624499939382,
+              "materialize_preview_snapshots": 11.965706166112795,
+              "plan_flow_schematic": 0.08937450009398162,
+              "bind_schematic_snapshots": 0.6836582920514047,
+              "build_schematic": 10.247278625145555,
+              "snapshotMaterialization": 0.5860816661734134
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.1450482113286853,
+                "underfillRegion": 1.1568076249677688,
+                "validation": 6.748736958019435,
+                "polygonConstruction": 3.080609085271135,
+                "underfill": 4.2596072079613805,
+                "underfillDomain": 3.1027995829936117
+              }
+            },
+            "peakRssBytes": 611876864,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.038431041641160846,
+              "cacheSeconds": 2.298484003636986,
+              "inputPreparationSeconds": 1.9033002103678882,
+              "processExecutionSeconds": 4.97477554040961,
+              "snapshotSeconds": 2.154992418596521,
+              "kernelSeconds": 11.37958220904693
+            }
+          },
+          {
+            "seconds": {
+              "preview": 24.359882833901793,
+              "prepare_preview_execution": 0.011090290965512395,
+              "kernel": 11.346715667052194,
+              "materialize_preview_snapshots": 11.930043417029083,
+              "plan_flow_schematic": 0.08865633280947804,
+              "bind_schematic_snapshots": 0.6636537499725819,
+              "build_schematic": 10.461382457986474,
+              "snapshotMaterialization": 0.5833277499768883
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.1339254181366414,
+                "underfillRegion": 1.1418022920843214,
+                "validation": 6.839838332729414,
+                "polygonConstruction": 3.0712264999747276,
+                "underfill": 4.2346084581222385,
+                "underfillDomain": 3.092806166037917
+              }
+            },
+            "peakRssBytes": 593936384,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.03771600313484669,
+              "cacheSeconds": 2.298429374815896,
+              "inputPreparationSeconds": 1.9057592512108386,
+              "processExecutionSeconds": 4.951591875869781,
+              "snapshotSeconds": 2.143713454483077,
+              "kernelSeconds": 11.346672625048086
+            }
+          }
+        ]
+      },
+      "after": {
+        "medianSeconds": {
+          "preview": 16.758779334137216,
+          "prepare_preview_execution": 0.011326584033668041,
+          "kernel": 8.370784875005484,
+          "materialize_preview_snapshots": 8.955949499970302,
+          "plan_flow_schematic": 0.4981177500449121,
+          "bind_schematic_snapshots": 0.25656962487846613,
+          "build_schematic": 5.884445416042581,
+          "snapshotMaterialization": 0.5851646249648184
+        },
+        "medianPolygonWork": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 5.749985575675964e-06,
+          "snapshot": 1.9344503758475184,
+          "underfill": 1.1687696250155568,
+          "underfillDomain": 0.01853229128755629,
+          "underfillRegion": 1.1507001670543104,
+          "validation": 0
+        },
+        "medianPeakRssBytes": 672727040,
+        "runs": [
+          {
+            "seconds": {
+              "preview": 16.695431708125398,
+              "prepare_preview_execution": 0.011033500079065561,
+              "kernel": 8.370784875005484,
+              "materialize_preview_snapshots": 8.955949499970302,
+              "plan_flow_schematic": 0.500909874914214,
+              "bind_schematic_snapshots": 0.2560092080384493,
+              "build_schematic": 5.843764417106286,
+              "snapshotMaterialization": 0.5851646249648184
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9446868319064379,
+                "underfillRegion": 1.132889041909948,
+                "polygonConstruction": 6.62519596517086e-06,
+                "underfill": 1.1514213331975043,
+                "validation": 0,
+                "underfillDomain": 0.01853229128755629
+              }
+            },
+            "peakRssBytes": 676118528,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.0411026650108397,
+              "cacheSeconds": 2.343065748922527,
+              "inputPreparationSeconds": 2.10544920922257,
+              "processExecutionSeconds": 1.9168800397310406,
+              "snapshotSeconds": 1.9547645810525864,
+              "kernelSeconds": 8.370741124963388
+            }
+          },
+          {
+            "seconds": {
+              "preview": 17.029033957980573,
+              "prepare_preview_execution": 0.011350792134180665,
+              "kernel": 8.402591542107984,
+              "materialize_preview_snapshots": 9.256202958058566,
+              "plan_flow_schematic": 0.4981177500449121,
+              "bind_schematic_snapshots": 0.25818758294917643,
+              "build_schematic": 5.884445416042581,
+              "snapshotMaterialization": 0.8536114159505814
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9344503758475184,
+                "underfillRegion": 1.1507001670543104,
+                "polygonConstruction": 5.749985575675964e-06,
+                "underfill": 1.1720575420185924,
+                "validation": 0,
+                "underfillDomain": 0.021357374964281917
+              }
+            },
+            "peakRssBytes": 660815872,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.03905745642259717,
+              "cacheSeconds": 2.36138708749786,
+              "inputPreparationSeconds": 2.1073529582936317,
+              "processExecutionSeconds": 1.9406342871952802,
+              "snapshotSeconds": 1.944483163766563,
+              "kernelSeconds": 8.402545625111088
+            }
+          },
+          {
+            "seconds": {
+              "preview": 16.758779334137216,
+              "prepare_preview_execution": 0.011326584033668041,
+              "kernel": 8.358806791948155,
+              "materialize_preview_snapshots": 8.941277915844694,
+              "plan_flow_schematic": 0.4915476250462234,
+              "bind_schematic_snapshots": 0.25656962487846613,
+              "build_schematic": 5.921678040875122,
+              "snapshotMaterialization": 0.5824711238965392
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9195432094857097,
+                "underfillRegion": 1.1511154167819768,
+                "polygonConstruction": 5.666166543960571e-06,
+                "underfill": 1.1687696250155568,
+                "validation": 0,
+                "underfillDomain": 0.017654208233579993
+              }
+            },
+            "peakRssBytes": 672727040,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.04012099769897759,
+              "cacheSeconds": 2.3426952054724097,
+              "inputPreparationSeconds": 2.099816338159144,
+              "processExecutionSeconds": 1.9371843342669308,
+              "snapshotSeconds": 1.9294175410177559,
+              "kernelSeconds": 8.358761165989563
+            }
+          }
+        ]
+      },
+      "exactOutputMatch": true,
+      "outputHashes": {
+        "geometry": {
+          "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+          "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+          "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+          "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+          "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+          "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+          "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+          "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+          "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+          "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+          "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+          "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+          "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+          "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+          "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+          "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+          "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+          "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+          "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+          "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+          "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+          "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+          "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+          "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+          "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+          "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+          "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+          "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+          "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+          "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+          "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+          "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+        },
+        "provenance": {
+          "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+          "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+          "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+          "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+          "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+          "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+          "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+          "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+          "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+          "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+          "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+          "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+          "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+          "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+          "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+          "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+          "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+          "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+          "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+          "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+          "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+          "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+          "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+          "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+          "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+          "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+          "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+          "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+          "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+          "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+          "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+          "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+        },
+        "executionWarnings": {
+          "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "schematic": {
+          "tmv": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_7": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_9": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "daf": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "daf_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_6": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_8": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "mr_joint": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "molding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "grinding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "rdl_layer": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "mr_joint_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "under_fill": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "molding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "grinding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "carrier_bond": "ee7dcbe187e79b5cbeeca4fd957bd131fc2917f977c4c2726c2d3e1cca984197"
+        },
+        "schematicWarnings": {
+          "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "demo2-warm": {
+      "before": {
+        "medianSeconds": {
+          "preview": 24.13017512508668,
+          "prepare_preview_execution": 0.01099633309058845,
+          "kernel": 11.438720209058374,
+          "materialize_preview_snapshots": 12.027449582936242,
+          "plan_flow_schematic": 0.08918037498369813,
+          "bind_schematic_snapshots": 0.6826346251182258,
+          "build_schematic": 10.209528708131984,
+          "snapshotMaterialization": 0.5807583329733461
+        },
+        "medianPolygonWork": {
+          "validationCalls": 2,
+          "fullValidations": 2,
+          "loops": 734,
+          "vertices": 5720
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 3.081702081952244,
+          "snapshot": 2.1529228754807264,
+          "underfill": 4.244115042034537,
+          "underfillDomain": 3.103335792198777,
+          "underfillRegion": 1.14564587501809,
+          "validation": 6.755527374800295
+        },
+        "medianPeakRssBytes": 647675904,
+        "runs": [
+          {
+            "seconds": {
+              "preview": 24.15476895798929,
+              "prepare_preview_execution": 0.011107249883934855,
+              "kernel": 11.446691249962896,
+              "materialize_preview_snapshots": 12.027449582936242,
+              "plan_flow_schematic": 0.08941141585819423,
+              "bind_schematic_snapshots": 0.6890702908858657,
+              "build_schematic": 10.209528708131984,
+              "snapshotMaterialization": 0.5807583329733461
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.1529228754807264,
+                "underfillRegion": 1.1491888330783695,
+                "validation": 6.774622542085126,
+                "polygonConstruction": 3.103160999249667,
+                "underfill": 4.274522917112336,
+                "underfillDomain": 3.125334084033966
+              }
+            },
+            "peakRssBytes": 670924800,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.03788374993018806,
+              "cacheSeconds": 2.3074477065820247,
+              "inputPreparationSeconds": 1.9391109992284328,
+              "processExecutionSeconds": 4.989759417017922,
+              "snapshotSeconds": 2.162885373691097,
+              "kernelSeconds": 11.446648125071079
+            }
+          },
+          {
+            "seconds": {
+              "preview": 24.13017512508668,
+              "prepare_preview_execution": 0.01099633309058845,
+              "kernel": 11.438720209058374,
+              "materialize_preview_snapshots": 12.028358874842525,
+              "plan_flow_schematic": 0.08918037498369813,
+              "bind_schematic_snapshots": 0.6826346251182258,
+              "build_schematic": 10.198048207908869,
+              "snapshotMaterialization": 0.5896386657841504
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.194786623585969,
+                "underfillRegion": 1.1407792498357594,
+                "validation": 6.742065791040659,
+                "polygonConstruction": 3.081702081952244,
+                "underfill": 4.244115042034537,
+                "underfillDomain": 3.103335792198777
+              }
+            },
+            "peakRssBytes": 647675904,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.037991663441061974,
+              "cacheSeconds": 2.3135317098349333,
+              "inputPreparationSeconds": 1.915646752808243,
+              "processExecutionSeconds": 4.957625829149038,
+              "snapshotSeconds": 2.2045233328826725,
+              "kernelSeconds": 11.438676583115011
+            }
+          },
+          {
+            "seconds": {
+              "preview": 24.1277913749218,
+              "prepare_preview_execution": 0.010961875086650252,
+              "kernel": 11.385029874974862,
+              "materialize_preview_snapshots": 11.964970083907247,
+              "plan_flow_schematic": 0.08827537507750094,
+              "bind_schematic_snapshots": 0.667412375099957,
+              "build_schematic": 10.270676125073805,
+              "snapshotMaterialization": 0.5799402089323848
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 734,
+              "vertices": 5720,
+              "seconds": {
+                "snapshot": 2.147307249251753,
+                "underfillRegion": 1.14564587501809,
+                "validation": 6.755527374800295,
+                "polygonConstruction": 3.073304290883243,
+                "underfill": 4.2409095000475645,
+                "underfillDomain": 3.0952636250294745
+              }
+            },
+            "peakRssBytes": 641236992,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.03920270618982613,
+              "cacheSeconds": 2.3015684590209275,
+              "inputPreparationSeconds": 1.9207380427978933,
+              "processExecutionSeconds": 4.957256668945774,
+              "snapshotSeconds": 2.1568918712437153,
+              "kernelSeconds": 11.384980667149648
+            }
+          }
+        ],
+        "warm": {
+          "medianKernelSeconds": 0.030229917028918862,
+          "medianTotalSeconds": 3.7325558750890195,
+          "validationCalls": [
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            1,
+            1,
+            1
+          ],
+          "fullValidations": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "executedSteps": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "reusedSteps": [
+            24,
+            28,
+            29,
+            30,
+            31,
+            24,
+            28,
+            29,
+            30,
+            31,
+            24,
+            28,
+            29,
+            30,
+            31
+          ],
+          "medianPeakRssBytes": 922386432,
+          "targets": {
+            "mr_joint_2": {
+              "medianSeconds": 1.4354762078728527,
+              "medianKernelSeconds": 0.02309674979187548
+            },
+            "pnp_5": {
+              "medianSeconds": 1.6851275409571826,
+              "medianKernelSeconds": 0.030229917028918862
+            },
+            "under_fill": {
+              "medianSeconds": 3.7325558750890195,
+              "medianKernelSeconds": 0.03020112495869398
+            },
+            "molding_2": {
+              "medianSeconds": 3.928511792095378,
+              "medianKernelSeconds": 0.030527417082339525
+            },
+            "grinding_2": {
+              "medianSeconds": 4.126762750092894,
+              "medianKernelSeconds": 0.030499708140268922
+            }
+          }
+        }
+      },
+      "after": {
+        "medianSeconds": {
+          "preview": 16.87264958396554,
+          "prepare_preview_execution": 0.011093457927927375,
+          "kernel": 8.417738292133436,
+          "materialize_preview_snapshots": 9.002510749967769,
+          "plan_flow_schematic": 0.5005348329432309,
+          "bind_schematic_snapshots": 0.26090358407236636,
+          "build_schematic": 5.905252833850682,
+          "snapshotMaterialization": 0.5847724578343332
+        },
+        "medianPolygonWork": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 6.7497603595256805e-06,
+          "snapshot": 1.9467918735463172,
+          "underfill": 1.1881299579981714,
+          "underfillDomain": 0.01878029084764421,
+          "underfillRegion": 1.1693496671505272,
+          "validation": 0
+        },
+        "medianPeakRssBytes": 645742592,
+        "runs": [
+          {
+            "seconds": {
+              "preview": 16.87264958396554,
+              "prepare_preview_execution": 0.010977708967402577,
+              "kernel": 8.417738292133436,
+              "materialize_preview_snapshots": 9.002510749967769,
+              "plan_flow_schematic": 0.5111096249893308,
+              "bind_schematic_snapshots": 0.26090358407236636,
+              "build_schematic": 5.9422285000327975,
+              "snapshotMaterialization": 0.5847724578343332
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9467918735463172,
+                "underfillRegion": 1.1693496671505272,
+                "polygonConstruction": 6.375368684530258e-06,
+                "underfill": 1.1881299579981714,
+                "validation": 0,
+                "underfillDomain": 0.01878029084764421
+              }
+            },
+            "peakRssBytes": 645742592,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.040661833714693785,
+              "cacheSeconds": 2.3512784973718226,
+              "inputPreparationSeconds": 2.099778043339029,
+              "processExecutionSeconds": 1.9597323364578187,
+              "snapshotSeconds": 1.9567858770024031,
+              "kernelSeconds": 8.417694207979366
+            }
+          },
+          {
+            "seconds": {
+              "preview": 16.96836558310315,
+              "prepare_preview_execution": 0.011093457927927375,
+              "kernel": 8.586094124941155,
+              "materialize_preview_snapshots": 9.174640333047137,
+              "plan_flow_schematic": 0.5005348329432309,
+              "bind_schematic_snapshots": 0.26640966604463756,
+              "build_schematic": 5.891603040974587,
+              "snapshotMaterialization": 0.5885462081059813
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 2.0197722064331174,
+                "underfillRegion": 1.1771300830878317,
+                "polygonConstruction": 8.499715477228165e-06,
+                "underfill": 1.1964445421472192,
+                "validation": 0,
+                "underfillDomain": 0.019314459059387445
+              }
+            },
+            "peakRssBytes": 597590016,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.04159695887938142,
+              "cacheSeconds": 2.414912668056786,
+              "inputPreparationSeconds": 2.115912791574374,
+              "processExecutionSeconds": 1.9740393720567226,
+              "snapshotSeconds": 2.02995270723477,
+              "kernelSeconds": 8.586048250086606
+            }
+          },
+          {
+            "seconds": {
+              "preview": 16.785452665993944,
+              "prepare_preview_execution": 0.011147458106279373,
+              "kernel": 8.395177874946967,
+              "materialize_preview_snapshots": 8.975363792153075,
+              "plan_flow_schematic": 0.4990570000372827,
+              "bind_schematic_snapshots": 0.25691191595979035,
+              "build_schematic": 5.905252833850682,
+              "snapshotMaterialization": 0.5801859172061086
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 1.9227164192125201,
+                "underfillRegion": 1.1543443331029266,
+                "polygonConstruction": 6.7497603595256805e-06,
+                "underfill": 1.1730984579771757,
+                "validation": 0,
+                "underfillDomain": 0.0187541248742491
+              }
+            },
+            "peakRssBytes": 650297344,
+            "execution": {
+              "executedSteps": 32,
+              "reusedSteps": 0,
+              "identitySeconds": 0.03957846248522401,
+              "cacheSeconds": 2.3596498707775027,
+              "inputPreparationSeconds": 2.112723247380927,
+              "processExecutionSeconds": 1.9408706221729517,
+              "snapshotSeconds": 1.9326318332459778,
+              "kernelSeconds": 8.395131333032623
+            }
+          }
+        ],
+        "warm": {
+          "medianKernelSeconds": 0.030072208028286695,
+          "medianTotalSeconds": 3.1779961669817567,
+          "validationCalls": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "fullValidations": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "executedSteps": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "reusedSteps": [
+            24,
+            28,
+            29,
+            30,
+            31,
+            24,
+            28,
+            29,
+            30,
+            31,
+            24,
+            28,
+            29,
+            30,
+            31
+          ],
+          "medianPeakRssBytes": 909410304,
+          "targets": {
+            "mr_joint_2": {
+              "medianSeconds": 1.4336612089537084,
+              "medianKernelSeconds": 0.023304125061258674
+            },
+            "pnp_5": {
+              "medianSeconds": 1.6769978750962764,
+              "medianKernelSeconds": 0.030072208028286695
+            },
+            "under_fill": {
+              "medianSeconds": 3.6740343749988824,
+              "medianKernelSeconds": 0.030127333011478186
+            },
+            "molding_2": {
+              "medianSeconds": 3.853922958020121,
+              "medianKernelSeconds": 0.030012999894097447
+            },
+            "grinding_2": {
+              "medianSeconds": 3.1779961669817567,
+              "medianKernelSeconds": 0.030241833999753
+            }
+          }
+        }
+      },
+      "exactOutputMatch": true,
+      "outputHashes": {
+        "geometry": {
+          "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+          "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+          "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+          "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+          "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+          "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+          "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+          "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+          "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+          "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+          "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+          "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+          "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+          "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+          "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+          "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+          "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+          "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+          "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+          "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+          "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+          "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+          "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+          "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+          "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+          "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+          "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+          "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+          "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+          "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+          "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+          "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+        },
+        "provenance": {
+          "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+          "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+          "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+          "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+          "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+          "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+          "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+          "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+          "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+          "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+          "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+          "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+          "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+          "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+          "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+          "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+          "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+          "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+          "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+          "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+          "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+          "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+          "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+          "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+          "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+          "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+          "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+          "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+          "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+          "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+          "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+          "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+        },
+        "executionWarnings": {
+          "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "schematic": {
+          "tmv": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_7": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_9": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "daf": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "daf_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_6": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_8": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "flip_10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "mr_joint": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "molding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "grinding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "rdl_layer": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "micro_bump_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "mr_joint_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "pnp_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "under_fill": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "molding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "grinding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+          "carrier_bond": "ee7dcbe187e79b5cbeeca4fd957bd131fc2917f977c4c2726c2d3e1cca984197"
+        },
+        "schematicWarnings": {
+          "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "synthetic-off": {
+      "before": {
+        "medianSeconds": {
+          "total": 7.24688750016503,
+          "kernel": 2.6115583749487996,
+          "schematic": 4.62913079210557
+        },
+        "medianPolygonWork": {
+          "validationCalls": 2,
+          "fullValidations": 2,
+          "loops": 970,
+          "vertices": 4600
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 2.0742895409930497,
+          "snapshot": 0.05720879207365215,
+          "underfill": 2.5019536670297384,
+          "underfillDomain": 2.0778874589595944,
+          "underfillRegion": 0.42406620807014406,
+          "validation": 4.357852583983913
+        },
+        "medianPeakRssBytes": 78626816,
+        "runs": [
+          {
+            "seconds": {
+              "total": 7.16719491709955,
+              "kernel": 2.576474375091493,
+              "schematic": 4.586831166176125
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.05720879207365215,
+                "underfillRegion": 0.4188133329153061,
+                "validation": 4.285574417095631,
+                "polygonConstruction": 2.044641749933362,
+                "underfill": 2.466881125001237,
+                "underfillDomain": 2.0480677920859307
+              }
+            },
+            "peakRssBytes": 78626816,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 1.7920974642038345e-06,
+              "cacheSeconds": 1.5830155462026596e-06,
+              "inputPreparationSeconds": 0.05176891596056521,
+              "processExecutionSeconds": 2.4668952501378953,
+              "snapshotSeconds": 0.05745991691946983,
+              "kernelSeconds": 2.576460000127554
+            }
+          },
+          {
+            "seconds": {
+              "total": 7.299216208979487,
+              "kernel": 2.6115583749487996,
+              "schematic": 4.683823416940868
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.05666329222731292,
+                "underfillRegion": 0.42406620807014406,
+                "validation": 4.400063791079447,
+                "polygonConstruction": 2.0742895409930497,
+                "underfill": 2.5019536670297384,
+                "underfillDomain": 2.0778874589595944
+              }
+            },
+            "peakRssBytes": 80052224,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 3.917142748832703e-06,
+              "cacheSeconds": 1.7504207789897919e-06,
+              "inputPreparationSeconds": 0.052380084060132504,
+              "processExecutionSeconds": 2.501962625887245,
+              "snapshotSeconds": 0.05688941688276827,
+              "kernelSeconds": 2.6115443750750273
+            }
+          },
+          {
+            "seconds": {
+              "total": 7.24688750016503,
+              "kernel": 2.6139443751890212,
+              "schematic": 4.62913079210557
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.05752245825715363,
+                "underfillRegion": 0.42527795885689557,
+                "validation": 4.357852583983913,
+                "polygonConstruction": 2.0745920829940587,
+                "underfill": 2.503353582927957,
+                "underfillDomain": 2.0780756240710616
+              }
+            },
+            "peakRssBytes": 78610432,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 2.084067091345787e-06,
+              "cacheSeconds": 1.375097781419754e-06,
+              "inputPreparationSeconds": 0.05249637505039573,
+              "processExecutionSeconds": 2.5033632500562817,
+              "snapshotSeconds": 0.057753459084779024,
+              "kernelSeconds": 2.6139295829925686
+            }
+          }
+        ]
+      },
+      "after": {
+        "medianSeconds": {
+          "total": 2.7937809580471367,
+          "kernel": 0.5362097078468651,
+          "schematic": 2.253089000005275
+        },
+        "medianPolygonWork": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 2.6670750230550766e-06,
+          "snapshot": 0.05305958376266062,
+          "underfill": 0.4325068749021739,
+          "underfillDomain": 0.003273874754086137,
+          "underfillRegion": 0.42923300014808774,
+          "validation": 0
+        },
+        "medianPeakRssBytes": 77578240,
+        "runs": [
+          {
+            "seconds": {
+              "total": 2.7937809580471367,
+              "kernel": 0.5363100829999894,
+              "schematic": 2.253089000005275
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.05226154113188386,
+                "underfillRegion": 0.4294747500680387,
+                "polygonConstruction": 2.6670750230550766e-06,
+                "underfill": 0.43275837507098913,
+                "validation": 0,
+                "underfillDomain": 0.00328362500295043
+              }
+            },
+            "peakRssBytes": 78282752,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 1.5420373529195786e-06,
+              "cacheSeconds": 1.2079253792762756e-06,
+              "inputPreparationSeconds": 0.05070683383382857,
+              "processExecutionSeconds": 0.43278141715563834,
+              "snapshotSeconds": 0.05249554105103016,
+              "kernelSeconds": 0.5362956251483411
+            }
+          },
+          {
+            "seconds": {
+              "total": 2.798276707995683,
+              "kernel": 0.5362097078468651,
+              "schematic": 2.257774665951729
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.05305958376266062,
+                "underfillRegion": 0.42923300014808774,
+                "polygonConstruction": 2.4579931050539017e-06,
+                "underfill": 0.4325068749021739,
+                "validation": 0,
+                "underfillDomain": 0.003273874754086137
+              }
+            },
+            "peakRssBytes": 77578240,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 1.8330756574869156e-06,
+              "cacheSeconds": 1.4579854905605316e-06,
+              "inputPreparationSeconds": 0.05002745799720287,
+              "processExecutionSeconds": 0.43251533317379653,
+              "snapshotSeconds": 0.05331225018016994,
+              "kernelSeconds": 0.5361947920173407
+            }
+          },
+          {
+            "seconds": {
+              "total": 2.7836374999023974,
+              "kernel": 0.5338442500215024,
+              "schematic": 2.2454269169829786
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.05359083414077759,
+                "underfillRegion": 0.42719999980181456,
+                "polygonConstruction": 3.3748801797628403e-06,
+                "underfill": 0.4304537500720471,
+                "validation": 0,
+                "underfillDomain": 0.0032537502702325583
+              }
+            },
+            "peakRssBytes": 77348864,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 2.1671876311302185e-06,
+              "cacheSeconds": 1.4998950064182281e-06,
+              "inputPreparationSeconds": 0.04922458413057029,
+              "processExecutionSeconds": 0.43046270892955363,
+              "snapshotSeconds": 0.05382491694763303,
+              "kernelSeconds": 0.5338317090645432
+            }
+          }
+        ]
+      },
+      "exactOutputMatch": true,
+      "outputHashes": {
+        "geometry": "b8e604e767c6913c0b4be8d766f7a18b51f93406d0a82897ac8a4b1fdcca09c5",
+        "provenance": "8cf2ed4a7c3e31a89ab4014fd555f112e8d3e9edc836aa1ec656e82ab641bd4b",
+        "warnings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "schematic": "13dd468cdd82b43428380733cb3887f4af1b87395e5da30fe2aff6c98d2ba300"
+      }
+    },
+    "synthetic-cold": {
+      "before": {
+        "medianSeconds": {
+          "total": 7.307536167092621,
+          "kernel": 2.6592309169936925,
+          "schematic": 4.645860916934907
+        },
+        "medianPolygonWork": {
+          "validationCalls": 2,
+          "fullValidations": 2,
+          "loops": 970,
+          "vertices": 4600
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 2.0726483329199255,
+          "snapshot": 0.0573766240850091,
+          "underfill": 2.504155332921073,
+          "underfillDomain": 2.0757077909074724,
+          "underfillRegion": 0.42765699978917837,
+          "validation": 4.351940293097869
+        },
+        "medianPeakRssBytes": 81707008,
+        "runs": [
+          {
+            "seconds": {
+              "total": 7.274587500141934,
+              "kernel": 2.6592309169936925,
+              "schematic": 4.61158804083243
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.0573766240850091,
+                "underfillRegion": 0.42844754201360047,
+                "validation": 4.337432415923104,
+                "polygonConstruction": 2.0726483329199255,
+                "underfill": 2.504155332921073,
+                "underfillDomain": 2.0757077909074724
+              }
+            },
+            "peakRssBytes": 82001920,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.006053166929632425,
+              "cacheSeconds": 0.038830000907182693,
+              "inputPreparationSeconds": 0.05219441815279424,
+              "processExecutionSeconds": 2.5041685418691486,
+              "snapshotSeconds": 0.05762316705659032,
+              "kernelSeconds": 2.6592141250148416
+            }
+          },
+          {
+            "seconds": {
+              "total": 7.307536167092621,
+              "kernel": 2.6578969589900225,
+              "schematic": 4.645860916934907
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.057224248768761754,
+                "underfillRegion": 0.42765699978917837,
+                "validation": 4.351940293097869,
+                "polygonConstruction": 2.0719672909472138,
+                "underfill": 2.502724374877289,
+                "underfillDomain": 2.0750673750881106
+              }
+            },
+            "peakRssBytes": 81428480,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.005947416182607412,
+              "cacheSeconds": 0.0390262920409441,
+              "inputPreparationSeconds": 0.05238570808432996,
+              "processExecutionSeconds": 2.502738625044003,
+              "snapshotSeconds": 0.05745820887386799,
+              "kernelSeconds": 2.6578822499141097
+            }
+          },
+          {
+            "seconds": {
+              "total": 7.53966104099527,
+              "kernel": 2.6610551660414785,
+              "schematic": 4.8747449580114335
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.05774483294226229,
+                "underfillRegion": 0.42591145797632635,
+                "validation": 4.604668207000941,
+                "polygonConstruction": 2.075659333029762,
+                "underfill": 2.504633499775082,
+                "underfillDomain": 2.0787220417987555
+              }
+            },
+            "peakRssBytes": 81707008,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.00601791706867516,
+              "cacheSeconds": 0.039128709118813276,
+              "inputPreparationSeconds": 0.052933125058189034,
+              "processExecutionSeconds": 2.504647374851629,
+              "snapshotSeconds": 0.05798737611621618,
+              "kernelSeconds": 2.661037541925907
+            }
+          }
+        ]
+      },
+      "after": {
+        "medianSeconds": {
+          "total": 2.824710624990985,
+          "kernel": 0.5795386249665171,
+          "schematic": 2.2426541671156883
+        },
+        "medianPolygonWork": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 2.2079329937696457e-06,
+          "snapshot": 0.05315029318444431,
+          "underfill": 0.4298380420077592,
+          "underfillDomain": 0.003240999998524785,
+          "underfillRegion": 0.4266622909344733,
+          "validation": 0
+        },
+        "medianPeakRssBytes": 80134144,
+        "runs": [
+          {
+            "seconds": {
+              "total": 2.8236417081207037,
+              "kernel": 0.5762741251382977,
+              "schematic": 2.2426541671156883
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.052691416814923286,
+                "underfillRegion": 0.42466533300466835,
+                "polygonConstruction": 2.2079329937696457e-06,
+                "underfill": 0.427931624930352,
+                "validation": 0,
+                "underfillDomain": 0.0032662919256836176
+              }
+            },
+            "peakRssBytes": 79183872,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.005994790932163596,
+              "cacheSeconds": 0.039855668088421226,
+              "inputPreparationSeconds": 0.0491688740439713,
+              "processExecutionSeconds": 0.42794033302925527,
+              "snapshotSeconds": 0.0529442906845361,
+              "kernelSeconds": 0.5762578330468386
+            }
+          },
+          {
+            "seconds": {
+              "total": 2.8531159579288214,
+              "kernel": 0.5796646249946207,
+              "schematic": 2.268785791937262
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.05315029318444431,
+                "underfillRegion": 0.42675362480804324,
+                "polygonConstruction": 2.2079329937696457e-06,
+                "underfill": 0.429994624806568,
+                "validation": 0,
+                "underfillDomain": 0.003240999998524785
+              }
+            },
+            "peakRssBytes": 80134144,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.006095084128901362,
+              "cacheSeconds": 0.0396589576266706,
+              "inputPreparationSeconds": 0.05016362410970032,
+              "processExecutionSeconds": 0.4300036251079291,
+              "snapshotSeconds": 0.05339770810678601,
+              "kernelSeconds": 0.5796478339470923
+            }
+          },
+          {
+            "seconds": {
+              "total": 2.824710624990985,
+              "kernel": 0.5795386249665171,
+              "schematic": 2.240375333931297
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.05318924970924854,
+                "underfillRegion": 0.4266622909344733,
+                "polygonConstruction": 2.0421575754880905e-06,
+                "underfill": 0.4298380420077592,
+                "validation": 0,
+                "underfillDomain": 0.0031757510732859373
+              }
+            },
+            "peakRssBytes": 80756736,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.006044498877599835,
+              "cacheSeconds": 0.03992879227735102,
+              "inputPreparationSeconds": 0.049955999944359064,
+              "processExecutionSeconds": 0.42984683299437165,
+              "snapshotSeconds": 0.053434459026902914,
+              "kernelSeconds": 0.5795205829199404
+            }
+          }
+        ]
+      },
+      "exactOutputMatch": true,
+      "outputHashes": {
+        "geometry": "b8e604e767c6913c0b4be8d766f7a18b51f93406d0a82897ac8a4b1fdcca09c5",
+        "provenance": "8cf2ed4a7c3e31a89ab4014fd555f112e8d3e9edc836aa1ec656e82ab641bd4b",
+        "warnings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "schematic": "13dd468cdd82b43428380733cb3887f4af1b87395e5da30fe2aff6c98d2ba300"
+      }
+    },
+    "synthetic-warm": {
+      "before": {
+        "medianSeconds": {
+          "total": 7.329006292158738,
+          "kernel": 2.6635740420315415,
+          "schematic": 4.616454500006512
+        },
+        "medianPolygonWork": {
+          "validationCalls": 2,
+          "fullValidations": 2,
+          "loops": 970,
+          "vertices": 4600
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 2.0769171670544893,
+          "snapshot": 0.057937624864280224,
+          "underfill": 2.508678042097017,
+          "underfillDomain": 2.0800430001690984,
+          "underfillRegion": 0.4294327499810606,
+          "validation": 4.3646714999340475
+        },
+        "medianPeakRssBytes": 84312064,
+        "runs": [
+          {
+            "seconds": {
+              "total": 7.368602875154465,
+              "kernel": 2.7483172500506043,
+              "schematic": 4.616454500006512
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.06057325121946633,
+                "underfillRegion": 0.4439242500811815,
+                "validation": 4.403650750173256,
+                "polygonConstruction": 2.1374583339784294,
+                "underfill": 2.584661667002365,
+                "underfillDomain": 2.1407374169211835
+              }
+            },
+            "peakRssBytes": 80740352,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.006271000020205975,
+              "cacheSeconds": 0.04012754186987877,
+              "inputPreparationSeconds": 0.05593237513676286,
+              "processExecutionSeconds": 2.584673582809046,
+              "snapshotSeconds": 0.06081966799683869,
+              "kernelSeconds": 2.7482994999736547
+            }
+          },
+          {
+            "seconds": {
+              "total": 7.261348084080964,
+              "kernel": 2.655069084139541,
+              "schematic": 4.602494416059926
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.057937624864280224,
+                "underfillRegion": 0.4294327499810606,
+                "validation": 4.320936417207122,
+                "polygonConstruction": 2.0667977910488844,
+                "underfill": 2.499284249963239,
+                "underfillDomain": 2.069851499982178
+              }
+            },
+            "peakRssBytes": 84312064,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.006012458121404052,
+              "cacheSeconds": 0.039010665845125914,
+              "inputPreparationSeconds": 0.05224245693534613,
+              "processExecutionSeconds": 2.4992946670390666,
+              "snapshotSeconds": 0.05817087506875396,
+              "kernelSeconds": 2.6550546248909086
+            }
+          },
+          {
+            "seconds": {
+              "total": 7.329006292158738,
+              "kernel": 2.6635740420315415,
+              "schematic": 4.6617168330121785
+            },
+            "polygonMetrics": {
+              "validationCalls": 2,
+              "fullValidations": 2,
+              "loops": 970,
+              "vertices": 4600,
+              "seconds": {
+                "snapshot": 0.05721645872108638,
+                "underfillRegion": 0.4286350419279188,
+                "validation": 4.3646714999340475,
+                "polygonConstruction": 2.0769171670544893,
+                "underfill": 2.508678042097017,
+                "underfillDomain": 2.0800430001690984
+              }
+            },
+            "peakRssBytes": 84901888,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.005955998785793781,
+              "cacheSeconds": 0.038945001317188144,
+              "inputPreparationSeconds": 0.05219716578722,
+              "processExecutionSeconds": 2.508688917150721,
+              "snapshotSeconds": 0.05744983279146254,
+              "kernelSeconds": 2.6635587089695036
+            }
+          }
+        ],
+        "warm": {
+          "medianKernelSeconds": 0.005943999858573079,
+          "medianTotalSeconds": 0.08642833400517702,
+          "validationCalls": [
+            1,
+            1,
+            1
+          ],
+          "fullValidations": [
+            0,
+            0,
+            0
+          ],
+          "executedSteps": [
+            0,
+            0,
+            0
+          ],
+          "reusedSteps": [
+            2,
+            2,
+            2
+          ]
+        }
+      },
+      "after": {
+        "medianSeconds": {
+          "total": 2.8405414579901844,
+          "kernel": 0.581846124958247,
+          "schematic": 2.2536189169622958
+        },
+        "medianPolygonWork": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0
+        },
+        "medianPolygonSeconds": {
+          "polygonConstruction": 2.208864316344261e-06,
+          "snapshot": 0.053927875123918056,
+          "underfill": 0.43120658304542303,
+          "underfillDomain": 0.0032219160348176956,
+          "underfillRegion": 0.42798466701060534,
+          "validation": 0
+        },
+        "medianPeakRssBytes": 83492864,
+        "runs": [
+          {
+            "seconds": {
+              "total": 2.8460005840752274,
+              "kernel": 0.5808540000580251,
+              "schematic": 2.260487792082131
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.053927875123918056,
+                "underfillRegion": 0.42768604191951454,
+                "polygonConstruction": 1.9168946892023087e-06,
+                "underfill": 0.4310666660312563,
+                "validation": 0,
+                "underfillDomain": 0.0033806241117417812
+              }
+            },
+            "peakRssBytes": 83492864,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.0059443749487400055,
+              "cacheSeconds": 0.039445542031899095,
+              "inputPreparationSeconds": 0.04986979207023978,
+              "processExecutionSeconds": 0.43108137510716915,
+              "snapshotSeconds": 0.05416591721586883,
+              "kernelSeconds": 0.5808409999590367
+            }
+          },
+          {
+            "seconds": {
+              "total": 2.8405414579901844,
+              "kernel": 0.5823026248253882,
+              "schematic": 2.2536189169622958
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.05330370808951557,
+                "underfillRegion": 0.42881408403627574,
+                "polygonConstruction": 2.375105395913124e-06,
+                "underfill": 0.432019375031814,
+                "validation": 0,
+                "underfillDomain": 0.0032052909955382347
+              }
+            },
+            "peakRssBytes": 81739776,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.006078874925151467,
+              "cacheSeconds": 0.03940245881676674,
+              "inputPreparationSeconds": 0.05089991679415107,
+              "processExecutionSeconds": 0.43202937487512827,
+              "snapshotSeconds": 0.053551374934613705,
+              "kernelSeconds": 0.5822865411173552
+            }
+          },
+          {
+            "seconds": {
+              "total": 2.839167083147913,
+              "kernel": 0.581846124958247,
+              "schematic": 2.2525871249381453
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.05453629186376929,
+                "underfillRegion": 0.42798466701060534,
+                "polygonConstruction": 2.208864316344261e-06,
+                "underfill": 0.43120658304542303,
+                "validation": 0,
+                "underfillDomain": 0.0032219160348176956
+              }
+            },
+            "peakRssBytes": 83836928,
+            "execution": {
+              "executedSteps": 2,
+              "reusedSteps": 0,
+              "identitySeconds": 0.005968375131487846,
+              "cacheSeconds": 0.03966962522827089,
+              "inputPreparationSeconds": 0.04985270882025361,
+              "processExecutionSeconds": 0.4312175000086427,
+              "snapshotSeconds": 0.0547887918073684,
+              "kernelSeconds": 0.5818311672192067
+            }
+          }
+        ],
+        "warm": {
+          "medianKernelSeconds": 0.005906999809667468,
+          "medianTotalSeconds": 0.08408558391965926,
+          "validationCalls": [
+            0,
+            0,
+            0
+          ],
+          "fullValidations": [
+            0,
+            0,
+            0
+          ],
+          "executedSteps": [
+            0,
+            0,
+            0
+          ],
+          "reusedSteps": [
+            2,
+            2,
+            2
+          ]
+        }
+      },
+      "exactOutputMatch": true,
+      "outputHashes": {
+        "geometry": "b8e604e767c6913c0b4be8d766f7a18b51f93406d0a82897ac8a4b1fdcca09c5",
+        "provenance": "8cf2ed4a7c3e31a89ab4014fd555f112e8d3e9edc836aa1ec656e82ab641bd4b",
+        "warnings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "schematic": "13dd468cdd82b43428380733cb3887f4af1b87395e5da30fe2aff6c98d2ba300"
+      }
+    }
+  },
+  "normalizationChanges": {
+    "before": [
+      {
+        "explicitIds": false,
+        "closingPoint": [
+          0,
+          0,
+          0
+        ],
+        "ids": [
+          "container:root-container:f51530db5182",
+          "body:root-container-body-0:8fe25c686e2b"
+        ],
+        "geometryHash": "aaa787b7c540b0601dbd2f6b09618b85cb95306f87b92fb104e991b581ee2070",
+        "savedVertexCount": 5
+      },
+      {
+        "explicitIds": false,
+        "closingPoint": [
+          1e-06,
+          0,
+          0
+        ],
+        "ids": [
+          "container:root-container:f51530db5182",
+          "body:root-container-body-0:ba988e9a32c6"
+        ],
+        "geometryHash": "4cf79dd3384eb49cd01f6c6017f1bbbff3bc251890e667fca8df9547499339a6",
+        "savedVertexCount": 5
+      },
+      {
+        "explicitIds": true,
+        "closingPoint": [
+          0,
+          0,
+          0
+        ],
+        "ids": [
+          "explicit-root",
+          "explicit-body"
+        ],
+        "geometryHash": "1b4871953b6b0fd73316c5966b473c6aa425096d3933d244f6b1d58ae44fffbf",
+        "savedVertexCount": 5
+      },
+      {
+        "explicitIds": true,
+        "closingPoint": [
+          1e-06,
+          0,
+          0
+        ],
+        "ids": [
+          "explicit-root",
+          "explicit-body"
+        ],
+        "geometryHash": "b17c984a5f7c70bfcb0bc0febe91064048e9e0af36b9cd38dd85351a48a47c6e",
+        "savedVertexCount": 5
+      }
+    ],
+    "after": [
+      {
+        "explicitIds": false,
+        "closingPoint": [
+          0,
+          0,
+          0
+        ],
+        "ids": [
+          "container:root-container:f51530db5182",
+          "body:root-container-body-0:a14b6a229f41"
+        ],
+        "geometryHash": "3ae7c2c547404ca7836759098d35060cec1032c4853085bcbda26f9064b39433",
+        "savedVertexCount": 4
+      },
+      {
+        "explicitIds": false,
+        "closingPoint": [
+          1e-06,
+          0,
+          0
+        ],
+        "ids": [
+          "container:root-container:f51530db5182",
+          "body:root-container-body-0:a14b6a229f41"
+        ],
+        "geometryHash": "3ae7c2c547404ca7836759098d35060cec1032c4853085bcbda26f9064b39433",
+        "savedVertexCount": 4
+      },
+      {
+        "explicitIds": true,
+        "closingPoint": [
+          0,
+          0,
+          0
+        ],
+        "ids": [
+          "explicit-root",
+          "explicit-body"
+        ],
+        "geometryHash": "c8de824fb8275b49bdef4c8d32bf7089a0fd1d279f590398d9207d0f9991d444",
+        "savedVertexCount": 4
+      },
+      {
+        "explicitIds": true,
+        "closingPoint": [
+          1e-06,
+          0,
+          0
+        ],
+        "ids": [
+          "explicit-root",
+          "explicit-body"
+        ],
+        "geometryHash": "c8de824fb8275b49bdef4c8d32bf7089a0fd1d279f590398d9207d0f9991d444",
+        "savedVertexCount": 4
+      }
+    ],
+    "expected": "Repeated closure (exact or within existing tolerance) is removed before ID generation. Explicit IDs are preserved; derived IDs and hashes can change. No database rewrite."
+  },
+  "validation": {
+    "kernel": {
+      "tests": 241,
+      "status": "passed"
+    },
+    "steps": {
+      "tests": 53,
+      "status": "passed"
+    },
+    "schematic": {
+      "tests": 97,
+      "status": "passed"
+    },
+    "meshControl": {
+      "tests": 85,
+      "status": "passed"
+    },
+    "generators": {
+      "tests": 31,
+      "status": "passed"
+    },
+    "api": {
+      "fullSuiteTests": 293,
+      "additionalConsumerSuiteTests": 5,
+      "status": "4 pre-existing failures and 1 pre-existing error in full suite; polygon consumer suite passed",
+      "preExisting": [
+        "Two CDB API assertions depend on a different installed mesher behavior",
+        "Joint CDB import: mesher.process_flow.pipeline is unavailable",
+        "Legacy flow migration version 11 and 13 digest assertions (same mismatch before/after)"
+      ]
+    },
+    "docs": "passed",
+    "goldenExample": "passed",
+    "diffWhitespace": "passed"
+  },
+  "performanceAcceptance": {
+    "allColdPreviewsWithinFivePercent": true,
+    "allInternalFullValidationsZero": true,
+    "warmTargetsWithinFivePercent": true
+  }
+}

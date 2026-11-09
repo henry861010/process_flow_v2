@@ -241,7 +241,7 @@ class JointTests(unittest.TestCase):
                             if catalog:
                                 state = ProcessGeometryState.from_structure(initial)
                             else:
-                                main_artifact = main_artifact.with_runtime_state(state)
+                                main_artifact = GeometryArtifact.from_state(state, source=main_artifact)
                             footprint = state.process_footprint()
                             execute_pnp(context(state, {"placements":[target]}, main_artifact,
                                                 GeometryArtifact.from_structure(source)))
@@ -314,7 +314,7 @@ class JointTests(unittest.TestCase):
         self.assertEqual(catalog_state.to_geometry_structure()["root"]["children"][0]["bodies"][0]["geometry"]["bottom_left"][2], 135)
         runtime = main_state(None)
         runtime.set_cursor_z(110)
-        execute_pnp(context(runtime, {"placements":[placement()]}, GeometryArtifact.from_structure(runtime.to_geometry_structure()).with_runtime_state(runtime), source))
+        execute_pnp(context(runtime, {"placements":[placement()]}, GeometryArtifact.from_state(runtime), source))
         self.assertEqual(runtime.cursor_z(), 110)
         self.assertEqual(runtime.to_geometry_structure()["root"]["children"][0]["bodies"][0]["geometry"]["bottom_left"][2], 125)
 

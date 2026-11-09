@@ -162,6 +162,24 @@ def loop_area(loop):
 
 
 class MergedDieTopCornerTests(unittest.TestCase):
+    def test_generated_polygon_rules_and_api_check_do_not_revalidate_topology(self):
+        from process_flow_kernel.utils import polygon
+        from process_flow_mesh_control.validation import _validate_generated_mesh_control
+        state = ProcessGeometryState.from_structure(layout([
+            die("origin", "soc", 0, 0), die("right", "soc", 1000, 0),
+            die("upper", "soc", 0, 1000),
+        ]))
+        controls, details = [], []
+        with patch.object(polygon, "validate_polygon_loops", side_effect=AssertionError("mesh revalidation")):
+            append_die_top_corner_controls(controls, details, state, state.find_geometry(kind="container"),
+                                           half_extent=25, element_size=5, merge_gap=2000)
+            document = build_mesh_control(controls)
+            _validate_generated_mesh_control(document, state=state)
+        self.assertTrue(any(c["region"]["type"] == "polygon" for c in controls))
+        with patch.object(polygon, "validate_polygon_loops", wraps=polygon.validate_polygon_loops) as validate:
+            validate_mesh_control(document, state=state)
+        self.assertEqual(validate.call_count, sum(c["region"]["type"] == "polygon" for c in controls))
+
     def apply(self, children):
         geometry = layout(children)
         state = ProcessGeometryState.from_structure(geometry)

@@ -1,20 +1,29 @@
 from __future__ import annotations
 
-from copy import deepcopy
+from ..serialization.immutable import freeze, thaw
 
 from .bump_stage import BumpStage
 from .bump_operations import placement_bottom_z, plan_bump_joint
 from .container import Container
 from .features import Body, Bump, Circuit, Via
-from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry
+from .geometry import BoxGeometry, ConeGeometry, CylinderGeometry, PolygonGeometry, PolygonSnapshot
 from .region import Region, TYPE_DIE, TYPE_TARGET
 from .semantic_keys import container_key_matches, validate_body_key, validate_container_key
 from .provenance import GeometryProvenance, copy_node_provenance, structure_nodes
-from ..serialization.schema import DEFAULT_UNIT_SYSTEM, GEOMETRY_SCHEMA_VERSION, deep_copy, normalize_geometry_structure
+from ..serialization.schema import DEFAULT_UNIT_SYSTEM, GEOMETRY_SCHEMA_VERSION, deep_copy, stable_id
 from ..utils.math_utils import math
 
 ROOT_SCOPE = "root"
 
+
+class _PolygonFootprint(dict):
+    """Private footprint with canonical XY and a shared runtime polygon."""
+    def __init__(self, polygon):
+        self.polygon = polygon if all(p[2] == 0 for loop in polygon.loops for p in loop) else polygon.at_z(0)
+        super().__init__(type="polygon", polygons=[[list(p[:2]) for p in loop] for loop in self.polygon.loops])
+
+    def __deepcopy__(self, memo):
+        return _PolygonFootprint(self.polygon)
 
 class ProcessGeometryState:
     def __init__(
@@ -53,9 +62,18 @@ class ProcessGeometryState:
     @classmethod
     def from_structure(cls, payload, options=None):
         options = options or {}
-        structure = normalize_geometry_structure(payload)
-        _validate_structure_ids(structure["root"])
-        root = _container_from_payload(structure["root"])
+        from ..serialization.polygon_hydration import parse_polygon_structure
+        structure, polygons = parse_polygon_structure(payload)
+        return cls._from_polygon_structure(structure, polygons, options)
+
+    @classmethod
+    def _from_polygon_structure(cls, structure, polygons, options=None):
+        options = options or {}
+        def geometry(payload, node_id):
+            if node_id in polygons:
+                return PolygonGeometry(polygons[node_id], payload["thk"])
+            return _geometry_from_payload(thaw(payload))
+        root = _container_from_payload(structure["root"], geometry_loader=geometry)
         cursor_option = options.get("cursor_z", options.get("cursorZ", "geometryTop"))
         cursor_z = root.z_max() if cursor_option == "geometryTop" else cursor_option
         footprint = _resolve_restore_footprint(root, options.get("footprint"))
@@ -70,51 +88,12 @@ class ProcessGeometryState:
             state.set_provenance(options["provenance"])
         return state
 
-    def clone(self):
-        # Serialization assigns IDs to newly created nodes. Freeze those same
-        # IDs in the copy, as hydration did, so later transforms cannot change
-        # their identity. The internal geometry has already been validated.
-        structure = self.to_geometry_structure()
-        _validate_structure_ids(structure["root"])
-        seen_objects = set()
-        shared_objects = False
-        for node in self._provenance_nodes():
-            self._ensure_node_provenance(node)
-            geometry = getattr(node, "_geometry", None)
-            for owned in (node, geometry):
-                if owned is not None:
-                    if id(owned) in seen_objects:
-                        shared_objects = True
-                    seen_objects.add(id(owned))
-            if geometry is not None and _has_shared_mutable_data(vars(geometry), seen_objects):
-                shared_objects = True
+    def snapshot(self):
+        from .runtime_snapshot import RuntimeGeometrySnapshot
+        return RuntimeGeometrySnapshot.capture(self)
 
-        if shared_objects:
-            # Manually assembled geometry can reuse features or coordinate
-            # lists, including a polygon's closing point. Hydration separates
-            # serialized occurrences; deepcopy would preserve their aliases.
-            cloned = ProcessGeometryState.from_structure(
-                structure,
-                {"cursor_z": self._cursor_z, "footprint": self._process_footprint,
-                 "provenance": self.provenance()},
-            )
-        else:
-            # A source placed with clone=False can have a parent in another
-            # state. Exclude it before copying, including all of its siblings.
-            parent = self._root.parent()
-            root = deepcopy(self._root, {} if parent is None else {id(parent): None})
-            cloned = ProcessGeometryState(
-                root=root,
-                cursor_z=self._cursor_z,
-                process_footprint=self._process_footprint,
-                schema_version=self._schema_version,
-                unit_system=self._unit_system,
-            )
-        for node, payload in zip(cloned._provenance_nodes(), structure_nodes(structure)):
-            node._structure_id = payload["id"]
-        cloned._provenance_step = self._provenance_step
-        cloned._provenance_ordinal = self._provenance_ordinal
-        return cloned
+    def clone(self):
+        return self.snapshot().restore()
 
     def begin_provenance_step(self, step_ref_id, program):
         """Set neutral execution metadata for objects created by the next step."""
@@ -123,12 +102,29 @@ class ProcessGeometryState:
         self._provenance_step = (step_ref_id, program)
         return self
 
+    def _node_ids(self):
+        """Use the serialization identity rules without serializing fixed nodes."""
+        def visit(container, path):
+            key = container.key()
+            container_path = [*path, "container" if key is None else f"container:{key}"]
+            node_id = container._structure_id or stable_id(
+                "container", container_path, None if key is None else {"key": key})
+            yield container, node_id
+            for kind, features in (("body", container.bodies()), ("via", container.vias()),
+                                   ("circuit", container.circuits()), ("bump", container.bumps())):
+                for index, feature in enumerate(features):
+                    yield feature, feature._structure_id or stable_id(
+                        kind, [*container_path, f"{kind}:{index}"], feature.json())
+            for index, child in enumerate(container.children()):
+                label = f"child:{index}" if child.key() is None else f"child:{index}:{child.key()}"
+                yield from visit(child, [*container_path, label])
+        yield from visit(self._root, ["root"])
+
     def provenance(self) -> GeometryProvenance:
-        """Resolve lineage against the same IDs used by geometry serialization."""
         result = {}
-        for node, payload in zip(self._provenance_nodes(), structure_nodes(self.to_geometry_structure())):
+        for node, node_id in self._node_ids():
             self._ensure_node_provenance(node)
-            result[payload["id"]] = deep_copy(node._provenance)
+            result[node_id] = thaw(node._provenance)
         return result
 
     def _ensure_node_provenance(self, node):
@@ -139,10 +135,10 @@ class ProcessGeometryState:
 
     def set_provenance(self, provenance):
         """Hydrate an optional sidecar; physical structure remains unchanged."""
-        for node, payload in zip(self._provenance_nodes(), structure_nodes(self.to_geometry_structure())):
-            entry = provenance.get(payload["id"])
+        for node, node_id in self._node_ids():
+            entry = provenance.get(node_id)
             if entry is not None:
-                node._provenance = deep_copy(entry)
+                node._provenance = freeze(entry)
         return self
 
     def _provenance_nodes(self, container=None):
@@ -161,7 +157,7 @@ class ProcessGeometryState:
                 "ordinal": self._provenance_ordinal,
             }
             self._provenance_ordinal += 1
-        entry = deep_copy(getattr(node, "_provenance", {"sources": [], "createdBy": None}))
+        entry = dict(getattr(node, "_provenance", {"sources": (), "createdBy": None}))
         if creation is not None:
             entry["createdBy"] = creation
         node._provenance = entry
@@ -184,7 +180,7 @@ class ProcessGeometryState:
         kinds = {"container", "body", "via", "circuit", "bump"}
         if kind is not None and kind not in kinds:
             raise ValueError(f"Unknown geometry kind: {kind}")
-        nodes = _geometry_node_summaries(self.to_geometry_structure()["root"])
+        nodes = _geometry_node_summaries(self.to_geometry_structure()["root"], iter(self._provenance_nodes()))
         return [
             node for node in nodes
             if (kind is None or node["kind"] == kind)
@@ -242,14 +238,17 @@ class ProcessGeometryState:
         return self.set_process_footprint({"type": "polygon", "polygons": polygons})
 
     def process_footprint(self):
-        return None if self._process_footprint is None else deep_copy(self._process_footprint)
+        return None if self._process_footprint is None else deep_copy(dict(self._process_footprint))
 
     def require_process_footprint(self):
+        return deep_copy(dict(self._require_runtime_footprint()))
+
+    def _require_runtime_footprint(self):
         if self._process_footprint is None:
             raise ValueError(
                 "process footprint is required. Call initialize...Layer or set_process_footprint first."
             )
-        return deep_copy(self._process_footprint)
+        return self._process_footprint
 
     def derive_process_footprint(self, *, from_="largestRootBody", scope=ROOT_SCOPE):
         self._process_footprint = _derive_footprint_from_container(self._resolve_scope(scope), from_)
@@ -371,7 +370,7 @@ class ProcessGeometryState:
         layer_thickness = _positive_number(thickness, "thickness")
         bottom_z = _finite_number(self._cursor_z if z is None else z, "z")
         geometry = _geometry_from_footprint(
-            self.require_process_footprint(),
+            self._require_runtime_footprint(),
             bottom_z,
             layer_thickness,
         ).copy_with_xy_inset(_finite_number(xy_inset, "xyInset"))
@@ -550,7 +549,7 @@ class ProcessGeometryState:
     def add_via_below_cursor(self, *, material, density, thickness, direction="-z", scope=ROOT_SCOPE, koz=0):
         via_thickness = _positive_number(thickness, "thickness")
         geometry = _geometry_from_footprint(
-            self.require_process_footprint(),
+            self._require_runtime_footprint(),
             self._cursor_z - via_thickness,
             via_thickness,
         )
@@ -569,7 +568,7 @@ class ProcessGeometryState:
     def add_via_above_cursor(self, *, material, density, thickness, direction="+z", scope=ROOT_SCOPE, koz=0):
         via_thickness = _positive_number(thickness, "thickness")
         geometry = _geometry_from_footprint(
-            self.require_process_footprint(),
+            self._require_runtime_footprint(),
             self._cursor_z,
             via_thickness,
         )
@@ -602,7 +601,7 @@ class ProcessGeometryState:
         return self._add_feature_object(
             Circuit(
                 _geometry_from_footprint(
-                    self.require_process_footprint(),
+                    self._require_runtime_footprint(),
                     self._cursor_z,
                     circuit_thickness,
                 ),
@@ -641,7 +640,7 @@ class ProcessGeometryState:
     ):
         bump_thickness = _positive_number(thickness, "thickness")
         geometry = _geometry_from_footprint(
-            self.require_process_footprint(),
+            self._require_runtime_footprint(),
             self._cursor_z,
             bump_thickness,
         )
@@ -687,7 +686,7 @@ class ProcessGeometryState:
             bumps = _recursive_bumps(child)
             if len(bumps) == 0:
                 continue
-            bump_range = _feature_range(bumps)
+            bump_range = {"zMin": min(b.z_min() for b in bumps), "zMax": max(b.z_max() for b in bumps)}
             if bump_range["zMax"] <= bump_range["zMin"]:
                 continue
             if _body_covers_underfill_range(child, bump_range, bounds):
@@ -728,10 +727,10 @@ class ProcessGeometryState:
             gap_scope.add_body(
                 Body(
                     PolygonGeometry(
-                        [
+                        PolygonSnapshot._from_generated([
                             [[x, y, cursor_z] for x, y in polygon]
                             for polygon in gap_polygons
-                        ],
+                        ]),
                         underfill_thickness,
                     ),
                     underfill_material,
@@ -1242,18 +1241,6 @@ class ProcessGeometryState:
         return counts
 
 
-def _has_shared_mutable_data(value, seen):
-    if isinstance(value, tuple):
-        return any(_has_shared_mutable_data(child, seen) for child in value)
-    if not isinstance(value, (list, dict)):
-        return False
-    if id(value) in seen:
-        return True
-    seen.add(id(value))
-    children = value.values() if isinstance(value, dict) else value
-    return any(_has_shared_mutable_data(child, seen) for child in children)
-
-
 def _validate_structure_ids(root):
     seen = set()
 
@@ -1275,7 +1262,12 @@ def _validate_structure_ids(root):
     visit(root)
 
 
-def _geometry_node_summaries(root):
+def _geometry_node_summaries(root, runtime_nodes):
+    runtime_geometries = {
+        payload["id"]: node._geometry
+        for payload, node in zip(structure_nodes({"root": root}), runtime_nodes, strict=True)
+        if hasattr(node, "_geometry")
+    }
     nodes = []
 
     def visit(container, parent_id=None):
@@ -1300,7 +1292,7 @@ def _geometry_node_summaries(root):
         for field, kind in (("bodies", "body"), ("vias", "via"),
                             ("circuits", "circuit"), ("bumps", "bump")):
             for feature in container.get(field, []):
-                geometry = _geometry_from_payload(feature["geometry"])
+                geometry = runtime_geometries[feature["id"]]
                 feature_bounds = _geometry_bounds(geometry)
                 node = {
                     "kind": kind,
@@ -1332,12 +1324,15 @@ def _geometry_node_summaries(root):
     return nodes
 
 
-def _container_from_payload(container):
+def _container_from_payload(container, *, geometry_loader=None):
+    def load(feature):
+        return (_geometry_from_payload(feature["geometry"]) if geometry_loader is None
+                else geometry_loader(feature["geometry"], feature["id"]))
     result = Container(key=container.get("key"), structure_id=container.get("id"))
     for body in container.get("bodies", []):
         result.add_body(
             Body(
-                _geometry_from_payload(body["geometry"]),
+                load(body),
                 body["material"],
                 body.get("key"),
                 body.get("id"),
@@ -1346,7 +1341,7 @@ def _container_from_payload(container):
     for via in container.get("vias", []):
         result.add_via(
             Via(
-                _geometry_from_payload(via["geometry"]),
+                load(via),
                 via["density"],
                 via["material"],
                 via.get("direction"),
@@ -1358,7 +1353,7 @@ def _container_from_payload(container):
     for circuit in container.get("circuits", []):
         result.add_circuit(
             Circuit(
-                _geometry_from_payload(circuit["geometry"]),
+                load(circuit),
                 circuit["density"],
                 circuit["material"],
                 circuit["koz"],
@@ -1368,7 +1363,7 @@ def _container_from_payload(container):
     for bump in container.get("bumps", []):
         result.add_bump(
             Bump(
-                _geometry_from_payload(bump["geometry"]),
+                load(bump),
                 bump["density"],
                 bump["material"],
                 bump.get("direction"),
@@ -1378,7 +1373,7 @@ def _container_from_payload(container):
             )
         )
     for child in container.get("children", []):
-        result.attach_child(_container_from_payload(child))
+        result.attach_child(_container_from_payload(child, geometry_loader=geometry_loader))
     return result
 
 
@@ -1439,6 +1434,8 @@ def _geometry_from_spec(spec):
 
 
 def _normalize_footprint_spec(footprint):
+    if isinstance(footprint, _PolygonFootprint):
+        return deep_copy(footprint)
     _assert_object(footprint, "footprint")
     footprint_type = footprint.get("type")
     if footprint_type == "box":
@@ -1454,10 +1451,8 @@ def _normalize_footprint_spec(footprint):
             "radius": _positive_number(footprint.get("radius"), "radius"),
         }
     if footprint_type == "polygon":
-        return {
-            "type": "polygon",
-            "polygons": _polygon2(footprint.get("polygons", footprint.get("polys"))),
-        }
+        loops = _polygon2(footprint.get("polygons", footprint.get("polys")))
+        return _PolygonFootprint(PolygonSnapshot.from_external([[[x, y, 0] for x, y in loop] for loop in loops]))
     if footprint_type == "cone":
         return {
             "type": "cone",
@@ -1485,13 +1480,8 @@ def _geometry_from_footprint(footprint, z, thickness):
             thk,
         )
     if footprint_type == "polygon":
-        return PolygonGeometry(
-            [
-                [[point[0], point[1], bottom_z] for point in poly]
-                for poly in footprint["polygons"]
-            ],
-            thk,
-        )
+        data = footprint.polygon if isinstance(footprint, _PolygonFootprint) else _normalize_footprint_spec(footprint).polygon
+        return PolygonGeometry(data.at_z(bottom_z), thk)
     if footprint_type == "cone":
         return ConeGeometry(
             [footprint["center"][0], footprint["center"][1], bottom_z],
@@ -1523,15 +1513,7 @@ def _footprint_from_geometry(geometry):
             }
         )
     if isinstance(geometry, PolygonGeometry):
-        return _normalize_footprint_spec(
-            {
-                "type": "polygon",
-                "polygons": [
-                    [[point[0], point[1]] for point in poly]
-                    for poly in geometry.polygons()
-                ],
-            }
-        )
+        return _PolygonFootprint(geometry.polygon_snapshot())
     if isinstance(geometry, ConeGeometry):
         center = geometry.center()
         return _normalize_footprint_spec(
@@ -1582,7 +1564,7 @@ def _container_bounds(container):
 
     def visit(current):
         for feature in [*current.bodies(), *current.vias(), *current.circuits(), *current.bumps()]:
-            bounds.append(_geometry_bounds(feature.geometry()))
+            bounds.append(feature.bounds())
 
     _walk_container(container, visit)
     if len(bounds) == 0:
@@ -1613,7 +1595,7 @@ def _geometry_bounds(geometry):
             "zMax": geometry.z_max(),
         }
     if isinstance(geometry, PolygonGeometry):
-        nodes = [point for poly in geometry.polygons() for point in poly]
+        nodes = [point for poly in geometry.polygon_snapshot().loops for point in poly]
         return {
             "xMin": min(node[0] for node in nodes),
             "xMax": max(node[0] for node in nodes),
@@ -1739,31 +1721,9 @@ def _xy_points_equal(left, right):
     return math.f_eq(left[0], right[0]) and math.f_eq(left[1], right[1])
 
 
-def _feature_range(features):
-    result = {
-        "xMin": float("inf"),
-        "xMax": float("-inf"),
-        "yMin": float("inf"),
-        "yMax": float("-inf"),
-        "zMin": float("inf"),
-        "zMax": float("-inf"),
-    }
-    for feature in features:
-        bounds = _geometry_bounds(feature.geometry())
-        result = {
-            "xMin": min(result["xMin"], bounds["xMin"]),
-            "xMax": max(result["xMax"], bounds["xMax"]),
-            "yMin": min(result["yMin"], bounds["yMin"]),
-            "yMax": max(result["yMax"], bounds["yMax"]),
-            "zMin": min(result["zMin"], feature.z_min()),
-            "zMax": max(result["zMax"], feature.z_max()),
-        }
-    return result
-
-
 def _body_covers_underfill_range(container, z_range, xy_bounds):
     for body in _recursive_bodies(container):
-        bounds = _geometry_bounds(body.geometry())
+        bounds = body.bounds()
         if (
             math.f_le(bounds["zMin"], z_range["zMin"])
             and math.f_ge(bounds["zMax"], z_range["zMax"])

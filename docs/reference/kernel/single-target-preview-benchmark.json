@@ -1,0 +1,2439 @@
+{
+  "date": "2026-11-09",
+  "baseline": "Task-start workspace archive, including existing uncommitted step-cache/polygon work.",
+  "fixture": {
+    "flowId": "28d906aa9b9a4a0daffbb159c8644f6f",
+    "flowName": "demo2",
+    "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+    "target": "carrier_bond"
+  },
+  "protocol": {
+    "runs": 3,
+    "freshProcessPerRun": true,
+    "stepCache": "cold prefill followed by five distinct warm targets",
+    "database": "read-only SQLite backup; no production database changes",
+    "timingExcludes": [
+      "interpreter/import startup",
+      "correctness hashing/capture",
+      "HTTP transport and browser rendering"
+    ],
+    "deepcopyNote": "Baseline script did not time deepcopy separately; after reports cold, warm and session-hit stages.",
+    "schematicComparison": "Intentional policy change; execution outputs compared exactly and new behavior covered by regressions."
+  },
+  "before": {
+    "summary": {
+      "previewSeconds": 17.069875334156677,
+      "kernelSeconds": 8.485900917090476,
+      "compositionSeconds": 5.990030333166942,
+      "responseBytes": 19405115,
+      "responseSnapshots": 32,
+      "warmPreviewSeconds": 3.743971500080079,
+      "warmTargets": {
+        "grinding_2": 4.127685749903321,
+        "molding_2": 3.8741358330007643,
+        "mr_joint_2": 1.4377371661830693,
+        "pnp_5": 1.6689885000232607,
+        "under_fill": 3.746017166879028
+      },
+      "peakRssBytes": 604602368
+    },
+    "runs": [
+      {
+        "flowId": "28d906aa9b9a4a0daffbb159c8644f6f",
+        "flowName": "demo2",
+        "target": "carrier_bond",
+        "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+        "seconds": 17.069875334156677,
+        "stages": {
+          "prepare_preview_execution": 0.011066208127886057,
+          "kernel": 8.485900917090476,
+          "materialize_preview_snapshots": 9.0685497908853,
+          "plan_flow_schematic": 0.5092582919169217,
+          "bind_schematic_snapshots": 0.2578947499860078,
+          "build_schematic": 6.0856451250147074
+        },
+        "snapshots": 32,
+        "responseBytes": 19405115,
+        "checks": {
+          "geometry": {
+            "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+            "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+            "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+            "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+            "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+            "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+            "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+            "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+            "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+            "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+            "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+            "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+            "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+            "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+            "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+            "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+            "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+            "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+            "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+            "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+            "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+            "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+            "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+            "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+            "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+            "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+            "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+            "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+            "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+            "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+          },
+          "provenance": {
+            "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+            "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+            "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+            "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+            "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+            "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+            "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+            "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+            "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+            "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+            "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+            "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+            "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+            "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+            "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+            "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+            "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+            "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+            "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+            "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+            "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+            "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+            "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+            "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+            "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+            "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+            "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+            "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+            "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+            "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+            "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+            "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+          },
+          "executionWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "schematic": {
+            "tmv": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_7": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_9": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "daf": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "daf_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_6": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_8": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "mr_joint": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "molding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "grinding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "rdl_layer": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "mr_joint_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "under_fill": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "molding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "grinding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "carrier_bond": "ee7dcbe187e79b5cbeeca4fd957bd131fc2917f977c4c2726c2d3e1cca984197"
+          },
+          "schematicWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        },
+        "polygonModule": "/private/tmp/preview-single-target-baseline/packages/kernel-py/src/process_flow_kernel/utils/polygon.py",
+        "polygonCache": null,
+        "stepCacheMode": "warm",
+        "execution": {
+          "executedSteps": 32,
+          "reusedSteps": 0,
+          "identitySeconds": 0.04376420611515641,
+          "cacheSeconds": 2.381629624636844,
+          "inputPreparationSeconds": 2.101761836791411,
+          "processExecutionSeconds": 2.0075902945827693,
+          "snapshotSeconds": 1.9409177510533482,
+          "kernelSeconds": 8.485856874845922
+        },
+        "snapshotMaterializationSeconds": 0.5826488737948239,
+        "polygonMetrics": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0,
+          "seconds": {
+            "snapshot": 1.9306000827345997,
+            "underfillRegion": 1.2105999160557985,
+            "polygonConstruction": 6.7900400608778e-06,
+            "underfill": 1.2294962080195546
+          }
+        },
+        "peakRssBytes": 647839744,
+        "warm": [
+          {
+            "target": "mr_joint_2",
+            "seconds": 1.435758792096749,
+            "stages": {
+              "prepare_preview_execution": 0.008892292156815529,
+              "kernel": 0.023764082929119468,
+              "materialize_preview_snapshots": 0.7739205420948565,
+              "bind_schematic_snapshots": 0.13954745815135539,
+              "build_schematic": 0.16428708308376372
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 24,
+              "identitySeconds": 0.023670833557844162,
+              "cacheSeconds": 2.508563920855522e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.023732583038508892
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 726581248,
+            "targetSchematicHash": "edd54fdd251a56c31c811c88922d759f98211d20b1fea82325523f97c49c7f9a",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "pnp_5",
+            "seconds": 1.6671169579494745,
+            "stages": {
+              "prepare_preview_execution": 0.011010708985850215,
+              "kernel": 0.03056858410127461,
+              "materialize_preview_snapshots": 0.8795370829757303,
+              "bind_schematic_snapshots": 0.16441045887768269,
+              "build_schematic": 0.20045554195530713
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 28,
+              "identitySeconds": 0.03048070939257741,
+              "cacheSeconds": 2.1623214706778526e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030537999933585525
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 772669440,
+            "targetSchematicHash": "1560cfa016559306b05f6d11d2fe92393ffd148ab271bbd5ceeeb31d6e179a53",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "under_fill",
+            "seconds": 3.743971500080079,
+            "stages": {
+              "prepare_preview_execution": 0.011369333136826754,
+              "kernel": 0.03202508296817541,
+              "materialize_preview_snapshots": 0.9940446659456939,
+              "bind_schematic_snapshots": 0.20305220899172127,
+              "build_schematic": 2.0413524170871824
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 29,
+              "identitySeconds": 0.03189470688812435,
+              "cacheSeconds": 3.7085264921188354e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.031986790942028165
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 803913728,
+            "targetSchematicHash": "fd79233223d6831771ca1bd89bc4f2115edf3caba602b86b1bb3c86f445f4d27",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "molding_2",
+            "seconds": 3.8904077920597047,
+            "stages": {
+              "prepare_preview_execution": 0.01121537503786385,
+              "kernel": 0.03213866613805294,
+              "materialize_preview_snapshots": 1.091865124879405,
+              "bind_schematic_snapshots": 0.21308979205787182,
+              "build_schematic": 2.030788459116593
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 30,
+              "identitySeconds": 0.0319954187143594,
+              "cacheSeconds": 4.587927833199501e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.032098500058054924
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 862781440,
+            "targetSchematicHash": "a761f3bfa9ba2306d5a1764f1972787d0a2babea4436ad742fb28d09969f8e80",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "grinding_2",
+            "seconds": 4.201659624930471,
+            "stages": {
+              "prepare_preview_execution": 0.010993750067427754,
+              "kernel": 0.030867332825437188,
+              "materialize_preview_snapshots": 1.2250390411354601,
+              "bind_schematic_snapshots": 0.2405697910580784,
+              "build_schematic": 2.115148833952844
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 31,
+              "identitySeconds": 0.03074133419431746,
+              "cacheSeconds": 4.041776992380619e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030833750031888485
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 914784256,
+            "targetSchematicHash": "39fb56be0affca960588d8215e75923744b758ed328617c5152186430dcc97f6",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "warmKernelMedianSeconds": 0.030867332825437188,
+        "stepCache": {
+          "generation": 0,
+          "entries": 32,
+          "bytes": 223103710,
+          "inflight": 0,
+          "hits": 142,
+          "misses": 32,
+          "waits": 0,
+          "evictions": 0,
+          "bypasses": 0
+        }
+      },
+      {
+        "flowId": "28d906aa9b9a4a0daffbb159c8644f6f",
+        "flowName": "demo2",
+        "target": "carrier_bond",
+        "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+        "seconds": 17.363379875198007,
+        "stages": {
+          "prepare_preview_execution": 0.011175333056598902,
+          "kernel": 8.915480917086825,
+          "materialize_preview_snapshots": 9.496641791891307,
+          "plan_flow_schematic": 0.5051004169508815,
+          "bind_schematic_snapshots": 0.254289791919291,
+          "build_schematic": 5.937275875126943
+        },
+        "snapshots": 32,
+        "responseBytes": 19405115,
+        "checks": {
+          "geometry": {
+            "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+            "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+            "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+            "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+            "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+            "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+            "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+            "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+            "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+            "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+            "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+            "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+            "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+            "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+            "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+            "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+            "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+            "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+            "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+            "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+            "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+            "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+            "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+            "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+            "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+            "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+            "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+            "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+            "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+            "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+          },
+          "provenance": {
+            "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+            "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+            "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+            "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+            "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+            "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+            "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+            "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+            "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+            "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+            "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+            "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+            "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+            "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+            "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+            "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+            "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+            "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+            "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+            "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+            "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+            "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+            "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+            "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+            "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+            "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+            "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+            "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+            "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+            "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+            "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+            "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+          },
+          "executionWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "schematic": {
+            "tmv": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_7": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_9": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "daf": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "daf_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_6": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_8": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "mr_joint": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "molding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "grinding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "rdl_layer": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "mr_joint_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "under_fill": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "molding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "grinding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "carrier_bond": "ee7dcbe187e79b5cbeeca4fd957bd131fc2917f977c4c2726c2d3e1cca984197"
+          },
+          "schematicWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        },
+        "polygonModule": "/private/tmp/preview-single-target-baseline/packages/kernel-py/src/process_flow_kernel/utils/polygon.py",
+        "polygonCache": null,
+        "stepCacheMode": "warm",
+        "execution": {
+          "executedSteps": 32,
+          "reusedSteps": 0,
+          "identitySeconds": 0.0559704580809921,
+          "cacheSeconds": 2.478306249016896,
+          "inputPreparationSeconds": 2.209388293325901,
+          "processExecutionSeconds": 2.070510459598154,
+          "snapshotSeconds": 2.0917004169896245,
+          "kernelSeconds": 8.91543783294037
+        },
+        "snapshotMaterializationSeconds": 0.5811608748044819,
+        "polygonMetrics": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0,
+          "seconds": {
+            "snapshot": 2.0817417518701404,
+            "underfillRegion": 1.2363695001695305,
+            "polygonConstruction": 7.00121745467186e-06,
+            "underfill": 1.2541376249864697
+          }
+        },
+        "peakRssBytes": 604602368,
+        "warm": [
+          {
+            "target": "mr_joint_2",
+            "seconds": 1.5017606248147786,
+            "stages": {
+              "prepare_preview_execution": 0.008979790844023228,
+              "kernel": 0.023996083065867424,
+              "materialize_preview_snapshots": 0.8362846248783171,
+              "bind_schematic_snapshots": 0.147932416992262,
+              "build_schematic": 0.16119816689752042
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 24,
+              "identitySeconds": 0.023894788464531302,
+              "cacheSeconds": 2.7874717488884926e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.023962541949003935
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 693452800,
+            "targetSchematicHash": "edd54fdd251a56c31c811c88922d759f98211d20b1fea82325523f97c49c7f9a",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "pnp_5",
+            "seconds": 1.7165762088261545,
+            "stages": {
+              "prepare_preview_execution": 0.010791458189487457,
+              "kernel": 0.030051958980038762,
+              "materialize_preview_snapshots": 0.9242359169293195,
+              "bind_schematic_snapshots": 0.1667706670705229,
+              "build_schematic": 0.2010512501001358
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 28,
+              "identitySeconds": 0.02996433270163834,
+              "cacheSeconds": 2.250075340270996e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030021124985069036
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 743079936,
+            "targetSchematicHash": "1560cfa016559306b05f6d11d2fe92393ffd148ab271bbd5ceeeb31d6e179a53",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "under_fill",
+            "seconds": 3.820829875068739,
+            "stages": {
+              "prepare_preview_execution": 0.012838375056162477,
+              "kernel": 0.030624500010162592,
+              "materialize_preview_snapshots": 1.0724636248778552,
+              "bind_schematic_snapshots": 0.1930696670897305,
+              "build_schematic": 2.061034917132929
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 29,
+              "identitySeconds": 0.030506543116644025,
+              "cacheSeconds": 4.328973591327667e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03059100010432303
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 784433152,
+            "targetSchematicHash": "fd79233223d6831771ca1bd89bc4f2115edf3caba602b86b1bb3c86f445f4d27",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "molding_2",
+            "seconds": 3.872141750063747,
+            "stages": {
+              "prepare_preview_execution": 0.011196041014045477,
+              "kernel": 0.03110887506045401,
+              "materialize_preview_snapshots": 1.065797708928585,
+              "bind_schematic_snapshots": 0.21023370907641947,
+              "build_schematic": 2.035610832972452
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 30,
+              "identitySeconds": 0.030980624724179506,
+              "cacheSeconds": 3.654300235211849e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03107008314691484
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 807698432,
+            "targetSchematicHash": "a761f3bfa9ba2306d5a1764f1972787d0a2babea4436ad742fb28d09969f8e80",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "grinding_2",
+            "seconds": 4.127685749903321,
+            "stages": {
+              "prepare_preview_execution": 0.011129874968901277,
+              "kernel": 0.03161650011315942,
+              "materialize_preview_snapshots": 1.217484249966219,
+              "bind_schematic_snapshots": 0.24332516617141664,
+              "build_schematic": 2.053014415781945
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 31,
+              "identitySeconds": 0.031487376894801855,
+              "cacheSeconds": 3.612367436289787e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03157816710881889
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 903430144,
+            "targetSchematicHash": "39fb56be0affca960588d8215e75923744b758ed328617c5152186430dcc97f6",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "warmKernelMedianSeconds": 0.030624500010162592,
+        "stepCache": {
+          "generation": 0,
+          "entries": 32,
+          "bytes": 223103710,
+          "inflight": 0,
+          "hits": 142,
+          "misses": 32,
+          "waits": 0,
+          "evictions": 0,
+          "bypasses": 0
+        }
+      },
+      {
+        "flowId": "28d906aa9b9a4a0daffbb159c8644f6f",
+        "flowName": "demo2",
+        "target": "carrier_bond",
+        "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+        "seconds": 16.90195987513289,
+        "stages": {
+          "prepare_preview_execution": 0.011412166990339756,
+          "kernel": 8.399277250049636,
+          "materialize_preview_snapshots": 8.981660041026771,
+          "plan_flow_schematic": 0.5078502499964088,
+          "bind_schematic_snapshots": 0.25509720807895064,
+          "build_schematic": 5.990030333166942
+        },
+        "snapshots": 32,
+        "responseBytes": 19405115,
+        "checks": {
+          "geometry": {
+            "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+            "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+            "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+            "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+            "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+            "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+            "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+            "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+            "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+            "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+            "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+            "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+            "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+            "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+            "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+            "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+            "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+            "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+            "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+            "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+            "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+            "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+            "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+            "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+            "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+            "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+            "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+            "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+            "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+            "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+          },
+          "provenance": {
+            "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+            "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+            "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+            "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+            "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+            "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+            "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+            "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+            "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+            "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+            "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+            "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+            "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+            "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+            "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+            "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+            "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+            "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+            "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+            "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+            "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+            "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+            "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+            "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+            "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+            "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+            "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+            "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+            "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+            "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+            "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+            "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+          },
+          "executionWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "schematic": {
+            "tmv": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_7": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_9": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "daf": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "daf_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_6": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_8": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "flip_10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "mr_joint": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "molding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "grinding": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "rdl_layer": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "micro_bump_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_3": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_4": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "mr_joint_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "pnp_5": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "under_fill": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "molding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "grinding_2": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "carrier_bond": "ee7dcbe187e79b5cbeeca4fd957bd131fc2917f977c4c2726c2d3e1cca984197"
+          },
+          "schematicWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        },
+        "polygonModule": "/private/tmp/preview-single-target-baseline/packages/kernel-py/src/process_flow_kernel/utils/polygon.py",
+        "polygonCache": null,
+        "stepCacheMode": "warm",
+        "execution": {
+          "executedSteps": 32,
+          "reusedSteps": 0,
+          "identitySeconds": 0.03894466510973871,
+          "cacheSeconds": 2.3592832123395056,
+          "inputPreparationSeconds": 2.111978992819786,
+          "processExecutionSeconds": 1.9310402916744351,
+          "snapshotSeconds": 1.9482299569062889,
+          "kernelSeconds": 8.399233208969235
+        },
+        "snapshotMaterializationSeconds": 0.5823827909771353,
+        "polygonMetrics": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0,
+          "seconds": {
+            "snapshot": 1.9380000389646739,
+            "underfillRegion": 1.143646084005013,
+            "polygonConstruction": 5.958369001746178e-06,
+            "underfill": 1.1622025829274207
+          }
+        },
+        "peakRssBytes": 601751552,
+        "warm": [
+          {
+            "target": "mr_joint_2",
+            "seconds": 1.4377371661830693,
+            "stages": {
+              "prepare_preview_execution": 0.008709541987627745,
+              "kernel": 0.023297582985833287,
+              "materialize_preview_snapshots": 0.7773470000829548,
+              "bind_schematic_snapshots": 0.14219604199752212,
+              "build_schematic": 0.16129479091614485
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 24,
+              "identitySeconds": 0.023201918695122004,
+              "cacheSeconds": 2.783280797302723e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.023268749937415123
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 698368000,
+            "targetSchematicHash": "edd54fdd251a56c31c811c88922d759f98211d20b1fea82325523f97c49c7f9a",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "pnp_5",
+            "seconds": 1.6689885000232607,
+            "stages": {
+              "prepare_preview_execution": 0.011149707948789,
+              "kernel": 0.030373624991625547,
+              "materialize_preview_snapshots": 0.883960000006482,
+              "bind_schematic_snapshots": 0.16473004198633134,
+              "build_schematic": 0.2015291249845177
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 28,
+              "identitySeconds": 0.030290499329566956,
+              "cacheSeconds": 2.0916108042001724e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030344167025759816
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 764657664,
+            "targetSchematicHash": "1560cfa016559306b05f6d11d2fe92393ffd148ab271bbd5ceeeb31d6e179a53",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "under_fill",
+            "seconds": 3.746017166879028,
+            "stages": {
+              "prepare_preview_execution": 0.011199667118489742,
+              "kernel": 0.03148954105563462,
+              "materialize_preview_snapshots": 0.9826594169717282,
+              "bind_schematic_snapshots": 0.1903338332194835,
+              "build_schematic": 2.0836863331496716
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 29,
+              "identitySeconds": 0.03136612428352237,
+              "cacheSeconds": 3.287545405328274e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03145208302885294
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 816414720,
+            "targetSchematicHash": "fd79233223d6831771ca1bd89bc4f2115edf3caba602b86b1bb3c86f445f4d27",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "molding_2",
+            "seconds": 3.8741358330007643,
+            "stages": {
+              "prepare_preview_execution": 0.011093084001913667,
+              "kernel": 0.031482832971960306,
+              "materialize_preview_snapshots": 1.046806582948193,
+              "bind_schematic_snapshots": 0.21406508306972682,
+              "build_schematic": 2.0635239579714835
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 30,
+              "identitySeconds": 0.03135808021761477,
+              "cacheSeconds": 3.566732630133629e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.031445665983483195
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 876707840,
+            "targetSchematicHash": "a761f3bfa9ba2306d5a1764f1972787d0a2babea4436ad742fb28d09969f8e80",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "grinding_2",
+            "seconds": 3.1969205839559436,
+            "stages": {
+              "prepare_preview_execution": 0.011053290916606784,
+              "kernel": 0.031335166189819574,
+              "materialize_preview_snapshots": 0.24471208406612277,
+              "bind_schematic_snapshots": 0.23562037502415478,
+              "build_schematic": 2.0948473329190165
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 31,
+              "identitySeconds": 0.031213164795190096,
+              "cacheSeconds": 3.191526047885418e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.031294750049710274
+            },
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 896712704,
+            "targetSchematicHash": "39fb56be0affca960588d8215e75923744b758ed328617c5152186430dcc97f6",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "warmKernelMedianSeconds": 0.031335166189819574,
+        "stepCache": {
+          "generation": 0,
+          "entries": 32,
+          "bytes": 223103710,
+          "inflight": 0,
+          "hits": 142,
+          "misses": 32,
+          "waits": 0,
+          "evictions": 0,
+          "bypasses": 0
+        }
+      }
+    ]
+  },
+  "after": {
+    "summary": {
+      "previewSeconds": 9.990011333022267,
+      "kernelSeconds": 8.351747125154361,
+      "compositionSeconds": 0.2040731250308454,
+      "responseBytes": 2596959,
+      "responseSnapshots": 1,
+      "warmPreviewSeconds": 1.1347720408812165,
+      "warmTargets": {
+        "grinding_2": 1.252943207975477,
+        "molding_2": 1.2263195829000324,
+        "mr_joint_2": 0.5173537088558078,
+        "pnp_5": 1.0280377080198377,
+        "under_fill": 1.1347720408812165
+      },
+      "peakRssBytes": 567541760,
+      "coldPayloadDeepcopySeconds": 0.035825000144541264,
+      "warmPayloadDeepcopySeconds": 0.03606891701929271,
+      "sessionCacheHitSeconds": 0.502919957973063
+    },
+    "runs": [
+      {
+        "flowId": "28d906aa9b9a4a0daffbb159c8644f6f",
+        "flowName": "demo2",
+        "target": "carrier_bond",
+        "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+        "seconds": 10.214145000092685,
+        "stages": {
+          "prepare_preview_execution": 0.011662584031000733,
+          "kernel": 8.591618792153895,
+          "materialize_preview_snapshots": 9.158172582974657,
+          "plan_flow_schematic": 0.4854223751462996,
+          "bind_schematic_snapshots": 0.26599687500856817,
+          "build_schematic": 0.2040731250308454,
+          "payloadDeepcopy": 0.036166499834507704
+        },
+        "snapshots": 1,
+        "responseBytes": 2596959,
+        "checks": {
+          "geometry": {
+            "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+            "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+            "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+            "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+            "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+            "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+            "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+            "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+            "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+            "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+            "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+            "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+            "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+            "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+            "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+            "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+            "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+            "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+            "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+            "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+            "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+            "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+            "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+            "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+            "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+            "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+            "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+            "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+            "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+            "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+          },
+          "provenance": {
+            "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+            "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+            "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+            "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+            "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+            "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+            "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+            "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+            "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+            "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+            "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+            "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+            "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+            "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+            "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+            "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+            "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+            "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+            "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+            "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+            "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+            "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+            "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+            "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+            "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+            "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+            "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+            "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+            "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+            "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+            "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+            "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+          },
+          "executionWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "schematic": {
+            "carrier_bond": "f3fef9080de3216305ebfd6da0bfea5a71341ab464e7678e48782a6957364773"
+          },
+          "schematicWarnings": {
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        },
+        "executionSnapshots": 32,
+        "polygonModule": "/Users/henry/Desktop/code/process_flow_v2/packages/kernel-py/src/process_flow_kernel/utils/polygon.py",
+        "polygonCache": null,
+        "stepCacheMode": "warm",
+        "execution": {
+          "executedSteps": 32,
+          "reusedSteps": 0,
+          "identitySeconds": 0.03807237581349909,
+          "cacheSeconds": 2.410756337689236,
+          "inputPreparationSeconds": 2.1622913328465074,
+          "processExecutionSeconds": 1.9516921695321798,
+          "snapshotSeconds": 2.018867374630645,
+          "kernelSeconds": 8.591578457970172
+        },
+        "snapshotMaterializationSeconds": 0.5665537908207625,
+        "polygonMetrics": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0,
+          "seconds": {
+            "snapshot": 2.008432082599029,
+            "underfillRegion": 1.1444341249298304,
+            "polygonConstruction": 5.0407834351062775e-06,
+            "underfill": 1.163293750025332
+          }
+        },
+        "peakRssBytes": 567541760,
+        "sessionCacheHit": {
+          "seconds": 0.04300329112447798,
+          "stages": {
+            "payloadDeepcopy": 0.0357252499088645
+          }
+        },
+        "warm": [
+          {
+            "target": "mr_joint_2",
+            "seconds": 0.5173537088558078,
+            "stages": {
+              "prepare_preview_execution": 0.009517583064734936,
+              "kernel": 0.02322879107668996,
+              "materialize_preview_snapshots": 0.14811350009404123,
+              "bind_schematic_snapshots": 0.14032062492333353,
+              "build_schematic": 0.15896099992096424,
+              "payloadDeepcopy": 0.026302124839276075
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 24,
+              "identitySeconds": 0.023139623925089836,
+              "cacheSeconds": 2.3792730644345284e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.023199334042146802
+            },
+            "responseBytes": 1921665,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 567541760,
+            "targetSchematicHash": "cd9ebb360f10dfd4dde922715788a8b766144051768690495c9983eb9f068b24",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "pnp_5",
+            "seconds": 0.6235305001027882,
+            "stages": {
+              "prepare_preview_execution": 0.01088495901785791,
+              "kernel": 0.02983279200270772,
+              "materialize_preview_snapshots": 0.17328408313915133,
+              "bind_schematic_snapshots": 0.166765125002712,
+              "build_schematic": 0.19660337502136827,
+              "payloadDeepcopy": 0.03397566708736122
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 28,
+              "identitySeconds": 0.029754708986729383,
+              "cacheSeconds": 1.8377788364887238e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.02980308304540813
+            },
+            "responseBytes": 2465454,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 575340544,
+            "targetSchematicHash": "e66973bfb075035aa41cb38aa90bb9cf1824e832b9cd3ba185fe543c41b5a39f",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "under_fill",
+            "seconds": 1.1347720408812165,
+            "stages": {
+              "prepare_preview_execution": 0.011567542096599936,
+              "kernel": 0.030021999962627888,
+              "materialize_preview_snapshots": 0.19637683290056884,
+              "bind_schematic_snapshots": 0.1885995001066476,
+              "build_schematic": 0.6543854170013219,
+              "payloadDeepcopy": 0.036126417107880116
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 29,
+              "identitySeconds": 0.02993704075925052,
+              "cacheSeconds": 2.008560113608837e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.02999270800501108
+            },
+            "responseBytes": 2595686,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 598605824,
+            "targetSchematicHash": "91d86ac4e213463b4d6d6fa8f309da0fb4242cd334e609f1cd6cda64db8d1a2c",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "molding_2",
+            "seconds": 1.2263195829000324,
+            "stages": {
+              "prepare_preview_execution": 0.01072129188105464,
+              "kernel": 0.03096070815809071,
+              "materialize_preview_snapshots": 0.22081354213878512,
+              "bind_schematic_snapshots": 0.7030154999811202,
+              "build_schematic": 0.20770037500187755,
+              "payloadDeepcopy": 0.03606891701929271
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 30,
+              "identitySeconds": 0.03084191563539207,
+              "cacheSeconds": 3.267056308686733e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030923750018700957
+            },
+            "responseBytes": 2596421,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 598605824,
+            "targetSchematicHash": "c13e47856358ad7c360e76a622b83bfaac8b4d3486093f5659b3447f60039aa4",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "grinding_2",
+            "seconds": 1.2318449579179287,
+            "stages": {
+              "prepare_preview_execution": 0.01100566703826189,
+              "kernel": 0.030140583170577884,
+              "materialize_preview_snapshots": 0.6886895408388227,
+              "bind_schematic_snapshots": 0.24346887483261526,
+              "build_schematic": 0.20316395908594131,
+              "payloadDeepcopy": 0.03770745801739395
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 31,
+              "identitySeconds": 0.030055249575525522,
+              "cacheSeconds": 2.0668376237154007e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030109459068626165
+            },
+            "responseBytes": 2596381,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 598605824,
+            "targetSchematicHash": "a6f4cb6986cf23c9d1c305df6a83ef7b3f5ef0fb87955600b8ff2a019435d030",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "warmKernelMedianSeconds": 0.030021999962627888,
+        "stepCache": {
+          "generation": 0,
+          "entries": 32,
+          "bytes": 223103710,
+          "inflight": 0,
+          "hits": 142,
+          "misses": 32,
+          "waits": 0,
+          "evictions": 0,
+          "bypasses": 0
+        }
+      },
+      {
+        "flowId": "28d906aa9b9a4a0daffbb159c8644f6f",
+        "flowName": "demo2",
+        "target": "carrier_bond",
+        "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+        "seconds": 9.914360041031614,
+        "stages": {
+          "prepare_preview_execution": 0.011095208115875721,
+          "kernel": 8.283429459203035,
+          "materialize_preview_snapshots": 8.860692208865657,
+          "plan_flow_schematic": 0.48448379221372306,
+          "bind_schematic_snapshots": 0.2665727499406785,
+          "build_schematic": 0.20300387497991323,
+          "payloadDeepcopy": 0.035405458183959126
+        },
+        "snapshots": 1,
+        "responseBytes": 2596959,
+        "checks": {
+          "geometry": {
+            "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+            "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+            "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+            "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+            "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+            "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+            "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+            "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+            "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+            "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+            "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+            "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+            "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+            "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+            "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+            "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+            "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+            "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+            "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+            "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+            "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+            "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+            "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+            "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+            "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+            "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+            "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+            "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+            "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+            "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+          },
+          "provenance": {
+            "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+            "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+            "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+            "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+            "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+            "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+            "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+            "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+            "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+            "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+            "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+            "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+            "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+            "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+            "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+            "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+            "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+            "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+            "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+            "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+            "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+            "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+            "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+            "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+            "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+            "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+            "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+            "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+            "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+            "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+            "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+            "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+          },
+          "executionWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "schematic": {
+            "carrier_bond": "f3fef9080de3216305ebfd6da0bfea5a71341ab464e7678e48782a6957364773"
+          },
+          "schematicWarnings": {
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        },
+        "executionSnapshots": 32,
+        "polygonModule": "/Users/henry/Desktop/code/process_flow_v2/packages/kernel-py/src/process_flow_kernel/utils/polygon.py",
+        "polygonCache": null,
+        "stepCacheMode": "warm",
+        "execution": {
+          "executedSteps": 32,
+          "reusedSteps": 0,
+          "identitySeconds": 0.039926336612552404,
+          "cacheSeconds": 2.3394746305420995,
+          "inputPreparationSeconds": 2.074202041141689,
+          "processExecutionSeconds": 1.9093632095027715,
+          "snapshotSeconds": 1.9111266636755317,
+          "kernelSeconds": 8.283388709183782
+        },
+        "snapshotMaterializationSeconds": 0.5772627496626228,
+        "polygonMetrics": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0,
+          "seconds": {
+            "snapshot": 1.901535586686805,
+            "underfillRegion": 1.1335986668709666,
+            "polygonConstruction": 5.332985892891884e-06,
+            "underfill": 1.1510408332105726
+          }
+        },
+        "peakRssBytes": 559841280,
+        "sessionCacheHit": {
+          "seconds": 0.502919957973063,
+          "stages": {
+            "payloadDeepcopy": 0.49552537500858307
+          }
+        },
+        "warm": [
+          {
+            "target": "mr_joint_2",
+            "seconds": 0.5172443329356611,
+            "stages": {
+              "prepare_preview_execution": 0.00948187499307096,
+              "kernel": 0.02420145901851356,
+              "materialize_preview_snapshots": 0.1486879161093384,
+              "bind_schematic_snapshots": 0.1395211247727275,
+              "build_schematic": 0.15936037502251565,
+              "payloadDeepcopy": 0.02574991714209318
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 24,
+              "identitySeconds": 0.02409337437711656,
+              "cacheSeconds": 2.8915703296661377e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.024169374955818057
+            },
+            "responseBytes": 1921665,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 564871168,
+            "targetSchematicHash": "cd9ebb360f10dfd4dde922715788a8b766144051768690495c9983eb9f068b24",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "pnp_5",
+            "seconds": 1.0280377080198377,
+            "stages": {
+              "prepare_preview_execution": 0.011005375068634748,
+              "kernel": 0.030205416027456522,
+              "materialize_preview_snapshots": 0.5759914158843458,
+              "bind_schematic_snapshots": 0.16842620796523988,
+              "build_schematic": 0.19786725006997585,
+              "payloadDeepcopy": 0.03285283409059048
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 28,
+              "identitySeconds": 0.030118168331682682,
+              "cacheSeconds": 1.9836006686091423e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030170457903295755
+            },
+            "responseBytes": 2465454,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 573652992,
+            "targetSchematicHash": "e66973bfb075035aa41cb38aa90bb9cf1824e832b9cd3ba185fe543c41b5a39f",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "under_fill",
+            "seconds": 1.1323785409331322,
+            "stages": {
+              "prepare_preview_execution": 0.01114670792594552,
+              "kernel": 0.03136700019240379,
+              "materialize_preview_snapshots": 0.19917395780794322,
+              "bind_schematic_snapshots": 0.1894883750937879,
+              "build_schematic": 0.20390229183249176,
+              "payloadDeepcopy": 0.4800185828935355
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 29,
+              "identitySeconds": 0.03125370689667761,
+              "cacheSeconds": 3.0126888304948807e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03133024997077882
+            },
+            "responseBytes": 2595686,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 581713920,
+            "targetSchematicHash": "91d86ac4e213463b4d6d6fa8f309da0fb4242cd334e609f1cd6cda64db8d1a2c",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "molding_2",
+            "seconds": 1.2542720411438495,
+            "stages": {
+              "prepare_preview_execution": 0.010971124982461333,
+              "kernel": 0.030084917088970542,
+              "materialize_preview_snapshots": 0.221217209007591,
+              "bind_schematic_snapshots": 0.7233999168965966,
+              "build_schematic": 0.2129516671411693,
+              "payloadDeepcopy": 0.036932958057150245
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 30,
+              "identitySeconds": 0.02998299803584814,
+              "cacheSeconds": 2.5460729375481606e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.030054040951654315
+            },
+            "responseBytes": 2596421,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 594132992,
+            "targetSchematicHash": "c13e47856358ad7c360e76a622b83bfaac8b4d3486093f5659b3447f60039aa4",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "grinding_2",
+            "seconds": 1.2598686248529702,
+            "stages": {
+              "prepare_preview_execution": 0.011126833036541939,
+              "kernel": 0.03145533404313028,
+              "materialize_preview_snapshots": 0.7165636671707034,
+              "bind_schematic_snapshots": 0.2452021250501275,
+              "build_schematic": 0.20331604196690023,
+              "payloadDeepcopy": 0.03626108402386308
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 31,
+              "identitySeconds": 0.03134004259482026,
+              "cacheSeconds": 3.08365561068058e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03141741710714996
+            },
+            "responseBytes": 2596381,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 614400000,
+            "targetSchematicHash": "a6f4cb6986cf23c9d1c305df6a83ef7b3f5ef0fb87955600b8ff2a019435d030",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "warmKernelMedianSeconds": 0.030205416027456522,
+        "stepCache": {
+          "generation": 0,
+          "entries": 32,
+          "bytes": 223103710,
+          "inflight": 0,
+          "hits": 142,
+          "misses": 32,
+          "waits": 0,
+          "evictions": 0,
+          "bypasses": 0
+        }
+      },
+      {
+        "flowId": "28d906aa9b9a4a0daffbb159c8644f6f",
+        "flowName": "demo2",
+        "target": "carrier_bond",
+        "flowContentHash": "d4145ccbc407f4a8148dcb933b4920845d9616564960ee64120214d232366654",
+        "seconds": 9.990011333022267,
+        "stages": {
+          "prepare_preview_execution": 0.011088792001828551,
+          "kernel": 8.351747125154361,
+          "materialize_preview_snapshots": 8.924081791890785,
+          "plan_flow_schematic": 0.4920022920705378,
+          "bind_schematic_snapshots": 0.2688479998614639,
+          "build_schematic": 0.20490241702646017,
+          "payloadDeepcopy": 0.035825000144541264
+        },
+        "snapshots": 1,
+        "responseBytes": 2596959,
+        "checks": {
+          "geometry": {
+            "tmv": "042bef912c18e9d8df795f8e3511a6ba5f4a74bafecd4839a488b37c62819863",
+            "flip": "a798f565134b5d678158cbeafa24b7ea6b1b78463cc39b0156b679daf6953d3b",
+            "flip_3": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "flip_5": "91358f4cd5a2d256134ebaeb2276f854002eeafe60a8df19e6aa4af0c88a310f",
+            "flip_7": "b3a28bbda5f9550f07d719170cac1d2631ae8eeb52225ca84c215c2234e7d4ee",
+            "flip_9": "e4c48fc3d66e5c531f5ecc019b566caf314da35b8789c3daa04478ce04a4b537",
+            "micro_bump_2": "99dc111d6e7cc40418c374341b3d0efa3921b58d4b075c9cf27d01163cf70770",
+            "micro_bump": "6ce552ffa456416e60533ecd3d18cfe52337372bb9e635159535e0c77ae8f773",
+            "daf": "1b5373e96f65127934018118efefc8d485854a4470907f5e1f9524ffe5b4598d",
+            "micro_bump_3": "7518dfd0549efe4ae7084e90cca59990b4e1a1aad8f92738c136d8313ff61971",
+            "micro_bump_4": "57f3385283d47133ed805c53044682c7c25e1b10da227c322eba83d87301819f",
+            "daf_2": "72bb62b048cd848b31ceff79ae21421d953e1ac61454990e0dbe748f9bd17c31",
+            "flip_2": "62fd21e075a5db3fc17312fc9432f118cba8a94da0c32d10199a6bda17a14b37",
+            "flip_4": "cc0dd1000e5a541f99492655c3dfd566a05f3e47ec6c7d517e1f288302c0f4ce",
+            "flip_6": "9ffa78aa4a9f72f665191c405e7bc1d978377d8e3fc3d2be5e233a907378ac70",
+            "flip_8": "dc7b216f60d5b57bbf163102bd821d2b2b0aa8e72ea62b30d9d557c1296404ae",
+            "flip_10": "ce0f965d1b3eedb7b69e79e098f7b07b5a25afdd94e80d202e0d140a361f4bb6",
+            "pnp": "07f449c0fb12ed968c30f86123854c9bff0e367fb241195e20bb7c74c2c68d82",
+            "mr_joint": "2413cea3a965efac15636fb747f0b6f9a57e2c525d0437f8b5a5257f31ecb546",
+            "pnp_2": "e92a2958d2a5d37dd8ab8e3a4eb472eddbccb6238f8eb52b9cf7d756e591cc2d",
+            "molding": "c3adfdf2fb5dab682e65b624358ae116aff16d84c7bbae80c7c2009df7bd347e",
+            "grinding": "65b8d367e6eae6e5d2e3517bd47e72a5d2468c5fdc5b97d706d3f3ef4696cbac",
+            "rdl_layer": "8f1312da37d7ea20111dcc1bda13e70e42359826e7b43c19d9ec4f89259a6367",
+            "micro_bump_5": "c2a3f03ef73548b59b23da0e50e51f67595aa402dc017fe6ceb60e926374bbb7",
+            "pnp_3": "4210a9ec8f10f5dbbbd98ba4abf5e08aee079375e78d867877c166139e203683",
+            "pnp_4": "e9a59795a1ccfbb3dcdd48a2e9c58cb5d0c0bdc1d2e7e95d6f0da428665b77c0",
+            "mr_joint_2": "0da5f0ee71c922cb6e59730774213dd89811f07c0a6a5768a28644052135ec8b",
+            "pnp_5": "f781646d991e9a2228405aabb354bd1c2a8760b5278ce759659e6a82627798ec",
+            "under_fill": "1b8d8fe0550072e143d832b3c6408a5ff399ae1cbeee88b268c95cab8a8dbd23",
+            "molding_2": "da6f0132bec7aff0338c2da2ff59730383562346c2bf33eb74612ff3bb5eca35",
+            "grinding_2": "cd75c88aec997ba76c1f526364f1d17460419cd152ea2e18f37323081683da61",
+            "carrier_bond": "ee7e9c24546067ee242d1f16535eaf3722df362d2fa0f78f336a900b009f666c"
+          },
+          "provenance": {
+            "tmv": "acc0ed34332a94f7203e729fd33ab286e30fb1d988881324db85ca8e00ddda1d",
+            "flip": "1561de8af9c0558163190f3e2b7bed1c61441cea0707d8ccba914316f7b76385",
+            "flip_3": "bd39597c0b39f75f2013a2008c8ea329d317c3fd020a414be562f76fa3f46c5f",
+            "flip_5": "2bb2eb742615db38a29fd2b2204eff62ec0aa689b7d9174f79cee411d657eb76",
+            "flip_7": "939d68277367b3de038dce3e5fe71116d07305f69c07157c3e72470103346ea0",
+            "flip_9": "a7fc399f86136066d49abcbe60602a3ad01f76dd0650982abcd087dbce3ece9f",
+            "micro_bump_2": "b7021537687d0bb89640dc4ff0aa941d459274665df60982252f9b700b92f71d",
+            "micro_bump": "191cd9b14a991fb487d8113c46d941144c7aaf73d2248d80941d5e393f5698d3",
+            "daf": "0038804430aa38abc67c42935cbeab75fbfe73a749a4eb6d3bbc5926cf6ddc3d",
+            "micro_bump_3": "03c3bf5f2c4123cadcabe63c1cd311ece440413aae99cff5b0aa65e7d3b57db5",
+            "micro_bump_4": "53d0f1a9c0b45ad436857fff63a99d9d22f74c304debd9ca51553af1633fc472",
+            "daf_2": "6371176d980a277fc58287ea32e2dc19d0a19888a6ea74bf58e2d0b9d2d9ce06",
+            "flip_2": "4f91f2efc45d3b24f7315384948618ae3a96a2eeda5ee28e4fa97bdae5165d51",
+            "flip_4": "e2dc5f20a8fdaa86bb8d80262327ebd76c7a53131d9c1c2907a0c6c1ba3180a1",
+            "flip_6": "953426f0d625d0be9984c02c9b1a093be26e738368e86d7c582b5650b8d1d258",
+            "flip_8": "8b000beb535089565c8fa094bd08c4d235cf99a1c8e89d801512c6788d4e88f6",
+            "flip_10": "2ef05f6ad2f6c83d034435d75771aa52dd4bd04fc2fa89e0874c564f697358f2",
+            "pnp": "ca63a9f6bdb6c3fd51d77227a598de4a51c4ba75b6da229d8f8e93dc95c4da43",
+            "mr_joint": "9f99eb46e2266f3af0be4749c434a31cea037692ad72afeceb27bd15cdb6bfd1",
+            "pnp_2": "02b6bc139cfa8543c91327de61863153fbc05a0023bc5d1db1c696d5e92efff6",
+            "molding": "67bbf3bc755f20eb65a811660bc6d5ff1bbb5381ebaf082a69ef6b1c962c2050",
+            "grinding": "ebef92e9552a3b9ea3aae6a2bfa45745857420f94fbce8a3b253b37d0dc4e0b8",
+            "rdl_layer": "c44da45fb42666889b7e5bfa861f927a228985d1f6ab21972aaae3489c6155e5",
+            "micro_bump_5": "1ddc2c0fb544c55353e484bac47fbf480c009a6d3941d562223d89d0b4b9fc49",
+            "pnp_3": "fa89c851c51f2bc634869d1740779da98415ee2675a0ab63d5c23a0f81d6854f",
+            "pnp_4": "615257754564afa0ba821a41bc6e54474b27e1253e344548184890a9103f69ce",
+            "mr_joint_2": "a53bc1ab0df5c4c98e3aa92d0af064212598dce7cbc7d504d9d2f06ce9200b78",
+            "pnp_5": "6522ddd95071b7a31dcdb4572a5c2ec3cd75da146963798e01ab19a0efae1f1c",
+            "under_fill": "5d779f4514b27791f24bdc8225436cdf856c5a81f086eb3a526cbe556c4b3825",
+            "molding_2": "3e0d98fcf6c95de68823dd1dbea96b42ccf26c7a01111bf72057ed8b53f07762",
+            "grinding_2": "869fe61cf1373eb2d745ca72ffcd1ea5596f201168709d8a05b059276cb316b0",
+            "carrier_bond": "64d09319e2d30eb5351c78327448418bce114cfe2ad25d3f2761944f400facec"
+          },
+          "executionWarnings": {
+            "tmv": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_7": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_9": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "daf_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_6": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_8": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "flip_10": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "rdl_layer": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "micro_bump_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_3": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_4": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "mr_joint_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "pnp_5": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "under_fill": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "molding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "grinding_2": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "schematic": {
+            "carrier_bond": "f3fef9080de3216305ebfd6da0bfea5a71341ab464e7678e48782a6957364773"
+          },
+          "schematicWarnings": {
+            "carrier_bond": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        },
+        "executionSnapshots": 32,
+        "polygonModule": "/Users/henry/Desktop/code/process_flow_v2/packages/kernel-py/src/process_flow_kernel/utils/polygon.py",
+        "polygonCache": null,
+        "stepCacheMode": "warm",
+        "execution": {
+          "executedSteps": 32,
+          "reusedSteps": 0,
+          "identitySeconds": 0.039841706631705165,
+          "cacheSeconds": 2.352374120382592,
+          "inputPreparationSeconds": 2.096419873414561,
+          "processExecutionSeconds": 1.938078417442739,
+          "snapshotSeconds": 1.9154117479920387,
+          "kernelSeconds": 8.351704499917105
+        },
+        "snapshotMaterializationSeconds": 0.572334666736424,
+        "polygonMetrics": {
+          "validationCalls": 0,
+          "fullValidations": 0,
+          "loops": 0,
+          "vertices": 0,
+          "seconds": {
+            "snapshot": 1.9054086217656732,
+            "underfillRegion": 1.1491091249044985,
+            "polygonConstruction": 6.209127604961395e-06,
+            "underfill": 1.1673914168495685
+          }
+        },
+        "peakRssBytes": 570212352,
+        "sessionCacheHit": {
+          "seconds": 0.5082335830666125,
+          "stages": {
+            "payloadDeepcopy": 0.5006216671317816
+          }
+        },
+        "warm": [
+          {
+            "target": "mr_joint_2",
+            "seconds": 0.5196945839561522,
+            "stages": {
+              "prepare_preview_execution": 0.009700791910290718,
+              "kernel": 0.024009499931707978,
+              "materialize_preview_snapshots": 0.14893612498417497,
+              "bind_schematic_snapshots": 0.14135516714304686,
+              "build_schematic": 0.15918499999679625,
+              "payloadDeepcopy": 0.026011165929958224
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 24,
+              "identitySeconds": 0.02389996126294136,
+              "cacheSeconds": 2.771010622382164e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.023973624920472503
+            },
+            "responseBytes": 1921665,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 575258624,
+            "targetSchematicHash": "cd9ebb360f10dfd4dde922715788a8b766144051768690495c9983eb9f068b24",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "pnp_5",
+            "seconds": 1.0284862499684095,
+            "stages": {
+              "prepare_preview_execution": 0.011120583163574338,
+              "kernel": 0.029892291873693466,
+              "materialize_preview_snapshots": 0.5763142500072718,
+              "bind_schematic_snapshots": 0.16755641694180667,
+              "build_schematic": 0.19831429212354124,
+              "payloadDeepcopy": 0.033069000113755465
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 28,
+              "identitySeconds": 0.029814789537340403,
+              "cacheSeconds": 1.80867500603199e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.02986366697587073
+            },
+            "responseBytes": 2465454,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 585433088,
+            "targetSchematicHash": "e66973bfb075035aa41cb38aa90bb9cf1824e832b9cd3ba185fe543c41b5a39f",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "under_fill",
+            "seconds": 1.1665844169910997,
+            "stages": {
+              "prepare_preview_execution": 0.01112649985589087,
+              "kernel": 0.03109583305194974,
+              "materialize_preview_snapshots": 0.20397000014781952,
+              "bind_schematic_snapshots": 0.20134854200296104,
+              "build_schematic": 0.20649129198864102,
+              "payloadDeepcopy": 0.4905357090756297
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 29,
+              "identitySeconds": 0.030976247740909457,
+              "cacheSeconds": 3.207963891327381e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03105966583825648
+            },
+            "responseBytes": 2595686,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 592871424,
+            "targetSchematicHash": "91d86ac4e213463b4d6d6fa8f309da0fb4242cd334e609f1cd6cda64db8d1a2c",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "molding_2",
+            "seconds": 1.1939018750563264,
+            "stages": {
+              "prepare_preview_execution": 0.010885666124522686,
+              "kernel": 0.029906083131209016,
+              "materialize_preview_snapshots": 0.2193881671410054,
+              "bind_schematic_snapshots": 0.6748468750156462,
+              "build_schematic": 0.20513675012625754,
+              "payloadDeepcopy": 0.03571891691535711
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 30,
+              "identitySeconds": 0.02981825009919703,
+              "cacheSeconds": 2.0668376237154007e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.02987558301538229
+            },
+            "responseBytes": 2596421,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 616398848,
+            "targetSchematicHash": "c13e47856358ad7c360e76a622b83bfaac8b4d3486093f5659b3447f60039aa4",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "target": "grinding_2",
+            "seconds": 1.252943207975477,
+            "stages": {
+              "prepare_preview_execution": 0.011080875061452389,
+              "kernel": 0.030925165861845016,
+              "materialize_preview_snapshots": 0.7085448750294745,
+              "bind_schematic_snapshots": 0.24518062500283122,
+              "build_schematic": 0.20364837488159537,
+              "payloadDeepcopy": 0.03615024988539517
+            },
+            "execution": {
+              "executedSteps": 0,
+              "reusedSteps": 31,
+              "identitySeconds": 0.03081154217943549,
+              "cacheSeconds": 3.0044931918382645e-05,
+              "inputPreparationSeconds": 0.0,
+              "processExecutionSeconds": 0.0,
+              "snapshotSeconds": 0.0,
+              "kernelSeconds": 0.03088774997740984
+            },
+            "responseBytes": 2596381,
+            "snapshots": 1,
+            "polygonMetrics": {
+              "validationCalls": 0,
+              "fullValidations": 0,
+              "loops": 0,
+              "vertices": 0,
+              "seconds": {
+                "snapshot": 0.0,
+                "underfillRegion": 0.0,
+                "polygonConstruction": 0.0,
+                "underfill": 0.0
+              }
+            },
+            "peakRssBytes": 623837184,
+            "targetSchematicHash": "a6f4cb6986cf23c9d1c305df6a83ef7b3f5ef0fb87955600b8ff2a019435d030",
+            "targetSchematicWarningsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "warmKernelMedianSeconds": 0.029906083131209016,
+        "stepCache": {
+          "generation": 0,
+          "entries": 32,
+          "bytes": 223103710,
+          "inflight": 0,
+          "hits": 142,
+          "misses": 32,
+          "waits": 0,
+          "evictions": 0,
+          "bypasses": 0
+        }
+      }
+    ]
+  },
+  "correctness": {
+    "geometry": true,
+    "provenance": true,
+    "executionWarnings": true,
+    "executedStepCount": 32,
+    "targetGeometryEntityJsonUnchanged": true,
+    "targetExportGeometryUnchanged": true,
+    "returnedSnapshots": 1,
+    "schematicWarnings": [],
+    "documentWarnings": []
+  },
+  "validation": {
+    "apiKnownBaselineFailures": 5,
+    "viewerKnownBaselineFailures": 2,
+    "baselineReproduced": true,
+    "notes": [
+      "API: two mesher-failure expectations, two migration subtests, missing mesher.process_flow.pipeline.",
+      "Viewer: two existing tests import removed SchematicInspectorCard; also reproduced from git HEAD.",
+      "TypeScript: existing missing Inspector export and two existing flow-editor-source test typing errors; reproduced with original fixtures from git HEAD."
+    ],
+    "packageTestsPassed": 413,
+    "packageSubtestsPassed": 1355,
+    "apiTestsPassed": 341,
+    "apiKnownFailureFunctionsDeselected": 4,
+    "apiSubtestsPassed": 711,
+    "viewerTestsPassed": 504,
+    "typescriptKnownBaselineErrors": 3,
+    "documentationMarkdownFilesValidated": 76,
+    "goldenExamplePassed": true
+  }
+}

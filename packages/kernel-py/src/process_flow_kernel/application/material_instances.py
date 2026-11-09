@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..serialization.geometry_hydration import process_geometry_state_to_geometry_structure
-from ..serialization.schema import deep_copy, normalize_geometry_structure
+from ..serialization.schema import deep_copy, assign_container_ids
 from ..domain.provenance import structure_nodes
 
 CONTAINER_ITEM_FIELDS = ("bodies", "vias", "circuits", "bumps")
@@ -20,6 +20,7 @@ _DUP_SUFFIX_WITH_INDEX_PATTERN = re.compile(r"(.+)_dup([0-9]+)$")
 class MaterialInstancePreparation:
     geometry_inputs: dict[str, Any]
     values: dict[str, Any]
+    # Only rewritten ports have a remap; unchanged snapshots stay authoritative.
     geometry_node_remaps: dict[str, dict[str, str]]
 
 
@@ -31,6 +32,7 @@ def prepare_step_material_instances(
     values: Mapping[str, Any],
 ) -> MaterialInstancePreparation:
     prepared_geometry_inputs = dict(geometry_inputs)
+    rewritten_ports = set()
     parameter_definitions = step_template.get("parameterDefinitions", [])
 
     main_geometry = prepared_geometry_inputs.get(MAIN_GEOMETRY_PORT_ID)
@@ -40,6 +42,7 @@ def prepare_step_material_instances(
     ):
         stripped_main_geometry, _ = rewrite_geometry_materials(main_geometry)
         prepared_geometry_inputs[MAIN_GEOMETRY_PORT_ID] = stripped_main_geometry
+        rewritten_ports.add(MAIN_GEOMETRY_PORT_ID)
 
     current_material_usage_counts = (
         collect_geometry_material_usage_counts(prepared_geometry_inputs[MAIN_GEOMETRY_PORT_ID])
@@ -51,9 +54,7 @@ def prepare_step_material_instances(
     for port_id, geometry in list(prepared_geometry_inputs.items()):
         if port_id == MAIN_GEOMETRY_PORT_ID:
             continue
-        stripped_geometry, materials = rewrite_geometry_materials(geometry)
-        prepared_geometry_inputs[port_id] = stripped_geometry
-        sub_geometry_materials.extend(materials)
+        sub_geometry_materials.extend(collect_geometry_material_usage_counts(geometry))
 
     material_ref_materials = collect_material_ref_materials(parameter_definitions, values)
     step_material_names = allocate_step_materials(
@@ -67,6 +68,7 @@ def prepare_step_material_instances(
             continue
         rewritten_geometry, _ = rewrite_geometry_materials(geometry, step_material_names)
         prepared_geometry_inputs[port_id] = rewritten_geometry
+        rewritten_ports.add(port_id)
 
     return MaterialInstancePreparation(
         geometry_inputs=prepared_geometry_inputs,
@@ -76,10 +78,11 @@ def prepare_step_material_instances(
         # before consumers see regenerated feature IDs.
         geometry_node_remaps={
             port_id: {before["id"]: after["id"] for before, after in zip(
-                structure_nodes(normalize_geometry_structure(original)),
+                structure_nodes(original),
                 structure_nodes(prepared_geometry_inputs[port_id]),
             )}
             for port_id, original in geometry_inputs.items()
+            if port_id in rewritten_ports
         },
     )
 
@@ -111,9 +114,7 @@ def rewrite_geometry_materials(
     geometry_input: Any,
     material_names_by_base: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
-    structure = normalize_geometry_structure(
-        process_geometry_state_to_geometry_structure(geometry_input)
-    )
+    structure = process_geometry_state_to_geometry_structure(geometry_input)
     collected_materials: list[str] = []
     _rewrite_container_materials(
         structure["root"],
@@ -121,7 +122,8 @@ def rewrite_geometry_materials(
         collected_materials,
     )
     _clear_feature_ids(structure["root"])
-    return normalize_geometry_structure(structure), _unique_in_order(collected_materials)
+    assign_container_ids(structure["root"], ["root"])
+    return structure, _unique_in_order(collected_materials)
 
 
 def collect_material_ref_materials(
@@ -133,10 +135,7 @@ def collect_material_ref_materials(
     return _unique_in_order(materials)
 
 
-def collect_geometry_material_usage_counts(geometry_input: Any) -> dict[str, int]:
-    structure = normalize_geometry_structure(
-        process_geometry_state_to_geometry_structure(geometry_input)
-    )
+def collect_geometry_material_usage_counts(structure: Mapping[str, Any]) -> dict[str, int]:
     usage_counts: dict[str, int] = {}
     _collect_container_material_usage_counts(structure["root"], usage_counts)
     return usage_counts
@@ -159,10 +158,10 @@ def _rewrite_container_materials(
 ) -> None:
     for item_field in CONTAINER_ITEM_FIELDS:
         items = container.get(item_field, [])
-        if not isinstance(items, list):
+        if not isinstance(items, (list, tuple)):
             continue
         for item in items:
-            if not isinstance(item, dict):
+            if not isinstance(item, Mapping):
                 continue
             material = item.get("material")
             if not isinstance(material, str):
@@ -172,27 +171,27 @@ def _rewrite_container_materials(
             item["material"] = material_names_by_base.get(base_material, base_material)
 
     children = container.get("children", [])
-    if not isinstance(children, list):
+    if not isinstance(children, (list, tuple)):
         return
     for child in children:
-        if isinstance(child, dict):
+        if isinstance(child, Mapping):
             _rewrite_container_materials(child, material_names_by_base, collected_materials)
 
 
 def _clear_feature_ids(container: Mapping[str, Any]) -> None:
     for item_field in CONTAINER_ITEM_FIELDS:
         items = container.get(item_field, [])
-        if not isinstance(items, list):
+        if not isinstance(items, (list, tuple)):
             continue
         for item in items:
-            if isinstance(item, dict):
+            if isinstance(item, Mapping):
                 item.pop("id", None)
 
     children = container.get("children", [])
-    if not isinstance(children, list):
+    if not isinstance(children, (list, tuple)):
         return
     for child in children:
-        if isinstance(child, dict):
+        if isinstance(child, Mapping):
             _clear_feature_ids(child)
 
 
@@ -202,10 +201,10 @@ def _collect_container_material_usage_counts(
 ) -> None:
     for item_field in CONTAINER_ITEM_FIELDS:
         items = container.get(item_field, [])
-        if not isinstance(items, list):
+        if not isinstance(items, (list, tuple)):
             continue
         for item in items:
-            if not isinstance(item, dict):
+            if not isinstance(item, Mapping):
                 continue
             material = item.get("material")
             if not isinstance(material, str):
@@ -217,10 +216,10 @@ def _collect_container_material_usage_counts(
             )
 
     children = container.get("children", [])
-    if not isinstance(children, list):
+    if not isinstance(children, (list, tuple)):
         return
     for child in children:
-        if isinstance(child, dict):
+        if isinstance(child, Mapping):
             _collect_container_material_usage_counts(child, usage_counts)
 
 
@@ -241,7 +240,7 @@ def _collect_material_ref_materials(
             continue
         child_parameters = parameter.get("repeatDefinition", {}).get("itemParameterDefinitions", [])
         items = values.get(parameter_id)
-        if not isinstance(items, list):
+        if not isinstance(items, (list, tuple)):
             continue
         for item in items:
             if isinstance(item, Mapping):
@@ -275,10 +274,10 @@ def _rewrite_material_ref_fields(
             continue
         child_parameters = parameter.get("repeatDefinition", {}).get("itemParameterDefinitions", [])
         items = values.get(parameter_id)
-        if not isinstance(items, list):
+        if not isinstance(items, (list, tuple)):
             continue
         for item in items:
-            if isinstance(item, dict):
+            if isinstance(item, Mapping):
                 _rewrite_material_ref_fields(child_parameters, item, material_names_by_base)
 
 

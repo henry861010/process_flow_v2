@@ -16,6 +16,7 @@ from process_flow_geometry_generators import (
 )
 from process_flow_kernel import ProcessGeometryState
 from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSetRegistry, validate_mesh_control
+from process_flow_mesh_control.validation import _validate_generated_mesh_control
 
 from .file_export_jobs import FileExportJobManager
 from .analytics import AnalyticsRecorder
@@ -441,7 +442,7 @@ def create_app(
         try:
             state = ProcessGeometryState.from_structure(body.geometryStructure)
             definition, result = app.state.mesh_control_sets.apply(set_id, state)
-            _validate_mesh_control(result.mesh_control, state=state)
+            _validate_generated_mesh_control(result.mesh_control, state=state)
         except (MeshControlSetNotApplicable, ValueError, KeyError, TypeError, AttributeError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return {

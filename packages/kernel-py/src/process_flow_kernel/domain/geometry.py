@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from ..serialization.schema import deep_copy
 from ..utils.math_utils import math
-from ..utils.polygon import clip_polygon_loops_to_box, validate_polygon_loops
+from ..utils.polygon import PolygonSnapshot, clip_polygon_loops_to_box
 
 
 class Geometry:
+    def bounds(self):
+        from .process_geometry_state import _geometry_bounds
+        return _geometry_bounds(self)
+
     def z_min(self):
         raise NotImplementedError
 
@@ -139,15 +143,17 @@ class BoxGeometry(Geometry):
 
 class PolygonGeometry(Geometry):
     def __init__(self, polys, thk):
-        validate_polygon_loops(polys)
-        self._polys = deep_copy(polys)
+        self._polygon = polys if isinstance(polys, PolygonSnapshot) else PolygonSnapshot.from_external(polys)
         self._thk = thk
 
+    def polygon_snapshot(self):
+        return self._polygon
+
     def polygons(self):
-        return deep_copy(self._polys)
+        return self._polygon.coordinates()
 
     def z_min(self):
-        return self._polys[0][0][2]
+        return self._polygon.loops[0][0][2]
 
     def z_max(self):
         return self.z_min() + self._thk
@@ -156,10 +162,10 @@ class PolygonGeometry(Geometry):
         return self._thk
 
     def copy(self):
-        return PolygonGeometry(self._polys, self._thk)
+        return PolygonGeometry(self._polygon, self._thk)
 
     def copy_with_thk(self, thk):
-        return PolygonGeometry(self._polys, thk)
+        return PolygonGeometry(self._polygon, thk)
 
     def copy_with_xy_inset(self, inset):
         amount = _finite_number(inset, "inset")
@@ -168,11 +174,7 @@ class PolygonGeometry(Geometry):
         raise ValueError("PolygonGeometry does not support non-zero XY inset")
 
     def move(self, x=0, y=0, z=0):
-        for poly in self._polys:
-            for node in poly:
-                node[0] += x
-                node[1] += y
-                node[2] += z
+        self._polygon = self._polygon.translated(x, y, z)
 
     def resize_xy_by(self, delta_x, delta_y):
         _ = delta_x, delta_y
@@ -194,26 +196,24 @@ class PolygonGeometry(Geometry):
             and math.f_le(point[0], crop["xMax"])
             and math.f_ge(point[1], crop["yMin"])
             and math.f_le(point[1], crop["yMax"])
-            for poly in self._polys
+            for poly in self._polygon.loops
             for point in poly
         ):
             return self
-        clipped = clip_polygon_loops_to_box(self._polys, crop)
+        clipped = clip_polygon_loops_to_box(self._polygon, crop)
         if len(clipped) == 0:
             return None
-        self._polys = clipped
+        self._polygon = PolygonSnapshot._from_generated(clipped)
         return self
 
     def flip(self, around_z=0):
         flipped_z = 2 * around_z - self.z_max()
-        for poly in self._polys:
-            for node in poly:
-                node[2] = flipped_z
+        self._polygon = self._polygon.at_z(flipped_z)
 
     def json(self):
         return {
             "type": "PolygonGeometry",
-            "polys": deep_copy(self._polys),
+            "polys": self._polygon.coordinates(),
             "thk": self._thk,
         }
 

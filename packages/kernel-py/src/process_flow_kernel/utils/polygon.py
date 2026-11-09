@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from collections import OrderedDict
 from dataclasses import dataclass
-from math import isfinite
-from threading import RLock
 
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, box
 from shapely.geometry.polygon import orient
@@ -24,96 +21,67 @@ class PolygonRegion:
     z: float
 
 
-_POLYGON_CACHE_MAX_ENTRIES = 128
-_POLYGON_CACHE_MAX_VERTICES = 100_000
-_CoordinateCacheKey = tuple[type, bool | int | float]
-_PolygonCacheKey = tuple[tuple[tuple[_CoordinateCacheKey, ...], ...], ...]
-_RegionIndices = tuple[tuple[int, tuple[int, ...]], ...]
+@dataclass(frozen=True, slots=True, init=False, eq=False, weakref_slot=True)
+class PolygonSnapshot:
+    """Owned canonical coordinates. Only external construction validates topology.
 
+    The memo contains immutable loop indices, never caller-owned coordinate lists.
+    Concurrent readers may compute the same deterministic memo before publishing it.
+    """
+    loops: tuple
+    _regions: tuple | None
 
-@dataclass(frozen=True)
-class _PolygonCacheEntry:
-    vertex_count: int
-    regions: _RegionIndices | None = None
+    def __init__(self, geometry):
+        from ..domain.geometry import PolygonGeometry
+        if not isinstance(geometry, PolygonGeometry):
+            raise TypeError("PolygonSnapshot requires a runtime PolygonGeometry")
+        object.__setattr__(self, "loops", geometry._polygon.loops)
+        object.__setattr__(self, "_regions", geometry._polygon._regions)
 
+    @classmethod
+    def from_external(cls, polys):
+        return cls._from_loops(validate_polygon_loops(polys))
 
-# Keys own immutable normalized coordinates; classifications retain only loop
-# indices so callers always receive their own mutable coordinate lists.
-_polygon_cache: OrderedDict[_PolygonCacheKey, _PolygonCacheEntry] = OrderedDict()
-_polygon_cache_vertices = 0
-_polygon_cache_lock = RLock()
+    @classmethod
+    def _from_generated(cls, polys, *, regions=None):
+        """Kernel algorithms own topology; retain only linear canonicalization."""
+        return cls._from_loops([_normalize_loop(loop, i) for i, loop in enumerate(polys)], regions=regions)
 
+    @classmethod
+    def _from_loops(cls, loops, *, regions=None):
+        if not loops:
+            raise ValueError("PolygonGeometry requires at least one polygon loop")
+        result = object.__new__(cls)
+        object.__setattr__(result, "loops", tuple(tuple(tuple(point) for point in loop) for loop in loops))
+        object.__setattr__(result, "_regions", regions)
+        return result
 
-def _polygon_cache_key(loops):
-    if sum(map(len, loops)) > _POLYGON_CACHE_MAX_VERTICES:
-        return None
-    # Preserve coordinate types as well as exact values. Nonfinite and custom
-    # numeric inputs retain their existing validation behavior without caching.
-    for loop in loops:
-        for point in loop:
-            for value in point:
-                if type(value) not in (bool, int, float):
-                    return None
-                if type(value) is float and not isfinite(value):
-                    return None
-    return tuple(
-        tuple(tuple((type(value), value) for value in point) for point in loop)
-        for loop in loops
-    )
+    def __deepcopy__(self, memo):
+        return self
 
+    def coordinates(self):
+        return [[list(point) for point in loop] for loop in self.loops]
 
-def _polygon_cache_get(key):
-    if key is None:
-        return None
-    with _polygon_cache_lock:
-        entry = _polygon_cache.get(key)
-        if entry is not None:
-            _polygon_cache.move_to_end(key)
-        return entry
+    def at_z(self, z):
+        return self._from_loops([[(x, y, z) for x, y, _ in loop] for loop in self.loops], regions=self._regions)
 
+    def translated(self, x=0, y=0, z=0):
+        if x == y == z == 0:
+            return self
+        return self._from_loops([[(a+x, b+y, c+z) for a, b, c in loop] for loop in self.loops], regions=self._regions)
 
-def _polygon_cache_put(key, regions=None):
-    global _polygon_cache_vertices
-    if key is None:
-        return
-    with _polygon_cache_lock:
-        previous = _polygon_cache.pop(key, None)
-        if previous is not None:
-            _polygon_cache_vertices -= previous.vertex_count
-            if regions is None:
-                regions = previous.regions
-        entry = _PolygonCacheEntry(sum(map(len, key)), regions)
-        _polygon_cache[key] = entry
-        _polygon_cache_vertices += entry.vertex_count
-        while (
-            len(_polygon_cache) > _POLYGON_CACHE_MAX_ENTRIES
-            or _polygon_cache_vertices > _POLYGON_CACHE_MAX_VERTICES
-        ):
-            _, evicted = _polygon_cache.popitem(last=False)
-            _polygon_cache_vertices -= evicted.vertex_count
-
-
-def _clear_polygon_cache():
-    """Clear successful polygon results for cold benchmarks and tests."""
-    global _polygon_cache_vertices
-    with _polygon_cache_lock:
-        _polygon_cache.clear()
-        _polygon_cache_vertices = 0
-
-
-def _polygon_cache_info():
-    with _polygon_cache_lock:
-        return {"entries": len(_polygon_cache), "vertices": _polygon_cache_vertices}
+    def region_indices(self):
+        indices = self._regions
+        if indices is None:
+            indices = _classify_indices(self.loops)
+            object.__setattr__(self, "_regions", indices)
+        return indices
 
 
 def validate_polygon_loops(polys):
     loops = [_normalize_loop(poly, index) for index, poly in enumerate(polys)]
     if len(loops) == 0:
         raise ValueError("PolygonGeometry requires at least one polygon loop")
-
-    key = _polygon_cache_key(loops)
-    if _polygon_cache_get(key) is not None:
-        return loops
 
     z_base = loops[0][0][2]
     for loop_index, loop in enumerate(loops):
@@ -125,57 +93,34 @@ def validate_polygon_loops(polys):
         _validate_single_loop(loop, loop_index)
 
     _validate_loop_boundaries_do_not_cross(loops)
-    _polygon_cache_put(key)
     return loops
 
 
 def classify_polygon_loops(polys):
-    loops = validate_polygon_loops(polys)
-    key = _polygon_cache_key(loops)
-    cached = _polygon_cache_get(key)
-    if cached is not None and cached.regions is not None:
-        return [
-            PolygonRegion(loops[outer], [loops[hole] for hole in holes], loops[outer][0][2])
-            for outer, holes in cached.regions
-        ]
-    depths = []
-    for loop in loops:
-        depths.append(
-            sum(
-                1
-                for other in loops
-                if other is not loop and _loop_strictly_inside(loop, other)
-            )
-        )
+    """Raw coordinates enter validation; runtime snapshots reuse their topology."""
+    trusted = isinstance(polys, PolygonSnapshot)
+    data = polys if trusted else PolygonSnapshot.from_external(polys)
+    loops = data.loops if trusted else data.coordinates()
+    return [PolygonRegion(loops[outer], tuple(loops[h] for h in holes) if trusted else
+                          [loops[h] for h in holes], loops[outer][0][2])
+            for outer, holes in data.region_indices()]
 
-    regions = []
-    region_indices = []
-    for index, loop in enumerate(loops):
-        if depths[index] % 2 != 0:
-            continue
 
-        holes = []
-        hole_indices = []
-        for hole_index, hole in enumerate(loops):
-            if depths[hole_index] != depths[index] + 1:
-                continue
-            if _loop_strictly_inside(hole, loop):
-                holes.append(hole)
-                hole_indices.append(hole_index)
-
-        regions.append(PolygonRegion(loop, holes, loop[0][2]))
-        region_indices.append((index, tuple(hole_indices)))
-
-    if len(regions) == 0:
+def _classify_indices(loops):
+    depths = [sum(1 for other in loops if other is not loop and _loop_strictly_inside(loop, other))
+              for loop in loops]
+    regions = tuple((index, tuple(h for h, hole in enumerate(loops)
+                                 if depths[h] == depths[index] + 1 and _loop_strictly_inside(hole, loop)))
+                    for index, loop in enumerate(loops) if depths[index] % 2 == 0)
+    if not regions:
         raise ValueError("PolygonGeometry does not contain any hull loop")
-    _polygon_cache_put(key, tuple(region_indices))
     return regions
 
 
 def clip_polygon_loops_to_box(polys, bounds):
     """Return a deterministic polygon-loop representation of a box intersection."""
-    loops = validate_polygon_loops(polys)
-    z = loops[0][0][2]
+    data = polys if isinstance(polys, PolygonSnapshot) else PolygonSnapshot.from_external(polys)
+    z = data.loops[0][0][2]
     subject = unary_union(
         [
             Polygon(
@@ -185,7 +130,7 @@ def clip_polygon_loops_to_box(polys, bounds):
                     for hole in region.holes
                 ],
             )
-            for region in classify_polygon_loops(loops)
+            for region in classify_polygon_loops(data)
         ]
     )
     clip = box(bounds["xMin"], bounds["yMin"], bounds["xMax"], bounds["yMax"])
@@ -212,8 +157,6 @@ def clip_polygon_loops_to_box(polys, bounds):
     for outer, holes in regions:
         result.append(outer)
         result.extend(holes)
-    if result:
-        validate_polygon_loops(result)
     return result
 
 

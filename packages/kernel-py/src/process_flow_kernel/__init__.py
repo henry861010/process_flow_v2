@@ -12,6 +12,7 @@ from .application.geometry_artifact import (
 from .application.flow_validation import analyze_flow_graph, validate_flow_graph, validate_process_step_template
 from .application.geometry_kernel import GeometryKernel
 from .application.options import ExecuteOptions
+from .application.step_cache import StepExecutionCache
 from .application.protocols import ModuleResolver, ProcessStepModule
 from .application.resource_resolution import (
     GeometryCatalogResolver,
@@ -39,6 +40,7 @@ from .domain.semantic_keys import (
     validate_via_key,
 )
 from .infrastructure.module_resolver import ProcessStepModuleResolver
+from .infrastructure.step_cache import MemoryStepExecutionCache
 from .serialization.geometry_hydration import (
     geometry_structure_to_process_geometry_state,
     process_geometry_state_to_geometry_structure,
@@ -80,6 +82,7 @@ __all__ = [
     "GeometryKernelExecutionResult",
     "InMemoryGeometryCatalog",
     "ModuleResolver",
+    "MemoryStepExecutionCache",
     "PlannedGeometryInput",
     "PlannedStep",
     "PolygonGeometry",
@@ -88,6 +91,7 @@ __all__ = [
     "ProcessStepModule",
     "ProcessStepModuleResolver",
     "Region",
+    "StepExecutionCache",
     "TYPE_DIE",
     "TYPE_EMPTY",
     "TYPE_TARGET",
