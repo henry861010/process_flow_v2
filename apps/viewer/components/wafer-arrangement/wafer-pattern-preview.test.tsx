@@ -24,14 +24,17 @@ describe("initial wafer outline hydration", () => {
   it.each([undefined, 290000])("hydrates the server-rendered outline at diameter %s without replacing it", async allowableDiameter => {
     const preview = <WaferPatternPreview allowableDiameter={allowableDiameter} />;
     host.innerHTML = renderToString(preview);
-    const circle = host.querySelector("circle");
+    const circle = host.querySelector('[data-wafer-outline="reference"]');
     const recoverableErrors: unknown[] = [];
     await act(async () => {
       root = hydrateRoot(host, preview, { onRecoverableError: error => recoverableErrors.push(error) });
     });
     expect(recoverableErrors).toEqual([]);
-    expect(host.querySelector("circle")).toBe(circle);
-    expect(circle?.getAttribute("r")).toBe(String((allowableDiameter ?? 300000) / 2));
+    expect(host.querySelector('[data-wafer-outline="reference"]')).toBe(circle);
+    expect(circle?.getAttribute("r")).toBe("150000");
+    const allowable = host.querySelector('[data-wafer-outline="allowable"]');
+    if (allowableDiameter === undefined) expect(allowable).toBeNull();
+    else expect(allowable?.getAttribute("r")).toBe(String(allowableDiameter / 2));
     expect(host.querySelector("title")?.textContent).toBe(`${allowableDiameter ? "Allowable wafer" : "Wafer reference"} diameter ${allowableDiameter ?? 300000} µm; no pattern generated`);
   });
 });

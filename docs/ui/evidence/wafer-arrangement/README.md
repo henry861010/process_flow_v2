@@ -89,3 +89,19 @@ flow-editor-source tests 的型別問題。
 全套 API run 的既有失敗為 CDB mesh constraint／缺少 mesher.process_flow.pipeline，
 以及 legacy migration execution digests。使用暫存 API 副本、還原本次變更前的 main.py
 移除 wafer routes 後，重現相同的 7 個 failure 與 2 個 error；本次未修改這些流程。
+
+## CoW feature 分區與 graph 彈窗
+
+2026-11-10 使用隔離的 in-memory API（8013）與 production viewer（3013）驗證。
+設定分為 CoW feature 與 Wafer arrangement；JSON 操作整合在 CoW size 下方，
+Read JSON 與 Pattern graph 並排，讀入檔案後不自動展開 graph。
+
+- [桌面完整頁面](cow-feature-desktop.jpg)：1280px，產生 17 顆 COW、104 顆 wafer dummy，JSON 共 6 die per CoW，graph 保持隱藏。
+- [手機完整頁面](cow-feature-mobile.jpg)：390×844，兩區上下排列；頁面 scrollWidth 為 390。
+- [CoW graph 彈窗](cow-pattern-dialog.jpg) 與 [手機彈窗](cow-pattern-dialog-mobile.jpg)：圖形、圖層開關及座標檢視保留；手機彈窗寬 358px，內容可捲動。
+- [即時 allowable circle](live-allowable-circle.jpg)：產生 diameter 260000 的排列後改為 220000，即時圓半徑為 110000，舊排列圓以半徑 130000 的虛線標示；匯出停用。
+
+瀏覽器另外確認 1024px 的 scrollWidth 為 1024；彈窗 Shift+Tab 從關閉按鈕循環至
+末端控制項，Escape 關閉後焦點回到 Pattern graph，背景捲動恢復。console 無 error／warning。
+此次 wafer viewer 共 21 tests 通過，涵蓋即時圓、SSR hydration、預設隱藏與彈窗焦點、
+JSON 競態及隱藏圖層後仍帶入 JSON 匯出。production build 與文件檢查通過。

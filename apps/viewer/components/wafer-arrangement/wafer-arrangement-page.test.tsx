@@ -36,7 +36,7 @@ function pattern(count = 21): WaferPattern {
 let host: HTMLDivElement;
 let root: Root;
 function button(text: string) {
-  const element = [...host.querySelectorAll("button")].find(item => item.textContent === text);
+  const element = [...host.querySelectorAll("button")].find(item => item.textContent === text || item.getAttribute("aria-label") === text);
   if (!element) throw new Error(`Missing button ${text}`);
   return element;
 }
@@ -68,19 +68,41 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(
 
 describe("wafer arrangement interactions", () => {
   it("shows a wafer circle immediately and updates its diameter before generating any pattern", () => {
-    const circle = () => host.querySelector('svg[aria-label="Wafer arrangement XY preview"] circle')!;
-    expect(circle().getAttribute("r")).toBe("150000");
+    const reference = () => host.querySelector('[data-wafer-outline="reference"]')!;
+    const allowable = () => host.querySelector('[data-wafer-outline="allowable"]');
+    expect(reference().getAttribute("r")).toBe("150000");
+    expect(allowable()).toBeNull();
     expect(host.textContent).toContain("Wafer reference Ø 300,000 µm");
     expect((document.getElementById("diameter") as HTMLInputElement).value).toBe("");
     input("diameter", "290000");
-    expect(circle().getAttribute("r")).toBe("145000");
+    expect(allowable()?.getAttribute("r")).toBe("145000");
+    expect(reference().getAttribute("r")).toBe("150000");
     expect(host.textContent).toContain("Allowable Ø 290,000 µm");
     expect(button("Export GDS").disabled).toBe(true);
     for (const invalid of ["", "0", "-1", "300000"]) {
       input("diameter", invalid);
-      expect(circle().getAttribute("r")).toBe("150000");
+      expect(allowable()).toBeNull();
+      expect(reference().getAttribute("r")).toBe("150000");
     }
     expect(previewWafer).not.toHaveBeenCalled();
+  });
+
+  it("updates the allowable circle over an existing pattern without replacing its geometry", async () => {
+    fill(); vi.mocked(previewWafer).mockResolvedValue(pattern());
+    await act(async () => button("Generate pattern").click());
+    const geometry = host.querySelector('svg[aria-label="Wafer arrangement XY preview"] path.stroke-primary');
+    const originalPath = geometry?.getAttribute("d");
+    expect(originalPath).toBeTruthy();
+    input("diameter", "200000");
+    expect(host.querySelector('[data-wafer-outline="allowable"]')?.getAttribute("r")).toBe("100000");
+    expect(host.querySelector('[data-wafer-outline="generated"]')?.getAttribute("r")).toBe("145000");
+    expect(geometry?.getAttribute("d")).toBe(originalPath);
+    expect(host.textContent).toContain("Previous pattern Ø 290,000 µm");
+    expect(host.textContent).toContain("Parameters changed");
+    expect(button("Export GDS").disabled).toBe(true);
+    expect(previewWafer).toHaveBeenCalledTimes(1);
+    input("diameter", "290000");
+    expect(host.querySelector('[data-wafer-outline="generated"]')).toBeNull();
   });
 
   it("focuses a linked error summary, preserves inline messages, and makes no request for blanks", async () => {
@@ -151,11 +173,17 @@ describe("wafer arrangement interactions", () => {
   });
 
   it("imports a single COW before wafer parameters exist and can remove the optional file", async () => {
+    expect(button("CoW pattern graph").disabled).toBe(true);
     const layout = diePattern(); layout.cowRectangle = null;
     vi.mocked(previewCowDies).mockResolvedValue(layout);
     await chooseJson("cow.json");
     expect(previewCowDies).toHaveBeenCalledWith(dieJson, undefined, expect.any(AbortSignal));
     expect(previewWafer).not.toHaveBeenCalled();
+    expect(host.querySelector('svg[aria-label="Single COW die XY preview"]')).toBeNull();
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(host.textContent).toContain("1 die per CoW");
+    act(() => button("CoW pattern graph").click());
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
     expect(host.querySelector('svg[aria-label="Single COW die XY preview"]')).not.toBeNull();
     expect(host.textContent).toContain("cow.json");
     expect(host.textContent).toContain("888:1 · 1 die");
@@ -163,6 +191,26 @@ describe("wafer arrangement interactions", () => {
     act(() => button("Remove JSON").click());
     expect(host.querySelector('svg[aria-label="Single COW die XY preview"]')).toBeNull();
     expect(host.textContent).toContain("No JSON selected");
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(button("CoW pattern graph").disabled).toBe(true);
+  });
+
+  it("closes the graph with Escape and returns keyboard focus to its trigger", async () => {
+    vi.mocked(previewCowDies).mockResolvedValue(diePattern());
+    await chooseJson("cow.json");
+    const trigger = button("CoW pattern graph");
+    trigger.focus();
+    act(() => trigger.click());
+    expect(host.querySelector('[role="dialog"]')?.contains(document.activeElement)).toBe(true);
+    expect(document.body.style.overflow).toBe("hidden");
+    act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => resolve())); });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("");
+    act(() => trigger.click());
+    act(() => button("Close dialog").click());
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("ignores superseded file reads and older die API responses", async () => {
@@ -196,6 +244,8 @@ describe("wafer arrangement interactions", () => {
     await act(async () => button("Generate pattern").click());
     await act(async () => checking.resolve(diePattern(true)));
     expect(previewCowDies).toHaveBeenLastCalledWith(dieJson, { x: 400, y: 50000 }, expect.any(AbortSignal));
+    expect(host.textContent).toContain("1 die outside CoW. Export is blocked.");
+    act(() => button("CoW pattern graph").click());
     expect(host.querySelector('svg[aria-label="Single COW die XY preview"]')).not.toBeNull();
     expect(host.textContent).toContain("SOC-1 extends outside");
     expect(button("Export GDS").disabled).toBe(true);
@@ -224,9 +274,11 @@ describe("wafer arrangement interactions", () => {
     await act(async () => button("Generate pattern").click());
     vi.mocked(previewCowDies).mockResolvedValueOnce(diePattern());
     await chooseJson("cow.json");
+    act(() => button("CoW pattern graph").click());
     const socToggle = [...host.querySelectorAll('label')].find(label => label.textContent?.includes("888:1"))!.querySelector("input")!;
     act(() => socToggle.click());
     expect(host.querySelector('[data-die-type="soc"]')).toBeNull();
+    act(() => button("Close dialog").click());
     input("gds-output-path", "/tmp/wafer.gds");
     const writing = deferred<Awaited<ReturnType<typeof exportWafer>>>();
     vi.mocked(exportWafer).mockReturnValueOnce(writing.promise);

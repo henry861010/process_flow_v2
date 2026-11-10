@@ -26,6 +26,11 @@ COW／wafer dummy pattern，並可選取單顆 COW 的 die JSON，一併匯出 G
 300000；COW size X/Y 大於 0；COW-to-COW space X/Y 大於等於 0。
 Arrange type 預設 Center，可切換 Corner、X half、Y half，所有矩形保持輸入方向。
 
+參數依序分為 CoW feature 與 Wafer arrangement 兩區。CoW feature 包含 size X/Y 與
+整合在同一區內的 JSON 檔案操作；Wafer arrangement 包含 allowable diameter、
+COW-to-COW space、arrange type、dummy layers 及 Generate pattern。
+Read JSON 旁提供 Pattern graph 按鈕；未成功讀取 JSON 時停用。
+
 Dummy layers 預設一層，可新增／移除至零層。每層獨立設定 size X/Y 與 minimum
 spacing X/Y，皆大於 0。最小間距只限制同一虛擬 COW 格內的 dummy；跨格距離由
 邊緣留白與 COW-to-COW space 決定。移除層後，其餘層依目前順序重新編號。
@@ -51,13 +56,16 @@ JSON 可在任意深度的物件或陣列內含 `soc`、`hbm`、`lsi`、`soic`�
 右上角不大於左下角，或 1 nm 量化後零面積皆為錯誤，訊息指出資料位置／ID。
 已辨識類型的 Info 內容不再作為待搜尋區塊，die-ID 可與類型名稱相同。
 
-單顆 COW viewer 位於 wafer 預覽下方，不必先產生 wafer 即可匯入。COW 尺寸尚未
-有效輸入時只顯示 die 與原點；尺寸有效時顯示量化後 COW 邊界並檢查越界。
+單顆 COW viewer 預設隱藏，透過 Read JSON 旁的 Pattern graph 按鈕開啟彈窗，
+不必先產生 wafer 即可匯入。彈窗可按關閉按鈕、Escape 或背景關閉，關閉後焦點回到
+Pattern graph；開啟時焦點限制在彈窗內，背景不捲動。COW 尺寸尚未有效輸入時只
+顯示 die 與原點；尺寸有效時顯示量化後 COW 邊界並檢查越界。
 顯示各類型顏色、數量及獨立開關，共用 wafer 的鍵盤／縮放／平移操作。
 Inspect die IDs and coordinates 可展開查看座標並選取反白，每頁最多 50 筆。
 Fit all 包含越界 die，越界矩形以虛線外框及 ID 錯誤清單標示。
 
-JSON 匯入中、解析失敗或 die 越界時禁止匯出，越界圖形保留供查看；移除 JSON 可回復
+JSON 匯入中、解析失敗或 die 越界時禁止匯出；即使彈窗關閉，CoW feature 仍顯示
+讀取狀態或越界提示，越界圖形保留供查看；移除 JSON 可回復
 無 die 的流程。更換檔案、移除或修改 COW 尺寸會取消過期讀取／驗證，舊回應不得覆蓋
 目前檔案。JSON 變更不要求重算 wafer；COW 尺寸變更仍遵守原有 wafer 待更新規則。
 匯出期間鎖定檔案與參數編輯，所有顯示開關只影響預覽。
@@ -98,10 +106,11 @@ n 至少 2 時，`T=L-nd`，理想 `B=max(g,3T/(3n-1))`、`A=(T-(n-1)B)/2`。
 面積除以 allowable circle 面積的百分比、dummy 總數，以及各層數量、每格顆數、A／B。
 可單獨切換 COW、虛擬格及各層顯示。切換只影響預覽，GDS 包含全部設定圖層。
 
-初次開啟即顯示圓與座標軸；allowable diameter 尚未有效輸入時，以明確標示的 300000 µm
-wafer reference 圓示意，參數欄仍維持空白。輸入有效的 allowable diameter 後，尚未產生
-pattern 的圓會立即更新，無須先填其他欄位或呼叫 API。已產生的 pattern 及其圓周則保留
-快照，修改參數後依待更新狀態處理；初始參考圓不代表已有可匯出的排列。
+初次開啟即顯示 300000 µm wafer reference 圓與座標軸，參數欄維持空白。參考外圈持續
+保留，輸入有效的 allowable diameter 時即時顯示對應大小的主色圓與淡色填滿區域，
+無須先填其他欄位或呼叫 API。已有 pattern 時也會即時更新 allowable 圓，舊排列保留；
+直徑不同時另以虛線標示 Previous pattern 圓與原直徑，仍須 Generate 才能更新排列與
+匯出。無效輸入不繪製新圓，已有 pattern 則沿用其直徑；參考圓不代表已有可匯出的排列。
 
 拖曳平移，Ctrl/⌘ + wheel 縮放，一般 wheel 捲動頁面；鍵盤方向鍵平移，+/− 縮放，Home
 或 Fit all 顯示完整圖，包括虛擬格。提供有 accessible name 的縮放按鈕。
@@ -164,8 +173,9 @@ totalRectangles 包含 die。wafer preview 的 totalRectangles 仍只計算 COW 
 - `UI-WAFER-004`：舊回應不覆蓋新結果；變更後禁止匯出；隱藏圖層仍全部匯出。
 - `UI-WAFER-005`：GDS 可由現有 placement importer 匯入，數量、單位與座標一致；寫入失敗保留原檔。
 - `UI-WAFER-006`：1440×900、1024×768、390×844 無整頁橫向溢出；圖形可縮放、平移及 Fit all。
-- `UI-WAFER-007`：未填參數即顯示標示清楚的 wafer reference 圓；有效 diameter 即時更新示意圓，仍不能匯出。
+- `UI-WAFER-007`：參考外圈持續顯示；有效 diameter 即時更新 allowable 圓，已有排列時保留圖形並標示舊直徑，更新前禁止匯出。
 - `UI-WAFER-008`：緊密尺寸組合也保留正的 A；必要時減少顆數，預覽與 GDS 皆不貼齊虛擬格邊緣。
 - `UI-WAFER-009`：任意深度與五種類型的 JSON 可匯入；實際 ID 數量優先於 Count，單顆 viewer 可獨立操作。
 - `UI-WAFER-010`：JSON 更換、尺寸變更與過期回應正確處理；錯誤／越界禁止匯出，移除可恢復。
 - `UI-WAFER-011`：五種 die 圖層按每顆完整 COW 中心平移，半格中心維持尺寸、總預算與原檔保護。
+- `UI-WAFER-012`：CoW feature 與 Wafer arrangement 分區；CoW graph 預設隱藏，可由 Read JSON 旁開啟彈窗並以鍵盤關閉、恢復焦點。
