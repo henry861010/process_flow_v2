@@ -20,6 +20,8 @@ from process_flow_mesh_control.validation import _validate_generated_mesh_contro
 
 from .file_export_jobs import FileExportJobManager
 from .wafer_arrangement import router as wafer_arrangement_router
+from .package_conversion import ConversionError, convert_package
+from .package_conversion_schema import ConversionRequest
 from .analytics import AnalyticsRecorder
 from .analytics_http import AnalyticsMiddleware, AnalyticsRoute
 from .fixture_export import MAX_ARCHIVE_BYTES, build_fixture_archive, load_fixture_archive
@@ -141,6 +143,10 @@ def create_app(
     @app.exception_handler(ValueError)
     async def value_error_handler(_: Request, error: ValueError):
         return JSONResponse({"message": str(error)}, status_code=status.HTTP_400_BAD_REQUEST)
+
+    @app.exception_handler(ConversionError)
+    async def conversion_error_handler(_: Request, error: ConversionError):
+        return JSONResponse({"message": str(error), "report": error.report}, status_code=400)
 
     @app.get("/api/health")
     async def health():
@@ -338,6 +344,14 @@ def create_app(
     @app.post("/api/process-flows", status_code=201)
     async def create_process_flow(request: Request, body: ProcessFlowCreate):
         return create_flow(get_store(request), body, get_geometry_generators(request))
+
+    @app.post("/api/package-conversions/preview")
+    def preview_package_conversion(request: Request, body: ConversionRequest):
+        return convert_package(get_store(request), get_geometry_generators(request), body)
+
+    @app.post("/api/package-conversions/import", status_code=201)
+    def import_package_conversion(request: Request, body: ConversionRequest):
+        return convert_package(get_store(request), get_geometry_generators(request), body, persist=True)
 
     @app.put("/api/process-flows/{flow_id}")
     async def replace_process_flow(request: Request, flow_id: str, body: ProcessFlowUpdate):

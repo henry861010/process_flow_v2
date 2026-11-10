@@ -322,8 +322,38 @@ class SQLiteStore:
                         )
             self._delete_in_transaction("geometries", id_)
 
-    def insert_process_flow(self, payload: JsonObject) -> JsonObject:
+    def insert_process_flow(self, payload: JsonObject, *,
+                            expected_resources: dict[str, list[JsonObject]] | None = None) -> JsonObject:
+        if expected_resources is not None:
+            return self._insert_flow_with_resource_checks(payload, expected_resources)
         return self._insert("process_flows", _flow_values(payload))
+
+    def _insert_flow_with_resource_checks(self, payload, expected_resources):
+        """Compare the executed resource snapshots in the same SQL statement as insertion."""
+        values = _flow_values(payload)
+        predicates, parameters = [], list(values.values())
+        for table, snapshots in expected_resources.items():
+            if table not in RESOURCE_TABLES:
+                raise ValueError(f"Unsupported resource table: {table}")
+            for snapshot in snapshots:
+                row = self._connection.execute(f"SELECT payload FROM {table} WHERE id=?", (snapshot["id"],)).fetchone()
+                if row is None or _normalize_resource_payload(table, json.loads(row[0])) != snapshot:
+                    raise ResourceConflictError("A conversion dependency changed; reload the baseline and retry")
+                predicates.append(f"EXISTS (SELECT 1 FROM {table} WHERE id=? AND payload=?)")
+                parameters.extend((snapshot["id"], row[0]))
+        columns = ",".join(values)
+        placeholders = ",".join("?" for _ in values)
+        condition = " AND ".join(predicates) or "1"
+        try:
+            with self._connection:
+                cursor = self._connection.execute(
+                    f"INSERT INTO process_flows ({columns}) SELECT {placeholders} WHERE {condition}", parameters,
+                )
+                if cursor.rowcount != 1:
+                    raise ResourceConflictError("A conversion dependency changed; reload the baseline and retry")
+        except sqlite3.IntegrityError as error:
+            raise _duplicate_item_error(error) from error
+        return payload
 
     def list_process_flows(self) -> list[JsonObject]:
         return self._list("process_flows", [], [], "name ASC, version ASC, id ASC")

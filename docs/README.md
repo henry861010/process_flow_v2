@@ -63,6 +63,7 @@ stale description 提升成 current authority。
 5. [HBM Geometry Generator](./reference/hbm-generator.md)
 6. [Persistence](./reference/persistence.md)
 7. [API README](../apps/api/README.md) 與執行中的 OpenAPI
+8. [Package JSON conversion](./reference/package-conversion.md)
 
 ### Geometry 與 process-step 開發
 

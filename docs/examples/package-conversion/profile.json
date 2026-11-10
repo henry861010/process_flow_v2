@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "illustrative-package-v1",
+  "version": "1",
+  "fields": [
+    {
+      "id": "cow_mold_material",
+      "object": "cow.mold",
+      "property": "material",
+      "stage": "after_deposit",
+      "path": "/package/cow/mold/material",
+      "kind": "material"
+    },
+    {
+      "id": "cow_mold_deposited_thickness",
+      "object": "cow.mold",
+      "property": "thickness",
+      "stage": "after_deposit",
+      "path": "/package/cow/mold/depositedThickness",
+      "kind": "length",
+      "unitPath": "/package/cow/mold/thicknessUnit"
+    },
+    {
+      "id": "cow_c4_density",
+      "object": "cow.c4",
+      "property": "density",
+      "stage": "after_form",
+      "path": "/package/cow/c4/density",
+      "kind": "density",
+      "unitPath": "/package/cow/c4/densityUnit"
+    }
+  ],
+  "rules": [
+    {
+      "id": "set_cow_mold_material",
+      "type": "parameter",
+      "fact": "cow_mold_material",
+      "role": "cow.mold.deposit",
+      "parameter": "material",
+      "verify": {"kind": "body", "key": "molding", "property": "material"}
+    },
+    {
+      "id": "set_cow_mold_deposited_thickness",
+      "type": "parameter",
+      "fact": "cow_mold_deposited_thickness",
+      "role": "cow.mold.deposit",
+      "parameter": "thickness",
+      "verify": {"kind": "body", "key": "molding", "property": "thickness"}
+    },
+    {
+      "id": "set_cow_c4_density",
+      "type": "parameter",
+      "fact": "cow_c4_density",
+      "role": "cow.c4.form",
+      "parameter": "density",
+      "verify": {"kind": "bump", "property": "density"}
+    }
+  ],
+  "materialMap": {"EMC": "EMC-G700"},
+  "lengthTolerance": 0.00001
+}

@@ -1,0 +1,7 @@
+{
+  "roles": {
+    "cow.mold.deposit": "mold_cap",
+    "cow.c4.form": "c4_bump"
+  },
+  "inputs": {}
+}

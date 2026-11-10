@@ -1,0 +1,16 @@
+{
+  "package": {
+    "name": "Illustrative HBM4 package",
+    "cow": {
+      "mold": {
+        "material": "EMC",
+        "depositedThickness": 0.18,
+        "thicknessUnit": "mm"
+      },
+      "c4": {
+        "density": 0.58,
+        "densityUnit": "fraction"
+      }
+    }
+  }
+}

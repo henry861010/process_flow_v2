@@ -204,8 +204,12 @@ def prepare_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: Geomet
     return payload
 
 
-def create_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: GeometryGeneratorRegistry) -> JsonObject:
-    return store.insert_process_flow(prepare_flow(store, body, generators))
+def create_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: GeometryGeneratorRegistry,
+                *, expected_resources: Mapping[str, list[JsonObject]] | None = None) -> JsonObject:
+    payload = prepare_flow(store, body, generators)
+    if expected_resources is not None:
+        return store.insert_process_flow(payload, expected_resources=expected_resources)
+    return store.insert_process_flow(payload)
 
 
 def update_flow(store: SQLiteStore, flow_id: str, body: ProcessFlowUpdate,
