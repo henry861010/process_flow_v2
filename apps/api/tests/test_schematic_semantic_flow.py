@@ -254,6 +254,7 @@ class SchematicSemanticFlowTests(unittest.TestCase):
         self.assertEqual(root["key"], "cow")
         self.assertEqual(root["children"][0]["id"], children[1]["id"])
         self.assertEqual(cut["components"][0]["label"], "CoW")
+        self.assertNotIn("diagramLabel", cut["components"][0])
         self.assertNotEqual(planning.outputs["grind"].phase_id, planning.outputs["cut"].phase_id)
         self.assertEqual([item["thickness"] for item in cut["items"]
                           if bodies[1]["id"] in item["sourceIds"]], [4])

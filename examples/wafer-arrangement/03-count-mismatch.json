@@ -1,0 +1,43 @@
+{
+  "soc": {
+    "socCount": 10,
+    "socInfo": {
+      "SOC-1": {
+        "bottomLeftX": -1200,
+        "bottomLeftY": -1000,
+        "upperRightX": -100,
+        "upperRightY": 0
+      }
+    }
+  },
+  "package": {
+    "layers": [
+      {
+        "soc": {
+          "socCount": 100,
+          "socInfo": {
+            "SOC-2": {
+              "bottomLeftX": 100,
+              "bottomLeftY": -1000,
+              "upperRightX": 1200,
+              "upperRightY": 0
+            }
+          }
+        }
+      },
+      {
+        "hbm": {
+          "hbmCount": 99,
+          "hbmInfo": {
+            "HBM-1": {
+              "bottomLeftX": -1200,
+              "bottomLeftY": 200,
+              "upperRightX": -400,
+              "upperRightY": 1600
+            }
+          }
+        }
+      }
+    ]
+  }
+}

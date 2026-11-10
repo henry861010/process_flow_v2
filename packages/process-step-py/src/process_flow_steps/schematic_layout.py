@@ -339,7 +339,7 @@ def _saw(context):
     outer_region = root.region_id or _region(context.main)
     contents = SceneRegion(context.local_id("cow-contents"), root.id, parent_region_id=outer_region)
     updates = tuple(
-        replace(obj, kind="component", role="cow", label="CoW", diagram_label="CoW",
+        replace(obj, kind="component", role="cow", label="CoW", diagram_label=None,
                 nesting="arranged", region_id=outer_region)
         if obj.id == root.id else
         replace(obj, region_id=contents.id,

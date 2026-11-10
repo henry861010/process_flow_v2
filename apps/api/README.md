@@ -202,3 +202,14 @@ PROCESS_FLOW_API_DB_PATH=:memory: venv/bin/python -m pytest apps/api/tests -q
 ```
 
 Tests涵蓋 startup/seed、CRUD/conflicts、compile/execute、draft transaction、preview/CAD 與 export jobs。
+## Wafer arrangement
+
+`POST /api/wafer-arrangement/preview` 計算 COW 與邊界 dummy 排列，不寫入 catalog 或 flow
+records。`POST /api/wafer-arrangement/export-gds` 接收相同參數，加上 API host 的絕對
+`outputPath` 與可選的 `dieJson`。die JSON 以 COW 中心為原點，遞迴讀取五種類型的 Info
+並複製至完整 COW，寫入 `888:1`～`888:5`。`POST /api/wafer-arrangement/preview-dies`
+接收 `dieJson` 與可選 `cowSize`，可在沒有 wafer 參數時預覽單顆 COW；越界回傳圖形與
+錯誤清單，但匯出端會拒絕。匯出回應的 `dieCounts` 為整份 wafer 的各類型數量，
+`totalRectangles` 包含 die。GDS 使用隨此 package 安裝的 `gdstk>=1.0,<2`，先寫同目錄暫存檔，成功後
+才替換目標檔案。參數、間距、數量限制與 layer/datatype 對應見
+[工具規格](../../docs/ui/screens/wafer-arrangement.md)。

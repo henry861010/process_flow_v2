@@ -1,0 +1,15 @@
+{
+  "package": {
+    "soc": {
+      "socCount": 1,
+      "socInfo": {
+        "SOC-OUTSIDE": {
+          "bottomLeftX": 1000,
+          "bottomLeftY": -500,
+          "upperRightX": 1800,
+          "upperRightY": 500
+        }
+      }
+    }
+  }
+}

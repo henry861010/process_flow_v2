@@ -21,24 +21,24 @@ class GeneratorSchematicPresenterTests(unittest.TestCase):
         source = {"schemaVersion": "1.0.0", "unitSystem": "um", "root": {
             "id": "root", "key": "carrier", "bodies": [body("carrier", "carrier", "Glass", 0, 100)],
             "children": [{"id": key, "key": key, "bodies": [body(f"{key}-si", "silicon", "Si", 100, 50)]}
-                         for key in ("lsi", "soc", "hbm", "wafer-dmy", "dram")],
+                         for key in ("lsi", "soc", "hbm", "vrm", "wafer-dmy", "dram")],
         }}
         original = copy.deepcopy(source)
         registry = SchematicRegistry()
         register_presenters(registry)
         document = compose_schematic(source, registry)
         self.assertEqual([component["diagramLabel"] for component in document["components"]
-                          if "diagramLabel" in component], ["DMY", "LSI", "SoC", "HBM", "DMY"])
+                          if "diagramLabel" in component], ["DMY", "LSI", "SoC", "HBM", "VRM", "DMY"])
         carrier = next(item for item in document["items"] if item["sourceIds"] == ["carrier"])
         self.assertEqual(carrier["diagramLabel"], "Carrier")
         self.assertEqual(carrier["label"], "Glass")
         scene, bindings = describe_source_scene(source, registry, source_id="input")
         samples = {"carrier": PhysicalSample("carrier", 0, 100, "Glass"),
                    **{f"{key}-si": PhysicalSample(f"{key}-si", 100, 150, "Si")
-                      for key in ("lsi", "soc", "hbm", "wafer-dmy", "dram")}}
+                      for key in ("lsi", "soc", "hbm", "vrm", "wafer-dmy", "dram")}}
         adapted = render_scene(scene, samples=samples, bindings={bindings[key]: (key,) for key in samples})
         self.assertEqual({component.get("diagramLabel") for component in adapted["components"]},
-                         {None, "LSI", "SoC", "HBM", "DMY"})
+                         {None, "LSI", "SoC", "HBM", "VRM", "DMY"})
         self.assertEqual(next(item for item in adapted["items"] if item["sourceIds"] == ["carrier"])["diagramLabel"], "Carrier")
         self.assertEqual(source, original)
 

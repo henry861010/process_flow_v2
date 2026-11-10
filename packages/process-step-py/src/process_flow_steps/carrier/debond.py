@@ -2,7 +2,7 @@ from process_flow_kernel import ProcessGeometryState, ProcessStepContext
 
 
 # Increment when execution semantics change; execute depends only on its context.
-EXECUTION_CACHE_VERSION = 1
+EXECUTION_CACHE_VERSION = 2
 
 
 def execute(context: ProcessStepContext) -> ProcessGeometryState:

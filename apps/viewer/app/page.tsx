@@ -6,6 +6,7 @@ import {
   Plus,
   Settings,
   Workflow,
+  CircleDot,
 } from "lucide-react";
 
 import type { GeometryGeneratorDefinition } from "@/components/geometry-generator/geometry-generator-contracts";
@@ -160,6 +161,12 @@ export default function Home() {
               <Link href="/geometry-editor"><Plus />Geometry</Link>
             </Button>
           </div>
+        </section>
+        <section className="border-t py-5" aria-labelledby="tools-heading">
+          <h2 id="tools-heading" className="mb-3 text-sm font-semibold">Tools</h2>
+          <Button asChild variant="outline">
+            <Link href="/wafer-arrangement"><CircleDot aria-hidden="true" />Wafer arrangement</Link>
+          </Button>
         </section>
       </div>
     </main>

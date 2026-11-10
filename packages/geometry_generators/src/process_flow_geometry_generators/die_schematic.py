@@ -13,7 +13,7 @@ def present_schematic(context: SchematicContext) -> list[SchematicPart]:
     label = _LABELS.get(context.node.get("key"), "Die")
     return [SchematicPart(label=label, component=ComponentHint(
         label=label, role=str(context.node.get("key") or "die"),
-        diagram_label=label if context.node.get("key") in ("soc", "hbm") else None))]
+        diagram_label=label if context.node.get("key") in ("soc", "hbm", "vrm") else None))]
 
 
 def present_internal_matrix(context: SchematicContext) -> list[SchematicPart]:

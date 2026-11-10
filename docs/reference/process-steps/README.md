@@ -122,9 +122,10 @@ Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transform
   target overall geometry maximum Z；child containers、via/circuit/bump 都不複製。
 - Debond 遞迴搜尋整棵 geometry tree，要求 exactly one key=`carrier` body 的 top Z 等於 overall
   geometry top；較低 carrier 保留，其他 body／feature／child 可與 carrier 同高。它只配對 top Z
-  接觸 carrier bottom 的 key=`daf` body：沒有時只移除 carrier，恰好一個時還必須具有相同 primitive
-  type 與 XY footprint，多個相連 DAF 或 footprint 不同都會失敗。非相連 DAF 保留；carrier 與 DAF
-  可屬於不同 containers。任何 validation 失敗時 geometry、cursor 與 process footprint 都不變。
+  接觸 carrier bottom 且具有相同 primitive type 與 XY footprint 的 key=`daf` body：沒有符合條件者
+  時只移除 carrier，恰好一個時一併移除該層 DAF，不繼續向下移除；多個符合條件者會失敗。
+  形狀或 footprint 不同、非相連的 DAF 與 FOW 均保留；carrier 與 DAF 可屬於不同 containers。
+  任何 validation 失敗時 geometry、cursor 與 process footprint 都不變。
 - PnP placement將absolute `targetRegion`（rectangle或simple polygon）、required
   `pose.x/y/rotationZ`與required `anchor`保存在同一item。Rectangle使用`bottomLeftX/Y`與
   `topRightX/Y`；polygon points也是global XY。Hidden transform固定為zero pose與center anchor，

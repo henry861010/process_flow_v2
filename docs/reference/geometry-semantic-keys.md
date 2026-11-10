@@ -101,7 +101,8 @@ MUST NOT 放入 key。
   不將 LSI keys 視為別名。既有幾何不自動遷移，需重新產生或明確補上 key。
 - Molding、DAF 與 FOW 分別建立 `molding`、`daf`、`fow` body roles；Carrier Bond 保留 source body keys。
   Debond 遞迴使用 `carrier` role 選擇唯一頂層 body，並只將緊貼其底面且 footprint 相同的單一
-  `daf` role 視為可選的 bonded DAF。
+  `daf` role 視為可選的 bonded DAF；沒有符合條件的 DAF 時只移除 carrier，其他 DAF 保留。
+  只移除直接相連的一層 DAF，多個符合條件的 DAF 則報錯。
 - RDL 與 Under Fill 分別建立 `rdl`、`uf` body roles；這些 keys 不改變 CAD／mesh 的幾何或材料
   ownership。舊結構缺少 role 時維持通用呈現，不從 material 名稱推論，也不自動遷移。
 - Saw step 在裁切成功後 MUST 將輸出 root container key 設為 `cow`，取代原 root key，保留

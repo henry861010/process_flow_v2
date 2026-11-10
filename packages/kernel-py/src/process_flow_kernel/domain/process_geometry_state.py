@@ -848,23 +848,18 @@ class ProcessGeometryState:
             )
 
         carrier_container, carrier_body = top_carriers[0]
-        touching_dafs = [
+        matching_dafs = [
             (container, body)
             for container, body in daf_bodies
             if math.f_eq(body.z_max(), carrier_body.z_min())
+            and _geometry_footprints_equal(body.geometry(), carrier_body.geometry())
         ]
-        if len(touching_dafs) > 1:
+        if len(matching_dafs) > 1:
             raise ValueError(
-                "Invalid debond process flow: expected at most one DAF body touching the carrier bottom"
+                "Invalid debond process flow: expected at most one DAF body touching the carrier bottom with a matching footprint"
             )
 
-        daf_target = None if len(touching_dafs) == 0 else touching_dafs[0]
-        if daf_target is not None and not _geometry_footprints_equal(
-            daf_target[1].geometry(), carrier_body.geometry()
-        ):
-            raise ValueError(
-                "Invalid debond process flow: DAF and carrier footprints must match"
-            )
+        daf_target = None if len(matching_dafs) == 0 else matching_dafs[0]
 
         targets_by_container = {carrier_container: {carrier_body}}
         if daf_target is not None:

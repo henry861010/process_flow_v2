@@ -1022,6 +1022,107 @@ class GeometryDomainTests(unittest.TestCase):
                 )
                 self.assertEqual(state.remove_bonded_carrier_stack()["removedCount"], 2)
 
+    def test_debond_preserves_dafs_that_do_not_match_the_carrier(self):
+        footprint_mismatch = debond_state(
+            daf_geometry=box_spec(-49, -50, 50, 50, 10, 3)
+        )
+        primitive_mismatch = debond_state(
+            daf_geometry=cylinder_spec(0, 0, 50, 10, 3)
+        )
+        cylinder_mismatch = debond_state(
+            daf_geometry=cylinder_spec(0, 1, 50, 10, 3),
+            carrier_geometry=cylinder_spec(0, 0, 50, 13, 20),
+        )
+        cone_mismatch = debond_state(
+            daf_geometry=cone_spec(0, 0, 50, 39, 10, 3),
+            carrier_geometry=cone_spec(0, 0, 50, 40, 13, 20),
+        )
+        polygon_mismatch = debond_state(
+            daf_geometry=polygon_spec(
+                [[[-50, -50, 10], [49, -50, 10], [50, 50, 10], [-50, 50, 10]]],
+                3,
+            ),
+            carrier_geometry=polygon_spec(
+                [[[-50, -50, 13], [50, -50, 13], [50, 50, 13], [-50, 50, 13]]],
+                20,
+            ),
+        )
+
+        separated_daf = debond_state(
+            daf_geometry=box_spec(-50, -50, 50, 50, 9, 3)
+        )
+        multiple_mismatches = debond_state(
+            daf_geometry=box_spec(-49, -50, 50, 50, 10, 3)
+        )
+        multiple_mismatches.deposit_geometry(
+            material="other DAF",
+            geometry=box_spec(100, 100, 110, 110, 10, 3),
+            key="daf",
+        )
+        cases = {
+            "box mismatch": footprint_mismatch,
+            "primitive mismatch": primitive_mismatch,
+            "cylinder mismatch": cylinder_mismatch,
+            "cone mismatch": cone_mismatch,
+            "polygon mismatch": polygon_mismatch,
+            "separated DAF": separated_daf,
+            "multiple mismatches": multiple_mismatches,
+        }
+        for label, state in cases.items():
+            with self.subTest(label=label):
+                before = state.to_geometry_structure()
+                footprint_before = state.process_footprint()
+                state = ProcessGeometryState.from_structure(before, {"footprint": footprint_before})
+                expected_bodies = [
+                    body for body in before["root"]["bodies"]
+                    if body.get("key") != "carrier"
+                ]
+
+                self.assertEqual(state.remove_bonded_carrier_stack(), {
+                    "removedCount": 1, "removedDafCount": 0, "removedCarrierCount": 1,
+                })
+
+                self.assertEqual(state.to_geometry_structure()["root"]["bodies"], expected_bodies)
+                self.assertEqual(state.cursor_z(), state.geometry_z_max())
+                self.assertEqual(state.process_footprint(), footprint_before)
+
+    def test_debond_selects_matching_daf_among_other_touching_dafs(self):
+        for nested in (False, True):
+            with self.subTest(nested=nested):
+                state = debond_state(nested=nested)
+                state.deposit_geometry(
+                    material="unmatched DAF",
+                    geometry=box_spec(-49, -50, 50, 50, 10, 3),
+                    key="daf",
+                )
+                state = ProcessGeometryState.from_structure(state.to_geometry_structure())
+                unmatched = state.to_geometry_structure()["root"]["bodies"][-1]
+
+                self.assertEqual(state.remove_bonded_carrier_stack(), {
+                    "removedCount": 2, "removedDafCount": 1, "removedCarrierCount": 1,
+                })
+
+                self.assertEqual(recursive_body_keys(state), ["molding", "daf"])
+                self.assertEqual(state.to_geometry_structure()["root"]["bodies"][-1], unmatched)
+                self.assertEqual(state.cursor_z(), 13)
+
+    def test_debond_removes_only_one_daf_layer(self):
+        state = debond_state(daf_geometry=box_spec(-50, -50, 50, 50, 10, 1))
+        lower_daf = state.to_geometry_structure()["root"]["bodies"][1]
+        state.deposit_geometry(
+            material="upper DAF",
+            geometry=box_spec(-50, -50, 50, 50, 11, 2),
+            key="daf",
+        )
+
+        self.assertEqual(state.remove_bonded_carrier_stack(), {
+            "removedCount": 2, "removedDafCount": 1, "removedCarrierCount": 1,
+        })
+
+        self.assertEqual(recursive_body_keys(state), ["molding", "daf"])
+        self.assertEqual(state.to_geometry_structure()["root"]["bodies"][-1], lower_daf)
+        self.assertEqual(state.cursor_z(), 11)
+
     def test_debond_rejects_invalid_or_ambiguous_targets_atomically(self):
         missing_carrier = process_state_with_derived_footprint(main_geometry())
 
@@ -1051,31 +1152,6 @@ class GeometryDomainTests(unittest.TestCase):
             key="daf",
         )
 
-        footprint_mismatch = debond_state(
-            daf_geometry=box_spec(-49, -50, 50, 50, 10, 3)
-        )
-        primitive_mismatch = debond_state(
-            daf_geometry=cylinder_spec(0, 0, 50, 10, 3)
-        )
-        cylinder_mismatch = debond_state(
-            daf_geometry=cylinder_spec(0, 1, 50, 10, 3),
-            carrier_geometry=cylinder_spec(0, 0, 50, 13, 20),
-        )
-        cone_mismatch = debond_state(
-            daf_geometry=cone_spec(0, 0, 50, 39, 10, 3),
-            carrier_geometry=cone_spec(0, 0, 50, 40, 13, 20),
-        )
-        polygon_mismatch = debond_state(
-            daf_geometry=polygon_spec(
-                [[[-50, -50, 10], [49, -50, 10], [50, 50, 10], [-50, 50, 10]]],
-                3,
-            ),
-            carrier_geometry=polygon_spec(
-                [[[-50, -50, 13], [50, -50, 13], [50, 50, 13], [-50, 50, 13]]],
-                20,
-            ),
-        )
-
         cases = {
             "missing top carrier": (missing_carrier, "expected one carrier body"),
             "covered carrier": (covered_carrier, "expected one carrier body"),
@@ -1086,23 +1162,6 @@ class GeometryDomainTests(unittest.TestCase):
             "duplicate touching DAF": (
                 duplicate_daf,
                 "expected at most one DAF body",
-            ),
-            "box mismatch": (footprint_mismatch, "DAF and carrier footprints must match"),
-            "primitive mismatch": (
-                primitive_mismatch,
-                "DAF and carrier footprints must match",
-            ),
-            "cylinder mismatch": (
-                cylinder_mismatch,
-                "DAF and carrier footprints must match",
-            ),
-            "cone mismatch": (
-                cone_mismatch,
-                "DAF and carrier footprints must match",
-            ),
-            "polygon mismatch": (
-                polygon_mismatch,
-                "DAF and carrier footprints must match",
             ),
         }
 
@@ -1882,6 +1941,29 @@ class KernelExecutionTests(unittest.TestCase):
             [body["material"] for body in result.geometry()["root"]["bodies"]],
             ["substrate"],
         )
+
+    def test_real_debond_preserves_daf_with_a_different_footprint(self):
+        catalog = InMemoryGeometryCatalog([
+            geometry_entity("geom_main", main_geometry(material="substrate")),
+            geometry_entity("geom_carrier", carrier_geometry(half_size=60)),
+        ])
+        plan = FlowCompiler(catalog).compile(
+            daf_carrier_bond_debond_template(),
+            daf_carrier_bond_debond_configuration(),
+            {
+                "step_daf": daf_step_template(),
+                "step_carrier_bond": carrier_bond_step_template(),
+                "step_debond": debond_step_template(),
+            },
+        )
+
+        result = GeometryKernel().execute(plan)
+
+        self.assertEqual(
+            [body.get("key") for body in result.step_output("carrier_bond")["root"]["bodies"]],
+            [None, "daf", "carrier"],
+        )
+        self.assertEqual(result.geometry(), result.step_output("daf"))
 
     def test_material_instances_strip_external_suffix_and_allocate_next_name(self):
         configuration = single_step_configuration()

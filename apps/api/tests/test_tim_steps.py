@@ -117,6 +117,7 @@ class TimStepAcceptanceTests(unittest.TestCase):
         scene = planning.outputs["coat"]
         roles = {obj.role: obj for obj in scene.objects if obj.kind == "component"}
         self.assertEqual(roles["cow"].nesting, "arranged")
+        self.assertIsNone(roles["cow"].diagram_label)
         self.assertEqual(roles["soc"].layout, "member")
         self.assertEqual(roles["hbm"].layout, "member")
         layout = planning.scene_layouts[scene.phase_id]

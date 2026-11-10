@@ -225,6 +225,7 @@ class SchematicPlanningTests(unittest.TestCase):
         self.assertEqual(root["key"], "cow")
         self.assertEqual(root["children"][0]["id"], surviving_id)
         self.assertEqual(cut["components"][0]["label"], "CoW")
+        self.assertNotIn("diagramLabel", cut["components"][0])
         self.assertEqual(len(cut["components"][0]["sourceIds"]), 1)
         self.assertNotEqual(planning.outputs["first"].phase_id, planning.outputs["cut"].phase_id)
         self.assertTrue(any(surviving_body_id in item["sourceIds"] for item in cut["items"]))

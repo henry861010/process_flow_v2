@@ -234,6 +234,9 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertEqual(debond["parameterDefinitions"], [])
         self.assertIn("整體結構最上方", debond["description"])
         self.assertIn("touching DAF is optional", debond["inputPorts"][0]["description"])
+        self.assertIn("沒有符合條件的 DAF 時只移除載板", debond["description"])
+        self.assertIn("Nonmatching or non-touching DAF bodies are preserved", debond["inputPorts"][0]["description"])
+        self.assertIn("multiple matching DAF bodies are rejected", debond["inputPorts"][0]["description"])
         api_services.validate_process_step_template(debond)
         self.assertTrue(callable(ProcessStepModuleResolver().resolve(debond).execute))
 

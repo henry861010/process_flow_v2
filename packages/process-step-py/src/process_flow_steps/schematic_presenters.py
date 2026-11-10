@@ -24,7 +24,8 @@ def _present_coating_target(context):
     role = context.node["key"]
     label = "CoW" if role == "cow" else "Lid"
     return [SchematicPart(label, component=ComponentHint(
-        label, role=role, diagram_label=label, nesting="arranged" if role == "cow" else "structural"))]
+        label, role=role, diagram_label=None if role == "cow" else label,
+        nesting="arranged" if role == "cow" else "structural"))]
 
 
 def register_presenters(registry: SchematicRegistry) -> None:

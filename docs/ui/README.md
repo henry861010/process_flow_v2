@@ -58,6 +58,7 @@ component code 的實作者，仍能用相同 fixtures 重建出一致的畫面�
 | `/flow-editor` | [Flow Editor](screens/flow-editor.md) |
 | `/geometry-generator?generatorId=<id>` | [Geometry Generator Editor](screens/geometry-generator-editor.md) |
 | `/geometry-editor` | [Geometry JSON Editor](screens/geometry-editor.md) |
+| `/wafer-arrangement` | [Wafer arrangement](screens/wafer-arrangement.md) |
 | `/management` | [Management](screens/management.md) |
 | `/dashboard` | [Job Dashboard](screens/dashboard.md) |
 | `/cad-viewer` | [CAD Viewer](screens/cad-viewer.md) |

@@ -507,13 +507,13 @@
     "name": "Debond",
     "category": "carrier",
     "program": "carrier/debond",
-    "description": "載板解鍵合（Debond）：代表完成暫時支撐用途後，將載板與產品結構分離的製程。模型會移除整體結構最上方唯一的載板；若其底面連接一層形狀與平面範圍相同的 DAF，也會一併移除，未連接的 DAF 與 FOW 則保留。執行前須讓目標載板位於最上方；若位置或配對不符合條件，會回報錯誤。",
+    "description": "載板解鍵合（Debond）：代表完成暫時支撐用途後，將載板與產品結構分離的製程。模型會移除整體結構最上方唯一的載板；若其底面連接一層形狀與平面範圍相同的 DAF，也會一併移除。沒有符合條件的 DAF 時只移除載板；形狀或平面範圍不同、未連接的 DAF 與 FOW 均保留。執行前須讓目標載板位於最上方；若沒有唯一的頂層載板，或有多個符合條件的 DAF，會回報錯誤。",
     "owner": "integration.platform",
     "inputPorts": [
       {
         "portId": "main_geometry",
         "name": "main_geometry",
-        "description": "Complete geometry state consumed by debond. Exactly one carrier body in the full tree must reach the geometry top; a touching DAF is optional and must have the same primitive type and XY footprint.",
+        "description": "Complete geometry state consumed by debond. Exactly one carrier body in the full tree must reach the geometry top; a touching DAF is optional and is removed only if it has the same primitive type and XY footprint. Nonmatching or non-touching DAF bodies are preserved; multiple matching DAF bodies are rejected.",
         "dataType": "geometry",
         "role": "primary",
         "required": true

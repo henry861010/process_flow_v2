@@ -1,0 +1,71 @@
+{
+  "package": {
+    "layers": [
+      {
+        "dies": {
+          "soc": {
+            "socCount": 2,
+            "socInfo": {
+              "SOC-1": {
+                "bottomLeftX": -1200,
+                "bottomLeftY": -1000,
+                "upperRightX": -100,
+                "upperRightY": 0
+              },
+              "SOC-2": {
+                "bottomLeftX": 100,
+                "bottomLeftY": -1000,
+                "upperRightX": 1200,
+                "upperRightY": 0
+              }
+            }
+          },
+          "hbm": {
+            "hbmCount": 1,
+            "hbmInfo": {
+              "HBM-1": {
+                "bottomLeftX": -1200,
+                "bottomLeftY": 200,
+                "upperRightX": -400,
+                "upperRightY": 1600
+              }
+            }
+          },
+          "lsi": {
+            "lsiCount": 1,
+            "lsiInfo": {
+              "LSI-1": {
+                "bottomLeftX": -300,
+                "bottomLeftY": 200,
+                "upperRightX": 300,
+                "upperRightY": 800
+              }
+            }
+          },
+          "soic": {
+            "soicCount": 1,
+            "soicInfo": {
+              "SOIC-1": {
+                "bottomLeftX": 400,
+                "bottomLeftY": 200,
+                "upperRightX": 1200,
+                "upperRightY": 1600
+              }
+            }
+          },
+          "dmy": {
+            "dmyCount": 1,
+            "dmyInfo": {
+              "DMY-1": {
+                "bottomLeftX": -300,
+                "bottomLeftY": 1000,
+                "upperRightX": 300,
+                "upperRightY": 1600
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

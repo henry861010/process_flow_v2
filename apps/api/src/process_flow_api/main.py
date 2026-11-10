@@ -19,6 +19,7 @@ from process_flow_mesh_control import MeshControlSetNotApplicable, MeshControlSe
 from process_flow_mesh_control.validation import _validate_generated_mesh_control
 
 from .file_export_jobs import FileExportJobManager
+from .wafer_arrangement import router as wafer_arrangement_router
 from .analytics import AnalyticsRecorder
 from .analytics_http import AnalyticsMiddleware, AnalyticsRoute
 from .fixture_export import MAX_ARCHIVE_BYTES, build_fixture_archive, load_fixture_archive
@@ -81,6 +82,7 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Process Flow API", version="0.0.0", lifespan=app_lifespan)
     app.router.route_class = AnalyticsRoute
+    app.include_router(wafer_arrangement_router)
     app.state.store = SQLiteStore(db_path or default_db_path())
     configured_analytics_path = analytics_db_path or os.environ.get("PROCESS_FLOW_API_ANALYTICS_DB_PATH")
     if configured_analytics_path is None:
