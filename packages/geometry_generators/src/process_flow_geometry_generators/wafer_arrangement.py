@@ -14,7 +14,9 @@ ArrangeType = Literal["center", "corner", "x_half", "y_half"]
 MAX_CANDIDATES = 1_000_000
 MAX_RECTANGLES = 100_000
 DB_UNITS_PER_UM = 1000
-MIN_EDGE_MARGIN_DB = 1
+# The first GDS grid spacing strictly above the default CDB tolerance (1 nm).
+# Zero COW spacing remains an intentional shared boundary.
+MIN_EDGE_MARGIN_DB = 2
 
 
 class ArrangementModel(BaseModel):
@@ -58,6 +60,10 @@ def _um(value: int | float) -> float:
     return value / DB_UNITS_PER_UM
 
 
+def _gap_db(value: float) -> int:
+    return max(MIN_EDGE_MARGIN_DB, _db(value, ceiling=True)) if value > 0 else 0
+
+
 @dataclass(frozen=True)
 class AxisPacking:
     length: int
@@ -83,7 +89,7 @@ class AxisPacking:
 def pack_axis(length: int, die: int, minimum_gap: int) -> AxisPacking:
     """Lengths are integer nm. Gap variations are at most one nm."""
     # Reserve a representable A at both ends before maximizing the count.
-    # With A >= 1 nm, B must also be at least 3 nm to satisfy B >= 3A.
+    # With A >= 2 nm, B must also be at least 6 nm to satisfy B >= 3A.
     feasible_gap = max(minimum_gap, 3 * MIN_EDGE_MARGIN_DB)
     count = max(0, (length - 2 * MIN_EDGE_MARGIN_DB + feasible_gap) // (die + feasible_gap))
     slack = length - count * die
@@ -122,7 +128,7 @@ def arrange_wafer(parameters: WaferArrangementParameters) -> dict:
     """Return deterministic rectangles [xmin, ymin, xmax, ymax], in micrometers."""
     diameter = _db(parameters.allowableDiameter)
     width, height = _db(parameters.cowSize.x), _db(parameters.cowSize.y)
-    sx, sy = _db(parameters.cowSpacing.x, ceiling=True), _db(parameters.cowSpacing.y, ceiling=True)
+    sx, sy = _gap_db(parameters.cowSpacing.x), _gap_db(parameters.cowSpacing.y)
     if not 0 < diameter < 300_000_000 or min(width, height) < 1:
         raise ArrangementError("Diameter and COW sizes must remain valid after rounding to the 1 nm grid.")
     px, py = width + sx, height + sy
@@ -156,7 +162,7 @@ def arrange_wafer(parameters: WaferArrangementParameters) -> dict:
     normalized_layers = []
     for layer in parameters.dummyLayers:
         dx, dy = _db(layer.size.x), _db(layer.size.y)
-        gx, gy = _db(layer.minSpacing.x, ceiling=True), _db(layer.minSpacing.y, ceiling=True)
+        gx, gy = _gap_db(layer.minSpacing.x), _gap_db(layer.minSpacing.y)
         if min(dx, dy) < 1:
             raise ArrangementError("Dummy sizes must be at least 0.001 um after rounding to the 1 nm grid.")
         ax, ay = pack_axis(width, dx, gx), pack_axis(height, dy, gy)
@@ -200,7 +206,7 @@ def arrange_wafer(parameters: WaferArrangementParameters) -> dict:
                   "cowSpacing": {"x": _um(sx), "y": _um(sy)}, "arrangeType": parameters.arrangeType,
                   "dummyLayers": normalized_layers}
     if normalized != parameters.model_dump(mode="json"):
-        warnings.append("Dimensions were rounded to the 1 nm GDS grid; requested minimum spacings were rounded up.")
+        warnings.append("Dimensions were rounded to the 1 nm GDS grid; positive minimum spacings were rounded up to at least 2 nm, above the default CDB tolerance.")
     return {"normalizedParameters": normalized, "cowRectangles": [_rectangle_payload(rect) for rect in cows],
             "boundaryCells": [_rectangle_payload(rect) for rect in boundary], "dummyLayers": layers,
             "cowCount": len(cows), "cowAreaUtilization": len(cows) * width * height / (math.pi * (diameter / 2) ** 2),

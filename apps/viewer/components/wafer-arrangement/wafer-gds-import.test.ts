@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import fixture from "./fixtures/arrangement.json";
 import type { GdsImportRequest, GdsImportResponse } from "@/components/process-flow-fields/gds-coordinate-import.worker";
 
-// This real binary was produced by the Python wafer exporter, not the JS parser.
+// This real binary was produced by the Python wafer exporter's KLayout backend.
 // It exercises the existing worker with each exact layer/datatype pair.
 const scope = {
   onmessage: null as ((event: MessageEvent<GdsImportRequest>) => void) | null,

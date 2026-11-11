@@ -56,6 +56,8 @@ dummy 3000×3000、最小間距 500×500。每軸原本 3 顆、A=0 的情況改
 
 ## COW die JSON 與單顆 viewer
 
+以下截圖記錄原中心座標版本；2026-11-11 起 JSON 改以 COW 左下角為原點，範例座標已同步更新，現行規則見[工具規格](../../screens/wafer-arrangement.md)。
+
 新增功能在隔離 in-memory API（8012）與 production viewer（3012）實測；沒有修改既有
 API 的資料庫或程序。使用 [cow-dies.json](../../../../apps/viewer/components/wafer-arrangement/fixtures/cow-dies.json)，
 含巢狀物件／陣列內的 SOC 2、HBM 1、LSI 1、SOIC 1、DMY 1，共 6 顆。

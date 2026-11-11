@@ -206,10 +206,27 @@ Tests涵蓋 startup/seed、CRUD/conflicts、compile/execute、draft transaction�
 
 `POST /api/wafer-arrangement/preview` 計算 COW 與邊界 dummy 排列，不寫入 catalog 或 flow
 records。`POST /api/wafer-arrangement/export-gds` 接收相同參數，加上 API host 的絕對
-`outputPath` 與可選的 `dieJson`。die JSON 以 COW 中心為原點，遞迴讀取五種類型的 Info
+`outputPath` 與可選的 `dieJson`。die JSON 以單顆 COW 左下角為 `(0, 0)`，X 向右、Y 向上，遞迴讀取五種類型的 Info
 並複製至完整 COW，寫入 `888:1`～`888:5`。`POST /api/wafer-arrangement/preview-dies`
 接收 `dieJson` 與可選 `cowSize`，可在沒有 wafer 參數時預覽單顆 COW；越界回傳圖形與
 錯誤清單，但匯出端會拒絕。匯出回應的 `dieCounts` 為整份 wafer 的各類型數量，
-`totalRectangles` 包含 die。GDS 使用隨此 package 安裝的 `gdstk>=1.0,<2`，先寫同目錄暫存檔，成功後
-才替換目標檔案。參數、間距、數量限制與 layer/datatype 對應見
+`totalRectangles` 包含 die。GDS 使用隨此 package 安裝的 `klayout>=0.30.5,<0.31`
+（`klayout.db` Python API，不需要啟動 GUI），user unit 為 1 µm、database unit 為 1 nm。
+先寫同目錄暫存檔，成功後才替換目標檔案。參數、間距、數量限制與 layer/datatype 對應見
 [工具規格](../../docs/ui/screens/wafer-arrangement.md)。
+
+## Geometry precision and CDB alignment
+
+長度單位為 µm。GDS 匯入完整解碼 REAL8 的 UNITS/MAG/ANGLE，保留 56-bit mantissa；
+PnP 將放置後的絕對座標量化至 `0.0001 µm`，並使用相同的 XY 座標判斷 bump 接觸。
+PnP 執行快取版本為 2。Wafer arrangement 的正間距與 dummy 邊距至少 2 nm，
+大於預設 CDB tolerance 1 nm；零 COW 間距仍表示共邊。
+
+CDB 使用 `mesher==0.2.1`，在產生網格前，只對 X/Y 做 bounded XY equivalence，
+將容差內的座標對齊至同一代表座標，XY mesh controls 同樣對齊材料座標。
+Z 座標、原始厚度及 Z mesh controls 保留，不套用此 tolerance 合併或改寫。
+正的薄 Z 層只檢查數值能否表示；底面固定點僅從精確的最低 Z 平面選取。
+`meshControl.geometryTolerance` 可指定正的有限數值，預設為 `0.001 µm`（含等於門檻）。
+容差內的跨材料接觸允許形成共邊，但整個材料尺寸消失、材料變成相同體積、
+或連鎖合併範圍超過容差仍回報來源明確的錯誤。輸入 geometry sidecar 保留原始資料，
+CDB 與 log 記錄實際 tolerance 及 XY alignment policy 3；這不保證所有網格的 aspect ratio。

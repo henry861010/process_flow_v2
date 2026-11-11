@@ -24,8 +24,8 @@ export function CowDiePreview({ pattern }: { pattern: CowDiePattern }) {
 
   return <>
     <XyLayoutViewport bounds={bounds} resetKey={pattern} label="Single COW die XY preview" subject="COW"
-      title={`Single COW layout; ${pattern.totalDies} die; origin at COW center`}
-      summary={`${pattern.totalDies.toLocaleString("en-US")} die per COW · origin (0, 0) · µm`}>
+      title={`Single COW layout; ${pattern.totalDies} die; origin at COW bottom-left`}
+      summary={`${pattern.totalDies.toLocaleString("en-US")} die per COW · bottom-left origin (0, 0) · µm`}>
       <path d={`M${bounds.xMin},0H${bounds.xMax}M0,${bounds.yMin}V${bounds.yMax}`} className="stroke-slate-300" vectorEffect="non-scaling-stroke" fill="none" />
       {pattern.cowRectangle && <path d={rectanglesPath([pattern.cowRectangle])} className="fill-white/40 stroke-slate-600" vectorEffect="non-scaling-stroke" strokeWidth={1.5} />}
       {pattern.dieLayers.map((layer, index) => !hidden.has(layer.type) && <path key={layer.type} data-die-type={layer.type} d={paths[index]}

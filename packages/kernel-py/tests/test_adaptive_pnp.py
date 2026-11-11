@@ -19,6 +19,16 @@ from process_flow_steps.bump.uBump_formation import execute as execute_micro_bum
 
 
 class AdaptivePnpTests(unittest.TestCase):
+    def test_adjacent_integer_nm_targets_keep_identical_edges_after_center_rebase(self):
+        source = geometry_entity("soc", legacy_soc_geometry())
+        result = execute_pnp(source, [
+            rectangle_placement(99000, 0, 1000.001, 100),
+            rectangle_placement(100000.001, 0, 1000.003, 100),
+        ])
+        first, second = result.geometry()["root"]["children"]
+        self.assertEqual(first["bodies"][0]["geometry"]["top_right"][0], 100000.001)
+        self.assertEqual(second["bodies"][0]["geometry"]["bottom_left"][0], 100000.001)
+
     def test_hbm_flip_micro_bump_flip_then_pnp_adapts_package_bump(self):
         state = ProcessGeometryState.from_structure(hbm_geometry(), {"footprint": {"derive": "largestRootBody"}})
 

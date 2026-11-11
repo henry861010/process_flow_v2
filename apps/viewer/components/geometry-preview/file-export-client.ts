@@ -60,6 +60,7 @@ export type MeshControlConfiguration = {
   globalElementSize: number;
   symmetry: SymmetryMode;
   regionMeshing?: RegionMeshingMode;
+  geometryTolerance?: number;
   controls: MeshControlEntry[];
 };
 

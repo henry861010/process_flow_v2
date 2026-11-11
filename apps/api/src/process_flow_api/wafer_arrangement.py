@@ -10,6 +10,7 @@ from pydantic import Field
 from process_flow_geometry_generators.wafer_arrangement import (
     ArrangementModel,
     ArrangementError,
+    DB_UNITS_PER_UM,
     DieSize,
     WaferArrangementParameters,
     arrange_wafer,
@@ -53,7 +54,7 @@ def preview_die_layout(body: CowDiePreviewRequest):
 
 def export_arrangement_gds(result: dict, output_path: str) -> Path:
     """Write beside the target, then replace atomically; never remove an old file first."""
-    import gdstk
+    import klayout.db as kdb
 
     path = Path(output_path.strip())
     if not path.is_absolute() or path.suffix.lower() != ".gds":
@@ -63,21 +64,26 @@ def export_arrangement_gds(result: dict, output_path: str) -> Path:
         raise ValueError("GDS output folder must already exist and be a directory.")
     if path.is_dir():
         raise ValueError("GDS output path is a directory.")
-    library = gdstk.Library(name="WAFER_ARRANGEMENT", unit=1e-6, precision=1e-9)
-    cell = library.new_cell("WAFER_ARRANGEMENT")
-    for x0, y0, x1, y1 in result["cowRectangles"]:
-        cell.add(gdstk.rectangle((x0, y0), (x1, y1), layer=100, datatype=100))
-    for layer in result["dummyLayers"]:
-        for x0, y0, x1, y1 in layer["rectangles"]:
-            cell.add(gdstk.rectangle((x0, y0), (x1, y1), layer=413, datatype=layer["datatype"]))
-    for layer in result.get("dieLayers", []):
-        for x0, y0, x1, y1 in layer["rectangles"]:
-            cell.add(gdstk.rectangle((x0, y0), (x1, y1), layer=888, datatype=layer["datatype"]))
+    layout = kdb.Layout()
+    layout.dbu = 1 / DB_UNITS_PER_UM
+    cell = layout.create_cell("WAFER_ARRANGEMENT")
+    groups = [(100, 100, result["cowRectangles"])]
+    groups.extend((413, layer["datatype"], layer["rectangles"]) for layer in result["dummyLayers"])
+    groups.extend((888, layer["datatype"], layer["rectangles"]) for layer in result.get("dieLayers", []))
+    for layer, datatype, rectangles in groups:
+        shapes = cell.shapes(layout.layer(layer, datatype))
+        for rectangle in rectangles:
+            # Coordinates already lie on the arrangement engine's integer nm grid.
+            shapes.insert(kdb.Box(*(round(value * DB_UNITS_PER_UM) for value in rectangle)))
+    options = kdb.SaveLayoutOptions()
+    options.format = "GDS2"
+    options.libname = "WAFER_ARRANGEMENT"
+    options.gds2_user_units = 1.0  # Micrometers; layout.dbu provides the 1 nm precision.
     fd, name = tempfile.mkstemp(prefix=f".{path.stem}-", suffix=".gds", dir=path.parent)
     os.close(fd)
     temporary = Path(name)
     try:
-        library.write_gds(temporary)
+        layout.write(str(temporary), options)
         set_export_file_permissions(temporary)
         temporary.replace(path)
     finally:
@@ -96,7 +102,7 @@ def export_wafer_arrangement(body: WaferGdsExportRequest):
         path = export_arrangement_gds(result, body.outputPath)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    except OSError as error:
+    except (OSError, RuntimeError) as error:
         raise HTTPException(status_code=500, detail=f"Unable to write GDS: {error}") from error
     return {"outputPath": str(path), "cowCount": result["cowCount"],
             "dummyCounts": [layer["count"] for layer in result["dummyLayers"]],

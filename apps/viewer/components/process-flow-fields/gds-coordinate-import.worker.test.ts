@@ -124,6 +124,13 @@ const symmetricLayout = () => library([
 ]);
 
 describe("GDS Worker geometry integration", () => {
+  it("preserves integer micrometer boundaries from a 1 nm GDS grid", () => {
+    const response = run(library([structure("TOP", [boundary([
+      [-1500000, -2000000], [1500000, -2000000], [1500000, 2000000], [-1500000, 2000000],
+    ])])]), { unit: "um", defeature: false });
+    expect(response.regions).toEqual([{ type: "rectangle", bounds: [[-1500, -2000], [1500, 2000]] }]);
+  });
+
   it("preserves the stepped outline, recesses and separation in all four nested mirrored quadrants", () => {
     const response = run(symmetricLayout());
     expect(response.regions).toHaveLength(12);

@@ -3,16 +3,16 @@
     "socCount": 2,
     "socInfo": {
       "SOC-1": {
-        "bottomLeftX": -1200,
-        "bottomLeftY": -1000,
-        "upperRightX": -100,
-        "upperRightY": 0
+        "bottomLeftX": 300,
+        "bottomLeftY": 1000,
+        "upperRightX": 1400,
+        "upperRightY": 2000
       },
       "SOC-2": {
-        "bottomLeftX": 100,
-        "bottomLeftY": -1000,
-        "upperRightX": 1200,
-        "upperRightY": 0
+        "bottomLeftX": 1600,
+        "bottomLeftY": 1000,
+        "upperRightX": 2700,
+        "upperRightY": 2000
       }
     }
   }

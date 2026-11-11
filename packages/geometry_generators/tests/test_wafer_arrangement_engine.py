@@ -73,10 +73,10 @@ class WaferArrangementTests(unittest.TestCase):
             for die in (1, 3, 7, 23, 100):
                 for gap in (1, 2, 9):
                     axis = pack_axis(length, die, gap)
-                    self.assertLess(length, 2 + (axis.count + 1) * die + axis.count * max(gap, 3))
+                    self.assertLess(length, 4 + (axis.count + 1) * die + axis.count * max(gap, 6))
                     if axis.count:
-                        self.assertGreaterEqual(axis.margin, 1)
-                        self.assertGreaterEqual(length - axis.offset(axis.count - 1) - die, 1)
+                        self.assertGreaterEqual(axis.margin, 2)
+                        self.assertGreaterEqual(length - axis.offset(axis.count - 1) - die, 2)
                     if axis.count > 1:
                         actual = [axis.offset(i + 1) - axis.offset(i) - die for i in range(axis.count - 1)]
                         self.assertGreaterEqual(min(actual), gap)
@@ -96,7 +96,8 @@ class WaferArrangementTests(unittest.TestCase):
             self.assertEqual(axis.offset(0), axis.margin)
             self.assertEqual(length - axis.offset(axis.count - 1) - die, axis.margin)
         self.assertEqual(pack_axis(10000000, 10000000, 100000).count, 0)
-        self.assertEqual(pack_axis(10000000, 9999998, 100000).margin, 1)
+        self.assertEqual(pack_axis(10000000, 9999998, 100000).count, 0)
+        self.assertEqual(pack_axis(10000000, 9999996, 100000).margin, 2)
 
     def test_actual_dummy_rectangles_keep_a_in_every_boundary_cell(self):
         for mode in ("center", "corner", "x_half", "y_half"):
@@ -133,7 +134,7 @@ class WaferArrangementTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             parameters(dummyLayers=[{"size": {"x": 100, "y": 100}, "minSpacing": {"x": 0, "y": 1}}])
         rounded = arrange_wafer(parameters(cowSize={"x": 40000.0014, "y": 50000.0014}, cowSpacing={"x": .0001, "y": .0001}))
-        self.assertEqual(rounded["normalizedParameters"]["cowSpacing"], {"x": .001, "y": .001})
+        self.assertEqual(rounded["normalizedParameters"]["cowSpacing"], {"x": .002, "y": .002})
         self.assertTrue(rounded["warnings"])
         for rect in rounded["cowRectangles"] + rounded["dummyLayers"][0]["rectangles"]:
             self.assertTrue(inside(rect, 145000))

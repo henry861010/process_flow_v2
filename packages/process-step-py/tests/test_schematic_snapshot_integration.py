@@ -94,11 +94,11 @@ class SchematicSnapshotIntegrationTests(unittest.TestCase):
                 elk_shape, silicon_shape = shapes[elk["id"]], shapes[silicon["id"]]
 
                 self.assertEqual(document["warnings"], [])
-                self.assertEqual(document["totalThickness"], 984.83)
-                # Retain the actual arithmetic discrepancy in physical metadata.
+                self.assertAlmostEqual(document["totalThickness"], 984.83)
+                # PnP now aligns both interface coordinates before rendering.
                 self.assertEqual(elk["zMax"], 397.33)
-                self.assertEqual(silicon["zMin"], 397.33000000000004)
-                self.assertEqual(silicon["thickness"], 200)
+                self.assertEqual(silicon["zMin"], 397.33)
+                self.assertAlmostEqual(silicon["thickness"], 200)
                 self.assertEqual(elk_shape["y"], silicon_shape["y"] + silicon_shape["height"])
                 for body in snapshot["root"]["children"][0]["bodies"]:
                     item = items[body["key"]]

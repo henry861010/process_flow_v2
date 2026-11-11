@@ -7,7 +7,7 @@ from process_flow_geometry_generators.cow_die_layout import DIE_DATATYPES, place
 from process_flow_geometry_generators.wafer_arrangement import ArrangementError, DieSize, WaferArrangementParameters, arrange_wafer
 
 
-def die(x0=-100, y0=-200, x1=300, y1=400):
+def die(x0=100, y0=200, x1=300, y1=400):
     return dict(zip(("bottomLeftX", "bottomLeftY", "upperRightX", "upperRightY"), (x0, y0, x1, y1)))
 
 
@@ -24,7 +24,7 @@ class CowDieLayoutTests(unittest.TestCase):
         self.assertIsNone(result["cowRectangle"])
         self.assertEqual([(layer["type"], layer["layer"], layer["datatype"], layer["count"]) for layer in result["dieLayers"]],
                          [(label, 888, datatype, 1) for label, datatype in DIE_DATATYPES.items()])
-        self.assertEqual(result["dieLayers"][0]["dies"][0]["rectangle"], [-100, -200, 300, 400])
+        self.assertEqual(result["dieLayers"][0]["dies"][0]["rectangle"], [100, 200, 300, 400])
 
     def test_merges_same_type_and_accepts_type_name_as_die_id(self):
         result = preview_cow_dies([section(die_id="soc"), section(die_id="another"), section("hbm", "soc")])
@@ -49,19 +49,22 @@ class CowDieLayoutTests(unittest.TestCase):
                 preview_cow_dies(section(rectangle=rectangle) if rectangle else {"soc": {"socInfo": {"SOC-1": rectangle}}})
 
     def test_rounding_and_boundary_checks_keep_outside_dies_available(self):
-        size = DieSize(x=1000, y=1000)
-        edge = preview_cow_dies(section(rectangle=die(-500, -500, 500, 500)), size)
+        size = DieSize(x=1000, y=600)
+        edge = preview_cow_dies(section(rectangle=die(0, 0, 1000, 600)), size)
         self.assertEqual(edge["outOfBounds"], [])
-        self.assertEqual(edge["cowRectangle"], [-500, -500, 500, 500])
-        outside = preview_cow_dies(section(rectangle=die(-500, -500, 500.001, 500)), size)
-        self.assertEqual(outside["totalDies"], 1)
-        self.assertEqual(outside["outOfBounds"][0]["id"], "SOC-1")
+        self.assertEqual(edge["cowRectangle"], [0, 0, 1000, 600])
+        for rectangle in (die(-.001, 0, 1000, 600), die(0, -.001, 1000, 600),
+                          die(0, 0, 1000.001, 600), die(0, 0, 1000, 600.001)):
+            with self.subTest(rectangle=rectangle):
+                outside = preview_cow_dies(section(rectangle=rectangle), size)
+                self.assertEqual(outside["totalDies"], 1)
+                self.assertEqual(outside["outOfBounds"][0]["id"], "SOC-1")
         rounded = preview_cow_dies(section(rectangle=die(-1.0005, -2.0004, 1.0005, 2.0004)))
         self.assertEqual(rounded["dieLayers"][0]["dies"][0]["rectangle"], [-1.001, -2, 1.001, 2])
         self.assertTrue(rounded["warnings"])
 
-    def test_odd_nm_cow_center_snaps_positive_and_preserves_die_size_in_all_modes(self):
-        local = [-.002, -.003, .001, .002]
+    def test_bottom_left_origin_preserves_full_odd_nm_cow_in_all_modes(self):
+        local = [0, 0, .003, .005]
         source = section(rectangle=die(*local))
         layout = preview_cow_dies(source, DieSize(x=.003, y=.005))
         self.assertEqual(layout["cowRectangle"], local)
@@ -83,7 +86,7 @@ class CowDieLayoutTests(unittest.TestCase):
             with self.assertRaisesRegex(ArrangementError, "including COW dies exceeds"):
                 place_cow_dies(result, section())
         with self.assertRaisesRegex(ArrangementError, "SOC-1.*outside"):
-            place_cow_dies(result, section(rectangle=die(x1=501)))
+            place_cow_dies(result, section(rectangle=die(x1=1000.001)))
         self.assertEqual(result["totalRectangles"], 2)
         self.assertNotIn("dieLayers", result)
 

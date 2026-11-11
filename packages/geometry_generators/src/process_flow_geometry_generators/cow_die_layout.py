@@ -1,4 +1,4 @@
-"""Single-COW die JSON parsing and placement, using the wafer's integer nm grid."""
+"""Single-COW die JSON with a bottom-left origin on the wafer's integer nm grid."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -84,8 +84,7 @@ def _cow_bounds(size: wafer.DieSize) -> tuple[int, int, int, int]:
     width, height = wafer._db(size.x), wafer._db(size.y)
     if min(width, height) < 1:
         raise wafer.ArrangementError("COW sizes must be at least 0.001 um after rounding to the 1 nm grid.")
-    # A half-nm center is snapped toward +X/+Y once; translations preserve die size.
-    return (-((width + 1) // 2), -((height + 1) // 2), width // 2, height // 2)
+    return (0, 0, width, height)
 
 
 def preview_cow_dies(die_json: Any, cow_size: wafer.DieSize | None = None) -> dict:
@@ -126,9 +125,8 @@ def place_cow_dies(result: dict, die_json: Any | None) -> dict:
         local = [tuple(wafer._db(v) for v in die["rectangle"]) for die in layer["dies"]]
         for cow in result["cowRectangles"]:
             x0, y0, x1, y1 = (wafer._db(v) for v in cow)
-            cx, cy = (x0 + x1 + 1) // 2, (y0 + y1 + 1) // 2
             for dx0, dy0, dx1, dy1 in local:
-                rect = (cx + dx0, cy + dy0, cx + dx1, cy + dy1)
+                rect = (x0 + dx0, y0 + dy0, x0 + dx1, y0 + dy1)
                 if not (x0 <= rect[0] < rect[2] <= x1 and y0 <= rect[1] < rect[3] <= y1):
                     raise wafer.ArrangementError("Placed die extends outside its COW after grid quantization.")
                 rectangles.append(wafer._rectangle_payload(rect))

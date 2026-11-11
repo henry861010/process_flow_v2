@@ -1,4 +1,5 @@
-import { RecordType, parseGDS } from "gdsii";
+import { RecordType } from "gdsii";
+import { parseGdsRecords } from "./gds-records";
 
 import {
   COORDINATE_DUPLICATE_TOLERANCE,
@@ -283,7 +284,7 @@ function parseLayout(buffer: ArrayBuffer) {
   let currentStructure: GdsStructure | null = null;
   let currentElement: GdsElement | null = null;
 
-  for (const record of parseGDS(new Uint8Array(buffer))) {
+  for (const record of parseGdsRecords(new Uint8Array(buffer))) {
     if(record.tag === RecordType.ENDLIB) break;
     switch (record.tag) {
       case RecordType.UNITS:

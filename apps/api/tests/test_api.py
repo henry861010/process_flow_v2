@@ -1301,8 +1301,44 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertIn("queue is full", overflow.json()["message"])
 
 
+    def test_cdb_export_aligns_near_material_boundaries_using_requested_tolerance(self):
+        for tolerance, gap in ((0.001, 0.0004), (0.002, 0.0015)):
+            with self.subTest(tolerance=tolerance):
+                model = simple_structure()
+                left = simple_structure()["root"]["bodies"][0]
+                right = simple_structure()["root"]["bodies"][0]
+                left.update(material="Si")
+                left["geometry"].update(bottom_left=[0, 0, 1], top_right=[5, 10, 1])
+                right.update(material="Cu")
+                right["geometry"].update(bottom_left=[5 + gap, 0, 1.0004], top_right=[10, 10, 1.0004])
+                model["root"]["children"] = [{"bodies": [left, right]}]
+                config = {**mesh_control(element_size=2), "geometryTolerance": tolerance}
+                config["controls"] = [{"method": "Z_POINT", "coordinateMode": "absolute", "label": "Keep Z",
+                                       "z": 1.0002}]
+                path = Path(self.tmp.name) / f"aligned-{tolerance}.cdb"
+                response = self.client.post("/api/geometry-preview/cdb-jobs", json={
+                    "clientId": "alignment", "kind": "cdb", "geometryStructure": model,
+                    "meshControl": config, "outputPath": str(path),
+                })
+                self.assertEqual(response.status_code, 200, response.text)
+                job = wait_for_export_job(self.client, response.json()["job"]["jobId"], "alignment")
+                self.assertEqual(job["status"], "success", job)
+                content = path.read_text()
+                self.assertIn(f"# geometry_tolerance={tolerance}", content)
+                self.assertIn("# coordinate_alignment=bounded_xy_equivalence", content)
+                nodes = content.split("*NODES,index,x,y,z\n", 1)[1].split("\n\n", 1)[0]
+                xs = sorted({float(row.split(",")[1]) for row in nodes.splitlines()})
+                self.assertIn(5, xs)
+                self.assertNotIn(5 + gap, xs)
+                self.assertGreater(min(b - a for a, b in zip(xs, xs[1:])), tolerance)
+                zs = sorted({float(row.split(",")[3]) for row in nodes.splitlines()})
+                self.assertEqual(zs, [0, 1, 1.0002, 1.0004, 2, 2.0004])
+                self.assertEqual(json.loads(path.with_suffix(".geometry.json").read_text()), model)
+                self.assertEqual(json.loads(path.with_suffix(".mesh-control.json").read_text()), config)
+
     def test_cdb_export_job_writes_text_cdb_file(self):
         output_path = Path(self.tmp.name) / "MODEL.CDB"
+        config = mesh_control(element_size=2)
         for suffix in (".cdb", ".geometry.json", ".mesh-control.json"):
             existing_path = output_path.with_suffix(suffix)
             existing_path.write_text("previous output", encoding="utf-8")
@@ -1314,7 +1350,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                 "clientId": "client-a",
                 "kind": "cdb",
                 "geometryStructure": simple_structure(),
-                "meshControl": mesh_control(),
+                "meshControl": config,
                 "outputPath": str(output_path),
                 "sourceLabel": "Unit test",
             },
@@ -1329,7 +1365,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         mesh_control_output_path = Path(self.tmp.name) / "MODEL.mesh-control.json"
         self.assertEqual(job["geometryOutputPath"], str(geometry_output_path))
         self.assertEqual(job["meshControlOutputPath"], str(mesh_control_output_path))
-        self.assertEqual(job["meshControl"], mesh_control())
+        self.assertEqual(job["meshControl"], config)
         self.assertGreater(job["nodeCount"], 0)
         self.assertGreater(job["elementCount"], 0)
         self.assertIsNone(job["queuePosition"])
@@ -1350,7 +1386,7 @@ class ProcessFlowApiTests(unittest.TestCase):
         )
         self.assertEqual(
             json.loads(mesh_control_output_path.read_text(encoding="utf-8")),
-            mesh_control(),
+            config,
         )
         content = normalized_output_path.read_text(encoding="utf-8")
         self.assertIn("*NODES,index,x,y,z", content)
@@ -1361,6 +1397,8 @@ class ProcessFlowApiTests(unittest.TestCase):
         self.assertIn("Type: CDB", log_text)
         self.assertIn("Symmetry: full", log_text)
         self.assertIn("Mesh controls: 0", log_text)
+        self.assertIn("Geometry tolerance (um): 0.001", log_text)
+        self.assertIn("Coordinate alignment: bounded_xy_equivalence (policy 3)", log_text)
         self.assertIn("Mesh-control SHA-256:", log_text)
         self.assertIn("Input SHA-256:", log_text)
         self.assertIn("--- Timeline (elapsed) ---", log_text)
@@ -1688,7 +1726,7 @@ class ProcessFlowApiTests(unittest.TestCase):
                         "clientId": "client-symmetry-modes",
                         "kind": "cdb",
                         "geometryStructure": simple_structure(),
-                        "meshControl": mesh_control(symmetry=symmetry),
+                        "meshControl": mesh_control(element_size=2, symmetry=symmetry),
                         "outputPath": str(Path(self.tmp.name) / f"{symmetry}.cdb"),
                     },
                 )

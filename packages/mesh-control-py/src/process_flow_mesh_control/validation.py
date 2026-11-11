@@ -29,11 +29,13 @@ def _validate_generated_mesh_control(mesh_control, *, state):
 
 
 def _validate_document(mesh_control, *, state, polygon_factory=None):
-    _object(mesh_control, "meshControl", ("schemaVersion", "unitSystem", "mesher", "globalElementSize", "symmetry", "controls"), ("regionMeshing",))
+    _object(mesh_control, "meshControl", ("schemaVersion", "unitSystem", "mesher", "globalElementSize", "symmetry", "controls"), ("regionMeshing", "geometryTolerance"))
     for field, expected in (("schemaVersion", "1.0.0"), ("unitSystem", "um"), ("mesher", "process_flow_2_5d")):
         if mesh_control[field] != expected:
             raise ValueError(f"meshControl.{field}: expected {expected}")
     _number(mesh_control["globalElementSize"], "meshControl.globalElementSize", positive=True)
+    if "geometryTolerance" in mesh_control:
+        _number(mesh_control["geometryTolerance"], "meshControl.geometryTolerance", positive=True)
     if mesh_control["symmetry"] not in SYMMETRY_MODES:
         raise ValueError(f"meshControl.symmetry: expected one of {', '.join(SYMMETRY_MODES)}")
     if mesh_control.get("regionMeshing", "grid") not in REGION_MESHING_MODES:

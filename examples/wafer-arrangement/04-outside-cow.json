@@ -4,10 +4,10 @@
       "socCount": 1,
       "socInfo": {
         "SOC-OUTSIDE": {
-          "bottomLeftX": 1000,
-          "bottomLeftY": -500,
-          "upperRightX": 1800,
-          "upperRightY": 500
+          "bottomLeftX": 2500,
+          "bottomLeftY": 1500,
+          "upperRightX": 3300,
+          "upperRightY": 2500
         }
       }
     }

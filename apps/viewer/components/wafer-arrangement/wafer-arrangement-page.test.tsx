@@ -9,11 +9,11 @@ import { WaferArrangementPage } from "./wafer-arrangement-page";
 vi.mock("./wafer-arrangement-client", () => ({ previewCowDies: vi.fn(), previewWafer: vi.fn(), exportWafer: vi.fn() }));
 
 const noDies = { soc: 0, hbm: 0, lsi: 0, soic: 0, dmy: 0 };
-const dieJson = { nested: [{ soc: { socCount: 99, socInfo: { "SOC-1": { bottomLeftX: -100, bottomLeftY: -200, upperRightX: 300, upperRightY: 400 } } } }] };
+const dieJson = { nested: [{ soc: { socCount: 99, socInfo: { "SOC-1": { bottomLeftX: 100, bottomLeftY: 200, upperRightX: 500, upperRightY: 800 } } } }] };
 function diePattern(outside = false): CowDiePattern {
   return { dieLayers: [{ type: "soc", layer: 888, datatype: 1, count: 1,
-    dies: [{ id: "SOC-1", path: "dieJson.nested[0].soc.socInfo.SOC-1", rectangle: [-100, -200, 300, 400] }] }],
-    totalDies: 1, cowRectangle: [-20000, -25000, 20000, 25000], warnings: [],
+    dies: [{ id: "SOC-1", path: "dieJson.nested[0].soc.socInfo.SOC-1", rectangle: [100, 200, 500, 800] }] }],
+    totalDies: 1, cowRectangle: [0, 0, 40000, 50000], warnings: [],
     outOfBounds: outside ? [{ type: "soc", id: "SOC-1", path: "dieJson.nested[0].soc.socInfo.SOC-1", message: "SOC-1 extends outside the COW boundary." }] : [] };
 }
 async function chooseJson(name: string, text: string | Promise<string> = JSON.stringify(dieJson)) {

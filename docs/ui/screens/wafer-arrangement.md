@@ -48,7 +48,8 @@ Desktop 採 360px 參數欄與右側預覽；1024px 以上為並排，小螢幕�
 可更換、重新選取相同檔名或移除；未選取時維持 COW／wafer dummy 匯出。
 JSON 可在任意深度的物件或陣列內含 `soc`、`hbm`、`lsi`、`soic`、`dmy`。
 每個類型讀取 `{type}Info` 中以 die-ID 為 key 的矩形，使用 `bottomLeftX`、
-`bottomLeftY`、`upperRightX`、`upperRightY`，單位 µm、原點為單顆 COW 中心。
+`bottomLeftY`、`upperRightX`、`upperRightY`，單位 µm、原點為單顆 COW 左下角 `(0, 0)`，
+X 向右、Y 向上，COW 邊界為 `[0, 0, cowSize.x, cowSize.y]`（尺寸量化至 1 nm）。
 `{type}Count` 不參與顆數或截斷計算；顆數以實際 die-ID 條目為準。
 
 同類型的不同區塊合併，該類型內重複 die-ID 為錯誤；不同類型可使用相同 ID。
@@ -86,12 +87,13 @@ JSON 匯入中、解析失敗或 die 越界時禁止匯出；即使彈窗關閉�
 本體尺寸，不包含 COW 間距。各層使用相同格內排列，再移除不完整位於圓內的 dummy。
 
 各軸先在兩端保留正的 A，再求最多顆數，不可為了多放一顆而令 A 為零。以 nm 整數
-計算，A 至少為一個 GDS 格點（1 nm）；令 `gFit=max(g,3)`，則
-`n=max(0,floor((L-2+gFit)/(d+gFit)))`，其中 L 是 COW 格長、d 是 dummy 尺寸、g 是最小間距。
+計算，A 至少為兩個 GDS 格點（2 nm），大於預設 CDB tolerance 1 nm；令 `gFit=max(g,6)`，則
+`n=max(0,floor((L-4+gFit)/(d+gFit)))`，其中 L 是 COW 格長、d 是 dummy 尺寸、g 是最小間距。
 n 至少 2 時，`T=L-nd`，理想 `B=max(g,3T/(3n-1))`、`A=(T-(n-1)B)/2`。
 單顆置中，B 顯示不適用；即使只放單顆也必須保留兩側 A。零顆則該層為空並顯示原因。
 
-引擎共用 1 nm 格點：尺寸四捨五入、最小間距及 COW 間距向上取整。格內 A 向下取整，
+引擎共用 1 nm 格點：尺寸四捨五入、正的最小間距及 COW 間距向上取整且至少 2 nm；
+COW 間距為零時保留共邊。格內 A 向下取整，
 餘量分配至 B，使各實際 B 相差最多 1 nm，且皆符合最小值與 `B≥3A`。B 有差異時顯示範圍。
 單顆或奇數格點的中心對齊可有最多 1 nm 的不對稱。所有實際矩形在量化後重新檢查圓內條件。
 
@@ -125,11 +127,11 @@ Output file path 必須是 API host 上的 absolute `.gds` 路徑，資料夾需
 | Dummy layer 1、2、3… | `413:10`、`413:11`、`413:12`… |
 | SOC／HBM／LSI／SOIC／DMY die | `888:1`／`888:2`／`888:3`／`888:4`／`888:5` |
 
-單一頂層 cell 為 `WAFER_ARRANGEMENT`，包含扁平矩形 boundary，user unit 為 1 µm、
-precision 為 1 nm。圓周、座標軸及虛擬格不匯出。
-die 僅複製至完整 COW，不放入邊界虛擬格。die 先量化至 1 nm，再以 COW 中心整體平移；
-中心在半格點時固定朝 +X／+Y 對齊，最多偏移 0.5 nm，保持矩形尺寸。邊界檢查使用相同
-中心規則與最終座標，貼齊邊界可接受，越界拒絕匯出。die-ID 不另輸出為 GDS 文字。
+GDS 由 KLayout 的 `klayout.db` Python API 產生。單一頂層 cell 為 `WAFER_ARRANGEMENT`，
+包含扁平矩形 boundary，user unit 為 1 µm、precision 為 1 nm。圓周、座標軸及虛擬格不匯出。
+die 僅複製至完整 COW，不放入邊界虛擬格。die 先量化至 1 nm，再加上各顆 COW 已量化的
+左下角座標整體平移，保持矩形尺寸；奇數 nm 尺寸亦使用相同規則。
+貼齊 COW 邊界可接受，負座標或超出寬高的 die 為越界，拒絕匯出。die-ID 不另輸出為 GDS 文字。
 
 ## API
 
@@ -177,5 +179,5 @@ totalRectangles 包含 die。wafer preview 的 totalRectangles 仍只計算 COW 
 - `UI-WAFER-008`：緊密尺寸組合也保留正的 A；必要時減少顆數，預覽與 GDS 皆不貼齊虛擬格邊緣。
 - `UI-WAFER-009`：任意深度與五種類型的 JSON 可匯入；實際 ID 數量優先於 Count，單顆 viewer 可獨立操作。
 - `UI-WAFER-010`：JSON 更換、尺寸變更與過期回應正確處理；錯誤／越界禁止匯出，移除可恢復。
-- `UI-WAFER-011`：五種 die 圖層按每顆完整 COW 中心平移，半格中心維持尺寸、總預算與原檔保護。
+- `UI-WAFER-011`：五種 die 圖層以單顆 COW 左下角為原點，按每顆完整 COW 左下角平移，奇數 nm 尺寸、總預算與原檔保護正確。
 - `UI-WAFER-012`：CoW feature 與 Wafer arrangement 分區；CoW graph 預設隱藏，可由 Read JSON 旁開啟彈窗並以鍵盤關閉、恢復焦點。

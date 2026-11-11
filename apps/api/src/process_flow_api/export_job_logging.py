@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TextIO
 
+from process_flow_kernel.precision import DEFAULT_GEOMETRY_TOLERANCE_UM
+
 from .export_file_permissions import set_export_file_permissions
 
 JsonObject = dict[str, Any]
@@ -104,6 +106,8 @@ class ExportJobLogger:
             lines.extend(
                 [
                     f"Mesher: {_display_value(mesh_control_summary.get('mesher'))}",
+                    f"Geometry tolerance (um): {_format_number(mesh_control_summary.get('geometryTolerance'))}",
+                    "Coordinate alignment: bounded_xy_equivalence (policy 3)",
                     "Global element size: "
                     f"{_format_number(mesh_control_summary.get('globalElementSize'))}",
                     f"Symmetry: {_display_value(mesh_control_summary.get('symmetry'))}",
@@ -462,6 +466,7 @@ def summarize_mesh_control_input(payload: JsonObject) -> JsonObject:
         "unitSystem": payload.get("unitSystem"),
         "mesher": payload.get("mesher"),
         "globalElementSize": payload.get("globalElementSize"),
+        "geometryTolerance": payload.get("geometryTolerance", DEFAULT_GEOMETRY_TOLERANCE_UM),
         "symmetry": payload.get("symmetry"),
         "controlCount": len(controls) if isinstance(controls, list) else None,
     }

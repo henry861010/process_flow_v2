@@ -156,7 +156,7 @@ export function WaferArrangementPage() {
                   <Button ref={cowGraphButton} type="button" size="sm" variant="outline" disabled={!dieImport.pattern} aria-label="CoW pattern graph" aria-haspopup="dialog"
                     onClick={() => setShowCowGraph(true)}><Eye aria-hidden="true" />Pattern graph</Button>
                 </div>
-                <p id="die-json-help" className="mt-2 text-xs leading-5 text-muted-foreground">Die coordinates use the CoW center as (0, 0), in µm.</p>
+                <p id="die-json-help" className="mt-2 text-xs leading-5 text-muted-foreground">Die coordinates use the CoW bottom-left corner as (0, 0), with X right and Y up, in µm.</p>
                 <div id="die-json-status" role="status" aria-live="polite" className="mt-2 min-w-0 text-xs leading-5">
                   {dieImport.hasFile ? <>
                     <div className="flex min-w-0 items-start justify-between gap-2"><p className="min-w-0 break-all font-mono">{dieImport.fileName}</p>

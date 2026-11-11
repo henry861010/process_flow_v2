@@ -138,16 +138,16 @@ class GeneratorBumpPnpTests(unittest.TestCase):
                                 for kind in ("bodies", "vias", "circuits", "bumps"):
                                     for feature in placed[kind]:
                                         geometry = feature["geometry"]
-                                        self.assertEqual(bounds(geometry)[:4], (0, 0, width, height))
+                                        self.assertEqual(bounds(geometry)[:4], (0, 0, round(width, 4), round(height, 4)))
                                         if target_kind == "polygon":
                                             self.assertEqual(geometry["type"], "PolygonGeometry")
                                             self.assertEqual([p[:2] for p in geometry["polys"][0]],
-                                                             target["targetRegion"]["points"])
+                                                             [[round(v, 4) for v in p] for p in target["targetRegion"]["points"]])
                             # The HBM base die follows the package; stacked cores stay fixed.
                             for old_child, new_child in zip(before["children"], placed["children"]):
                                 if generator_id == "hbm" and "hbm-base-die" in old_child["id"]:
                                     self.assertEqual(bounds(new_child["bodies"][0]["geometry"])[:4],
-                                                     (0, 0, width, height))
+                                                     (0, 0, round(width, 4), round(height, 4)))
                                     continue
                                 for old, new in zip(features(old_child), features(new_child)):
                                     old_bounds, new_bounds = bounds(old["geometry"]), bounds(new["geometry"])

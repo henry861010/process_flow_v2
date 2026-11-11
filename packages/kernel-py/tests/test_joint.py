@@ -224,7 +224,7 @@ class JointTests(unittest.TestCase):
 
     def test_pnp_and_both_joints_accept_wafer_edge_overhang(self):
         for execute in (execute_joint, execute_tcb_joint):
-            for x in (45, 50 - 1e-6):
+            for x in (45, 50 - 1e-4):
                 for polygon in (False, True):
                     for catalog in (False, True):
                         with self.subTest(execute=execute.__module__, x=x, polygon=polygon, catalog=catalog):
@@ -277,6 +277,20 @@ class JointTests(unittest.TestCase):
                             self.assertEqual(state.process_footprint(), footprint)
                             self.assertEqual(state.clone().to_geometry_structure(), state.to_geometry_structure())
                             self.assert_joint_noop(state)
+
+    def test_pnp_uses_rounded_footprint_for_placement_and_joint_contact(self):
+        state = ProcessGeometryState.create()
+        state.initialize_cylinder_layer(material="Si", center=[0, 0, 0], radius=50, thickness=100)
+        state.add_bump_above_cursor(material="Sn", density=40, thickness=20, stage="reflowed")
+        source = GeometryArtifact.from_structure(die_state().to_geometry_structure())
+        main = GeometryArtifact.from_state(state, source=GeometryArtifact.from_structure(state.to_geometry_structure()))
+        execute_pnp(context(state, {"placements": [placement(50 - 1e-6, -5)]}, main, source))
+        child = state.to_geometry_structure()["root"]["children"][0]
+        # Quantization turns a sub-grid overlap into tangency; neither step
+        # should treat the rounded footprint as an overlapping bump pair.
+        self.assertEqual(child["bodies"][0]["geometry"]["bottom_left"], [50, -5, 115])
+        execute_joint(context(state, {"bump_joined_height": 25}))
+        self.assertEqual(state.to_geometry_structure()["root"]["children"][0], child)
 
     def test_touching_or_disjoint_footprints_do_not_place_above_or_join(self):
         for circular, x, y in ((True,50,-5), (True,50+1e-6,-5), (True,40,40),

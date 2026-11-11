@@ -18,6 +18,15 @@ def control(method="Z_SECTION_AVG", mode="reference"):
 
 
 class UniformContractTests(unittest.TestCase):
+    def test_geometry_tolerance_is_optional_positive_and_preserved(self):
+        document = {**build_mesh_control([]), "geometryTolerance": 0.0001}
+        before = copy.deepcopy(document)
+        validate_mesh_control(document)
+        self.assertEqual(document, before)
+        for value in (None, True, 0, -1, float("inf"), float("nan"), "0.001"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "meshControl.geometryTolerance"):
+                validate_mesh_control({**document, "geometryTolerance": value})
+
     def test_optional_region_meshing_is_global_and_does_not_rewrite_input(self):
         for optional in ({}, {"regionMeshing": "grid"}, {"regionMeshing": "adapter"}):
             document = {**build_mesh_control([control()]), **optional}

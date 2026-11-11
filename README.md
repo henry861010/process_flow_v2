@@ -52,7 +52,7 @@ venv/bin/pip install \
 ```
 
 不要使用沒有 local path 的 `pip install mesher`；PyPI 上的同名 distribution 是另一個
-專案。API metadata 要求 `mesher[process-flow]==0.2.0`，local checkout 必須先安裝在同一個
+專案。API metadata 要求 `mesher[process-flow]==0.2.1`，local checkout 必須先安裝在同一個
 Python environment。
 
 啟動只供受信任本機使用的 API：

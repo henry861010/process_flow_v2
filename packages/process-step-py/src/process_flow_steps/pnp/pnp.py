@@ -4,12 +4,13 @@ import math
 from typing import Any
 
 from process_flow_kernel import GeometryArtifact, ProcessGeometryState, ProcessStepContext
+from process_flow_kernel.precision import place_on_coordinate_grid
 
 from .adapters import adapt_geometry_for_placement, rotate_geometry
 
 
 # Increment when execution semantics change; execute depends only on its context.
-EXECUTION_CACHE_VERSION = 1
+EXECUTION_CACHE_VERSION = 2
 
 
 def execute(context: ProcessStepContext) -> ProcessGeometryState:
@@ -41,14 +42,26 @@ def execute(context: ProcessStepContext) -> ProcessGeometryState:
             "center",
             anchor_bounds,
         )
-        generated = GeometryArtifact._from_generated_structure(transformed_structure, source=source)
+        # Contact decisions must use the same rounded XY footprint we attach.
+        rounded_structure, _ = place_on_coordinate_grid(
+            transformed_structure, x=center_x, y=center_y,
+        )
+        generated = GeometryArtifact._from_generated_structure(rounded_structure, source=source)
         adapted = ProcessGeometryState._from_polygon_structure(
             generated.structure, generated.polygons, {"provenance": source.provenance},
         )
         bottom_z = state.bump_placement_bottom_z(
-            adapted, x=center_x, y=center_y, anchor="origin", main_z=main_z,
+            adapted, x=0, y=0, anchor="origin", main_z=main_z,
         )
-        prepared.append((adapted, center_x, center_y, bottom_z))
+        absolute_structure, rounded_bottom_z = place_on_coordinate_grid(
+            rounded_structure, x=0, y=0, bottom_z=bottom_z,
+        )
+        absolute = GeometryArtifact._from_generated_structure(absolute_structure, source=source)
+        placed = ProcessGeometryState._from_polygon_structure(
+            absolute.structure, absolute.polygons, {"provenance": source.provenance},
+        )
+        # Already in absolute XY; attachment must not rebase the rounded edges.
+        prepared.append((placed, 0.0, 0.0, rounded_bottom_z))
 
     if main_artifact is not None and main_artifact.runtime_snapshot is None:
         state.set_cursor_z(main_z)

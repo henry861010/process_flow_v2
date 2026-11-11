@@ -72,6 +72,19 @@ class RegionApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json()["job"]["meshControl"], config)
 
+    def test_both_export_endpoints_preserve_geometry_tolerance(self):
+        self.app.state.file_export_jobs.max_concurrent_jobs = 0
+        for endpoint in ("/api/geometry-preview/cdb-jobs", "/api/geometry-preview/export-jobs"):
+            config = {**configuration(), "geometryTolerance": 0.0001}
+            response = self.export(endpoint, config)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["job"]["meshControl"], config)
+            for value in (0, -1, True, None, "0.001"):
+                with self.subTest(endpoint=endpoint, value=value):
+                    response = self.export(endpoint, {**config, "geometryTolerance": value})
+                    self.assertEqual(response.status_code, 422, response.text)
+                    self.assertIn("geometryTolerance", response.json()["detail"])
+
     def test_both_export_endpoints_preserve_optional_region_meshing(self):
         self.app.state.file_export_jobs.max_concurrent_jobs = 0
         for endpoint in ("/api/geometry-preview/cdb-jobs", "/api/geometry-preview/export-jobs"):

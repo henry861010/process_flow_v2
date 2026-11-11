@@ -11,13 +11,13 @@ dependencies = [
   "fastapi>=0.111",
   "uvicorn[standard]>=0.30",
   "pydantic>=2.7",
-  "gdstk>=1.0,<2",
+  "klayout>=0.30.5,<0.31",
   "process-flow-cad",
   "process-flow-geometry-generators",
   "process-flow-kernel",
   "process-flow-mesh-control",
   "process-flow-schematic",
-  "mesher[process-flow]==0.2.0",
+  "mesher[process-flow]==0.2.1",
   "process-flow-steps",
 ]
 

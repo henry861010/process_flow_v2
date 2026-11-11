@@ -7,16 +7,16 @@
             "socCount": 2,
             "socInfo": {
               "SOC-1": {
-                "bottomLeftX": -1200,
-                "bottomLeftY": -1000,
-                "upperRightX": -100,
-                "upperRightY": 0
+                "bottomLeftX": 300,
+                "bottomLeftY": 1000,
+                "upperRightX": 1400,
+                "upperRightY": 2000
               },
               "SOC-2": {
-                "bottomLeftX": 100,
-                "bottomLeftY": -1000,
-                "upperRightX": 1200,
-                "upperRightY": 0
+                "bottomLeftX": 1600,
+                "bottomLeftY": 1000,
+                "upperRightX": 2700,
+                "upperRightY": 2000
               }
             }
           },
@@ -24,10 +24,10 @@
             "hbmCount": 1,
             "hbmInfo": {
               "HBM-1": {
-                "bottomLeftX": -1200,
-                "bottomLeftY": 200,
-                "upperRightX": -400,
-                "upperRightY": 1600
+                "bottomLeftX": 300,
+                "bottomLeftY": 2200,
+                "upperRightX": 1100,
+                "upperRightY": 3600
               }
             }
           },
@@ -35,10 +35,10 @@
             "lsiCount": 1,
             "lsiInfo": {
               "LSI-1": {
-                "bottomLeftX": -300,
-                "bottomLeftY": 200,
-                "upperRightX": 300,
-                "upperRightY": 800
+                "bottomLeftX": 1200,
+                "bottomLeftY": 2200,
+                "upperRightX": 1800,
+                "upperRightY": 2800
               }
             }
           },
@@ -46,10 +46,10 @@
             "soicCount": 1,
             "soicInfo": {
               "SOIC-1": {
-                "bottomLeftX": 400,
-                "bottomLeftY": 200,
-                "upperRightX": 1200,
-                "upperRightY": 1600
+                "bottomLeftX": 1900,
+                "bottomLeftY": 2200,
+                "upperRightX": 2700,
+                "upperRightY": 3600
               }
             }
           },
@@ -57,10 +57,10 @@
             "dmyCount": 1,
             "dmyInfo": {
               "DMY-1": {
-                "bottomLeftX": -300,
-                "bottomLeftY": 1000,
-                "upperRightX": 300,
-                "upperRightY": 1600
+                "bottomLeftX": 1200,
+                "bottomLeftY": 3000,
+                "upperRightX": 1800,
+                "upperRightY": 3600
               }
             }
           }

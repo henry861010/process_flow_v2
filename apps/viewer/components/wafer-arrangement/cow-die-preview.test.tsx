@@ -11,7 +11,7 @@ let root: Root;
 const pattern: CowDiePattern = {
   dieLayers: [{ type: "soc", layer: 888, datatype: 1, count: 1,
     dies: [{ id: "SOC-1", path: "dieJson.soc.socInfo.SOC-1", rectangle: [-10, -20, 300, 400] }] }],
-  totalDies: 1, cowRectangle: [-100, -100, 100, 100],
+  totalDies: 1, cowRectangle: [0, 0, 200, 200],
   outOfBounds: [{ type: "soc", id: "SOC-1", path: "dieJson.soc.socInfo.SOC-1", message: "SOC-1 extends outside the COW boundary." }], warnings: [],
 };
 beforeEach(() => {
@@ -26,8 +26,8 @@ describe("single COW viewer", () => {
     const svg = host.querySelector("svg[role=group]")!;
     const camera = () => svg.querySelector("g")!.getAttribute("transform");
     const fitted = camera();
-    // Bounds include the outside die: [-100,-100,300,400], centered at (100,150).
-    expect(fitted).toContain("translate(-100,-150)");
+    // Bounds include the outside die: [-10,-20,300,400], centered at (145,190).
+    expect(fitted).toContain("translate(-145,-190)");
     act(() => svg.dispatchEvent(new KeyboardEvent("keydown", { key: "+", bubbles: true })));
     expect(camera()).not.toBe(fitted);
     act(() => svg.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
