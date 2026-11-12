@@ -148,6 +148,31 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("flow GDS session", () => {
+  it("makes selection explicit before patterns are filled and announces one contextual status", () => {
+    const a = step();
+    const empty = a.open();
+    expect(text(empty)).toContain("No file selected");
+    expect(text(empty)).not.toContain("File selected");
+    expect(button(empty, "Choose file")).toBeDefined();
+
+    a.choose(file("晶片-layout.gds"));
+    const selected = a.render();
+    const announcements = elements(selected).filter((element) => element.props["aria-live"] === "polite");
+    expect(announcements).toHaveLength(1);
+    expect(announcements[0].props["aria-atomic"]).toBe("true");
+    expect(text(announcements[0])).toContain("File selected");
+    expect(text(announcements[0])).toContain("晶片-layout.gds");
+    expect(text(selected)).toContain("Set layer and datatype, then import using this file.");
+    expect(text(selected)).toContain("Selected file");
+    expect(text(selected)).not.toContain("No file selected");
+    expect(button(selected, "Change file")).toBeDefined();
+    expect(find(selected, (element) => element.props.type === "submit").props.disabled).toBe(true);
+    expect(a.onImport).not.toHaveBeenCalled();
+    a.choose();
+    expect(text(a.render())).toContain("File selected");
+    expect(text(a.render())).toContain("晶片-layout.gds");
+  });
+
   it("shares successful imports across remounted steps and keeps their settings independent", async () => {
     const shared = provider();
     const a = step(shared);
@@ -162,7 +187,8 @@ describe("flow GDS session", () => {
     const view = b.open();
     expect(text(view)).toContain("layout.gds");
     expect(text(view)).not.toContain("Using last imported GDS for this flow");
-    expect(text(view)).toContain("Choose another file");
+    expect(text(view)).toContain("Change file");
+    expect(text(view)).toContain("File selected");
     expect(find(view, (element) => element.props.ariaLabel === "Pattern 1 layer").props.value).toBe("");
     expect(find(view, (element) => element.props.type === "checkbox").props.checked).toBe(false);
     b.criterion("2");
@@ -201,6 +227,8 @@ describe("flow GDS session", () => {
     expect(shared.value().file).toBe(original);
     expect(a.onImport).not.toHaveBeenCalled();
     expect(text(a.render())).toContain("Invalid GDS");
+    expect(text(a.render())).toContain("File selected");
+    expect(button(a.render(), "Change file")).toBeDefined();
     a.hooks.unmount();
     expect(text(step(shared).open())).toContain("original.gds");
   });

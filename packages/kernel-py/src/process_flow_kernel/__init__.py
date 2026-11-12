@@ -12,6 +12,7 @@ from .application.geometry_artifact import (
 from .application.flow_validation import analyze_flow_graph, validate_flow_graph, validate_process_step_template
 from .application.geometry_kernel import GeometryKernel
 from .application.options import ExecuteOptions
+from .application.parameter_values import normalize_parameter_values_for_storage
 from .application.step_cache import StepExecutionCache
 from .application.protocols import ModuleResolver, ProcessStepModule
 from .application.resource_resolution import (
@@ -98,6 +99,7 @@ __all__ = [
     "Via",
     "VIA_KEYS",
     "analyze_flow_graph",
+    "normalize_parameter_values_for_storage",
     "classify_polygon_loops",
     "container_key_matches",
     "geometry_structure_to_process_geometry_state",

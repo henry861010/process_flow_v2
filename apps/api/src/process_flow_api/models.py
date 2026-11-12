@@ -201,6 +201,12 @@ GeometryBinding = Annotated[
 ]
 
 class RecipeCandidate(StrictModel):
+    """Raw recipe input; definition-aware normalization occurs at flow boundaries.
+
+    Drafts share this model and must retain temporarily invalid input. Formal
+    flows omit missing parameter keys instead of persisting null/empty strings.
+    """
+
     recipeId: NonBlankString
     name: NonBlankString
     description: str = ""

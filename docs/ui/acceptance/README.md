@@ -135,7 +135,7 @@ Home 與 editor reference 必須使用歸零後 fixtures 重拍；仍含舊版 l
 | `UI-PLACE-023` | shared placement layout | inspect initial view; toggle help; Escape | 無統計/座標/編號定位/footer，右上驚嘆號按需顯示操作說明，不推動cards或關閉editor。 |
 
 | `UI-PLACE-024` | placement preview after zoom/pan | Add placement and enter distant coordinates | 自動fit全部形狀；手動操作camera後保持視角；無標題列，controls在圖內右下。 |
-| `UI-PLACE-025` | flow中step A成功匯入GDS | close A; open B GDS modal | 自動沿用檔案，body/footer完整顯示可選取換行的檔名、不顯示沿用提示，可換檔；各step的patterns與Defeature獨立。 |
+| `UI-PLACE-025` | flow中step A成功匯入GDS | close A; open B GDS modal | 自動沿用檔案，淡綠卡片以勾選圖示、File selected、16px深色半粗體等寬完整檔名及Change file明確呈現；固定footer顯示Selected file與14px深色檔名。長檔名可選取換行，390px不溢出；單一live region通知狀態；各step的patterns與Defeature獨立。 |
 | `UI-PLACE-026` | GDS已有共用預設 | choose replacement; cancel picker/modal, fail, or complete import | picker取消保留選檔，modal取消保留pending；僅成功套用才更新預設，不改其他step placements；stale response無效。 |
 | `UI-PLACE-027` | editor記住GDS | load flow/source/draft/blank, cancel switch, or reload | 成功替換/reload清除，取消切換保留，獨立editor session不共用。 |
 | `UI-PLACE-030` | PNP Node Editor與Recipe保持開啟 | 開啟GDS portal，填layer／datatype／cell filter、切換include／exclude與Defeature、新增／移除pattern；Tab／Shift+Tab、Cancel／Close／backdrop／Escape，重開三次；失敗重試及成功匯入 | 欄位可持續聚焦輸入，外層不搶focus；Tab不離開GDS，Escape僅關最上層；focus還原trigger、draft保留；busy不可誤關，成功只套用一次。 |

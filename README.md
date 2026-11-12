@@ -34,12 +34,12 @@ Process Flow 是 local-first 的半導體製程建模 PoC。它以 ProcessFlow �
 Python 3.11+ 與 Node.js 18.17+ 是最低基線。2D／3D mesh、Standard V1 translation、CDB
 export 與 optional mesh visualization 由獨立的
 [`mesher`](https://github.com/henry861010/mesher) repository 管理；目前整合固定在 commit
-`302ebe36663b727669901cbc766ccc0a2ae6f221`。完整 dependency 與平台注意事項請依
+`ccbbbaee1ed2a089544973f056132e87c30184a3`（含 UF 合法共點與 normalization 拓樸保護）。完整 dependency 與平台注意事項請依
 [本機開發手冊](docs/operations/local-development.md)；以下命令從 repository root 執行：
 
 ```bash
 python3 -m venv venv
-git -C /absolute/path/to/mesher checkout 302ebe36663b727669901cbc766ccc0a2ae6f221
+git -C /absolute/path/to/mesher checkout ccbbbaee1ed2a089544973f056132e87c30184a3
 venv/bin/pip install -e packages/kernel-py
 venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \

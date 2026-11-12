@@ -753,6 +753,55 @@ describe("catalog generator actions through the shared editor", () => {
 });
 
 describe("flow editor sources and save targets", () => {
+  function useMissingValueSource() {
+    const step = { ...structuredClone(stepFixtures[0]), id: "missing-value-step", parameterDefinitions: [
+      { id: "amount", name: "Amount", valueType: "float", required: false },
+      { id: "counts", name: "Counts", valueType: "integer[]", required: false },
+    ] } as ProcessStepTemplate;
+    const input = { flowInputId: "input", name: "Input", dataType: "geometry" as const, required: true };
+    source.definition = { flowInputs: [input], stepRefs: [{ stepRefId: "step", processStepTemplateId: step.id }], flowEdges: [
+      { edgeId: "edge", source: { kind: "flowInput", flowInputId: input.flowInputId }, target: { stepRefId: "step", inputPortId: step.inputPorts[0].portId } },
+    ] };
+    source.configuration = { inputBindings: { input: { kind: "catalog", geometryId: geometryFixtures[0].id } }, stepConfigurations: { step: {
+      selectedRecipeId: "r", recipeCandidates: [{ recipeId: "r", name: "Recipe", description: "", parameterValues: { amount: "", counts: [] } }],
+    } } };
+    vi.mocked(loadBootstrap).mockImplementation(async () => ({ processFlows: [source], processStepTemplates: [step], geometries: geometryFixtures as GeometryEntity[], geometryGenerators: [] }));
+  }
+
+  it("canonicalizes legacy values when loading, previewing, saving and reloading a formal flow", async () => {
+    useMissingValueSource();
+    const original = structuredClone(source);
+    const app = await editor();
+    await app.start();
+    const node = app.graph().nodes.find((node) => node.type === "processStep")!;
+    expect(node.data.status).toBe("ready");
+    (node.data.onTerminalGeometryView as () => void)();
+    const preview = props(app.render(), GeometryPreviewPanel).preview!;
+    expect(preview.request.flow!.configuration.stepConfigurations.step.recipeCandidates[0].parameterValues).toEqual({ counts: [] });
+    expect(app.openSave().blockingIssues).toEqual([]); await app.save();
+    const request = vi.mocked(createProcessFlow).mock.calls[0][0];
+    expect(request.configuration.stepConfigurations.step.recipeCandidates[0].parameterValues).toEqual({ counts: [] });
+    expect(source).toEqual(original);
+    source = { ...request, id: "new-branch", revision: 1 };
+    const resumed = await editor("?flowId=new-branch");
+    expect(resumed.graph().nodes.find((node) => node.type === "processStep")!.data.status).toBe("ready");
+  });
+
+  it("preserves raw missing markers and invalid collection elements when resaving a draft", async () => {
+    useMissingValueSource();
+    const app = await editor();
+    await app.start();
+    await saveNewDraft(app);
+    const values = { amount: null, counts: [1, "", null] };
+    savedDraft.state.configuration.stepConfigurations.step.recipeCandidates[0].parameterValues = values;
+    const resumed = await editor("?draftId=branch-draft");
+    button(resumed.header().draftControl as Element, " Save Draft").props.onClick();
+    await resumed.flush();
+    expect(savedDraft.state.configuration.stepConfigurations.step.recipeCandidates[0].parameterValues).toEqual(values);
+    expect(resumed.openSave().blockingIssues.join()).toContain("Counts");
+    expect(commitFlowDraft).not.toHaveBeenCalled();
+  });
+
   it("starts unsaved, creates a separate flow after edits and updates only that new ID thereafter", async () => {
     const app = await editor();
     expect(await app.start()).toBe(true);

@@ -8,6 +8,7 @@ from .flow_compiler import (
 from .flow_validation import analyze_flow_graph, validate_flow_graph, validate_process_step_template
 from .geometry_kernel import GeometryKernel
 from .options import ExecuteOptions
+from .parameter_values import normalize_parameter_values_for_storage
 from .protocols import ModuleResolver, ProcessStepModule
 from .resource_resolution import (
     GeometryCatalogResolver,
@@ -30,6 +31,7 @@ __all__ = [
     "ProcessStepContext",
     "ProcessStepModule",
     "analyze_flow_graph",
+    "normalize_parameter_values_for_storage",
     "validate_flow_graph",
     "validate_parameter_default_values",
     "validate_process_step_template",

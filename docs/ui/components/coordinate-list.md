@@ -93,8 +93,15 @@ layer、datatype與optional cell name filter；`Defeature`是default-off且由�
 modal時，file、patterns與Defeature在目前editor生命週期內保持不變。
 
 Flow template與flow instance editor在本次編輯期間共用最近成功匯入的GDS `File`。
-新step的modal自動沿用並顯示完整檔名與`Choose another file`，不顯示沿用提示；
-body與footer的檔名可選取且換行，不以ellipsis截斷。瀏覽器選檔只提供檔名，不提供本機absolute path。
+新step的modal自動沿用檔案；手動選檔與沿用檔案使用相同的已選取卡片，不另顯示來源提示。
+卡片使用primary淡色底與邊框、勾選圖示及`File selected`文字，完整檔名以16px深色半粗體等寬字顯示；
+次要操作`Change file`置於右側，窄視窗改為上下排列。提示文字為
+`Set layer and datatype, then import using this file.`，已選取不代表已完成匯入或patterns已有效。
+未選檔使用中性卡片，顯示`No file selected`、`Choose file`及`Choose a GDS file to import placements.`。
+固定footer顯示`Selected file`與14px深色半粗體檔名；未選檔則顯示`GDS file`及`No file selected`。
+body與footer的檔名皆可選取且換行，不以ellipsis截斷，390px視窗不得水平溢出或遮擋操作。
+選檔狀態僅由卡片內單一`aria-live="polite"`、`aria-atomic="true"`區域通知，footer不重複朗讀。
+瀏覽器選檔只提供檔名，不提供本機absolute path。
 仍須使用者按`Import and replace`才匯入。手動選檔優先於共用檔案，
 只關閉GDS modal會保留尚未匯入的選檔；關閉或切換step editor則捨棄該選檔。
 取消file picker不得清除選檔或共用預設。每次import固定使用啟動當下的檔案，
@@ -191,7 +198,7 @@ Preview buttons 有 accessible names 與 visible focus ring；card headings 可�
 | `UI-PLACE-022` | 1,000 placements、readonly、390px及desktop | 全數繪製、可zoom/pan/定位，不改值或dirty state、無page-level horizontal overflow。 |
 | `UI-PLACE-023` | 預覽初始畫面，點擊右上角驚嘆號或按Escape | 圖區只保留圖形及控制，不顯示統計/座標/編號定位/footer；說明預設隱藏、可開關且不推動cards。 |
 | `UI-PLACE-024` | zoom/pan後Add placement並填寫遠處座標 | 新增及填寫時自動fit全部形狀；手動操作camera後恢復保持視角，controls浮在圖內右下、無標題列。 |
-| `UI-PLACE-025` | step A成功匯入後關閉，開啟step B的GDS modal | 自動沿用同一檔案，body/footer完整顯示可選取換行的檔名、不顯示沿用提示，可換檔；patterns與Defeature不跨step繼承。 |
+| `UI-PLACE-025` | step A成功匯入後關閉，開啟step B的GDS modal | 自動沿用同一檔案，淡綠卡片顯示File selected、完整醒目檔名與Change file；固定footer顯示Selected file及深色檔名；單一live region通知狀態；390px及長檔名不溢出；patterns與Defeature不跨step繼承。 |
 | `UI-PLACE-026` | 換檔後取消picker、關閉modal、匯入失敗或完成 | 取消picker保留選檔；關閉modal保留pending選檔；只有成功套用placements才更新flow預設，且不改其他step的placements；stale response無效。 |
 | `UI-PLACE-027` | 成功載入template/source/draft/空白配置、取消切換或reload | 成功替換或reload清除共用檔案；取消切換保留；不同editor session不共用。 |
 | `UI-PLACE-030` | PNP Node Editor → Recipe → GDS portal；編輯各欄位、新增／移除pattern、Tab／Shift+Tab、關閉重開及匯入重試 | 欄位持續可輸入；只有最上層處理focus／Escape，關閉還原trigger，draft保留；busy不可誤關，失敗可修正重試、成功套用並還原focus。 |

@@ -85,6 +85,7 @@ import {
 import { analyzeFlowDependencies } from "@/lib/process-flow/dependencies";
 import { computeTemplateLayout } from "@/lib/process-flow/template-layout";
 import { createStepConfiguration, createRecipe, removeRecipe } from "@/lib/process-flow/recipes";
+import { normalizeFlowConfiguration } from "@/lib/process-flow/parameter-values";
 
 
 import { flowConfigurationIssues, flowAuthoringIssues } from "@/lib/process-flow/flow-editor-save";
@@ -509,7 +510,7 @@ function ProcessFlowEditorInner() {
     flowGds?.clearFile(); drafts.detach();
     if (mode === "start-from") drafts.markDirty();
     setMetadata({ name: content.name, version: content.version, owner: content.owner, description: content.description });
-    setConfiguration(structuredClone(content.configuration)); setEditingRecipeIds({});
+    setConfiguration(normalizeFlowConfiguration(content.definition, stepTemplates, structuredClone(content.configuration))); setEditingRecipeIds({});
     setTarget(mode === "edit" ? { flowId: flow.id, revision: flow.revision } : undefined);
     setOrigin(content.origin);
     setSavedFlow(mode === "edit" ? flow : null);
@@ -848,8 +849,9 @@ function ProcessFlowEditorInner() {
         flow: {
           definition: { ...draftDefinition, flowInputs: draftDefinition.flowInputs.map((input) =>
             input.flowInputId === flowInputId ? structuredClone(edit.definition) : input) },
-          configuration: { ...configuration, inputBindings: { ...configuration.inputBindings,
-            [flowInputId]: structuredClone(edit.binding) } },
+          configuration: normalizeFlowConfiguration(draftDefinition, stepTemplates,
+            { ...configuration, inputBindings: { ...configuration.inputBindings,
+              [flowInputId]: structuredClone(edit.binding) } }),
         },
         analyticsContext: { sourceKind: "inline_draft", ...(target ? { flowId: target.flowId, flowRevision: target.revision } : {}) },
       },
@@ -869,7 +871,7 @@ function ProcessFlowEditorInner() {
           outputPortId: "result_geometry",
         },
         sourceLabel: stepLabel(node),
-        flow: { definition: draftDefinition, configuration },
+        flow: { definition: draftDefinition, configuration: normalizeFlowConfiguration(draftDefinition, stepTemplates, configuration) },
         analyticsContext: { sourceKind: "inline_draft", ...(target ? { flowId: target.flowId, flowRevision: target.revision } : {}) },
       },
     });
@@ -880,6 +882,7 @@ function ProcessFlowEditorInner() {
     const validationError = validateFlowSaveInformation(metadata);
     if (validationError) { setSaveDialogError(validationError); return; }
     const captured = structuredClone(editorDraftState);
+    captured.configuration = normalizeFlowConfiguration(draftDefinition, stepTemplates, captured.configuration);
     const request = { schemaVersion: 3 as const, ...metadata, definition: draftDefinition,
       configuration: captured.configuration, ...(origin ? { origin } : {}) };
     savingRef.current = true; setBusyAction(saveDialogMode); setSaveDialogError(null); setConflict(false);
@@ -888,7 +891,7 @@ function ProcessFlowEditorInner() {
         ? await updateProcessFlow(target.flowId, { ...request, revision: target.revision })
         : drafts.active ? await commitFlowDraft(drafts.active, request)
           : await createProcessFlow(request);
-      drafts.detach(); drafts.markClean(captured);
+      drafts.detach(); drafts.markClean(captured); setConfiguration(captured.configuration);
       setSavedFlow(saved); setTarget({ flowId: saved.id, revision: saved.revision }); setOrigin(saved.origin);
       setLegacyCopyNotice(false);
       setFlows((current) => [...current.filter((flow) => flow.id !== saved.id), saved]);

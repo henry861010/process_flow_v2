@@ -1,6 +1,7 @@
 import { getFlowInputReadiness, isParameterValueComplete } from "./configuration";
 import { analyzeFlowDependencies } from "./dependencies";
 import { selectedRecipe } from "./recipes";
+import { isMissingParameterValue, normalizeParameterValues } from "./parameter-values";
 import type { FlowDefinition, FlowConfiguration, GeometryEntity, ParameterDefinition, ProcessStepTemplate } from "./types";
 import { normalizeStepLabel } from "./utils";
 
@@ -26,13 +27,15 @@ export function flowConfigurationIssues(definition: FlowDefinition, steps: Proce
 
 // Missing values are allowed at authoring time; supplied values still follow the contract.
 function validPartial(definition: ParameterDefinition, value: unknown): boolean {
-  if (value === undefined) return true;
+  if (isMissingParameterValue(value)) return true;
   if (definition.valueType === "fieldGroupArray") {
     if (!value || typeof value !== "object" || !("items" in value) || !Array.isArray(value.items)) return false;
     const children = definition.repeatDefinition?.itemParameterDefinitions ?? [];
+    const repeat = definition.repeatDefinition;
+    if (!repeat || (repeat.maxItems != null && value.items.length > repeat.maxItems)) return false;
     const ids = new Set<string>();
     return value.items.every((item) => {
-      if (!item || typeof item.itemId !== "string" || !item.itemId || ids.has(item.itemId) || !Number.isInteger(item.index) || !item.values || typeof item.values !== "object") return false;
+      if (!item || typeof item.itemId !== "string" || !item.itemId || ids.has(item.itemId) || !Number.isInteger(item.index) || !item.values || typeof item.values !== "object" || Array.isArray(item.values)) return false;
       ids.add(item.itemId);
       return Object.entries(item.values).every(([key, child]) => {
         const parameter = children.find((candidate) => candidate.id === key);
@@ -40,7 +43,6 @@ function validPartial(definition: ParameterDefinition, value: unknown): boolean 
       });
     });
   }
-  if ((definition.valueType === "string" || definition.valueType === "materialRef") && value === "") return true;
   return isParameterValueComplete({ ...definition, required: true }, value);
 }
 export function flowAuthoringIssues(definition: FlowDefinition, steps: ProcessStepTemplate[], configuration: FlowConfiguration): string[] {
@@ -53,7 +55,7 @@ export function flowAuthoringIssues(definition: FlowDefinition, steps: ProcessSt
     for (const recipe of config.recipeCandidates) {
       if (!recipe.recipeId || ids.has(recipe.recipeId) || !recipe.name.trim()) issues.push(`${refId}: recipe IDs must be unique and names are required.`);
       ids.add(recipe.recipeId);
-      for (const [key, value] of Object.entries(recipe.parameterValues)) {
+      for (const [key, value] of Object.entries(normalizeParameterValues(step.parameterDefinitions, recipe.parameterValues))) {
         const parameter = step.parameterDefinitions.find((item) => item.id === key);
         if (!parameter || !validPartial(parameter, value)) issues.push(`${refId} / ${recipe.name}: invalid value for ${parameter?.name ?? key}.`);
       }

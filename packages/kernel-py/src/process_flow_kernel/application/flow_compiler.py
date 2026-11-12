@@ -10,6 +10,7 @@ from .execution_plan import ExecutionPlan, PlannedGeometryInput, PlannedStep
 from .geometry_artifact import GeometryArtifact
 from .flow_dependencies import analyze_flow_dependencies
 from .flow_validation import analyze_flow_graph
+from .parameter_values import normalize_parameter_values_for_storage
 from .recipes import selected_recipe, selected_parameter_values
 from .resource_resolution import GeometryCatalogResolver, GeometryGeneratorResolver
 from ..serialization.schema import normalize_geometry_structure
@@ -35,8 +36,11 @@ class FlowCompiler:
         """
         if not isinstance(values, Mapping):
             raise ValueError("parameterValues must be an object")
+        definitions = step_template.get("parameterDefinitions", [])
         return _normalize_parameter_values(
-            step_template.get("parameterDefinitions", []), values, require_complete=require_complete,
+            definitions,
+            normalize_parameter_values_for_storage(definitions, values),
+            require_complete=require_complete,
         )
 
     def __init__(
@@ -94,9 +98,11 @@ class FlowCompiler:
         analysis = analyze_flow_graph(definition, step_templates)
         _validate_configuration_keys(configuration, analysis)
         for step_ref_id, step_configuration in configuration.get("stepConfigurations", {}).items():
-            definitions = analysis.step_templates_by_ref_id[step_ref_id].get("parameterDefinitions", [])
+            step_template = analysis.step_templates_by_ref_id[step_ref_id]
             for recipe in step_configuration.get("recipeCandidates", []):
-                _normalize_parameter_values(definitions, recipe.get("parameterValues", {}), require_complete=False)
+                self.normalize_step_parameters(
+                    step_template, recipe.get("parameterValues", {}), require_complete=False,
+                )
 
     def compile(
         self,
@@ -141,7 +147,12 @@ class FlowCompiler:
                 continue
             step_ref = analysis.step_refs_by_id[step_ref_id]
             step_template = analysis.step_templates_by_ref_id[step_ref_id]
-            raw_values = selected_parameter_values(step_configurations.get(step_ref_id, {}), required=True, step_ref_id=step_ref_id)
+            raw_values = normalize_parameter_values_for_storage(
+                step_template.get("parameterDefinitions", []),
+                selected_parameter_values(
+                    step_configurations.get(step_ref_id, {}), required=True, step_ref_id=step_ref_id,
+                ),
+            )
             values = self.normalize_step_parameters(step_template, raw_values)
             geometry_inputs = {}
             for port in step_template.get("inputPorts", []):
@@ -280,11 +291,7 @@ def _validate_step_configurations(configuration, analysis, included, *, require_
         values = selected_parameter_values(step_configurations.get(step_ref_id, {}), required=require_complete, step_ref_id=step_ref_id)
         if not isinstance(values, Mapping):
             raise ValueError(f"Step {step_ref_id} parameterValues must be an object")
-        _normalize_parameter_values(
-            step_template.get("parameterDefinitions", []),
-            values,
-            require_complete=require_complete,
-        )
+        FlowCompiler.normalize_step_parameters(step_template, values, require_complete=require_complete)
 
 
 def _validate_parameter_definition_defaults(definitions, label):

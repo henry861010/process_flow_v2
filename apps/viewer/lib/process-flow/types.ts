@@ -178,6 +178,8 @@ export type GeometryBinding =
   | GeneratorGeometryBinding;
 
 export type RecipeCandidate = {
+  // Persisted values omit missing keys, including fieldGroupArray item.values.
+  // Raw draft snapshots may retain incomplete or invalid editor input.
   recipeId: string; name: string; description: string; parameterValues: Record<string, unknown>;
 };
 export type StepConfiguration = {

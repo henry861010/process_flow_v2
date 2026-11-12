@@ -5,8 +5,8 @@ owner: integration.platform
 audience:
   - developers
   - QA
-last_verified: 2026-11-05
-last_verified_commit: eeb83566
+last_verified: 2026-11-12
+last_verified_commit: 397cdb08
 source_of_truth:
   - apps/api/src/process_flow_api/models.py
   - packages/kernel-py/src/process_flow_kernel/application/flow_compiler.py
@@ -155,7 +155,13 @@ type GeometryBinding =
 
 Map keys MUST 對應 definition 的 input／step。允許未設定 binding、未建立 step configuration、空候選集合及 `selectedRecipeId: null`。非 null 的 selectedRecipeId MUST 指向同站候選，禁止回退第一組。刪除採用候選後設為 null。
 
-正式儲存驗證每一組候選已提供值的名稱、型別與 validation，包括非採用候選；可以缺少 required 參數。缺值以省略 key 表達；數值欄位的空字串或 null 不是合法數值。草稿允許這些暫時無效值。字串空值與執行完整度依 [Parameter Schema](reference/parameter-schema.md)。
+正式儲存驗證每一組候選已提供值的名稱、型別、範圍、enum 與其他 validation，包括非採用候選；可以缺少 required 參數。`required` 的完整度在執行／compile 的實際依賴 closure 才檢查。
+
+正式 `parameterValues` MUST 只以省略 key 表達缺值；UI 清空參數時移除 key，不以 `null` 或 `""` 表達。`0`、`false`、`[]` 及合法的 `{ "items": [] }` 是已提供值，MUST 保留；`fieldGroupArray.minItems` 的完整度仍在執行時檢查。巢狀 repeat item 的 `values` 依同樣規則處理；即使其最後為 `{}`，也不得移除 item、改變集合順序或刪除 `items`、`itemId`、`index`、`values` 結構欄位。
+
+缺值正規化 MUST 依站點的 `ProcessStepTemplate.parameterDefinitions`（巢狀時使用 `itemParameterDefinitions`）進行：只將已宣告 parameter property 的舊 `null`／`""` 轉為省略 key。不得對整份 JSON 任意遞迴刪空值、移除集合元素或正規化其他 JSON，例如 generator parameters。未知 key 與其他無效的非空值 MUST 保留並回報原驗證錯誤，不能藉清除資料通過驗證。此相容處理不放寬 `defaultValue` 規則。
+
+正式儲存、載入、匯入與執行入口 MUST 使用相同缺值語義。讀取舊正式 flow 時回傳正規化的相容表示，不修改原資料或 revision；下次正式儲存／commit／匯入時寫入 canonical values，無須資料庫 schema migration。Compiler 將缺少的選填值轉為 Python `None`，不得反向將 runtime `None` 持久化為參數 key 的 `null`。完整規則見 [Parameter Schema](reference/parameter-schema.md)。
 
 新增站點建立並採用 `Recipe 1`，完整複製該 step 目前明確宣告的 defaults。新增候選也複製 defaults，但不改變採用；複製候選則深拷貝目前查看的全部值並產生新 recipe ID。後續讀取、儲存與 compile MUST NOT 再補 defaults。
 
@@ -169,6 +175,8 @@ FlowDraft 使用 schemaVersion 2：`id, user, name, revision, createdAt, updated
 
 編輯既有 flow 時僅可直接更新正式 flow。`editingRecipeIds` 只決定面板查看內容，不改變採用。新 flow 的草稿格式合法即可保存，不要求拓樸或參數完整。
 
+Draft 的 recipe `parameterValues` 是 raw 編輯狀態，MAY 保留錯誤型別、超出範圍、未知 option、不完整 repeat 結構及舊 `null`／`""`，供重新載入時還原。Draft save／load 不套用正式資料的缺值正規化或參數語義驗證，但仍須符合外層 configuration、ID／採用選擇一致性及合法 JSON 格式。正式儲存／commit 才按 definition 正規化所有候選並驗證已提供值；失敗不清除草稿。UI 清空參數仍以移除 key 更新編輯狀態。
+
 ## 9. 更新與來源資訊
 
 更新保留原 id、origin，拓樸與 configuration 可修改。編輯器 Start from 可將既有 flow 的 definition 與 configuration 深複製為尚未儲存的新分支；第一次正式保存才建立新 id、revision 1，來源內容與 revision 不變。新分支的 `origin` 記錄直接來源的 flowId 與載入時 revision，草稿保存與恢復時保留此來源；不是繼承來源自身的 origin。Flow 內部識別碼保留，ProcessStepTemplate 與 geometry catalog 引用仍共用。Origin 不設外鍵，也不追溯祖先鏈；此操作不加入歷史還原或分支合併。
@@ -181,8 +189,8 @@ Runtime MUST NOT 接受 ProcessFlowTemplate／ProcessFlowInstance、flow status�
 
 | 操作 | 拓樸 | Recipe | Geometry |
 | --- | --- | --- | --- |
-| Draft save | 格式驗證，允許未完成 | 格式、ID／選擇一致性；值可暫時無效 | 兩種 binding 格式 |
-| Flow save | 完整合法拓樸 | 全部候選已提供值合法；可缺 required | 引用存在；不生成、不執行 |
+| Draft save / load | 格式驗證，允許未完成 | 外層格式、ID／選擇一致性；保留 raw 無效值 | 兩種 binding 格式 |
+| Flow save / draft commit / import | 完整合法拓樸 | 依 definition 正規化缺值；全部候選已提供值合法；可缺 required | 引用存在；不生成、不執行 |
 | Full execute | 完整合法拓樸 | 實際依賴站點的採用候選完整 | 實際依賴 inputs 完整 |
 | Step preview | 完整合法拓樸 | 目標與上游依賴完整 | 該 closure 所需 inputs |
 | Input preview | 指定 input 可解析 | 無關站點不要求完整 | 只解析該 input |

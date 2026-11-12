@@ -10,6 +10,7 @@ import type {
 import { createStepConfiguration, selectedRecipe } from "./recipes";
 import { isPlacementValid } from "./placement-validation";
 import { analyzeFlowDependencies, type FlowDependencies } from "./dependencies";
+import { isMissingParameterValue } from "./parameter-values";
 
 export function geometryCategoryConstraints(
   geometry: Pick<GeometryEntity, "category"> & Partial<Pick<GeometryEntity, "entityType">>,
@@ -236,10 +237,7 @@ export function isParameterValueComplete(
   definition: ParameterDefinition,
   value: unknown,
 ): boolean {
-  if (definition.required === false && (value === undefined || value === null || value === "")) {
-    return true;
-  }
-  if (value === undefined || value === null || value === "") return false;
+  if (isMissingParameterValue(value)) return definition.required === false;
   if (definition.valueType === "fieldGroupArray") {
     if (!isRecord(value) || !Array.isArray(value.items)) return false;
     const repeat = definition.repeatDefinition;
@@ -253,9 +251,10 @@ export function isParameterValueComplete(
         return false;
       }
       itemIds.add(item.itemId);
-      if (typeof item.index !== "number" || !Number.isFinite(item.index)) return false;
+      if (typeof item.index !== "number" || !Number.isInteger(item.index)) return false;
       const itemValues = item.values;
       if (!isRecord(itemValues)) return false;
+      if (Object.keys(itemValues).some((id) => !repeat.itemParameterDefinitions.some((child) => child.id === id))) return false;
       return repeat.itemParameterDefinitions.every((child) =>
         isParameterValueComplete(child, itemValues[child.id]),
       );
@@ -446,7 +445,7 @@ function scalarValueIsValid(
   definition: ParameterDefinition,
 ) {
   if (valueType === "string" || valueType === "materialRef") {
-    if (typeof value !== "string") return false;
+    if (typeof value !== "string" || value === "") return false;
     const validation = definition.validation;
     if (validation?.minLength != null && value.length < validation.minLength) return false;
     if (validation?.maxLength != null && value.length > validation.maxLength) return false;

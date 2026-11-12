@@ -217,6 +217,8 @@ describe("PNP GDS import inside node and recipe dialogs (UI-PLACE-030)", () => {
     expect(document.activeElement).toBe(button("Import from GDS"));
     expect(document.body.textContent).toContain("Imported 1 target regions");
     openGds();
+    expect(document.activeElement).toBe(button("Change file"));
+    expect(modal().querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
     type("Pattern 1 datatype", "2");
     expect(onClose).not.toHaveBeenCalled();
   });

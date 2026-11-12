@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  coerceArrayValue,
+  coercePrimitiveValue,
   createDefaultParameterValues,
   insertRepeatItem,
+  normalizeFlowConfiguration,
+  normalizeParameterValues,
   removeRepeatItem,
+  setParameterValue,
 } from "./parameter-values";
-import type { ParameterDefinition, RepeatableGroupValue, StepRef } from "./types";
+import type { ParameterDefinition, ProcessStepTemplate, RepeatableGroupValue, StepRef } from "./types";
+import { flowAuthoringIssues, flowConfigurationIssues } from "./flow-editor-save";
+import { isParameterValueComplete } from "./configuration";
 
 const definitions: ParameterDefinition[] = [
   { id: "name", name: "Name", valueType: "string", defaultValue: "stable" },
@@ -41,10 +48,97 @@ describe("parameter defaults", () => {
     (values.items as string[]).push("changed");
     expect(definitions[3].defaultValue).toEqual(["a"]);
   });
+});
 
+describe("missing parameter normalization", () => {
+  const children: ParameterDefinition[] = [
+    { id: "count", name: "Count", valueType: "integer", required: true },
+    { id: "enabled", name: "Enabled", valueType: "boolean", required: false },
+    { id: "tags", name: "Tags", valueType: "string[]", required: false },
+  ];
+  const nested: ParameterDefinition = {
+    id: "nested", name: "Nested", valueType: "fieldGroupArray", required: false,
+    repeatDefinition: { indexBase: 0, itemNameTemplate: "Child {{index}}", itemParameterDefinitions: children },
+  };
+  const group: ParameterDefinition = {
+    id: "group", name: "Group", valueType: "fieldGroupArray", required: false,
+    repeatDefinition: { indexBase: 0, itemNameTemplate: "Item {{index}}", itemParameterDefinitions: [...children, nested] },
+  };
+  const definitions = [...children, group];
 
+  it("removes only declared missing slots, preserving falsy values and collection elements", () => {
+    const input = { count: 0, enabled: false, tags: ["", null], unknown: "", group: { items: [
+      { itemId: "", index: 0, values: { count: null, enabled: false, tags: [], unknown: null, nested: { items: [
+        { itemId: "child", index: 0, values: { count: "", tags: [] } },
+        null,
+      ] } } },
+    ] } };
+    const original = structuredClone(input);
+    expect(normalizeParameterValues(definitions, input)).toEqual({
+      count: 0, enabled: false, tags: ["", null], unknown: "", group: { items: [
+        { itemId: "", index: 0, values: { enabled: false, tags: [], unknown: null, nested: { items: [
+          { itemId: "child", index: 0, values: { tags: [] } }, null,
+        ] } } },
+      ] },
+    });
+    expect(input).toEqual(original);
+    expect(normalizeParameterValues(definitions, { count: " ", enabled: "false", tags: [], group: { items: [] } }))
+      .toEqual({ count: " ", enabled: "false", tags: [], group: { items: [] } });
+    expect(normalizeParameterValues(definitions, { count: undefined, enabled: null, group: "" })).toEqual({});
+  });
 
+  it("uses key omission when UI clears a value, retaining 0, false and empty collections", () => {
+    for (const value of ["", null, undefined]) expect(setParameterValue({ count: 42, enabled: false }, "count", value)).toEqual({ enabled: false });
+    for (const value of [0, false, [], { items: [] }]) expect(setParameterValue({}, "value", value)).toEqual({ value });
+  });
 
+  it("allows required omissions while authoring, then rejects them for execution at every depth", () => {
+    const step = { id: "step", name: "Step", parameterDefinitions: definitions, inputPorts: [], outputPorts: [] } as unknown as ProcessStepTemplate;
+    const definition = { flowInputs: [], stepRefs: [{ stepRefId: "a", processStepTemplateId: step.id }], flowEdges: [] };
+    const configuration = { inputBindings: {}, stepConfigurations: { a: { selectedRecipeId: "r", recipeCandidates: [
+      { recipeId: "r", name: "Recipe", description: "", parameterValues: { count: null, group: { items: [
+        { itemId: "parent", index: 0, values: { count: "", nested: { items: [{ itemId: "child", index: 0, values: { count: null } }] } } },
+      ] } } },
+    ] } } };
+    const normalized = normalizeFlowConfiguration(definition, [step], configuration);
+    const values = normalized.stepConfigurations.a.recipeCandidates[0].parameterValues;
+    expect(values).not.toHaveProperty("count");
+    expect(flowAuthoringIssues(definition, [step], normalized)).toEqual([]);
+    expect(flowConfigurationIssues(definition, [step], normalized, []).join()).toContain("Count");
+    expect(isParameterValueComplete(group, values.group)).toBe(false);
+    expect(isParameterValueComplete(nested, { items: [{ itemId: "child", index: 0, values: {} }] })).toBe(false);
+  });
+
+  it("retains invalid supplied data for validation after normalization", () => {
+    const invalid = { group: { items: [{ itemId: "a", index: 0, values: { count: "invalid", tags: [null], unknown: null } }] } };
+    expect(normalizeParameterValues(definitions, invalid)).toEqual(invalid);
+    expect(isParameterValueComplete(group, invalid.group)).toBe(false);
+  });
+
+  it("preserves numeric invalid input through a raw draft JSON round trip", () => {
+    const values = {
+      count: coercePrimitiveValue("1.5", "integer"),
+      invalid: coercePrimitiveValue("broken", "float"),
+      overflow: coercePrimitiveValue("1e999", "float"),
+      items: coerceArrayValue(["0", "1.5", "", "2units"], "integer[]"),
+    };
+    expect(JSON.parse(JSON.stringify(values))).toEqual({ count: 1.5, invalid: "broken", overflow: "1e999", items: [0, 1.5, "", "2units"] });
+    expect(isParameterValueComplete(children[0], values.count)).toBe(false);
+    expect(coercePrimitiveValue("1e2", "integer")).toBe(100);
+    expect(coerceArrayValue(["0", "1.5", "invalid"], "float[]")).toEqual([0, 1.5, "invalid"]);
+  });
+
+  it("retains an empty group below minItems for authoring and reports it as incomplete for execution", () => {
+    const requiredGroup = { ...group, required: true, repeatDefinition: { ...group.repeatDefinition!, minItems: 1 } };
+    const step = { id: "step", name: "Step", parameterDefinitions: [requiredGroup], inputPorts: [], outputPorts: [] } as unknown as ProcessStepTemplate;
+    const definition = { flowInputs: [], stepRefs: [{ stepRefId: "a", processStepTemplateId: "step" }], flowEdges: [] };
+    const configuration = { inputBindings: {}, stepConfigurations: { a: { selectedRecipeId: "r", recipeCandidates: [
+      { recipeId: "r", name: "Recipe", description: "", parameterValues: { group: { items: [] } } },
+    ] } } };
+    expect(flowAuthoringIssues(definition, [step], configuration)).toEqual([]);
+    expect(normalizeFlowConfiguration(definition, [step], configuration)).toEqual(configuration);
+    expect(flowConfigurationIssues(definition, [step], configuration, []).join()).toContain("Group");
+  });
 });
 
 describe("repeatable group insertion and deletion", () => {

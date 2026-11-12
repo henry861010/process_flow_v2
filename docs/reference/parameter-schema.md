@@ -6,8 +6,8 @@ audience:
   - process-step 作者
   - API、compiler 與 viewer 開發者
   - QA 與 coding agent
-last_verified: 2026-10-13
-last_verified_commit: b01b1e70
+last_verified: 2026-11-12
+last_verified_commit: 397cdb08
 source_of_truth:
   - docs/data-model.md
 verified_against:
@@ -35,12 +35,15 @@ flowchart LR
 | Layer | Owner | Shape |
 | --- | --- | --- |
 | Definition | `ProcessStepTemplate` | Type、UI control、enum options、validation、unit、repeat schema。 |
-| Persisted value | Editor draft / Instance | User-entered JSON，保留 repeat `itemId`、`index`、`values` wrapper。 |
+| Persisted value | `ProcessFlow.configuration` | Canonical recipe JSON；以省略 parameter key 表示 missing，保留 repeat `itemId`、`index`、`values` wrapper。 |
 | Compiler-normalized value | `ExecutionPlan.PlannedStep.parameter_values` | Numeric canonicalization、repeat flattening、missing optional value normalization。 |
 | Kernel value | `ProcessStepContext.values` | Compiler values，再套用 `materialRef` instance naming。 |
 
 `ProcessStepContext.raw_parameter_values` MUST 保留 persisted values；process modules
 SHOULD 使用 `context.values` / `context.get_param()`，不得自行解析 persisted wrapper。
+
+`FlowDraft` 的 raw editor state 不屬於正式 persisted value contract；草稿 MAY 暫存無效輸入，
+詳見第 11 節。
 
 ## 2. ParameterDefinition
 
@@ -66,6 +69,28 @@ canonical payload 必須使用 materialized value。
 `defaultValue` 適用於 scalar、array、`placements` 與 recursive `fieldGroupArray`，但只會被
 複製到 authoring draft；compiler 不會隱式補值。
 實際參數只存在於站點 recipeCandidates 的 parameterValues。新增站點／候選時複製明確的 step defaults；之後不再隱式補值。正式 flow 可缺 required 欄位，但每組候選已提供的值仍須符合型別；草稿可暫存無效值。
+
+### 2.1 缺值與正式儲存正規化
+
+- 正式 `recipeCandidates[].parameterValues` MUST 只以「省略 key」表示未提供參數。
+  使用者清空欄位時，editor MUST 移除該 parameter key，不得寫入 `null` 或 `""`。
+- 正規化 MUST 以對應 `ProcessStepTemplate.parameterDefinitions` 為依據；對已宣告的
+  parameter property，舊值 `null` 與 `""` MUST 相容轉為省略 key，無論 `required` 為何。
+  `required` 決定執行完整度，不改變缺值的表示方式。
+- `0`、`false`、`[]` 與合法的 `{ "items": [] }` 都是已提供的值，MUST 保留。
+  空集合仍須遵守執行時 `minItems` 等適用規則。
+- 巢狀 `fieldGroupArray` MUST 依 `itemParameterDefinitions` 遞迴處理每個 `item.values`
+  中已宣告的 parameter property。不得任意遞迴清除整份 JSON；MUST 保留集合元素與順序，
+  以及 `items`、`itemId`、`index`、`values` 等結構欄位，即使 child values 最後為 `{}`。
+- Array element 不是 parameter property；不得因其為 `null` 或 `""` 而刪除。
+  例如 numeric array 的空字串元素仍 MUST 回報驗證錯誤；其他 array 元素也保留原有型別與
+  validation 規則。未知 parameter key、非空的錯誤型別、範圍、enum 或結構錯誤
+  MUST 保留並回報，不能藉正規化隱藏；空白字串也不視為 `""`。
+- UI、正式 flow 儲存／commit、載入、匯入與 inline preview／compile 入口 MUST 使用
+  同一缺值語義。讀取舊正式 flow 時回傳省略缺值 key 的相容表示，不直接修改資料庫或
+  revision；下次正式儲存或匯入時寫入 canonical values。不需要資料庫 schema migration。
+- 此相容處理只適用於 recipe parameter values；不得放寬 `ParameterDefinition.defaultValue`
+  對 `null`／`""` 的拒絕規則，也不套用到 generator parameters 或其他 JSON。
 
 ## 3. ValueType
 
@@ -151,7 +176,8 @@ Enum semantics：
 
 - Scalar value MUST JSON-equal one `options[].value`。
 - Array value 的每個 item MUST JSON-equal one option value。
-- Unknown option MUST 在 draft 的 non-empty value validation 與 complete compile 被拒絕。
+- Unknown option MUST 在正式 flow 儲存的 provided-value validation 與 complete compile 被拒絕；
+  草稿 MAY 暫存這類無效輸入。
 - Option order MAY 決定 UI display order，但 MUST NOT 改變 persisted value。
 - `optionSource` 不是 suggestion list；需要自由輸入時使用 `text` / `number` 並省略
   `optionSource`。
@@ -226,7 +252,7 @@ Definition：
 | `itemNameTemplate` | string | yes | MAY contain `{{index}}` display placeholder。 |
 | `indexBase` | integer | yes | First display index used by authoring UI。 |
 | `minItems` | integer `>= 0` | no | `0`。Complete values MUST satisfy。 |
-| `maxItems` | integer `>= 0` | no | unbounded；draft and complete values MUST satisfy。 |
+| `maxItems` | integer `>= 0` | no | unbounded；正式 flow 的 provided values 與 complete values MUST satisfy。 |
 | `itemParameterDefinitions` | `ParameterDefinition[]` | yes | Recursively applies this document。 |
 
 Persisted value：
@@ -248,7 +274,7 @@ Persisted value：
 }
 ```
 
-Repeat value invariants：
+正式 repeat value invariants（草稿 raw values 的例外見第 11 節）：
 
 - Repeat wrapper MUST 只包含 `items`；unknown wrapper fields MUST reject。
 - `items` MUST 是 array，array order 是 canonical execution order，compiler MUST 原樣保留。
@@ -258,8 +284,9 @@ Repeat value invariants：
   與 process module MUST NOT 依 `index` sort 或 reorder items。
 - `values` MUST 是 object；unknown child parameter keys MUST reject。
 - Nested `fieldGroupArray` 遞迴使用相同 shape。
-- Draft MAY 保存 incomplete child values，但仍 MUST 符合 shape、id uniqueness 與
-  `maxItems`。
+- 正式 flow 儲存 MAY 省略 required child values，並允許低於 `minItems`；已提供 repeat
+  仍 MUST 符合 shape、id uniqueness 與 `maxItems`。執行時才檢查完整度。
+- 清空 child parameter 只移除其 `values` 中的 key，MUST NOT 自動刪除 item 或 wrapper。
 
 Collection order 規則：
 
@@ -292,9 +319,12 @@ Normalization rules：
 - Unknown top-level parameter key MUST reject。
 - Definition order MAY 決定 normalized object iteration order，但 modules MUST access by id。
 - Repeat/placements array order MUST preserve；normalization MUST NOT sort。
-- Missing optional parameter normalize 為 `null`；persisted JSON MAY omit it。
-- Missing required parameter在 draft MAY 接受，在 complete compile MUST reject。
-- `null` 與 `""` 對 required scalar 都是 incomplete。
+- Missing optional parameter 在 Python compiler values 中 normalize 為 `None`（JSON 表示為
+  `null`）；這是 runtime 表示，正式 persisted JSON MUST 省略其 key。
+- Missing required parameter 在正式 flow save／commit MAY 接受，在實際執行 closure 的
+  complete compile MUST reject；巢狀 child parameter 適用相同規則。
+- 舊 recipe parameter property 的 `null` 與 `""` 依第 2.1 節先視為 missing；
+  不得將其他無效值轉為 missing。
 - Numeric、array、placement 與 repeat values依本文件 canonicalize。
 - Normalization MUST NOT mutate persisted `raw_parameter_values`。
 
@@ -321,12 +351,18 @@ repository resolution requirement。Kernel MAY 為 birth/death grouping 對 norm
 
 ## 11. 驗證階段
 
-| Stage | Missing required | Non-empty invalid type/range | Unknown option | `minItems` | `maxItems` |
+| Stage | Missing required | Provided invalid type/range | Unknown option | `minItems` | `maxItems` |
 | --- | --- | --- | --- | --- | --- |
-| Draft save | allowed | reject | reject | MAY be below | reject if exceeded |
-| Partial preview | target closure must complete | reject | reject | enforce in closure | enforce |
-| Instance / commit | reject | reject | reject | enforce | enforce |
-| Execute | reject on revalidation | reject | reject | enforce | enforce |
+| Draft save / load | allowed | retained | retained | not validated | not validated |
+| Flow save / draft commit / import | allowed | reject in all candidates | reject in all candidates | MAY be below | enforce |
+| Step preview / compile | reject in target closure | reject in closure | reject in closure | enforce in closure | enforce in closure |
+| Full execute / compile | reject in execution closure | reject in closure | reject in closure | enforce in closure | enforce in closure |
+
+Draft MUST 保留 raw parameter inputs 以恢復編輯狀態，包括暫時錯誤的數值、未知 option、
+舊 `null`／`""` 及不完整 repeat value；只要求 draft 外層格式、ID／採用選擇一致性與
+合法 JSON。不得因共用正式 flow 的缺值正規化而在 draft save／load 時清除這些資料。
+新 flow 正式儲存或 commit 時，才依 definition 正規化每組候選並驗證已提供值；
+失敗時保留草稿。UI 清空產生省略 key 的新狀態，不妨礙草稿還原既有無效輸入。
 
 ## 12. 已知實作差異
 

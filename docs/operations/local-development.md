@@ -25,7 +25,7 @@ source_of_truth:
 - Node.js `>=18.17.0`（目前驗證環境為 Node `24.3.0`、npm `11.4.2`）
 - macOS/Linux environment capable of installing CadQuery/OCP
 - `mesher` repository checkout commit
-  `302ebe36663b727669901cbc766ccc0a2ae6f221`；它提供2D／3D mesh、Standard V1 translation、
+  `ccbbbaee1ed2a089544973f056132e87c30184a3`；它提供2D／3D mesh、Standard V1 translation、
   CDB export與optional visualization
 
 Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm ci`。Python
@@ -39,7 +39,7 @@ Viewer 由 committed `package-lock.json` 鎖定，fresh install MUST 使用 `npm
 ```bash
 python3 -m venv venv
 venv/bin/pip install --upgrade pip
-git -C /absolute/path/to/mesher checkout 302ebe36663b727669901cbc766ccc0a2ae6f221
+git -C /absolute/path/to/mesher checkout ccbbbaee1ed2a089544973f056132e87c30184a3
 venv/bin/pip install -e packages/kernel-py
 venv/bin/pip install -e '/absolute/path/to/mesher[process-flow,visualization]'
 venv/bin/pip install \
@@ -53,6 +53,11 @@ venv/bin/pip install \
 
 需要同步修改 `mesher` 時，維持 editable install。必須先安裝指定的local checkout，
 不可執行沒有path的`pip install mesher`，因為PyPI上的同名package與本專案無關。
+
+此固定版本支援實體 polygon loops 的合法共點，並保護 normalization 前後的包含與接觸關係；
+小 gap、短邊與 mesh sizing region 的既有分離要求保留。檢查只在 export 執行，UF outline
+與 schematic preview 路徑不變。合成 UF 回歸、完整測試結果與效能重現方式記錄於 mesher 的
+`docs/uf-shared-vertices.md`，原始效能樣本位於 `docs/uf-shared-vertices-benchmark.json`。
 
 所有 local packages 必須安裝在啟動 API 的同一 Python environment。Kernel 會在 execution time import `process_flow_steps`；CAD/CDB workers也使用 `sys.executable` 啟動。
 

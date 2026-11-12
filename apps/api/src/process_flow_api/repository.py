@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import ProcessStepTemplate
+from .flow_parameters import normalize_flow_parameter_values
 from .step_template_transfer import locked_process_step_template
 
 JsonObject = dict[str, Any]
@@ -118,7 +119,7 @@ class SQLiteStore:
                 self._connection.execute("DROP TABLE geometries")
             self._create_tables()
             for flow in converted["processFlows"]:
-                self._insert_values("process_flows", _flow_values(flow))
+                self._insert_values("process_flows", _flow_values(self._normalize_flow_parameters(flow)))
             for draft in converted["flowDrafts"]:
                 self._insert_values("process_flow_drafts", _draft_values(draft))
             existing_geometry_ids = {row[0] for row in self._connection.execute("SELECT id FROM geometries")}
@@ -323,13 +324,19 @@ class SQLiteStore:
             self._delete_in_transaction("geometries", id_)
 
     def insert_process_flow(self, payload: JsonObject) -> JsonObject:
-        return self._insert("process_flows", _flow_values(payload))
+        return self._insert("process_flows", _flow_values(self._normalize_flow_parameters(payload)))
+
+    def _normalize_flow_parameters(self, payload: JsonObject) -> JsonObject:
+        return normalize_flow_parameter_values(payload, self.list_process_step_templates())
 
     def list_process_flows(self) -> list[JsonObject]:
-        return self._list("process_flows", [], [], "name ASC, version ASC, id ASC")
+        templates = self.list_process_step_templates()
+        return [normalize_flow_parameter_values(flow, templates)
+                for flow in self._list("process_flows", [], [], "name ASC, version ASC, id ASC")]
 
     def get_process_flow(self, id_: str) -> JsonObject | None:
-        return self._get("process_flows", id_)
+        payload = self._get("process_flows", id_)
+        return self._normalize_flow_parameters(payload) if payload is not None else None
 
     def _required_flow(self, id_: str, revision: int) -> JsonObject:
         current = self.get_process_flow(id_)
@@ -346,6 +353,7 @@ class SQLiteStore:
         if "origin" in current:
             payload["origin"] = current["origin"]
         payload["revision"] = revision + 1
+        payload = self._normalize_flow_parameters(payload)
         values = _flow_values(payload)
         assignments = ", ".join(f"{key}=?" for key in values if key != "id")
         self._connection.execute(f"UPDATE process_flows SET {assignments} WHERE id=? AND revision=?",
@@ -414,6 +422,7 @@ class SQLiteStore:
             with self._connection:
                 self._connection.execute("BEGIN IMMEDIATE")
                 self._required_draft(id_, revision)
+                resource = self._normalize_flow_parameters(resource)
                 self._insert_values("process_flows", _flow_values(resource))
                 self._delete_in_transaction("process_flow_drafts", id_)
         except sqlite3.IntegrityError as error:
@@ -435,7 +444,7 @@ class SQLiteStore:
             for payload in fixtures["processStepTemplates"]:
                 self._insert_process_step_template_in_transaction(payload)
             for payload in fixtures["processFlows"]:
-                self._insert_values("process_flows", _flow_values(payload))
+                self._insert_values("process_flows", _flow_values(self._normalize_flow_parameters(payload)))
             for payload in fixtures["geometries"]:
                 self._insert_geometry_in_transaction(payload)
         self.dataset_id = dataset_id

@@ -1,5 +1,6 @@
 """Acceptance tests for the schema-3 flow contract and schema-2 editor drafts."""
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,11 +8,12 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from process_flow_api.main import create_app
 from process_flow_api.models import ProcessFlow, GeometryPreviewRequest, FlowConfiguration
+from process_flow_api.fixture_export import build_fixture_archive
 from process_flow_api.services import (
     resolve_preview_request, prepare_preview_execution, preview_request_identity,
     project_preview_flow, validate_preview_step, resolve_preview_flow_input,
 )
-from process_flow_kernel import GeometryKernel
+from process_flow_kernel import FlowCompiler, GeometryKernel, InMemoryGeometryCatalog
 from pydantic import ValidationError
 
 
@@ -85,15 +87,13 @@ class ProcessFlowTests(unittest.TestCase):
 
     def test_all_candidates_validate_names_types_and_selection(self):
         config = self.flow['configuration']['stepConfigurations']['mold_cap']
-        for change in ('duplicate', 'missing', 'type', 'null', 'empty', 'unknown'):
+        for change in ('duplicate', 'missing', 'type', 'unknown'):
             flow = copy.deepcopy(self.flow); candidate = copy.deepcopy(config['recipeCandidates'][0])
             candidate['recipeId'] = 'alternate'
             flow['configuration']['stepConfigurations']['mold_cap']['recipeCandidates'].append(candidate)
             if change == 'duplicate': candidate['recipeId'] = config['selectedRecipeId']
             if change == 'missing': flow['configuration']['stepConfigurations']['mold_cap']['selectedRecipeId'] = 'absent'
             if change == 'type': candidate['parameterValues']['thickness'] = 'bad'
-            if change == 'null': candidate['parameterValues']['thickness'] = None
-            if change == 'empty': candidate['parameterValues']['thickness'] = ''
             if change == 'unknown': candidate['parameterValues']['unexpected'] = 1
             response = self.client.post('/api/process-flows', json={**create_body(flow), 'name': change})
             self.assertIn(response.status_code, (400, 422), response.text)
@@ -101,6 +101,168 @@ class ProcessFlowTests(unittest.TestCase):
         flow['configuration']['stepConfigurations']['mold_cap']['recipeCandidates'].append(
             {'recipeId': 'unfinished', 'name': 'Alternate', 'description': '', 'parameterValues': {}})
         self.create(flow)
+
+    def parameter_contract_flow(self):
+        # Test-only schema exercises optional values without changing any shipped template.
+        step = copy.deepcopy(next(s for s in self.bootstrap['processStepTemplates'] if s['id'] == 'step_tpl_molding'))
+        step['id'] = 'step_tpl_parameter_contract_test'
+        children = [
+            {'id': 'amount', 'name': 'Amount', 'valueType': 'float', 'controlType': 'number', 'required': False},
+            {'id': 'count', 'name': 'Count', 'valueType': 'integer', 'controlType': 'number', 'required': True},
+        ]
+        step['parameterDefinitions'] += [
+            {'id': 'tolerance', 'name': 'Tolerance', 'valueType': 'float', 'controlType': 'number',
+             'required': False, 'validation': {'min': 0, 'max': 10}},
+            {'id': 'enabled', 'name': 'Enabled', 'valueType': 'boolean', 'controlType': 'checkbox', 'required': False},
+            {'id': 'samples', 'name': 'Samples', 'valueType': 'float[]', 'controlType': 'text', 'required': False},
+            {'id': 'groups', 'name': 'Groups', 'valueType': 'fieldGroupArray', 'controlType': 'repeater',
+             'required': False, 'repeatDefinition': {'itemNameTemplate': 'Group {{index}}', 'indexBase': 0,
+                 'itemParameterDefinitions': [
+                     {'id': 'children', 'name': 'Children', 'valueType': 'fieldGroupArray', 'controlType': 'repeater',
+                      'required': False, 'repeatDefinition': {'itemNameTemplate': 'Child {{index}}', 'indexBase': 0,
+                          'itemParameterDefinitions': children}},
+                 ]}},
+        ]
+        if self.app.state.store.get_process_step_template(step['id']) is None:
+            self.app.state.store.insert_process_step_template(step)
+        flow = copy.deepcopy(self.flow)
+        next(ref for ref in flow['definition']['stepRefs'] if ref['stepRefId'] == 'mold_cap')['processStepTemplateId'] = step['id']
+        return flow
+
+    def compile_flow(self, flow):
+        return FlowCompiler(InMemoryGeometryCatalog(self.bootstrap['geometries'])).compile(
+            flow['definition'], flow['configuration'], self.app.state.store.list_process_step_templates(),
+        )
+
+    def test_optional_number_fill_clear_save_reload_and_compile(self):
+        for empty in ('', None):
+            with self.subTest(empty=empty):
+                flow = self.parameter_contract_flow()
+                values(flow, 'mold_cap')['tolerance'] = 2.5
+                saved = self.create(flow, name=f'Optional numeric {empty!r}')
+                self.assertEqual(values(saved, 'mold_cap')['tolerance'], 2.5)
+                body = {**create_body(saved), 'revision': saved['revision']}
+                values(body, 'mold_cap')['tolerance'] = empty
+                response = self.client.put(f"/api/process-flows/{saved['id']}", json=body)
+                self.assertEqual(response.status_code, 200, response.text)
+                reloaded = self.client.get(f"/api/process-flows/{saved['id']}").json()
+                self.assertEqual(response.json(), reloaded)
+                self.assertNotIn('tolerance', values(reloaded, 'mold_cap'))
+                step = next(step for step in self.compile_flow(reloaded).steps if step.step_ref_id == 'mold_cap')
+                self.assertIsNone(step.parameter_values['tolerance'])
+                self.assertNotIn('tolerance', step.raw_parameter_values)
+                self.assertEqual(self.client.post(f"/api/process-flows/{saved['id']}/execute").status_code, 200)
+
+    def test_required_legacy_missing_values_save_but_do_not_compile(self):
+        for empty in ('', None):
+            with self.subTest(empty=empty):
+                flow = copy.deepcopy(self.flow)
+                values(flow, 'mold_cap')['thickness'] = empty
+                saved = self.create(flow, name=f'Required numeric {empty!r}')
+                self.assertNotIn('thickness', values(saved, 'mold_cap'))
+                with self.assertRaisesRegex(ValueError, 'Missing required parameter: thickness'):
+                    self.compile_flow(saved)
+                response = self.client.post(f"/api/process-flows/{saved['id']}/execute")
+                self.assertEqual(response.status_code, 400)
+
+    def test_nested_missing_values_preserve_zero_false_and_empty_collections(self):
+        flow = self.parameter_contract_flow()
+        values(flow, 'mold_cap').update(tolerance=0, enabled=False, samples=[], groups={'items': [
+            {'itemId': 'parent', 'index': 0, 'values': {'children': {'items': [
+                {'itemId': 'child', 'index': 0, 'values': {'amount': '', 'count': 0}},
+            ]}}},
+            {'itemId': 'empty', 'index': 1, 'values': {'children': {'items': []}}},
+        ]})
+        saved = self.create(flow)
+        persisted = values(saved, 'mold_cap')
+        self.assertEqual({key: persisted[key] for key in ('tolerance', 'enabled', 'samples')},
+                         {'tolerance': 0, 'enabled': False, 'samples': []})
+        parent, empty = persisted['groups']['items']
+        self.assertEqual(parent['itemId'], 'parent')
+        self.assertEqual(parent['index'], 0)
+        self.assertEqual(parent['values']['children']['items'][0]['values'], {'count': 0})
+        self.assertEqual(empty['values'], {'children': {'items': []}})
+        step = next(step for step in self.compile_flow(saved).steps if step.step_ref_id == 'mold_cap')
+        self.assertIsNone(step.parameter_values['groups'][0]['children'][0]['amount'])
+        update = {**create_body(saved), 'revision': saved['revision']}
+        child = values(update, 'mold_cap')['groups']['items'][0]['values']['children']['items'][0]
+        child['values']['count'] = None
+        response = self.client.put(f"/api/process-flows/{saved['id']}", json=update)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(values(response.json(), 'mold_cap')['groups']['items'][0]['values']['children']['items'][0]['values'], {})
+        with self.assertRaisesRegex(ValueError, 'Missing required parameter: count'):
+            self.compile_flow(response.json())
+
+    def test_missing_normalization_does_not_hide_invalid_values_or_structures(self):
+        base = self.parameter_contract_flow()
+        cases = [
+            {'tolerance': 'bad'}, {'tolerance': ' '}, {'tolerance': -1}, {'tolerance': 11},
+            {'samples': [0, None]}, {'samples': [0, '']}, {'unknown': None}, {'unknown': ''},
+            {'groups': {'items': [None]}},
+            {'groups': {'items': [{'itemId': '', 'index': 0, 'values': {}}]}},
+            {'groups': {'items': [{'itemId': 'a', 'index': 0, 'values': None}]}},
+        ]
+        for invalid in cases:
+            with self.subTest(invalid=invalid):
+                flow = copy.deepcopy(base)
+                values(flow, 'mold_cap').update(invalid)
+                response = self.client.post('/api/process-flows', json={**create_body(flow), 'name': 'Invalid'})
+                self.assertEqual(response.status_code, 400, response.text)
+
+    def test_legacy_load_import_and_inline_preview_use_canonical_recipe_values(self):
+        flow = self.parameter_contract_flow()
+        values(flow, 'mold_cap')['tolerance'] = ''
+        # Simulate a pre-fix row; reads project compatibility without changing revision or raw storage.
+        self.app.state.store._connection.execute('UPDATE process_flows SET payload=? WHERE id=?',
+                                                (json.dumps(flow), flow['id']))
+        self.app.state.store._connection.commit()
+        reloaded = self.client.get(f"/api/process-flows/{flow['id']}").json()
+        self.assertNotIn('tolerance', values(reloaded, 'mold_cap'))
+        self.assertEqual(reloaded['revision'], flow['revision'])
+        self.assertNotIn('tolerance', values(next(f for f in self.client.get('/api/bootstrap').json()['processFlows']
+                                                if f['id'] == flow['id']), 'mold_cap'))
+        inline = GeometryPreviewRequest(flow={key: flow[key] for key in ('definition', 'configuration')},
+                                        target={'type': 'stepOutput', 'stepRefId': 'mold_cap'})
+        context = resolve_preview_request(self.app.state.store, inline)
+        self.assertNotIn('tolerance', context.configuration['stepConfigurations']['mold_cap']['recipeCandidates'][0]['parameterValues'])
+        canonical = inline.model_copy(deep=True)
+        canonical.flow.configuration.stepConfigurations['mold_cap'].recipeCandidates[0].parameterValues.pop('tolerance')
+        self.assertEqual(preview_request_identity(context), preview_request_identity(resolve_preview_request(self.app.state.store, canonical)))
+        fixtures = copy.deepcopy(self.bootstrap)
+        fixtures['processStepTemplates'] = self.app.state.store.list_process_step_templates()
+        fixtures['processFlows'] = [flow]
+        for invalid in ({'tolerance': 'bad'}, {'samples': [None]}, {'unknown': ''}):
+            with self.subTest(import_invalid=invalid):
+                rejected = copy.deepcopy(fixtures)
+                values(rejected['processFlows'][0], 'mold_cap').update(invalid)
+                response = self.client.post('/api/reset-from-zip', content=build_fixture_archive(rejected),
+                                            headers={'Content-Type': 'application/zip'})
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertEqual(self.client.get(f"/api/process-flows/{flow['id']}").json(), reloaded)
+        response = self.client.post('/api/reset-from-zip', content=build_fixture_archive(fixtures),
+                                    headers={'Content-Type': 'application/zip'})
+        self.assertEqual(response.status_code, 200, response.text)
+        row = self.app.state.store._connection.execute('SELECT payload FROM process_flows WHERE id=?', (flow['id'],)).fetchone()
+        self.assertNotIn('tolerance', values(json.loads(row[0]), 'mold_cap'))
+        self.compile_flow(self.client.get(f"/api/process-flows/{flow['id']}").json())
+
+    def test_draft_raw_missing_and_invalid_values_survive_until_formal_commit(self):
+        flow = self.parameter_contract_flow()
+        values(flow, 'mold_cap').update(tolerance='', enabled=None, samples=['invalid'])
+        draft = self.draft(flow)
+        loaded = self.client.get('/api/process-flow-drafts/' + draft['id']).json()
+        self.assertEqual(loaded['state']['configuration'], flow['configuration'])
+        body = {'revision': draft['revision'], 'flow': {**create_body(flow), 'name': 'Committed values'}}
+        response = self.client.post('/api/process-flow-drafts/' + draft['id'] + '/commit', json=body)
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIsNotNone(self.app.state.store.get_flow_draft(draft['id']))
+        values(body['flow'], 'mold_cap')['samples'] = []
+        response = self.client.post('/api/process-flow-drafts/' + draft['id'] + '/commit', json=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        persisted = values(response.json(), 'mold_cap')
+        self.assertNotIn('tolerance', persisted)
+        self.assertNotIn('enabled', persisted)
+        self.assertEqual(persisted['samples'], [])
 
     def test_only_adopted_recipe_changes_execution_and_preview_identity(self):
         before = self.client.post(f"/api/process-flows/{self.flow['id']}/execute").json()

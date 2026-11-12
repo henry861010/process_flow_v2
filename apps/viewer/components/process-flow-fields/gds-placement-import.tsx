@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   AlertCircle,
   CheckCircle2,
+  FileText,
   FileUp,
   Loader2,
   Plus,
@@ -316,7 +317,7 @@ export function GdsPlacementImport({
                   if (!importDisabled) void handleImport();
                 }}
               >
-                <header className="flex items-start justify-between gap-4 border-b bg-white px-5 py-4">
+                <header className="flex shrink-0 items-start justify-between gap-4 border-b bg-white px-5 py-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <FileUp className="h-5 w-5 text-primary" />
@@ -358,13 +359,33 @@ export function GdsPlacementImport({
                         clearFeedback();
                       }}
                     />
-                    <Button data-autofocus type="button" variant="outline" size="sm"
-                      onClick={() => fileInputRef.current?.click()}>
-                      <FileUp aria-hidden="true" />
-                      {gdsFile ? "Choose another file" : "Choose file"}
-                    </Button>
-                    <div aria-live="polite" className="mt-1 space-y-1 text-xs text-muted-foreground">
-                      <p className="select-text whitespace-pre-wrap break-all">{gdsFile?.name ?? "No file selected"}</p>
+                    <div className={cn(
+                      "flex min-w-0 flex-col items-start gap-4 rounded-md border p-4 sm:flex-row",
+                      gdsFile ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30",
+                    )}>
+                      <div aria-live="polite" aria-atomic="true" className="min-w-0 flex-1 space-y-2">
+                        <div className={cn("flex items-center gap-2 font-medium", gdsFile ? "text-primary" : "text-foreground")}>
+                          {gdsFile
+                            ? <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0" />
+                            : <FileText aria-hidden="true" className="h-5 w-5 shrink-0" />}
+                          <span>{gdsFile ? "File selected" : "No file selected"}</span>
+                        </div>
+                        {gdsFile ? (
+                          <p className="select-text whitespace-pre-wrap break-all font-mono text-base font-semibold text-foreground">
+                            {gdsFile.name}
+                          </p>
+                        ) : null}
+                        <p className="text-sm text-muted-foreground">
+                          {gdsFile
+                            ? "Set layer and datatype, then import using this file."
+                            : "Choose a GDS file to import placements."}
+                        </p>
+                      </div>
+                      <Button data-autofocus type="button" variant="outline" className="shrink-0"
+                        onClick={() => fileInputRef.current?.click()}>
+                        <FileUp aria-hidden="true" />
+                        {gdsFile ? "Change file" : "Choose file"}
+                      </Button>
                     </div>
                   </div>
 
@@ -497,11 +518,17 @@ export function GdsPlacementImport({
                   ) : null}
                 </div>
 
-                <footer className="flex flex-wrap items-center justify-between gap-3 border-t bg-white px-5 py-3">
-                  <span className="min-w-0 max-w-full select-text whitespace-pre-wrap break-all text-xs text-muted-foreground">
-                    {gdsFile?.name ?? "No file selected"}
-                  </span>
-                  <div className="flex items-center gap-2">
+                <footer className="flex shrink-0 flex-col gap-3 border-t bg-white px-5 py-3 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <FileText aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 space-y-1">
+                      <span className="block text-xs text-muted-foreground">{gdsFile ? "Selected file" : "GDS file"}</span>
+                      <p className="select-text whitespace-pre-wrap break-all text-sm font-semibold text-foreground">
+                        {gdsFile?.name ?? "No file selected"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                     <Button
                       type="button"
                       variant="outline"

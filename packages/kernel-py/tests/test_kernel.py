@@ -1369,6 +1369,20 @@ class FlowCompilerTests(unittest.TestCase):
             validate_parameter_default_values(step_template)
 
 
+    def test_compiler_accepts_optional_legacy_missing_values_without_mutating_recipe(self):
+        step_template = molding_step_template()
+        step_template["parameterDefinitions"][1]["required"] = False
+        for empty in (None, ""):
+            with self.subTest(empty=empty):
+                configuration = single_step_configuration()
+                recipe_values = configuration["stepConfigurations"]["molding"]["recipeCandidates"][0]["parameterValues"]
+                recipe_values["thickness"] = empty
+                compiler().validate_authoring(single_step_template(), configuration, {"step_molding": step_template})
+                plan = compiler().compile(single_step_template(), configuration, {"step_molding": step_template})
+                self.assertIsNone(plan.step("molding").parameter_values["thickness"])
+                self.assertNotIn("thickness", plan.step("molding").raw_parameter_values)
+                self.assertEqual(recipe_values["thickness"], empty)
+
     def test_compiler_rejects_unknown_parameter(self):
         configuration = single_step_configuration()
         configuration["stepConfigurations"]["molding"]["recipeCandidates"][0]["parameterValues"]["unknown"] = 1

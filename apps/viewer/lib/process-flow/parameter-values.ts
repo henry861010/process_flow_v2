@@ -1,5 +1,8 @@
 import type {
+  FlowConfiguration,
+  FlowDefinition,
   ParameterDefinition,
+  ProcessStepTemplate,
   RepeatableGroupValue,
   ValidationRule,
   ValueType,
@@ -17,7 +20,76 @@ export function setParameterValue(
   parameterId: string,
   value: unknown,
 ) {
+  if (isMissingParameterValue(value)) {
+    const next = { ...values };
+    delete next[parameterId];
+    return next;
+  }
   return { ...values, [parameterId]: value };
+}
+
+/** Legacy missing-value markers; zero, false and collections are supplied values. */
+export function isMissingParameterValue(value: unknown) {
+  return value === undefined || value === null || value === "";
+}
+
+/**
+ * Canonicalize declared parameter slots only. Keep invalid data for validation,
+ * including unknown keys, malformed group structure and collection elements.
+ * Raw editor draft snapshots intentionally do not use this persistence helper.
+ */
+export function normalizeParameterValues(
+  definitions: ParameterDefinition[],
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  let normalized = values;
+  for (const definition of definitions) {
+    if (!hasOwn(values, definition.id)) continue;
+    const value = values[definition.id];
+    if (isMissingParameterValue(value)) {
+      if (normalized === values) normalized = { ...values };
+      delete normalized[definition.id];
+      continue;
+    }
+    if (definition.valueType !== "fieldGroupArray" || !definition.repeatDefinition ||
+        !isRecord(value) || !Array.isArray(value.items)) continue;
+    const previousItems = value.items;
+    const items = previousItems.map((item) => {
+      if (!isRecord(item) || !isRecord(item.values)) return item;
+      const itemValues = normalizeParameterValues(
+        definition.repeatDefinition!.itemParameterDefinitions, item.values,
+      );
+      return itemValues === item.values ? item : { ...item, values: itemValues };
+    });
+    if (items.some((item, index) => item !== previousItems[index])) {
+      if (normalized === values) normalized = { ...values };
+      normalized[definition.id] = { ...value, items };
+    }
+  }
+  return normalized;
+}
+
+export function normalizeFlowConfiguration(
+  definition: FlowDefinition,
+  steps: ProcessStepTemplate[],
+  configuration: FlowConfiguration,
+): FlowConfiguration {
+  const templates = new Map(steps.map((step) => [step.id, step]));
+  const definitions = new Map(definition.stepRefs.map((ref) => [
+    ref.stepRefId, templates.get(ref.processStepTemplateId)?.parameterDefinitions,
+  ]));
+  return {
+    ...configuration,
+    stepConfigurations: Object.fromEntries(Object.entries(configuration.stepConfigurations).map(([id, step]) => [
+      id, {
+        ...step,
+        recipeCandidates: step.recipeCandidates.map((recipe) => ({
+          ...recipe,
+          parameterValues: normalizeParameterValues(definitions.get(id) ?? [], recipe.parameterValues),
+        })),
+      },
+    ])),
+  };
 }
 
 export function createDefaultParameterValue(parameter: ParameterDefinition): unknown {
@@ -131,17 +203,22 @@ export function isIntegerValueType(valueType: ValueType) {
 
 export function coercePrimitiveValue(value: string, valueType: ValueType) {
   if (value === "") return "";
-  if (valueType === "integer") return Number.parseInt(value, 10);
-  if (valueType === "float") return Number.parseFloat(value);
+  if (valueType === "integer" || valueType === "float") {
+    const number = Number(value);
+    // Retain invalid input for drafts and validation, rather than truncating it
+    // or producing NaN (which JSON serialization would turn into null).
+    return /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(number)
+      ? number : value;
+  }
   return value;
 }
 
 export function coerceArrayValue(values: string[], valueType: ValueType) {
   if (valueType === "integer[]") {
-    return values.map((value) => Number.parseInt(value, 10));
+    return values.map((value) => coercePrimitiveValue(value, "integer"));
   }
   if (valueType === "float[]") {
-    return values.map((value) => Number.parseFloat(value));
+    return values.map((value) => coercePrimitiveValue(value, "float"));
   }
   return values;
 }
@@ -206,5 +283,5 @@ function hasOwn(value: object, key: PropertyKey) {
 }
 
 function isPresentDefault(value: unknown) {
-  return value !== undefined && value !== null && value !== "";
+  return !isMissingParameterValue(value);
 }

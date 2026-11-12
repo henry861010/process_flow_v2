@@ -23,6 +23,7 @@ import {
   isNumericValueType,
   isRepeatableGroupValue,
   removeRepeatItem,
+  setParameterValue,
 } from "@/lib/process-flow/parameter-values";
 import { cn } from "@/lib/utils";
 
@@ -165,7 +166,7 @@ function ParameterRows({
       value={values[definition.id]}
       error={errors[definition.id]}
       disabled={disabled}
-      onChange={(value) => onChange({ ...values, [definition.id]: value })}
+      onChange={(value) => onChange(setParameterValue(values, definition.id, value))}
     />
   ));
 }
@@ -421,10 +422,7 @@ function RepeaterControl({
                           value={item.values[child.id]}
                           disabled={disabled}
                           onChange={(nextValue) =>
-                            updateItemValues(itemIndex, {
-                              ...item.values,
-                              [child.id]: nextValue,
-                            })
+                            updateItemValues(itemIndex, setParameterValue(item.values, child.id, nextValue))
                           }
                         />
                       ) : (
@@ -434,10 +432,7 @@ function RepeaterControl({
                           value={item.values[child.id]}
                           disabled={disabled}
                           onChange={(nextValue) =>
-                            updateItemValues(itemIndex, {
-                              ...item.values,
-                              [child.id]: nextValue,
-                            })
+                            updateItemValues(itemIndex, setParameterValue(item.values, child.id, nextValue))
                           }
                         />
                       )}
@@ -584,10 +579,9 @@ function PrimitiveControl({
         onChange={(event) =>
           onChange(
             coerceArrayValue(
-              event.target.value
+              event.target.value === "" ? [] : event.target.value
                 .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean),
+                .map((item) => item.trim()),
               definition.valueType,
             ),
           )

@@ -25,6 +25,7 @@ from process_flow_kernel.domain.geometry import PolygonSnapshot
 
 from .geometry_preview_exporter import export_geometry
 from .geometry_resolver import StoreGeometryCatalog
+from .flow_parameters import normalize_flow_parameter_values
 from .identifiers import generated_flow_id
 from .models import (
     GeometryPreviewRequest,
@@ -178,6 +179,8 @@ def prepare_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: Geomet
     payload = body.payload()
     definition, configuration = payload["definition"], payload["configuration"]
     steps = load_step_templates_for_definition(store, definition)
+    payload = normalize_flow_parameter_values(payload, steps)
+    configuration = payload["configuration"]
     steps_by_id = {step["id"]: step for step in steps}
     existing_refs = {(ref["stepRefId"], ref["processStepTemplateId"])
                      for ref in (current or {}).get("definition", {}).get("stepRefs", [])}
@@ -241,7 +244,7 @@ def resolve_preview_request(
         )
         if (template := store.get_process_step_template(template_id)) is not None
     )
-    configuration = flow["configuration"]
+    configuration = normalize_flow_parameter_values(flow, step_templates)["configuration"]
     target = body.target.payload()
     referenced_catalog_geometries: JsonObject = {}
     for binding in configuration.get("inputBindings", {}).values():
