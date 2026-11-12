@@ -81,6 +81,18 @@ Geometry library 建立新 input 仍使用既有 generator `Define` 流程。
 
 ## 站點 recipes
 
+### 共用 Data fields
+
+Recipe 編輯視窗在計算參數下方提供 Data fields。Add data field 建立同 template 共用的 proposed 欄位，必填名稱、型別、提出原因，range／單位／操作人名稱選填；未提供姓名記為 unknown，相似名稱會提示沿用既有欄位。建立直接寫入 DB，取消 recipe 編輯不會撤銷。欄位於開啟 recipe、視窗重新取得焦點或 Refresh fields 時更新。
+
+欄位均為選填，清空移除 key，0／false 保留。Proposed 有文字 Badge 與未定版提示；型別或 range 問題顯示在欄位旁，仍可保存原始 scalar 值。Formal 不合法時停用 Save data。被移除欄位的尚未保存輸入會顯示，需明確放棄該值後再保存。
+
+Save data 只更新目前 recipe 的 dataValues，不保存其他計算參數修改；成功顯示 Saved to database，失敗保留輸入供重試。新 flow 首次保存資料前要求草稿名稱與操作人，先保存包含當前 recipe 的草稿。既有 flow 中尚未保存的新 recipe，先開啟 Save flow；完成後回到原 recipe 再按 Save data，資料輸入仍保留。
+
+Active recipe 摘要顯示已填資料與 proposed 標記。這些欄位不參與 geometry 預覽／執行。管理介面連結可使用 `stepRefId`／`recipeId` 配合 `flowId` 或 `draftId` 直接開啟 recipe，開啟本身不產生未儲存修改。
+
+### 候選 recipe 操作
+
 站點視窗最上方直接顯示 Step details 的 step label 與 template 資訊，不顯示內部 `stepRefId`。接著以 Active recipe 顯示已套用 recipe 的 parameter 值，再於 Candidate recipes 列出全部 recipe 卡片。卡片只顯示名稱、ID 與 parameter 名稱；點卡片或右側 Edit 按鈕開獨立編輯視窗，按 Save recipe 才寫回，Cancel／Close 放棄。recipe 與 parameter description 不顯示，但既有 recipe description 資料保留。
 
 - 新增站點建立並採用 Recipe 1，複製目前 step defaults。

@@ -72,6 +72,7 @@ from .services import (
     validate_process_step_template,
 )
 from .draft_service import create_draft, update_draft, commit_draft
+from .data_fields import router as data_fields_router
 
 
 def create_app(
@@ -83,6 +84,7 @@ def create_app(
     app = FastAPI(title="Process Flow API", version="0.0.0", lifespan=app_lifespan)
     app.router.route_class = AnalyticsRoute
     app.include_router(wafer_arrangement_router)
+    app.include_router(data_fields_router)
     app.state.store = SQLiteStore(db_path or default_db_path())
     configured_analytics_path = analytics_db_path or os.environ.get("PROCESS_FLOW_API_ANALYTICS_DB_PATH")
     if configured_analytics_path is None:

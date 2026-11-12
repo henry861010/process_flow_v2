@@ -46,6 +46,8 @@ import {
 } from "@/components/process-flow-fields/geometry-card-details";
 import { ParameterValueEditor } from "@/components/process-flow-parameters/parameter-value-editor";
 import { RecipeParameterSummary } from "@/components/process-flow-parameters/recipe-parameter-summary";
+import { RecipeDataFields, RecipeDataSummary, type RecipeDataTools } from "@/components/data-fields/recipe-data-fields";
+import { saveRecipeData } from "@/lib/process-flow/data-fields";
 import { FlowGdsFileProvider, useFlowGdsFile } from "@/components/process-flow-fields/flow-gds-file-context";
 import { StepTemplateDetails } from "@/components/process-flow-fields/step-template-details";
 import { StepTemplateHoverPreview, StepTemplatePreviewProvider } from "@/components/process-flow-fields/step-template-hover-preview";
@@ -63,7 +65,7 @@ import { useEditorDrafts } from "@/components/process-flow-save/editor-draft-con
 import { EditorShellHeader, EditorStatusBar } from "@/components/process-flow-save/editor-shell-header";
 import { FlowSourceDialog } from "@/components/process-flow-save/flow-source-dialog";
 import { validateFlowDraftState } from "@/lib/process-flow/editor-drafts";
-import { commitFlowDraft, getProcessFlow, ApiRequestError } from "@/lib/process-flow-api";
+import { commitFlowDraft, getProcessFlow, saveFlowDraft, ApiRequestError } from "@/lib/process-flow-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCategoryPath } from "@/lib/category-library";
@@ -93,6 +95,7 @@ import { libraryInsertionPosition } from "@/lib/process-flow/library-insertion";
 import type {
   FlowConfiguration,
   FlowDraftState,
+  FlowDraft,
   FlowInputDefinition,
   GeometryEntity,
   GeometryBinding,
@@ -170,6 +173,8 @@ function ProcessFlowEditorInner() {
   const [target, setTarget] = React.useState<FlowOrigin | undefined>();
   const [origin, setOrigin] = React.useState<FlowOrigin | undefined>();
   const [editingRecipeIds, setEditingRecipeIds] = React.useState<Record<string, string>>({});
+  const [requestedRecipe, setRequestedRecipe] = React.useState<{ flowId: string | null; draftId: string | null; stepId: string; recipeId: string } | null>(null);
+  const [deepLinkedRecipe, setDeepLinkedRecipe] = React.useState<{ stepId: string; recipeId: string } | null>(null);
   const [conflict, setConflict] = React.useState(false);
   const [configuration, setConfiguration] = React.useState<FlowConfiguration>(emptyConfiguration());
   const [nodes, setNodes] = React.useState<FlowNode[]>([]);
@@ -314,6 +319,14 @@ function ProcessFlowEditorInner() {
     ? flowConfigurationIssues(draftDefinition, stepTemplates, configuration, resolvedGeometries)
     : [];
   const editingNode = nodes.find((node) => node.id === editingNodeId) ?? null;
+  React.useEffect(() => {
+    if (!requestedRecipe || (requestedRecipe.flowId ? target?.flowId !== requestedRecipe.flowId : drafts.active?.id !== requestedRecipe.draftId)) return;
+    const node = nodes.find((node) => isStepNode(node) && node.data.stepRef.stepRefId === requestedRecipe.stepId);
+    if (!node) return;
+    setSelectedNodeId(node.id); setEditingNodeId(node.id);
+    setDeepLinkedRecipe({ stepId: requestedRecipe.stepId, recipeId: requestedRecipe.recipeId });
+    setRequestedRecipe(null);
+  }, [requestedRecipe, nodes, target, drafts.active]);
   const editingStepPreviewAvailability =
     editingNode && isStepNode(editingNode)
       ? previewAvailabilityFromReadiness(
@@ -537,6 +550,7 @@ function ProcessFlowEditorInner() {
     entryLoaded.current = true;
     const params = new URLSearchParams(window.location.search);
     const flowId = params.get("flowId"); const draftId = params.get("draftId");
+    if (params.get("stepRefId") && params.get("recipeId")) setRequestedRecipe({ flowId, draftId, stepId: params.get("stepRefId")!, recipeId: params.get("recipeId")! });
     if (flowId) void entryActions.current.loadFlowSource(flowId, "edit", params.get("copy") === "1").catch((error) => setMessage({ kind: "error", text: String(error) }));
     else if (draftId) void entryActions.current.loadDraft({ id: draftId }).then((loaded) => {
       if (!loaded) setUnavailableDraft(true);
@@ -908,6 +922,54 @@ function ProcessFlowEditorInner() {
     ? (executionIssues.length ? executionIssues : ["Check the flow configuration for invalid input or step settings."])
     : [];
   const flowIssues = [...blockingIssues, ...configurationIssues];
+  const dataTools: RecipeDataTools = {
+    draftIdentityRequired: !target && !drafts.active,
+    updateTemplate(template) {
+      setStepTemplates((items) => items.map((item) => item.id === template.id ? template : item));
+      setNodes((items) => items.map((node) => isStepNode(node) && node.data.stepRef.processStepTemplateId === template.id
+        ? { ...node, data: { ...node.data, stepTemplate: template } } : node));
+    },
+    async save(stepId, recipe, values, fieldsRevision, identity) {
+      if (savingRef.current || drafts.busy) throw new Error("Another save is in progress. Retry when it finishes.");
+      if (target && !savedFlow?.configuration.stepConfigurations[stepId]?.recipeCandidates.some((r) => r.recipeId === recipe.recipeId)) {
+        const next = structuredClone(configuration);
+        const step = next.stepConfigurations[stepId] ?? { recipeCandidates: [], selectedRecipeId: null };
+        step.recipeCandidates = [...step.recipeCandidates.filter((r) => r.recipeId !== recipe.recipeId), recipe];
+        if (!step.selectedRecipeId) step.selectedRecipeId = recipe.recipeId;
+        next.stepConfigurations[stepId] = step;
+        setConfiguration(next); setSaveDialogMode("save");
+        throw new Error("Save this new recipe in the flow first, then retry Save data. Your data input is retained.");
+      }
+      savingRef.current = true; setBusyAction("save");
+      try {
+        let draft = drafts.active;
+        if (!target && !draft?.state.configuration.stepConfigurations[stepId]?.recipeCandidates.some((r) => r.recipeId === recipe.recipeId)) {
+          const captured = structuredClone(editorDraftState);
+          const step = captured.configuration.stepConfigurations[stepId] ?? { recipeCandidates: [], selectedRecipeId: null };
+          step.recipeCandidates = [...step.recipeCandidates.filter((r) => r.recipeId !== recipe.recipeId), structuredClone(recipe)];
+          if (!step.selectedRecipeId) step.selectedRecipeId = recipe.recipeId;
+          captured.configuration.stepConfigurations[stepId] = step;
+          const user = draft?.user || identity.actor.trim(); const name = draft?.name || identity.draftName.trim();
+          if (!user || !name) throw new Error("Your name and draft name are required.");
+          draft = await saveFlowDraft({ schemaVersion: 2, user, name, state: captured, ...(origin ? { origin } : {}) }, draft ?? undefined);
+          setConfiguration(captured.configuration); drafts.adoptSaved(draft, captured);
+        }
+        const document = target ? { id: target.flowId, revision: target.revision } : draft;
+        if (!document) throw new Error("Save a draft before saving data.");
+        const saved = await saveRecipeData(target ? "flow" : "draft", document, stepId, recipe.recipeId, fieldsRevision, values);
+        if (target) {
+          const flow = saved as ProcessFlow;
+          setTarget({ flowId: flow.id, revision: flow.revision }); setSavedFlow(flow);
+          setFlows((items) => items.map((item) => item.id === flow.id ? flow : item));
+        }
+        setConfiguration((current) => ({ ...current, stepConfigurations: { ...current.stepConfigurations,
+          [stepId]: { ...current.stepConfigurations[stepId], recipeCandidates: current.stepConfigurations[stepId].recipeCandidates.map((r) => r.recipeId === recipe.recipeId ? { ...r, dataValues: { ...values } } : r) },
+        } }));
+        drafts.dataSaved(stepId, recipe.recipeId, values, target ? undefined : saved as FlowDraft);
+      } finally { savingRef.current = false; setBusyAction(null); }
+    },
+  };
+
   const progressStatus = busyAction || drafts.saving ? "Saving…"
     : drafts.dirty ? "Unsaved changes"
     : drafts.lastSavedAt ? `Draft saved · ${new Date(drafts.lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
@@ -1090,6 +1152,25 @@ function ProcessFlowEditorInner() {
       {sourceOpen ? <FlowSourceDialog flows={flows} drafts={drafts}
         onUseFlow={(id) => loadFlowSource(id, "start-from")} onClose={() => setSourceOpen(false)} /> : null}
       {drafts.dialogs}
+
+      {editingNode && isFlowInputNode(editingNode) ? (
+        <GeometryInputEditorDialog key={editingNode.id} flowInput={editingNode.data.definition}
+          initialBinding={configuration.inputBindings[editingNode.data.definition.flowInputId]}
+          geometries={geometries} generatorDefinitions={generatorDefinitions}
+          outgoingCount={edges.filter((edge) => edge.source === editingNode.id).length}
+          onApply={(edit) => applyInputEdit(editingNode, edit)}
+          onPreview={(edit) => openFlowInputPreview(editingNode, edit)}
+          onDelete={() => deleteNode(editingNode.id)} onClose={() => setEditingNodeId(null)} />
+      ) : editingNode && isStepNode(editingNode) ? (
+        <NodeEditorDialog key={editingNode.id} node={editingNode} topologyLocked={topologyLocked}
+          dataTools={dataTools} initialRecipeId={deepLinkedRecipe?.stepId === editingNode.data.stepRef.stepRefId ? deepLinkedRecipe.recipeId : editingRecipeIds[editingNode.data.stepRef.stepRefId]}
+          configuration={configuration} onClose={() => { setEditingNodeId(null); setDeepLinkedRecipe(null); }}
+          onStepLabelChange={(label) => updateStepLabel(editingNode, label)}
+          onStepConfigurationChange={(value) => changeStepConfiguration(editingNode.data.stepRef.stepRefId, value)}
+          stepPreviewAvailability={editingStepPreviewAvailability}
+          onPreviewStep={() => openStepPreview(editingNode)} onDelete={() => deleteNode(editingNode.id)} />
+      ) : null}
+
       {saveDialogMode ? (
         <SaveInformationDialog
           blockingIssues={blockingIssues}
@@ -1104,23 +1185,6 @@ function ProcessFlowEditorInner() {
           onClose={closeSaveDialog}
           onSubmit={saveFlow}
         />
-      ) : null}
-
-      {editingNode && isFlowInputNode(editingNode) ? (
-        <GeometryInputEditorDialog key={editingNode.id} flowInput={editingNode.data.definition}
-          initialBinding={configuration.inputBindings[editingNode.data.definition.flowInputId]}
-          geometries={geometries} generatorDefinitions={generatorDefinitions}
-          outgoingCount={edges.filter((edge) => edge.source === editingNode.id).length}
-          onApply={(edit) => applyInputEdit(editingNode, edit)}
-          onPreview={(edit) => openFlowInputPreview(editingNode, edit)}
-          onDelete={() => deleteNode(editingNode.id)} onClose={() => setEditingNodeId(null)} />
-      ) : editingNode && isStepNode(editingNode) ? (
-        <NodeEditorDialog key={editingNode.id} node={editingNode} topologyLocked={topologyLocked}
-          configuration={configuration} onClose={() => setEditingNodeId(null)}
-          onStepLabelChange={(label) => updateStepLabel(editingNode, label)}
-          onStepConfigurationChange={(value) => changeStepConfiguration(editingNode.data.stepRef.stepRefId, value)}
-          stepPreviewAvailability={editingStepPreviewAvailability}
-          onPreviewStep={() => openStepPreview(editingNode)} onDelete={() => deleteNode(editingNode.id)} />
       ) : null}
 
       {generatorEditor ? (
@@ -1266,7 +1330,7 @@ function StepTemplatePaletteItem({
 }
 
 function NodeEditorDialog({ node, topologyLocked, configuration, onClose, onStepLabelChange,
-  onStepConfigurationChange, stepPreviewAvailability, onPreviewStep, onDelete }: {
+  onStepConfigurationChange, stepPreviewAvailability, onPreviewStep, onDelete, dataTools, initialRecipeId }: {
   node: StepNode;
   topologyLocked: boolean;
   configuration: FlowConfiguration;
@@ -1276,6 +1340,8 @@ function NodeEditorDialog({ node, topologyLocked, configuration, onClose, onStep
   stepPreviewAvailability: PreviewAvailability | null;
   onPreviewStep: () => void;
   onDelete: () => void;
+  dataTools?: RecipeDataTools;
+  initialRecipeId?: string;
 }) {
   const panel = React.useRef<HTMLElement>(null);
   useEditorDialogFocus(panel, onClose, false);
@@ -1295,6 +1361,7 @@ function NodeEditorDialog({ node, topologyLocked, configuration, onClose, onStep
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <StepInspector node={node} topologyLocked={topologyLocked} configuration={configuration}
+            dataTools={dataTools} initialRecipeId={initialRecipeId}
             onLabelChange={onStepLabelChange} onConfigurationChange={onStepConfigurationChange}
             previewAvailability={stepPreviewAvailability ?? { ok: false, reason: "Preview is unavailable." }}
             onPreview={onPreviewStep} onDelete={onDelete} />
@@ -1313,6 +1380,8 @@ export function StepInspector({
   previewAvailability,
   onPreview,
   onDelete,
+  dataTools,
+  initialRecipeId,
 }: {
   node: StepNode;
   topologyLocked: boolean;
@@ -1322,13 +1391,22 @@ export function StepInspector({
   previewAvailability: PreviewAvailability;
   onPreview: () => void;
   onDelete: () => void;
+  dataTools?: RecipeDataTools;
+  initialRecipeId?: string;
 }) {
   const config = configuration.stepConfigurations[node.data.stepRef.stepRefId] ?? { recipeCandidates: [], selectedRecipeId: null };
   const [recipeDraft, setRecipeDraft] = React.useState<RecipeCandidate | null>(null);
   const [creatingRecipe, setCreatingRecipe] = React.useState(false);
   const [deleteRecipeId, setDeleteRecipeId] = React.useState<string | null>(null);
+  const [dataBusy, setDataBusy] = React.useState(false);
   const applied = config.recipeCandidates.find((recipe) => recipe.recipeId === config.selectedRecipeId);
   const recipeToDelete = config.recipeCandidates.find((recipe) => recipe.recipeId === deleteRecipeId);
+  const openedInitial = React.useRef(false);
+  React.useEffect(() => {
+    if (!initialRecipeId || openedInitial.current) return;
+    const recipe = config.recipeCandidates.find((r) => r.recipeId === initialRecipeId);
+    if (recipe) { setRecipeDraft(structuredClone(recipe)); openedInitial.current = true; }
+  }, [initialRecipeId, config.recipeCandidates]);
 
   function openRecipe(recipe: RecipeCandidate) {
     setRecipeDraft(structuredClone(recipe));
@@ -1347,7 +1425,7 @@ export function StepInspector({
     const saved = { ...recipeDraft, name: recipeDraft.name.trim() };
     onConfigurationChange({
       ...config,
-      recipeCandidates: creatingRecipe
+      recipeCandidates: !config.recipeCandidates.some((recipe) => recipe.recipeId === saved.recipeId)
         ? [...config.recipeCandidates, saved]
         : config.recipeCandidates.map((recipe) => recipe.recipeId === saved.recipeId ? saved : recipe),
       selectedRecipeId: creatingRecipe && config.recipeCandidates.length === 0
@@ -1403,6 +1481,7 @@ export function StepInspector({
             <div className="text-sm font-medium">{applied.name}</div>
             <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{applied.recipeId}</div>
             <RecipeParameterSummary definitions={node.data.stepTemplate.parameterDefinitions} recipe={applied} />
+            <RecipeDataSummary template={node.data.stepTemplate} recipe={applied} />
           </div>
         ) : (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground" role="status">
@@ -1460,11 +1539,12 @@ export function StepInspector({
       {recipeDraft ? (
         <EditorDialog
           title={creatingRecipe ? "Add recipe" : `Edit ${recipeDraft.name}`}
+          busy={dataBusy}
           onClose={() => setRecipeDraft(null)}
           className="max-w-3xl"
           footer={<>
-            <Button type="button" variant="outline" onClick={() => setRecipeDraft(null)}>Cancel</Button>
-            <Button type="button" disabled={!recipeDraft.name.trim()} onClick={saveRecipeDraft}>Save recipe</Button>
+            <Button type="button" variant="outline" disabled={dataBusy} onClick={() => setRecipeDraft(null)}>Cancel</Button>
+            <Button type="button" disabled={dataBusy || !recipeDraft.name.trim()} onClick={saveRecipeDraft}>Save recipe</Button>
           </>}
         >
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 [&_[data-parameter-description]]:hidden">
@@ -1476,6 +1556,10 @@ export function StepInspector({
               values={recipeDraft.parameterValues}
               onChange={(parameterValues) => setRecipeDraft((current) => current ? { ...current, parameterValues } : current)}
             />
+            <RecipeDataFields key={recipeDraft.recipeId} template={node.data.stepTemplate} recipe={recipeDraft}
+              stepId={node.data.stepRef.stepRefId} tools={dataTools}
+              onBusyChange={setDataBusy}
+              onSaved={(dataValues) => setRecipeDraft((current) => current ? { ...current, dataValues } : current)} />
           </div>
         </EditorDialog>
       ) : null}

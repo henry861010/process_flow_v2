@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { ProcessStepEditDialog } from "@/components/process-step-edit/process-step-edit-dialog";
+import { FieldReviewPanel } from "@/components/data-fields/field-review-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -276,9 +277,15 @@ export default function ManagementPage() {
               <TabsTrigger value="geometries">Geometries</TabsTrigger>
               <TabsTrigger value="steps">Process steps</TabsTrigger>
               <TabsTrigger value="drafts">Drafts</TabsTrigger>
+              <TabsTrigger value="field-review">Field review</TabsTrigger>
             </TabsList>
           </div>
 
+          <TabsContent value="field-review">
+            <FieldReviewPanel onTemplateUpdated={(template) => setData((current) => ({ ...current,
+              processStepTemplates: current.processStepTemplates.map((step) => step.id === template.id ? template : step),
+            }))} />
+          </TabsContent>
           <TabsContent value="flows">
             <ResourceTable headings={["Flow", "Version", "Owner", "Revision", "Actions"]}>
               {data.processFlows.map((flow) => <tr key={flow.id} className="border-b last:border-b-0">

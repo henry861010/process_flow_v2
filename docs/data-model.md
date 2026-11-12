@@ -15,7 +15,7 @@ source_of_truth:
 
 # Process Flow 資料模型
 
-本文件定義 persistence、API、compiler 與 viewer 共用的資料契約。ProcessFlow schema 為 3；FlowDraft schema 為 2；SQLite schema 為 16。這三個版本與使用者填寫的 `version`、防止覆寫的 `revision` 各自獨立。
+本文件定義 persistence、API、compiler 與 viewer 共用的資料契約。ProcessFlow schema 為 3；FlowDraft schema 為 2；SQLite schema 為 17。這三個版本與使用者填寫的 `version`、防止覆寫的 `revision` 各自獨立。
 
 ## 1. 範圍
 
@@ -398,3 +398,30 @@ API 詳見 [Process Flow API](reference/process-flow-api.md)，SQLite 升級詳�
 ## 15. Conformance
 
 實作證據及仍存在的限制記錄於 [Conformance](conformance.md)。舊 UI evidence 是歷史資料，不是新資料契約或驗收結果。
+
+
+## 共用資料欄位（Schema 17）
+
+ProcessStepTemplate 的 `dataFieldDefinitions` 與 `dataFieldsRevision` 保存共用收集欄位；
+RecipeCandidate 的 `dataValues` 以 field ID 保存各 recipe 的值。舊物件缺少這些屬性時，
+定義／值視為空集合、欄位集合 revision 視為 1。既有 JSON schemaVersion 維持不變。
+
+欄位包含 `id, name, valueType, reason, unit, min, max, status`，以及
+`createdBy/At, updatedBy/At, approvedBy/At`。型別為 string、integer、float、boolean；
+min/max 僅適用數字。名稱在同 template 內 strip + casefold 後唯一；ID 不因改名變動。
+
+- 狀態只有 proposed / formal。所有欄位選填、無 defaults；未填時不產生 key。
+- Proposed 保存原始 scalar 值，即使不符合型別或 range；不接受物件、陣列、null 或非有限數字。
+  清空字串移除 key；0 與 false 必須保留。
+- Formal 在所有寫入入口（包含草稿）嚴格驗證型別與 range。
+- 審核涵蓋所有引用該 template 的 flows、草稿與所有候選 recipe。核准只修改狀態，
+  不做隱含型別／單位轉換；所有已填值皆須通過。
+- Proposed 可在審核介面改規格或移除；formal 不可由這些入口修改規格、移除或降級。
+- 移除 proposed 欄位與所有相關 recipe 的該 key 必須同交易完成；只增加實際改寫
+  flow／draft 的 revision。無封存、歷史快照或一鍵還原。
+- Geometry compiler／kernel 仍只讀 parameterDefinitions／parameterValues，完全不使用 dataValues。
+
+一般 flow／draft 更新以 (stepRefId, templateId, recipeId) 判斷既有 recipe，保留 DB 中最新
+dataValues；專用資料更新入口才可變更既有值。未知／已移除 field ID 回 409，不靜默清除。
+新 recipe、複製與草稿提交保留資料並驗證規格。審核 token 涵蓋規格、集合版本、所有已填值
+及其來源 revision；核准／移除交易中重新檢查 token，過期回 409。

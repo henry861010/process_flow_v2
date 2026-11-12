@@ -113,6 +113,50 @@ class GeometryOutputPort(StrictModel):
     dataType: Literal["geometry"] = "geometry"
 
 
+class DataFieldSpec(StrictModel):
+    name: NonBlankString
+    valueType: Literal["string", "integer", "float", "boolean"]
+    reason: NonBlankString
+    unit: str = ""
+    min: FiniteFloat | None = None
+    max: FiniteFloat | None = None
+
+    @model_validator(mode="after")
+    def valid_range(self):
+        if (self.min is not None or self.max is not None) and self.valueType not in ("integer", "float"):
+            raise ValueError("Range is only supported for numeric data fields")
+        if self.min is not None and self.max is not None and self.min > self.max:
+            raise ValueError("Minimum must not exceed maximum")
+        return self
+
+
+class DataFieldDefinition(DataFieldSpec):
+    id: NonBlankString
+    status: Literal["proposed", "formal"]
+    createdBy: NonBlankString
+    createdAt: str
+    updatedBy: NonBlankString
+    updatedAt: str
+    approvedBy: str | None = None
+    approvedAt: str | None = None
+
+
+class DataFieldWrite(DataFieldSpec):
+    revision: int = Field(ge=1)
+    actor: NonBlankString = "unknown"
+
+
+class DataFieldAction(StrictModel):
+    reviewToken: NonBlankString
+    actor: NonBlankString
+
+
+class RecipeDataWrite(StrictModel):
+    revision: int = Field(ge=1)
+    dataFieldsRevision: int = Field(ge=1)
+    dataValues: dict[str, Any]
+
+
 class ProcessStepTemplate(StrictModel):
     schemaVersion: Literal[2] = 2
     status: TemplateStatus = "enabled"
@@ -126,6 +170,16 @@ class ProcessStepTemplate(StrictModel):
     inputPorts: list[GeometryInputPort]
     outputPorts: list[GeometryOutputPort]
     parameterDefinitions: list[ParameterDefinition]
+    dataFieldDefinitions: list[DataFieldDefinition] = Field(default_factory=list)
+    dataFieldsRevision: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def unique_data_fields(self):
+        ids = [field.id for field in self.dataFieldDefinitions]
+        names = [field.name.strip().casefold() for field in self.dataFieldDefinitions]
+        if len(set(ids)) != len(ids) or len(set(names)) != len(names):
+            raise ValueError("Duplicate data field ID or name")
+        return self
 
 
 class GeometryConstraints(StrictModel):
@@ -205,6 +259,7 @@ class RecipeCandidate(StrictModel):
     name: NonBlankString
     description: str = ""
     parameterValues: dict[str, Any] = Field(default_factory=dict)
+    dataValues: dict[str, Any] = Field(default_factory=dict)
 
 
 class StepConfiguration(StrictModel):

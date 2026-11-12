@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import sqlite3
 import uuid
@@ -12,7 +13,7 @@ from .models import ProcessStepTemplate
 from .step_template_transfer import locked_process_step_template
 
 JsonObject = dict[str, Any]
-DATABASE_SCHEMA_VERSION = "16"
+DATABASE_SCHEMA_VERSION = "17"
 
 
 class DuplicateItemError(ValueError):
@@ -60,7 +61,9 @@ class SQLiteStore:
             ).fetchone() if "schema_metadata" in tables else None
             version = row[0] if row else None
             if version != DATABASE_SCHEMA_VERSION:
-                if version == "14":
+                if version == "16":
+                    self._migrate_data_fields()
+                elif version == "14":
                     self._migrate_draft_policy()
                 elif version in {"8", "9", "10", "11", "12", "13"}:
                     self._migrate(int(version), tables)
@@ -98,11 +101,22 @@ class SQLiteStore:
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (DATABASE_SCHEMA_VERSION,),
         )
 
+    def _migrate_data_fields(self) -> None:
+        # New JSON properties have read defaults; never backfill recipe values.
+        if self.db_path != Path(":memory:"):
+            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v17-{uuid.uuid4().hex}.bak")
+            with sqlite3.connect(backup_path) as backup:
+                self._connection.backup(backup)
+            self.migration_backup_path = backup_path
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            self._set_schema_version()
+
     def _migrate(self, version: int, tables: set[str]) -> None:
         from .flow_migration import LEGACY_TABLES, convert_legacy
         # SQLite's backup API produces a consistent, independently recoverable snapshot.
         if self.db_path != Path(":memory:"):
-            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v16-{uuid.uuid4().hex}.bak")
+            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v17-{uuid.uuid4().hex}.bak")
             backup = sqlite3.connect(str(backup_path))
             try:
                 self._connection.backup(backup)
@@ -134,7 +148,7 @@ class SQLiteStore:
 
     def _migrate_draft_policy(self) -> None:
         if self.db_path != Path(":memory:"):
-            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v16-{uuid.uuid4().hex}.bak")
+            backup_path = self.db_path.with_name(f"{self.db_path.name}.pre-v17-{uuid.uuid4().hex}.bak")
             backup = sqlite3.connect(str(backup_path))
             try:
                 self._connection.backup(backup)
@@ -166,6 +180,8 @@ class SQLiteStore:
         return int(row["count"])
 
     def insert_process_step_template(self, payload: JsonObject) -> JsonObject:
+        if payload.get("dataFieldDefinitions") or payload.get("dataFieldsRevision", 1) != 1:
+            raise ResourceConflictError("Create shared data fields through the data field API")
         return self._insert(
             "process_step_templates",
             {
@@ -197,6 +213,17 @@ class SQLiteStore:
         with self._connection:
             self._connection.execute("BEGIN IMMEDIATE")
             current = {item["id"]: item for item in self.list_process_step_templates()}
+            for item in templates:
+                old = current.get(item["id"])
+                if old is None:
+                    if item.get("dataFieldDefinitions") or item.get("dataFieldsRevision", 1) != 1:
+                        raise ResourceConflictError("Use the data field API to create shared fields")
+                    continue
+                for key, default in (("dataFieldDefinitions", []), ("dataFieldsRevision", 1)):
+                    if key in item and item[key] != old.get(key, default):
+                        raise ResourceConflictError("Template import cannot change shared data fields; use Field review")
+                    if key in old:
+                        item[key] = old[key]
             structural_changes = {
                 item["id"] for item in templates
                 if item["id"] in current and
@@ -251,32 +278,20 @@ class SQLiteStore:
         )
 
     def update_process_step_template(self, payload: JsonObject) -> JsonObject:
-        values = {
-            "name": payload.get("name", ""),
-            "category": payload.get("category", ""),
-            "version": payload.get("version", ""),
-            "owner": payload.get("owner", ""),
-            "payload": _json(payload),
-            "id": payload["id"],
-        }
+        # Metadata/default edits may have been prepared before another connection
+        # created or reviewed a field. Only the field service owns these keys.
         with self._connection:
-            cursor = self._connection.execute(
-                """
-                UPDATE process_step_templates
-                SET name = ?, category = ?, version = ?, owner = ?, payload = ?
-                WHERE id = ?
-                """,
-                (
-                    values["name"],
-                    values["category"],
-                    values["version"],
-                    values["owner"],
-                    values["payload"],
-                    values["id"],
-                ),
-            )
-        if cursor.rowcount == 0:
-            raise NotFoundError(payload["id"])
+            self._connection.execute("BEGIN IMMEDIATE")
+            current = self.get_process_step_template(payload["id"])
+            if current is None:
+                raise NotFoundError(payload["id"])
+            payload = copy.deepcopy(payload)
+            for key in ("dataFieldDefinitions", "dataFieldsRevision"):
+                if key in current:
+                    payload[key] = copy.deepcopy(current[key])
+                else:
+                    payload.pop(key, None)
+            self._upsert_process_step_template_in_transaction(payload)
         return payload
 
     def insert_geometry(self, payload: JsonObject) -> JsonObject:
@@ -323,7 +338,15 @@ class SQLiteStore:
             self._delete_in_transaction("geometries", id_)
 
     def insert_process_flow(self, payload: JsonObject) -> JsonObject:
-        return self._insert("process_flows", _flow_values(payload))
+        from .data_fields import validate_document
+        try:
+            with self._connection:
+                self._connection.execute("BEGIN IMMEDIATE")
+                validate_document(self, payload)
+                self._insert_values("process_flows", _flow_values(payload))
+        except sqlite3.IntegrityError as error:
+            raise _duplicate_item_error(error) from error
+        return payload
 
     def list_process_flows(self) -> list[JsonObject]:
         return self._list("process_flows", [], [], "name ASC, version ASC, id ASC")
@@ -341,6 +364,8 @@ class SQLiteStore:
 
     def _update_flow_in_transaction(self, payload: JsonObject, revision: int) -> JsonObject:
         current = self._required_flow(payload["id"], revision)
+        from .data_fields import validate_document
+        validate_document(self, payload, current)
         # Provenance is immutable for updates, including direct repository callers.
         payload = {key: value for key, value in payload.items() if key != "origin"}
         if "origin" in current:
@@ -367,7 +392,12 @@ class SQLiteStore:
             self._delete_in_transaction("process_flows", id_)
 
     def insert_flow_draft(self, payload: JsonObject) -> JsonObject:
-        return self._insert("process_flow_drafts", _draft_values(payload))
+        from .data_fields import validate_document
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            validate_document(self, payload)
+            self._insert_values("process_flow_drafts", _draft_values(payload))
+        return payload
 
     def list_flow_drafts(self, *, user: str | None = None, search: str | None = None) -> list[JsonObject]:
         clauses, params = [], []
@@ -397,6 +427,8 @@ class SQLiteStore:
             current = self._required_draft(id_, body["revision"])
             payload = {**body, "id": id_, "createdAt": current["createdAt"],
                        "revision": body["revision"] + 1, "updatedAt": utc_now()}
+            from .data_fields import validate_document
+            validate_document(self, payload, current)
             values = _draft_values(payload)
             assignments = ", ".join(f"{key}=?" for key in values if key != "id")
             self._connection.execute(f"UPDATE process_flow_drafts SET {assignments} WHERE id=? AND revision=?",
@@ -413,7 +445,9 @@ class SQLiteStore:
         try:
             with self._connection:
                 self._connection.execute("BEGIN IMMEDIATE")
-                self._required_draft(id_, revision)
+                current = self._required_draft(id_, revision)
+                from .data_fields import validate_document
+                validate_document(self, resource, current)
                 self._insert_values("process_flows", _flow_values(resource))
                 self._delete_in_transaction("process_flow_drafts", id_)
         except sqlite3.IntegrityError as error:
@@ -435,6 +469,8 @@ class SQLiteStore:
             for payload in fixtures["processStepTemplates"]:
                 self._insert_process_step_template_in_transaction(payload)
             for payload in fixtures["processFlows"]:
+                from .data_fields import validate_document
+                validate_document(self, payload)
                 self._insert_values("process_flows", _flow_values(payload))
             for payload in fixtures["geometries"]:
                 self._insert_geometry_in_transaction(payload)

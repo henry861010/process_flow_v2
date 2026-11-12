@@ -181,6 +181,21 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   }
 
   function detach() { setActive(null); setName(""); setNotice(null); setLastSavedAt(null); setError(null); }
+  function adoptSaved(draft: FlowDraft, captured: State) {
+    setActive(draft); setUser(draft.user); setName(draft.name);
+    setBaseline(draftFingerprint(captured)); setLastSavedAt(draft.updatedAt);
+    onSaved?.(draft);
+  }
+  function dataSaved(stepId: string, recipeId: string, values: Record<string, string | number | boolean>, draft?: FlowDraft) {
+    if (draft) { setActive(draft); setLastSavedAt(draft.updatedAt); }
+    setBaseline((previous) => {
+      if (!previous) return previous;
+      const state = JSON.parse(previous) as State;
+      const recipe = state.configuration.stepConfigurations[stepId]?.recipeCandidates.find((r) => r.recipeId === recipeId);
+      if (recipe) recipe.dataValues = { ...values };
+      return draftFingerprint(state);
+    });
+  }
   const markClean = React.useCallback((captured: State = stateRef.current) => {
     setBaseline(draftFingerprint(captured));
   }, []);
@@ -259,7 +274,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   return {
     active, dirty, controls, saveControl, dialogs: dialogContent, notice: status, error, busy,
     saving: operation === "save", loading, lastSavedAt, detach, markClean, markDirty, confirmReplace, confirmReplaceAsync,
-    pickerContent, selectedDraft, setPickerOpen, load,
+    pickerContent, selectedDraft, setPickerOpen, load, adoptSaved, dataSaved,
   };
 }
 

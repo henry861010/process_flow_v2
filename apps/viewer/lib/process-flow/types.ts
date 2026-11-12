@@ -98,6 +98,26 @@ export type GeometryOutputPort = {
 
 export type TemplateStatus = "enabled" | "disabled";
 
+export type DataFieldSpec = {
+  name: string;
+  valueType: "string" | "integer" | "float" | "boolean";
+  reason: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+};
+export type DataFieldDefinition = DataFieldSpec & {
+  id: string;
+  status: "proposed" | "formal";
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+};
+export type DataValues = Record<string, string | number | boolean>;
+
 export type ProcessStepTemplate = {
   schemaVersion: 2;
   status: TemplateStatus;
@@ -111,6 +131,8 @@ export type ProcessStepTemplate = {
   inputPorts: GeometryInputPort[];
   outputPorts: GeometryOutputPort[];
   parameterDefinitions: ParameterDefinition[];
+  dataFieldDefinitions?: DataFieldDefinition[];
+  dataFieldsRevision?: number;
 };
 
 export type GeometryConstraints = {
@@ -179,6 +201,7 @@ export type GeometryBinding =
 
 export type RecipeCandidate = {
   recipeId: string; name: string; description: string; parameterValues: Record<string, unknown>;
+  dataValues?: DataValues;
 };
 export type StepConfiguration = {
   recipeCandidates: RecipeCandidate[];
