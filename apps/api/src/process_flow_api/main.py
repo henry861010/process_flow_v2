@@ -72,7 +72,7 @@ from .services import (
     validate_process_step_template,
 )
 from .draft_service import create_draft, update_draft, commit_draft
-from .data_fields import router as data_fields_router
+from .data_fields import RecipeDataFieldsConflict, router as data_fields_router
 
 
 def create_app(
@@ -131,6 +131,10 @@ def create_app(
     @app.exception_handler(ResourceConflictError)
     async def resource_conflict_handler(_: Request, error: ResourceConflictError):
         return JSONResponse({"message": str(error)}, status_code=status.HTTP_409_CONFLICT)
+
+    @app.exception_handler(RecipeDataFieldsConflict)
+    async def recipe_data_fields_conflict_handler(_: Request, error: RecipeDataFieldsConflict):
+        return JSONResponse({"message": str(error), "code": "DATA_FIELDS_CHANGED"}, status_code=status.HTTP_409_CONFLICT)
 
     @app.exception_handler(PreviewCapacityError)
     async def preview_capacity_handler(_: Request, error: PreviewCapacityError):

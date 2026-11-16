@@ -421,7 +421,9 @@ min/max 僅適用數字。名稱在同 template 內 strip + casefold 後唯一�
   flow／draft 的 revision。無封存、歷史快照或一鍵還原。
 - Geometry compiler／kernel 仍只讀 parameterDefinitions／parameterValues，完全不使用 dataValues。
 
-一般 flow／draft 更新以 (stepRefId, templateId, recipeId) 判斷既有 recipe，保留 DB 中最新
-dataValues；專用資料更新入口才可變更既有值。未知／已移除 field ID 回 409，不靜默清除。
-新 recipe、複製與草稿提交保留資料並驗證規格。審核 token 涵蓋規格、集合版本、所有已填值
-及其來源 revision；核准／移除交易中重新檢查 token，過期回 409。
+Flow／draft 建立、更新與草稿提交可帶選填的 `recipeDataEdits`（草稿提交放在 `flow` 中）。
+每筆包含 `stepRefId`、`recipeId`、`dataFieldsRevision`。版本符合時，資料庫在同一交易更新列出的
+recipes，採用請求中的 `dataValues`，空物件會清除採集值。規格版本不符回 409（`DATA_FIELDS_CHANGED`）。
+未列出的既有 recipe 以 (stepRefId, templateId, recipeId) 識別並保留資料庫中的值，專用資料更新入口仍可使用。
+未知或已移除的 field ID 回 409。新 recipe 與複製的值會驗證規格。審核 token 涵蓋規格、集合版本、
+所有已填值及其來源 revision。核准／移除交易中重新檢查 token，過期回 409。

@@ -157,6 +157,12 @@ class RecipeDataWrite(StrictModel):
     dataValues: dict[str, Any]
 
 
+class RecipeDataEdit(StrictModel):
+    stepRefId: NonBlankString
+    recipeId: NonBlankString
+    dataFieldsRevision: int = Field(ge=1)
+
+
 class ProcessStepTemplate(StrictModel):
     schemaVersion: Literal[2] = 2
     status: TemplateStatus = "enabled"
@@ -340,6 +346,7 @@ class ProcessFlowCreate(FlowContent):
     owner: NonBlankString
     description: str = ""
     origin: FlowOrigin | None = None
+    recipeDataEdits: list[RecipeDataEdit] = Field(default_factory=list, exclude=True)
 
 
 class ProcessFlowUpdate(ProcessFlowCreate):
@@ -408,6 +415,7 @@ class FlowDraftCreate(StrictModel):
     name: NonBlankString
     state: FlowDraftState
     origin: FlowOrigin | None = None
+    recipeDataEdits: list[RecipeDataEdit] = Field(default_factory=list, exclude=True)
 
 
 class FlowDraftUpdate(FlowDraftCreate):

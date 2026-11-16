@@ -10,10 +10,14 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from .models import DataFieldWrite, DataFieldAction, RecipeDataWrite
+from .models import DataFieldWrite, DataFieldAction, RecipeDataEdit, RecipeDataWrite
 from .repository import SQLiteStore, NotFoundError, ResourceConflictError, utc_now
 
 router = APIRouter(prefix="/api")
+
+
+class RecipeDataFieldsConflict(ResourceConflictError):
+    pass
 
 
 def template_fields(template):
@@ -78,23 +82,36 @@ def recipes(document):
             yield ref, recipe
 
 
-def validate_document(store, payload, current=None):
+def validate_document(store, payload, current=None, *, recipe_data_edits: list[RecipeDataEdit] | None = None):
     content = payload.get("state", payload)
-    known_steps = {ref["stepRefId"] for ref, _ in recipes(payload)}
+    candidates = list(recipes(payload))
+    known_steps = {ref["stepRefId"] for ref, _ in candidates}
     for step_id, config in content.get("configuration", {}).get("stepConfigurations", {}).items():
         if step_id not in known_steps and any(r.get("dataValues") for r in config.get("recipeCandidates", [])):
             raise ValueError(f"Data values require an existing process step: {step_id}")
+    revisions = {(edit.stepRefId, edit.recipeId): edit.dataFieldsRevision for edit in recipe_data_edits or []}
+    if len(revisions) != len(recipe_data_edits or []):
+        raise ValueError("Duplicate recipe data edit")
+    if revisions.keys() - {(ref["stepRefId"], recipe["recipeId"]) for ref, recipe in candidates}:
+        raise ValueError("Recipe data edits must reference recipes in the saved document")
     previous = {(ref["stepRefId"], ref["processStepTemplateId"], recipe["recipeId"]): recipe
                 for ref, recipe in recipes(current or {})}
-    for ref, recipe in recipes(payload):
+    for ref, recipe in candidates:
         values = recipe.get("dataValues", {})
         old = previous.get((ref["stepRefId"], ref["processStepTemplateId"], recipe["recipeId"]))
-        if not values and not (old or {}).get("dataValues"):
+        revision = revisions.get((ref["stepRefId"], recipe["recipeId"]))
+        if revision is None and not values and not (old or {}).get("dataValues"):
             continue
         template = _template(store, ref["processStepTemplateId"])
-        # Reject removed IDs even from a stale whole-document client.
-        validate_values(template, values)
-        if old is not None:
+        if revision is not None and revision != template.get("dataFieldsRevision", 1):
+            step_name = ref.get("stepLabel") or template["name"]
+            raise RecipeDataFieldsConflict(
+                f'Fields changed for "{recipe["name"]}" in "{step_name}". '
+                "Reopen the recipe, review the fields, and select Apply changes before trying again."
+            )
+        if revision is None and old is not None:
+            # Older callers cannot overwrite saved values. Still reject references to removed fields.
+            validate_values(template, values)
             values = copy.deepcopy(old.get("dataValues", {}))
         recipe["dataValues"] = validate_values(template, values)
 

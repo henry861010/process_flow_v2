@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 
 import { PlacementListControl } from "@/components/process-flow-fields/placement-list-control";
 import { RepeatableGroupCsvImport } from "./repeatable-group-csv-import";
+import { ValueFieldList, ValueFieldRow, valueFieldInputClass, valueFieldSelectClass, valueFieldUnitClass } from "./value-field-layout";
 import { Button } from "@/components/ui/button";
 import { canImportRepeatableGroupCsv } from "@/lib/process-flow/repeatable-group-csv";
 import type {
@@ -25,11 +26,6 @@ import {
   removeRepeatItem,
 } from "@/lib/process-flow/parameter-values";
 import { cn } from "@/lib/utils";
-
-const inputClass =
-  "h-9 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
-const selectClass =
-  "h-9 w-full rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
 
 export function ParameterValueEditor({
   definitions,
@@ -115,7 +111,7 @@ export function ParameterValueEditor({
           </section>
         ))}
         {ungroupedDefinitions.length > 0 ? (
-          <div className="divide-y rounded-md border bg-white">
+          <ValueFieldList>
             <ParameterRows
               definitions={ungroupedDefinitions}
               values={values}
@@ -123,14 +119,14 @@ export function ParameterValueEditor({
               disabled={disabled}
               onChange={onChange}
             />
-          </div>
+          </ValueFieldList>
         ) : null}
       </div>
     );
   }
 
   return (
-    <div className="divide-y rounded-md border bg-white">
+    <ValueFieldList>
       <ParameterRows
         definitions={definitions}
         values={values}
@@ -138,22 +134,22 @@ export function ParameterValueEditor({
         disabled={disabled}
         onChange={onChange}
       />
-    </div>
+    </ValueFieldList>
   );
 }
 
-function ParameterRows({
+export function ParameterRows({
   definitions,
   values,
-  errors,
-  disabled,
+  errors = {},
+  disabled = false,
   onChange,
   compact = false,
 }: {
   definitions: ParameterDefinition[];
   values: Record<string, unknown>;
-  errors: Record<string, string>;
-  disabled: boolean;
+  errors?: Record<string, string>;
+  disabled?: boolean;
   onChange: (values: Record<string, unknown>) => void;
   compact?: boolean;
 }) {
@@ -224,26 +220,16 @@ function ParameterRow({
   }
 
   return (
-    <div
-      className={cn(
-        compact
-          ? "grid min-w-0 grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] items-start gap-3 text-sm"
-          : "grid grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-4 px-4 py-4 text-sm max-md:grid-cols-1",
-        error && "bg-destructive/5",
-      )}
-    >
-      <div className={compact ? "pt-2" : undefined}><ParameterLabel definition={definition} minimal={compact} /></div>
-      <div className="min-w-0">
-        <PrimitiveControl
-          definition={definition}
-          compact={compact}
-          value={value}
-          disabled={disabled}
-          onChange={onChange}
-        />
-        {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
-      </div>
-    </div>
+    <ValueFieldRow compact={compact} invalid={Boolean(error)} label={<ParameterLabel definition={definition} minimal={compact} />}>
+      <PrimitiveControl
+        definition={definition}
+        compact={compact}
+        value={value}
+        disabled={disabled}
+        onChange={onChange}
+      />
+      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+    </ValueFieldRow>
   );
 }
 
@@ -529,7 +515,7 @@ function PrimitiveControl({
     }
     return (
       <select
-        className={selectClass}
+        className={valueFieldSelectClass}
         aria-label={definition.name}
         value={value == null ? "" : String(value)}
         disabled={disabled}
@@ -577,7 +563,7 @@ function PrimitiveControl({
     const displayValue = Array.isArray(value) ? value.join(", ") : "";
     return (
       <input
-        className={inputClass}
+        className={valueFieldInputClass}
         aria-label={definition.name}
         value={displayValue}
         disabled={disabled}
@@ -602,7 +588,7 @@ function PrimitiveControl({
         ? "flex min-w-0 items-center overflow-hidden rounded-md border border-input bg-white shadow-sm focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20"
         : "flex items-center gap-2"}>
         <input
-          className={cn(inputClass, compact && "min-w-0 rounded-none border-0 font-mono text-right tabular-nums shadow-none focus:ring-0")}
+          className={cn(valueFieldInputClass, compact && "min-w-0 rounded-none border-0 font-mono text-right tabular-nums shadow-none focus:ring-0")}
           aria-label={definition.name}
           type="number"
           step={isIntegerValueType(definition.valueType) ? 1 : "any"}
@@ -621,7 +607,7 @@ function PrimitiveControl({
         {definition.unit ? (
           <span className={compact
             ? "flex h-9 min-w-9 shrink-0 items-center justify-center border-l border-border/60 bg-muted/20 px-2 font-mono text-[11px] text-muted-foreground"
-            : "shrink-0 text-sm text-muted-foreground"}>
+            : valueFieldUnitClass}>
             {definition.unit}
           </span>
         ) : null}
@@ -631,7 +617,7 @@ function PrimitiveControl({
 
   return (
     <input
-      className={inputClass}
+      className={valueFieldInputClass}
       aria-label={definition.name}
       value={typeof value === "string" ? value : ""}
       disabled={disabled}

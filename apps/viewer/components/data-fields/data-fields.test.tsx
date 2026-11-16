@@ -3,7 +3,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { RecipeDataFields, RecipeDataSummary } from './recipe-data-fields';
+import { RecipeDataSummary } from './recipe-data-fields';
 import { FieldReviewPanel } from './field-review-panel';
 import * as api from '@/lib/process-flow/data-fields';
 import type { DataFieldDefinition, ProcessStepTemplate, RecipeCandidate } from '@/lib/process-flow/types';
@@ -22,31 +22,10 @@ beforeEach(() => {
   vi.mocked(api.loadFieldTemplate).mockResolvedValue(template); vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.restoreAllMocks(); });
-describe('recipe data collection', () => {
-  it('retains invalid proposed input on failure and retries without changing parameters', async () => {
-    const save = vi.fn().mockRejectedValueOnce(new Error('Network unavailable')).mockResolvedValue(undefined); const onSaved = vi.fn();
-    await render(<RecipeDataFields template={template} recipe={recipe} stepId="s" tools={{ draftIdentityRequired: false, save, updateTemplate: vi.fn() }} onSaved={onSaved} />);
-    await input(host.querySelector('#data-value-power')!, 'approximately 150');
-    expect(host.textContent).toContain('Original value can still be saved'); expect(button('Save data').disabled).toBe(false);
-    await click(button('Save data')); expect(host.textContent).toContain('Network unavailable');
-    expect((host.querySelector('#data-value-power') as HTMLInputElement).value).toBe('approximately 150'); expect(onSaved).not.toHaveBeenCalled();
-    await click(button('Save data')); expect(save).toHaveBeenLastCalledWith('s', recipe, { power: 'approximately 150' }, 2, expect.any(Object));
-    expect(onSaved).toHaveBeenCalledWith({ power: 'approximately 150' }); expect(host.textContent).toContain('Saved to database');
-  });
-  it('refreshes formal rules and blocks saving invalid values', async () => {
-    const save = vi.fn();
-    await render(<RecipeDataFields template={template} recipe={{ ...recipe, dataValues: { power: 'bad' } }} stepId="s" tools={{ draftIdentityRequired: false, save, updateTemplate: vi.fn() }} onSaved={vi.fn()} />);
-    vi.mocked(api.loadFieldTemplate).mockResolvedValue({ ...template, dataFieldsRevision: 3, dataFieldDefinitions: [{ ...field, status: 'formal' }] });
-    await click(button('Refresh fields')); expect(button('Save data').disabled).toBe(true);
-    await input(host.querySelector('#data-value-power')!, '0'); expect(button('Save data').disabled).toBe(false);
-    await click(button('Save data')); expect(save).toHaveBeenCalledWith('s', expect.anything(), { power: 0 }, 3, expect.anything());
-  });
-  it('keeps false visible and requires identity for the first draft save', async () => {
-    const boolTemplate = { ...template, dataFieldDefinitions: [{ ...field, valueType: 'boolean' as const, min: undefined, max: undefined }] };
-    await render(<RecipeDataSummary template={boolTemplate} recipe={{ ...recipe, dataValues: { power: false } }} />); expect(host.textContent).toContain('false');
-    await render(<RecipeDataFields template={template} recipe={recipe} stepId="s" tools={{ draftIdentityRequired: true, save: vi.fn(), updateTemplate: vi.fn() }} onSaved={vi.fn()} />);
-    expect(button('Save draft and data').disabled).toBe(true); expect(host.textContent).toContain('first be saved as a draft');
-  });
+it('shows false in the recipe data summary', async () => {
+  const boolTemplate = { ...template, dataFieldDefinitions: [{ ...field, valueType: 'boolean' as const, min: undefined, max: undefined }] };
+  await render(<RecipeDataSummary template={boolTemplate} recipe={{ ...recipe, dataValues: { power: false } }} />);
+  expect(host.textContent).toContain('false');
 });
 describe('field review', () => {
   it('lists candidate and draft issues, and confirms removal using the reviewed snapshot', async () => {

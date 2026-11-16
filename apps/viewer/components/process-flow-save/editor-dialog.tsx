@@ -27,8 +27,8 @@ export function useEditorDialogFocus(
     );
     opener.current = { element, previous };
     dialogs.push(element);
-    const controls = () => Array.from(element.querySelectorAll<HTMLElement>(focusableSelector))
-      .filter((control) => control.getClientRects().length > 0);
+    const controls = (container = element) => Array.from(container.querySelectorAll<HTMLElement>(focusableSelector))
+      .filter((control) => !control.closest("[inert]") && control.getClientRects().length > 0);
     (element.querySelector<HTMLElement>("[data-autofocus]") ?? controls()[0] ?? element).focus();
     const keydown = (event: KeyboardEvent) => {
       if (dialogs.at(-1) !== element) return;
@@ -59,10 +59,11 @@ export function useEditorDialogFocus(
       document.removeEventListener("keydown", keydown, true);
       document.removeEventListener("focusin", focusin);
       // Wait for the underlying picker to re-enable its controls after a confirmation.
+      const underlying = dialogs.at(-1);
       requestAnimationFrame(() => {
-        if (dialogs.includes(element)) return; // React StrictMode has re-mounted this effect.
-        if (previous?.isConnected && !previous.matches(":disabled")) previous.focus();
-        else dialogs.at(-1)?.querySelector<HTMLElement>(focusableSelector)?.focus();
+        if (dialogs.includes(element) || dialogs.at(-1) !== underlying || underlying?.contains(document.activeElement)) return;
+        if (previous?.isConnected && !previous.matches(":disabled") && !previous.closest("[inert]")) previous.focus();
+        else if (underlying) (controls(underlying)[0] ?? underlying).focus();
       });
     };
   }, [panel, returnFocus, enabled]);

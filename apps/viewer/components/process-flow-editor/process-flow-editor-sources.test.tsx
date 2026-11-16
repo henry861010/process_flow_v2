@@ -4,6 +4,7 @@ import flowFixtures from "../../../api/src/process_flow_api/fixtures/process-flo
 import stepFixtures from "../../../api/src/process_flow_api/fixtures/process-step-templates.json";
 import geometryFixtures from "../../../api/src/process_flow_api/fixtures/geometries.json";
 import { ProcessFlowEditor } from "./process-flow-editor";
+import { StepEditorDialog } from "./step-editor-dialog";
 import { GeometryInputEditorDialog } from "./geometry-input-editor-dialog";
 import { GeometrySourcePicker } from "./geometry-source-picker";
 import { GeometryGeneratorEditorContent, GeometryGeneratorParameters, GeometryGeneratorValidation } from "@/components/geometry-generator/geometry-generator-editor";
@@ -753,6 +754,16 @@ describe("catalog generator actions through the shared editor", () => {
 });
 
 describe("flow editor sources and save targets", () => {
+  const unsavedRecipeStatus = "Unsaved recipe changes. Save the flow to write them to the database.";
+  const savedDraftStatus = "Draft saved · Flow not yet created";
+
+  function openStepEditor(app: EditorHarness) {
+    const graph = app.graph();
+    const node = graph.nodes.find((item) => item.type === "processStep")!;
+    graph.onNodeDoubleClick!({} as React.MouseEvent, node);
+    return props(app.render(), StepEditorDialog);
+  }
+
   it("starts unsaved, creates a separate flow after edits and updates only that new ID thereafter", async () => {
     const app = await editor();
     expect(await app.start()).toBe(true);
@@ -827,7 +838,7 @@ describe("flow editor sources and save targets", () => {
     expect(savedDraft.state.configuration).toEqual(source.configuration);
     expect(window.location.search).toBe("?draftId=branch-draft");
     const resumed = await editor("?draftId=branch-draft");
-    expect(resumed.status().saved).toBe(true);
+    expect(resumed.status()).toMatchObject({ saved: true, progress: savedDraftStatus });
     resumed.openSave(); await resumed.save();
     expect(commitFlowDraft).toHaveBeenCalledWith(savedDraft, expect.objectContaining({
       origin: savedDraft.origin, definition: source.definition, configuration: source.configuration,
@@ -836,6 +847,33 @@ describe("flow editor sources and save targets", () => {
     expect(updateProcessFlow).not.toHaveBeenCalled();
     expect(window.location.search).toBe("?flowId=committed-branch");
     expect(source).toEqual(beforeSource);
+  });
+
+  it("keeps a recipe change marked until a draft save succeeds", async () => {
+    const app = await editor();
+    await app.start();
+    const dialog = openStepEditor(app);
+    expect(dialog).toMatchObject({ canSaveDraft: true, hasUnsavedRecipeChanges: false });
+    const config = dialog.configuration!;
+    const [recipe, ...others] = config.recipeCandidates;
+    const changed = { ...config, recipeCandidates: [{ ...recipe, name: "Draft recipe" }, ...others] };
+    dialog.onStepConfigurationChange(changed);
+    dialog.onClose();
+    expect(app.status().progress).toBe(unsavedRecipeStatus);
+    expect(saveFlowDraft).not.toHaveBeenCalled();
+    expect(createProcessFlow).not.toHaveBeenCalled();
+
+    vi.mocked(saveFlowDraft).mockRejectedValueOnce(new Error("Draft service unavailable"));
+    await saveNewDraft(app);
+    expect(app.status()).toMatchObject({ progress: unsavedRecipeStatus, saved: false });
+    expect(text(app.render())).toContain("Draft service unavailable");
+    find(app.render(), (element) => element.type === "form").props.onSubmit({ preventDefault() {} });
+    await app.flush();
+
+    expect(savedDraft.state.configuration.stepConfigurations[dialog.stepRef.stepRefId]).toEqual(changed);
+    expect(app.status()).toMatchObject({ progress: savedDraftStatus, saved: true });
+    expect(openStepEditor(app).hasUnsavedRecipeChanges).toBe(false);
+    expect(createProcessFlow).not.toHaveBeenCalled();
   });
 
   it("detaches a saved draft when starting from a flow, leaving that draft intact", async () => {
@@ -918,6 +956,57 @@ describe("flow editor sources and save targets", () => {
     await app.save();
     expect(updateProcessFlow).toHaveBeenLastCalledWith(source.id, expect.objectContaining({ revision: latest.revision }));
     expect(createProcessFlow).not.toHaveBeenCalled();
+  });
+
+  it("keeps staged recipe data after a field conflict and saves it with the next flow update", async () => {
+    const app = await editor(`?flowId=${source.id}`);
+    const step = source.definition.stepRefs[0];
+    const dialog = openStepEditor(app);
+    expect(dialog.stepRef.stepRefId).toBe(step.stepRefId);
+    const current = dialog.configuration!;
+    const recipe = { ...current.recipeCandidates[0], name: "Measured recipe", dataValues: { count: 0 } };
+    const edit = { stepRefId: step.stepRefId, recipeId: recipe.recipeId, dataFieldsRevision: 2 };
+    const staged = { ...current, recipeCandidates: [recipe, ...current.recipeCandidates.slice(1)] };
+    dialog.onStepConfigurationChange(staged, edit);
+    expect(props(app.render(), StepEditorDialog).hasUnsavedRecipeChanges).toBe(true);
+    dialog.onClose();
+    expect(updateProcessFlow).not.toHaveBeenCalled();
+    expect(app.status()).toMatchObject({ progress: unsavedRecipeStatus, saved: false });
+
+    app.openSave();
+    vi.mocked(updateProcessFlow).mockRejectedValueOnce(new ApiRequestError("Fields changed for Measured recipe.", 409, "DATA_FIELDS_CHANGED"));
+    await app.save();
+    expect(app.saveDialog()).toMatchObject({ error: "Fields changed for Measured recipe.", conflict: false });
+    expect(app.status().progress).toBe(unsavedRecipeStatus);
+    app.saveDialog().onClose();
+    const reopened = openStepEditor(app);
+    expect(reopened.configuration).toEqual(staged);
+    expect(reopened.recipeDataEdits).toEqual([edit]);
+    reopened.onStepConfigurationChange(staged, { ...edit, dataFieldsRevision: 3 });
+
+    app.openSave();
+    await app.save();
+    expect(updateProcessFlow).toHaveBeenLastCalledWith(source.id, expect.objectContaining({
+      recipeDataEdits: [{ ...edit, dataFieldsRevision: 3 }],
+      configuration: expect.objectContaining({ stepConfigurations: expect.objectContaining({ [step.stepRefId]: staged }) }),
+    }));
+    expect(openStepEditor(app)).toMatchObject({ recipeDataEdits: [], hasUnsavedRecipeChanges: false });
+    expect(app.status()).toMatchObject({ saved: true, progress: `Saved flow · revision ${source.revision + 1}` });
+  });
+
+  it("clears the recipe reminder when values return to the loaded flow", async () => {
+    const originalRecipe = source.configuration.stepConfigurations[source.definition.stepRefs[0].stepRefId].recipeCandidates[0];
+    delete originalRecipe.dataValues;
+    const app = await editor(`?flowId=${source.id}`);
+    const dialog = openStepEditor(app);
+    const original = dialog.configuration!;
+    const [recipe, ...others] = original.recipeCandidates;
+    dialog.onStepConfigurationChange({ ...original, recipeCandidates: [{ ...recipe, dataValues: { count: 0 } }, ...others] });
+    expect(app.status().progress).toBe(unsavedRecipeStatus);
+    dialog.onStepConfigurationChange({ ...original, recipeCandidates: [{ ...recipe, dataValues: {} }, ...others] });
+    expect(props(app.render(), StepEditorDialog).hasUnsavedRecipeChanges).toBe(false);
+    expect(app.status()).toMatchObject({ saved: true, progress: `Saved flow · revision ${source.revision}` });
+    expect(updateProcessFlow).not.toHaveBeenCalled();
   });
 
   it("does not let an old edit-layout completion mark a new branch as saved", async () => {

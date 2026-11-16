@@ -48,7 +48,7 @@ source_of_truth:
 - [ ] Edit button／double-click 可開站點面板，單擊供接線使用。
 - [ ] 正式 metadata 於 Save dialog 編輯；保存後仍可修改 topology。
 - [ ] 合法拓樸、未完成 configuration 可正式保存；無效已提供值或拓樸時只有新 flow 能存草稿。
-- [ ] Step details 置頂且直接顯示，不顯示內部 `stepRefId`；其後為 Active recipe 摘要與套用選單。卡片僅列名稱、ID、parameter 名稱，右側 Edit 與卡片本身皆可開編輯視窗，儲存／取消正確，description 不顯示。
+- [ ] 站點總覽顯示 Step details、Active recipe 的摘要與套用選單，底部為 Edit recipe；候選清單與編輯頁在同一視窗向前及返回，焦點跟隨切換，儲存或取消後返回清單。
 - [ ] Add 位於卡片區右下；Delete 位於各卡片右側且需確認；刪除已套用者改採相鄰候選，最後一張刪除後為 null。
 - [ ] 已套用 placements 只顯示 graph；編輯視窗仍能編輯每筆 placement。
 - [ ] 新 flow 保存／恢復同一份草稿包含畫布、viewport、候選與採用狀態，讀取不套 defaults；正式 Save 後不再提供 Save Draft。

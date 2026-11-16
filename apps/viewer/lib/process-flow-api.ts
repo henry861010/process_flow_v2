@@ -13,7 +13,7 @@ const DEFAULT_API_BASE_URL = "http://localhost:8000";
 export class ApiRequestError extends Error {
   readonly status: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, readonly code?: string) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
@@ -50,7 +50,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     const message = getApiErrorMessage(payload) ?? `API request failed: ${response.status}`;
-    throw new ApiRequestError(message, response.status);
+    const code = typeof payload?.code === "string" ? payload.code : undefined;
+    throw new ApiRequestError(message, response.status, code);
   }
   return payload as T;
 }

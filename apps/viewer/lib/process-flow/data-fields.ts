@@ -1,5 +1,5 @@
 import { apiFetch } from '@/lib/process-flow-api';
-import type { DataFieldDefinition, DataFieldSpec, DataValues, FlowDraft, ProcessFlow, ProcessStepTemplate } from './types';
+import type { DataFieldDefinition, DataFieldSpec, ProcessStepTemplate } from './types';
 
 export type FieldUsage = {
   kind: 'flow' | 'draft'; id: string; name: string; revision: number;
@@ -11,7 +11,6 @@ export type FieldReview = {
   dataFieldsRevision: number; reviewToken: string; usages: FieldUsage[];
   flowCount: number; draftCount: number; valueCount: number; issueCount: number;
 };
-export type DataSaveIdentity = { actor: string; draftName: string };
 export function dataValueIssue(field: DataFieldDefinition, value: unknown): string | null {
   if (value === undefined || value === '') return null;
   if (field.valueType === 'string' && typeof value !== 'string') return 'Expected text';
@@ -40,12 +39,6 @@ export function writeDataField(templateId: string, spec: DataFieldSpec, revision
 export function reviewDataField(review: FieldReview, actor: string, action: 'approve' | 'remove') {
   return apiFetch<ProcessStepTemplate>(`/api${fieldPath(review.templateId, review.field.id)}/${action}`, {
     method: 'POST', body: JSON.stringify({ actor, reviewToken: review.reviewToken }),
-  });
-}
-export function saveRecipeData(kind: 'flow' | 'draft', document: { id: string; revision: number }, stepId: string, recipeId: string, dataFieldsRevision: number, dataValues: DataValues) {
-  const collection = kind === 'flow' ? 'process-flows' : 'process-flow-drafts';
-  return apiFetch<ProcessFlow | FlowDraft>(`/api/${collection}/${encodeURIComponent(document.id)}/steps/${encodeURIComponent(stepId)}/recipes/${encodeURIComponent(recipeId)}/data-values`, {
-    method: 'PUT', body: JSON.stringify({ revision: document.revision, dataFieldsRevision, dataValues }),
   });
 }
 export function fieldUsageUrl(usage: FieldUsage) {

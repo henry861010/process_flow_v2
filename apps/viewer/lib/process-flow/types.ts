@@ -117,6 +117,7 @@ export type DataFieldDefinition = DataFieldSpec & {
   approvedAt?: string;
 };
 export type DataValues = Record<string, string | number | boolean>;
+export type RecipeDataEdit = { stepRefId: string; recipeId: string; dataFieldsRevision: number };
 
 export type ProcessStepTemplate = {
   schemaVersion: 2;
@@ -180,7 +181,7 @@ export type ProcessFlow = FlowContent & {
   schemaVersion: 3; id: string; name: string; version: string; owner: string;
   description: string; revision: number; origin?: FlowOrigin;
 };
-export type ProcessFlowCreate = Omit<ProcessFlow, "id" | "revision">;
+export type ProcessFlowCreate = Omit<ProcessFlow, "id" | "revision"> & { recipeDataEdits?: RecipeDataEdit[] };
 export type ProcessFlowUpdate = ProcessFlowCreate & { revision: number };
 
 export type CatalogGeometryBinding = {
@@ -302,4 +303,6 @@ export type FlowDraft = {
   origin?: FlowOrigin;
 };
 export type FlowDraftSummary = Omit<FlowDraft, "state">;
-export type FlowDraftCreate = Pick<FlowDraft, "schemaVersion" | "user" | "name" | "state" | "origin">;
+export type FlowDraftCreate = Pick<FlowDraft, "schemaVersion" | "user" | "name" | "state" | "origin"> & {
+  recipeDataEdits?: RecipeDataEdit[];
+};

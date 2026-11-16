@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .models import ProcessStepTemplate
+from .models import ProcessStepTemplate, RecipeDataEdit
 from .step_template_transfer import locked_process_step_template
 
 JsonObject = dict[str, Any]
@@ -337,12 +337,12 @@ class SQLiteStore:
                         )
             self._delete_in_transaction("geometries", id_)
 
-    def insert_process_flow(self, payload: JsonObject) -> JsonObject:
+    def insert_process_flow(self, payload: JsonObject, *, recipe_data_edits: list[RecipeDataEdit] | None = None) -> JsonObject:
         from .data_fields import validate_document
         try:
             with self._connection:
                 self._connection.execute("BEGIN IMMEDIATE")
-                validate_document(self, payload)
+                validate_document(self, payload, recipe_data_edits=recipe_data_edits)
                 self._insert_values("process_flows", _flow_values(payload))
         except sqlite3.IntegrityError as error:
             raise _duplicate_item_error(error) from error
@@ -362,10 +362,11 @@ class SQLiteStore:
             raise ResourceConflictError("Flow changed in another session. Reload it before saving again.")
         return current
 
-    def _update_flow_in_transaction(self, payload: JsonObject, revision: int) -> JsonObject:
+    def _update_flow_in_transaction(self, payload: JsonObject, revision: int, *,
+                                    recipe_data_edits: list[RecipeDataEdit] | None = None) -> JsonObject:
         current = self._required_flow(payload["id"], revision)
         from .data_fields import validate_document
-        validate_document(self, payload, current)
+        validate_document(self, payload, current, recipe_data_edits=recipe_data_edits)
         # Provenance is immutable for updates, including direct repository callers.
         payload = {key: value for key, value in payload.items() if key != "origin"}
         if "origin" in current:
@@ -377,11 +378,12 @@ class SQLiteStore:
             [value for key, value in values.items() if key != "id"] + [payload["id"], revision])
         return payload
 
-    def update_process_flow(self, payload: JsonObject, revision: int) -> JsonObject:
+    def update_process_flow(self, payload: JsonObject, revision: int, *,
+                            recipe_data_edits: list[RecipeDataEdit] | None = None) -> JsonObject:
         try:
             with self._connection:
                 self._connection.execute("BEGIN IMMEDIATE")
-                return self._update_flow_in_transaction(payload, revision)
+                return self._update_flow_in_transaction(payload, revision, recipe_data_edits=recipe_data_edits)
         except sqlite3.IntegrityError as error:
             raise _duplicate_item_error(error) from error
 
@@ -391,11 +393,11 @@ class SQLiteStore:
             self._required_flow(id_, revision)
             self._delete_in_transaction("process_flows", id_)
 
-    def insert_flow_draft(self, payload: JsonObject) -> JsonObject:
+    def insert_flow_draft(self, payload: JsonObject, *, recipe_data_edits: list[RecipeDataEdit] | None = None) -> JsonObject:
         from .data_fields import validate_document
         with self._connection:
             self._connection.execute("BEGIN IMMEDIATE")
-            validate_document(self, payload)
+            validate_document(self, payload, recipe_data_edits=recipe_data_edits)
             self._insert_values("process_flow_drafts", _draft_values(payload))
         return payload
 
@@ -421,14 +423,14 @@ class SQLiteStore:
             raise DraftConflictError("Draft changed in another session. Reload it before saving again.")
         return current
 
-    def update_flow_draft(self, id_: str, body: JsonObject) -> JsonObject:
+    def update_flow_draft(self, id_: str, body: JsonObject, *, recipe_data_edits: list[RecipeDataEdit] | None = None) -> JsonObject:
         with self._connection:
             self._connection.execute("BEGIN IMMEDIATE")
             current = self._required_draft(id_, body["revision"])
             payload = {**body, "id": id_, "createdAt": current["createdAt"],
                        "revision": body["revision"] + 1, "updatedAt": utc_now()}
             from .data_fields import validate_document
-            validate_document(self, payload, current)
+            validate_document(self, payload, current, recipe_data_edits=recipe_data_edits)
             values = _draft_values(payload)
             assignments = ", ".join(f"{key}=?" for key in values if key != "id")
             self._connection.execute(f"UPDATE process_flow_drafts SET {assignments} WHERE id=? AND revision=?",
@@ -441,13 +443,14 @@ class SQLiteStore:
             self._required_draft(id_, revision)
             self._delete_in_transaction("process_flow_drafts", id_)
 
-    def commit_flow_draft(self, id_: str, revision: int, resource: JsonObject) -> JsonObject:
+    def commit_flow_draft(self, id_: str, revision: int, resource: JsonObject, *,
+                          recipe_data_edits: list[RecipeDataEdit] | None = None) -> JsonObject:
         try:
             with self._connection:
                 self._connection.execute("BEGIN IMMEDIATE")
                 current = self._required_draft(id_, revision)
                 from .data_fields import validate_document
-                validate_document(self, resource, current)
+                validate_document(self, resource, current, recipe_data_edits=recipe_data_edits)
                 self._insert_values("process_flows", _flow_values(resource))
                 self._delete_in_transaction("process_flow_drafts", id_)
         except sqlite3.IntegrityError as error:

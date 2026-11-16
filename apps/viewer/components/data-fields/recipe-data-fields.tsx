@@ -1,116 +1,170 @@
 'use client';
+
 import * as React from 'react';
-import { Plus, RefreshCw } from 'lucide-react';
+import { ValueFieldRow, valueFieldInputClass, valueFieldSelectClass, valueFieldUnitClass } from '@/components/process-flow-parameters/value-field-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { DataValues, ProcessStepTemplate, RecipeCandidate } from '@/lib/process-flow/types';
-import { dataValueIssue, fieldInputValue, loadFieldTemplate, writeDataField, type DataSaveIdentity } from '@/lib/process-flow/data-fields';
-import { DataFieldForm, dataInputClass } from './data-field-form';
+import type { DataFieldDefinition, DataValues, ProcessStepTemplate, RecipeCandidate } from '@/lib/process-flow/types';
+import { dataValueIssue, fieldInputValue, loadFieldTemplate } from '@/lib/process-flow/data-fields';
 
-export type RecipeDataTools = {
-  draftIdentityRequired: boolean;
-  save: (stepId: string, recipe: RecipeCandidate, values: DataValues, fieldsRevision: number, identity: DataSaveIdentity) => Promise<void>;
-  updateTemplate: (template: ProcessStepTemplate) => void;
+const proposedLabel = 'In proposed';
+
+type FieldLoad = {
+  visit: number;
+  template?: ProcessStepTemplate;
+  loading: boolean;
+  error?: string;
+  changed?: boolean;
 };
-export function RecipeDataFields({ template, recipe, stepId, tools, onSaved, onBusyChange }: {
-  template: ProcessStepTemplate; recipe: RecipeCandidate; stepId: string; tools?: RecipeDataTools;
-  onSaved: (values: DataValues) => void;
-  onBusyChange?: (busy: boolean) => void;
-}) {
-  const [current, setCurrent] = React.useState(template);
-  const [values, setValues] = React.useState<DataValues>(() => ({ ...recipe.dataValues }));
-  const [inputText, setInputText] = React.useState<Record<string, string>>({});
-  const [adding, setAdding] = React.useState(false);
-  const [loading, setLoading] = React.useState(true);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [notice, setNotice] = React.useState<string | null>(null);
-  const [identity, setIdentity] = React.useState({ actor: '', draftName: 'Collected process data' });
-  const version = React.useRef(0);
-  const toolsRef = React.useRef(tools); toolsRef.current = tools;
-  const busyRef = React.useRef(false);
-  React.useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); }, [busy, onBusyChange]);
+
+export function useRecipeFieldTemplate(
+  template: ProcessStepTemplate,
+  visit: number | null,
+  onTemplateUpdated?: (template: ProcessStepTemplate) => void,
+) {
+  const [state, setState] = React.useState<FieldLoad>();
+  const sequence = React.useRef(0);
+  const onUpdated = React.useRef(onTemplateUpdated);
+  onUpdated.current = onTemplateUpdated;
+  const invalidate = React.useCallback(() => { sequence.current++; }, []);
+
   const refresh = React.useCallback(async () => {
-    if (busyRef.current) return;
-    const request = ++version.current;
-    setLoading(true);
+    if (visit === null) return;
+    const request = ++sequence.current;
+    setState((previous) => ({
+      visit, template: previous?.visit === visit ? previous.template : undefined,
+      changed: previous?.visit === visit && previous.changed,
+      loading: true,
+    }));
     try {
       const next = await loadFieldTemplate(template.id);
-      if (request !== version.current) return;
-      setCurrent(next); toolsRef.current?.updateTemplate(next); setError(null);
-    } catch (cause) { if (request === version.current) setError(cause instanceof Error ? cause.message : 'Unable to load fields. Retry refresh.'); }
-    finally { if (request === version.current) setLoading(false); }
-  }, [template.id]);
+      if (request !== sequence.current) return;
+      setState((previous) => {
+        const earlier = previous?.visit === visit ? previous : undefined;
+        const revisionChanged = earlier?.template &&
+          (earlier.template.dataFieldsRevision ?? 1) !== (next.dataFieldsRevision ?? 1);
+        return { visit, template: next, loading: false, changed: earlier?.changed || Boolean(revisionChanged) };
+      });
+      onUpdated.current?.(next);
+    } catch (cause) {
+      if (request !== sequence.current) return;
+      const error = cause instanceof Error ? cause.message : 'Unable to load fields.';
+      setState((previous) => ({ ...previous, visit, loading: false, error }));
+    }
+  }, [template.id, visit]);
+
   React.useEffect(() => {
+    if (visit === null) return;
+    const onFocus = () => { void refresh(); };
     void refresh();
-    const focus = () => { void refresh(); };
-    const cancelPending = () => { version.current++; };
-    window.addEventListener('focus', focus);
-    try { setIdentity((v) => ({ ...v, actor: localStorage.getItem('data-field-actor') ?? '' })); } catch { /* optional */ }
-    return () => { cancelPending(); window.removeEventListener('focus', focus); };
-  }, [refresh]);
-  const fields = current.dataFieldDefinitions ?? [];
-  const unknown = Object.keys(values).filter((id) => !fields.some((field) => field.id === id));
-  const invalid = fields.some((field) => field.status === 'formal' && dataValueIssue(field, values[field.id]));
-  function change(id: string, value: string | number | boolean) {
-    setValues((old) => { const next = { ...old }; if (value === '') delete next[id]; else next[id] = value; return next; });
-    setNotice(null);
-  }
-  async function save() {
-    if (!tools || busyRef.current) return;
-    busyRef.current = true; setBusy(true); setError(null); setNotice(null);
-    try {
-      await tools.save(stepId, recipe, values, current.dataFieldsRevision ?? 1, identity);
-      onSaved(values); setNotice('Saved to database. Closing this recipe does not undo saved data.');
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save data. Retry.'); }
-    finally { busyRef.current = false; setBusy(false); }
-  }
-  return <section aria-label="Recipe data fields" className="space-y-4 border-t pt-4">
-    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Data fields</h3><div className="flex gap-2">
-      <Button type="button" size="sm" variant="outline" disabled={busy || loading} onClick={() => void refresh()}><RefreshCw aria-hidden="true" />Refresh fields</Button>
-      <Button type="button" size="sm" variant="outline" disabled={busy || loading || adding} onClick={() => setAdding(true)}><Plus aria-hidden="true" />Add data field</Button>
-    </div></div>
-    <p className="text-xs text-muted-foreground">Shared with every recipe using this process step. Proposed specifications may change or be removed. These fields only collect data.</p>
-    {loading && <p role="status" className="text-sm">Loading fields…</p>}
-    {adding && <DataFieldForm busy={busy} names={fields.map((field) => field.name)} onCancel={() => setAdding(false)} onSubmit={async (spec, actor) => {
-      busyRef.current = true; setBusy(true);
-      try {
-        const next = await writeDataField(template.id, spec, current.dataFieldsRevision ?? 1, actor);
-        setCurrent(next); tools?.updateTemplate(next); setAdding(false); setNotice('Shared proposed field saved to database. You can now enter a value.');
-      } finally { busyRef.current = false; setBusy(false); }
-    }} />}
-    {!loading && !fields.length && <p className="text-sm text-muted-foreground">No data fields yet. Add a field to record additional recipe details.</p>}
-    {fields.map((field) => {
-      const value = values[field.id]; const issue = dataValueIssue(field, value);
-      const id = `data-value-${field.id}`;
-      return <div key={field.id} className="space-y-1">
-        <label htmlFor={id} className="flex items-center gap-2 text-sm font-medium">{field.name}<Badge variant="outline">{field.status === 'proposed' ? 'Proposed' : 'Formal'}</Badge></label>
-        <div className="flex items-center gap-2">{field.valueType === 'boolean' ? <select id={id} className={dataInputClass} value={value === undefined ? '' : String(value)} disabled={busy} aria-describedby={issue ? `${id}-issue` : undefined} onChange={(e) => change(field.id, e.target.value === '' ? '' : e.target.value === 'true')}>
-          <option value="">Not set</option><option value="true">True</option><option value="false">False</option>
-          {value !== undefined && typeof value !== 'boolean' && <option value={String(value)}>{String(value)} (invalid)</option>}
-        </select> : <input id={id} className={dataInputClass} value={inputText[field.id] ?? (value === undefined ? '' : String(value))} inputMode={field.valueType === 'string' ? 'text' : 'decimal'} disabled={busy} aria-describedby={issue ? `${id}-issue` : undefined} onChange={(e) => { setInputText((old) => ({ ...old, [field.id]: e.target.value })); change(field.id, fieldInputValue(field, e.target.value)); }} />}
-        {field.unit && <span className="text-sm">{field.unit}</span>}</div>
-        {(field.min != null || field.max != null) && <p className="text-xs text-muted-foreground">Range: {field.min ?? '−∞'} – {field.max ?? '∞'}</p>}
-        {issue && <p id={`${id}-issue`} className={`text-xs ${field.status === 'formal' ? 'text-destructive' : 'text-amber-800'}`}>{issue}. {field.status === 'proposed' ? 'Original value can still be saved for review.' : 'Correct this value before saving.'}</p>}
-      </div>;
-    })}
-    {unknown.map((id) => <div key={id} role="alert" className="text-sm text-destructive">A field was removed. Unsaved value: {String(values[id])}. <Button type="button" variant="outline" size="sm" onClick={() => change(id, '')}>Discard removed field value</Button></div>)}
-    {tools?.draftIdentityRequired && <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
-      <p className="text-xs text-muted-foreground sm:col-span-2">This new flow will first be saved as a draft, including the current recipe.</p>
-      <label className="text-sm">Your name<input className={dataInputClass} value={identity.actor} onChange={(e) => setIdentity({ ...identity, actor: e.target.value })} /></label>
-      <label className="text-sm">Draft name<input className={dataInputClass} value={identity.draftName} onChange={(e) => setIdentity({ ...identity, draftName: e.target.value })} /></label>
-    </div>}
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {notice && <p role="status" className="text-sm text-primary">{notice}</p>}
-    <div className="flex justify-end"><Button type="button" disabled={!tools || busy || loading || invalid || unknown.length > 0 || (tools.draftIdentityRequired && (!identity.actor.trim() || !identity.draftName.trim()))} onClick={() => void save()}>{busy ? 'Saving…' : tools?.draftIdentityRequired ? 'Save draft and data' : 'Save data'}</Button></div>
-  </section>;
+    window.addEventListener('focus', onFocus);
+    return () => {
+      invalidate();
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [invalidate, refresh, visit]);
+
+  const load = state?.visit === visit ? state : undefined;
+  return {
+    template: load?.template ?? template,
+    confirmed: Boolean(load?.template),
+    changed: load?.changed,
+    loading: load?.loading ?? true,
+    error: load?.error,
+    refresh,
+  };
+}
+
+export function RecipeDataFields({ fields, values, removed, onChange }: {
+  fields: DataFieldDefinition[];
+  values: DataValues;
+  removed: string[];
+  onChange: (id: string, value: DataValues[string]) => void;
+}) {
+  return <>
+    {fields.map((field) => <RecipeDataInput key={field.id} field={field} value={values[field.id]}
+      onChange={(value) => onChange(field.id, value)} />)}
+    {removed.map((id) => <div key={id} className="flex flex-wrap items-center gap-2 p-4 text-sm text-destructive">
+      <span role="alert">A field was removed. Entered value: {String(values[id])}.</span>
+      <Button type="button" variant="outline" size="sm" onClick={() => onChange(id, '')}>Discard removed field value</Button>
+    </div>)}
+  </>;
+}
+
+function RecipeDataInput({ field, value, onChange }: {
+  field: DataFieldDefinition;
+  value: DataValues[string] | undefined;
+  onChange: (value: DataValues[string]) => void;
+}) {
+  const [inputText, setInputText] = React.useState<string>();
+  const id = `data-value-${field.id}`;
+  const issue = dataValueIssue(field, value);
+  const proposed = field.status === 'proposed';
+  const hasRange = field.min != null || field.max != null;
+  const description = [proposed && `${id}-status`, field.unit && `${id}-unit`, hasRange && `${id}-range`, issue && `${id}-issue`]
+    .filter(Boolean).join(' ') || undefined;
+  const invalid = Boolean(issue && !proposed);
+  const inputProps = { id, 'aria-invalid': invalid, 'aria-describedby': description };
+
+  return <ValueFieldRow invalid={invalid} label={<>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <label htmlFor={id} className="min-w-0 break-words text-sm font-medium">{field.name}</label>
+      {proposed && <Badge id={`${id}-status`} variant="outline" className="whitespace-nowrap py-0">{proposedLabel}</Badge>}
+    </div>
+    {hasRange && <p id={`${id}-range`} className="mt-1 font-mono text-[11px] text-muted-foreground">
+      Range: {field.min ?? '−∞'} – {field.max ?? '∞'}
+    </p>}
+  </>}>
+    <div className="flex items-center gap-2">
+      {field.valueType === 'boolean' ? (
+        <select {...inputProps} className={valueFieldSelectClass}
+          value={value === undefined ? '' : typeof value === 'boolean' ? String(value) : 'invalid'}
+          onChange={(event) => {
+            if (event.target.value === 'invalid') return;
+            setInputText(undefined);
+            onChange(event.target.value === '' ? '' : event.target.value === 'true');
+          }}>
+          <option value="">Not set</option>
+          <option value="true">True</option>
+          <option value="false">False</option>
+          {value !== undefined && typeof value !== 'boolean' && <option value="invalid">{String(value)} (invalid)</option>}
+        </select>
+      ) : (
+        <input {...inputProps} className={valueFieldInputClass} value={inputText ?? (value === undefined ? '' : String(value))}
+          inputMode={field.valueType === 'string' ? 'text' : 'decimal'}
+          onChange={(event) => {
+            setInputText(event.target.value);
+            onChange(fieldInputValue(field, event.target.value));
+          }} />
+      )}
+      {field.unit && <span id={`${id}-unit`} className={valueFieldUnitClass}>{field.unit}</span>}
+    </div>
+    {issue && <p id={`${id}-issue`} className={`mt-2 text-xs ${proposed ? 'text-amber-800' : 'text-destructive'}`}>
+      {issue}. {proposed ? 'Original value can still be saved for review.' : 'Correct this value before saving.'}
+    </p>}
+  </ValueFieldRow>;
 }
 
 export function RecipeDataSummary({ template, recipe }: { template: ProcessStepTemplate; recipe: RecipeCandidate }) {
-  const fields = (template.dataFieldDefinitions ?? []).filter((field) => Object.hasOwn(recipe.dataValues ?? {}, field.id));
+  const values = recipe.dataValues ?? {};
+  const fields = (template.dataFieldDefinitions ?? [])
+    .map((field) => ({ field, value: Object.hasOwn(values, field.id) ? values[field.id] : undefined }))
+    .filter(({ field, value }) => field.status === 'proposed' || value !== undefined);
   if (!fields.length) return null;
-  return <dl aria-label="Collected recipe data" className="mt-3 space-y-2 border-t pt-3 text-sm">{fields.map((field) => <div key={field.id}>
-    <dt className="flex items-center gap-2 text-muted-foreground">{field.name}{field.status === 'proposed' && <Badge variant="outline">Proposed</Badge>}</dt>
-    <dd className="break-words">{String(recipe.dataValues?.[field.id])}{field.unit ? ` ${field.unit}` : ''}</dd>
-  </div>)}</dl>;
+
+  return (
+    <dl aria-label="Collected recipe data" className="mt-3 space-y-2 border-t pt-3 text-sm">
+      {fields.map(({ field, value }) => (
+        <div key={field.id}>
+          <dt className="flex flex-wrap items-center gap-2 text-muted-foreground">
+            <span className="min-w-0 break-words">{field.name}</span>
+            {field.status === 'proposed' && <Badge variant="outline" className="whitespace-nowrap">Proposed</Badge>}
+          </dt>
+          <dd className="break-words">
+            {value === undefined ? 'Not set' : `${value}${field.unit ? ` ${field.unit}` : ''}`}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
