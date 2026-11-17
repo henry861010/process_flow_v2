@@ -143,7 +143,10 @@ class PolygonRuntimeTests(unittest.TestCase):
         state.initialize_box_layer(material="base", bottom_left=[0,0,0],top_right=[26,26,0],thickness=4)
         for x,y in [(0,0),(0,10),(10,10),(10,20),(20,0),(20,20)]:
             die = ProcessGeometryState.create()
-            die.initialize_box_layer(material="Si",bottom_left=[0,0,0],top_right=[6,6,0],thickness=6)
+            die.initialize_box_layer(material="Si",bottom_left=[0,0,2],top_right=[6,6,2],thickness=6)
+            die.add_bump(material="SnAg", density=40, direction="-z", stage="joined",
+                         geometry={"type": "box", "bottomLeft": [0, 0, 0],
+                                   "topRight": [6, 6, 0], "thickness": 2})
             state.place_geometry_state(die,x=x,y=y,bottom_z=4,anchor="bottomLeft")
         with patch.object(polygon,"validate_polygon_loops",side_effect=AssertionError("UF revalidation")):
             state.apply_under_fill(material="UF",thk=6,gap=14,key="uf")

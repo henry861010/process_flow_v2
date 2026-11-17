@@ -680,12 +680,26 @@ class ProcessGeometryState:
         child_scopes = [item for item in child_scopes if item["bounds"]["zMax"] > cursor_z]
 
         child_fill_body_count = 0
+        gap_faces = []
         for item in child_scopes:
             child = item["child"]
             bounds = item["bounds"]
             bumps = _recursive_bumps(child)
-            if len(bumps) == 0:
+            if not bumps:
                 continue
+            if (
+                bounds["xMax"] > bounds["xMin"]
+                and bounds["yMax"] > bounds["yMin"]
+                and any(
+                    bump.stage() == "joined" and math.f_eq(bump.z_min(), bounds["zMin"])
+                    for bump in bumps
+                )
+            ):
+                gap_faces.append({
+                    "type": "BOX",
+                    "dim": [bounds["xMin"], bounds["yMin"], bounds["xMax"], bounds["yMax"]],
+                })
+
             bump_range = {"zMin": min(b.z_min() for b in bumps), "zMax": max(b.z_max() for b in bumps)}
             if bump_range["zMax"] <= bump_range["zMin"]:
                 continue
@@ -704,20 +718,6 @@ class ProcessGeometryState:
             )
             child_fill_body_count += 1
 
-        gap_faces = [
-            {
-                "type": "BOX",
-                "dim": [
-                    item["bounds"]["xMin"],
-                    item["bounds"]["yMin"],
-                    item["bounds"]["xMax"],
-                    item["bounds"]["yMax"],
-                ],
-            }
-            for item in child_scopes
-            if item["bounds"]["xMax"] > item["bounds"]["xMin"]
-            and item["bounds"]["yMax"] > item["bounds"]["yMin"]
-        ]
         gap_polygons = [] if len(gap_faces) < 2 else _underfill_gap_polygons(gap_faces, max_gap)
 
         gap_body_count = 0

@@ -605,7 +605,7 @@
     "name": "Under Fill",
     "category": "UF",
     "program": "uf/under_fill",
-    "description": "底部填膠（Underfill）：代表在晶片與主結構之間的凸塊接合區填入膠材，以支撐接點並分散應力。模型會在元件的凸塊高度範圍建立填膠材料，並填補相鄰元件之間不超過指定距離（gap）的平面間隙；元件間填膠的高度由 thk 指定。此步新增填膠結構，後續製程表面高度維持不變。",
+    "description": "底部填膠（Underfill）：模型會在元件的凸塊高度範圍填膠。元件間的實體填膠只將底部有 joined bump 的元件納入 gap 計算，並填補不超過 gap 的平面間隙。元件間填膠高度由 thk 指定，製程表面高度維持不變。",
     "owner": "integration.platform",
     "inputPorts": [
       {

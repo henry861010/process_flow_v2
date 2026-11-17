@@ -30,6 +30,29 @@ from process_flow_steps.layer.fow import execute as execute_fow
 from process_flow_steps.tmv.tmv import execute as execute_tmv
 
 
+def underfill_die(width=10, height=10, *, stage="joined", bump_on_top=False):
+    die = ProcessGeometryState.create({"key": "dram"})
+    body_z = 2 if stage is not None and not bump_on_top else 0
+    die.initialize_box_layer(
+        material="Si",
+        bottom_left=[0, 0, body_z],
+        top_right=[width, height, body_z],
+        thickness=6,
+        set_footprint=False,
+    )
+    if stage is not None:
+        bump_z = 6 if bump_on_top else 0
+        die.add_bump(
+            material="SnAg",
+            density=40,
+            direction="+z" if bump_on_top else "-z",
+            geometry={"type": "box", "bottomLeft": [0, 0, bump_z],
+                      "topRight": [width, height, bump_z], "thickness": 2},
+            stage=stage,
+        )
+    return die
+
+
 class GeometryDomainTests(unittest.TestCase):
     def test_polygon_xy_clip_splits_concave_result_deterministically(self):
         polygon = [
@@ -600,19 +623,48 @@ class GeometryDomainTests(unittest.TestCase):
             thickness=4,
         )
         for x in (0, 14):
-            die = ProcessGeometryState.create({"key": "dram"})
-            die.initialize_box_layer(
-                material="Si",
-                bottom_left=[0, 0, 0],
-                top_right=[10, 10, 0],
-                thickness=6,
-                set_footprint=False,
-            )
-            state.place_geometry_state(die, x=x, y=0, bottom_z=4, anchor="bottomLeft")
-        state.apply_under_fill(material="UF-A", thk=6, gap=4)
+            state.place_geometry_state(underfill_die(), x=x, y=0, bottom_z=4, anchor="bottomLeft")
+
+        too_narrow = state.apply_under_fill(material="UF-A", thk=6, gap=3.999)
+        self.assertEqual(too_narrow, {"childFillBodyCount": 2, "gapBodyCount": 0, "gapScope": None})
+
+        at_limit = state.apply_under_fill(material="UF-A", thk=6, gap=4)
+        self.assertEqual(at_limit["childFillBodyCount"], 0)
+        self.assertEqual(at_limit["gapBodyCount"], 1)
+        self.assertIsNotNone(at_limit["gapScope"])
         output = state.to_geometry_structure()
         self.assertNotIn("key", output["root"]["children"][2])
         self.assertNotIn("key", output["root"]["children"][2]["bodies"][0])
+
+    def test_underfill_gap_excludes_dies_without_a_bottom_joined_bump(self):
+        for stage, bump_on_top in ((None, False), ("deposited", False),
+                                   ("reflowed", False), ("joined", True)):
+            with self.subTest(stage=stage, bump_on_top=bump_on_top):
+                state = ProcessGeometryState.create()
+                state.initialize_box_layer(material="base", bottom_left=[0, 0, 0],
+                                           top_right=[24, 10, 0], thickness=4)
+                for x, die in ((0, underfill_die()), (14, underfill_die(stage=stage, bump_on_top=bump_on_top))):
+                    state.place_geometry_state(die, x=x, y=0, bottom_z=4, anchor="bottomLeft")
+
+                counts = state.apply_under_fill(material="UF-A", thk=6, gap=4, key="uf")
+                self.assertEqual(counts["gapBodyCount"], 0)
+                self.assertIsNone(counts["gapScope"])
+                self.assertEqual(counts["childFillBodyCount"], 1 if stage is None else 2)
+
+    def test_underfill_gap_spans_the_footprint_of_an_excluded_die(self):
+        state = ProcessGeometryState.create()
+        state.initialize_box_layer(material="base", bottom_left=[0, 0, 0],
+                                   top_right=[26, 10, 0], thickness=4)
+        for x, die in ((0, underfill_die()), (12, underfill_die(width=2, stage=None)), (16, underfill_die())):
+            state.place_geometry_state(die, x=x, y=0, bottom_z=4, anchor="bottomLeft")
+
+        counts = state.apply_under_fill(material="UF-A", thk=6, gap=6, key="uf")
+        self.assertEqual(counts["gapBodyCount"], 1)
+        self.assertEqual(counts["childFillBodyCount"], 2)
+        gap_body, = state.to_geometry_structure()["root"]["children"][-1]["bodies"]
+        outline, = gap_body["geometry"]["polys"]
+        self.assertEqual({tuple(point) for point in outline},
+                         {(10, 0, 4), (16, 0, 4), (16, 10, 4), (10, 10, 4)})
 
     def test_underfill_accepts_multi_die_gap_with_tangent_hole(self):
         state = ProcessGeometryState.create()
@@ -630,16 +682,8 @@ class GeometryDomainTests(unittest.TestCase):
             [20, 0, 26, 6],
             [20, 20, 26, 26],
         ):
-            die = ProcessGeometryState.create({"key": "dram"})
-            die.initialize_box_layer(
-                material="Si",
-                bottom_left=[0, 0, 0],
-                top_right=[x_max - x_min, y_max - y_min, 0],
-                thickness=6,
-                set_footprint=False,
-            )
             state.place_geometry_state(
-                die,
+                underfill_die(x_max - x_min, y_max - y_min),
                 x=x_min,
                 y=y_min,
                 bottom_z=4,

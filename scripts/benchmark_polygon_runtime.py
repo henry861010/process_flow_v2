@@ -30,10 +30,18 @@ def worker(args):
         return {"material": material, "geometry": {"type": "BoxGeometry",
                 "bottom_left": [x, y, z], "top_right": [x+size, y+size, z], "thk": thickness}}
 
+    def joined_die(x, y):
+        return {
+            "key": "soc",
+            "bodies": [body(x, y, 10, 4, 6, "Si")],
+            "bumps": [{**body(x, y, 10, 2, 2, "SnAg"),
+                       "density": 40, "direction": "-z", "stage": "joined", "koz": 0}],
+        }
+
     size = args.side * 12 - 2
     artifact = GeometryArtifact.from_structure({"schemaVersion": "1.0.0", "unitSystem": "um", "root": {
         "bodies": [body(0, 0, size, 0, 2, "base")],
-        "children": [{"key": "soc", "bodies": [body(x*12, y*12, 10, 2, 6, "Si")]}
+        "children": [joined_die(x*12, y*12)
                      for x in range(args.side) for y in range(args.side)],
     }})
     values = {"material": "UF", "thk": 6, "gap": 3}

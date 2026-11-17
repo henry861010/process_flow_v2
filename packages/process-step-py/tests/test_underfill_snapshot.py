@@ -48,7 +48,8 @@ class UnderfillSnapshotTests(unittest.TestCase):
         for bumped in ((), ("soc",), ("hbm",), ("soc", "hbm")):
             with self.subTest(bumped=bumped):
                 state, counts = assembly(bumped)
-                self.assertEqual(counts["gapBodyCount"], 1)
+                gap_count = 1 if len(bumped) == 2 else 0
+                self.assertEqual(counts["gapBodyCount"], gap_count)
                 self.assertEqual(counts["childFillBodyCount"], len(bumped))
                 result = document(state)
                 self.assertEqual(result["warnings"], [])
@@ -57,18 +58,18 @@ class UnderfillSnapshotTests(unittest.TestCase):
                            if shape["x"] == left["x"] + left["width"]
                            and shape["x"] + shape["width"] == right["x"]]
                 self.assertEqual(len(bridges), 0)
-                self.assertEqual(len(uf_shapes(result)), 1 + len(bumped))
+                self.assertEqual(len(uf_shapes(result)), gap_count + len(bumped))
                 self.assertEqual(sorted(item["thickness"] for item in result["items"] if item["material"] == "UF"),
-                                 sorted([6] + [2] * len(bumped)))
+                                 [2] * len(bumped) + [6] * gap_count)
 
     def test_saw_keeps_retained_gap_measurements_without_inventing_a_removed_endpoint(self):
-        state, _ = assembly()
+        state, _ = assembly(("soc", "hbm"))
         state.saw_to_box(bottom_left_x=0, bottom_left_y=0, top_right_x=12, top_right_y=10)
         result = document(state)
         self.assertEqual(result["warnings"], [])
         self.assertEqual([component["label"] for component in result["components"]], ["SoC"])
-        self.assertEqual(len(uf_shapes(result)), 1)
-        retained = [item for item in result["items"] if item["material"] == "UF"]
+        self.assertEqual(len(uf_shapes(result)), 2)
+        retained = [item for item in result["items"] if item["material"] == "UF" and item["thickness"] == 6]
         self.assertEqual(len(retained), 1)
         self.assertEqual((retained[0]["zMin"], retained[0]["zMax"], retained[0]["thickness"]), (4, 10, 6))
         self.assertFalse(any("retained fill connects" in note for note in result["notes"]))
