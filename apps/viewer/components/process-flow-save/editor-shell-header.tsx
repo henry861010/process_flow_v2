@@ -61,15 +61,15 @@ export function EditorShellHeader({
             <FolderOpen />Start from…
           </Button>
         </div>
-        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
           <Button type="button" variant="secondary" className="px-3 hover:bg-muted sm:hidden"
             disabled={sourceDisabled} onClick={onStartFrom}>
             Start from…
           </Button>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {draftControl}
             <Button type="button" className="px-3 sm:px-4" disabled={saveDisabled} onClick={onSave}>
-              <Save className="hidden sm:block" />Save…
+              <Save className="hidden sm:block" />Save flow…
             </Button>
           </div>
         </div>
@@ -82,6 +82,7 @@ export function EditorStatusBar({
   progress,
   saving,
   saved,
+  hasUnsavedRecipeChanges,
   issueCount,
   issueKind,
   expanded,
@@ -90,6 +91,7 @@ export function EditorStatusBar({
   progress: string;
   saving: boolean;
   saved: boolean;
+  hasUnsavedRecipeChanges: boolean;
   issueCount: number;
   issueKind: "Flow" | "Configuration";
   expanded: boolean;
@@ -97,9 +99,12 @@ export function EditorStatusBar({
 }) {
   return (
     <div className="flex min-h-8 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b bg-white/70 px-5 py-1.5 text-xs">
-      <span role="status" className="flex items-center gap-2 text-muted-foreground">
-        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 text-primary" /> : <CircleDot className="h-3.5 w-3.5" />}
-        {progress}
+      <span role="status" className={cn("flex min-w-0 items-center gap-2",
+        hasUnsavedRecipeChanges && !saving ? "font-medium text-amber-800" : "text-muted-foreground")}>
+        {saving ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin" /> : saved
+          ? <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-primary" />
+          : <CircleDot aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
+        <span>{progress}</span>
       </span>
       {issueCount > 0 ? (
         <button type="button" aria-expanded={expanded} aria-controls="flow-save-requirements"

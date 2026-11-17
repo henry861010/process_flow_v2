@@ -9,6 +9,7 @@ last_verified: 2026-11-06
 last_verified_commit: aff005fa
 source_of_truth:
   - apps/viewer/components/process-flow-editor/process-flow-editor.tsx
+  - apps/viewer/components/process-flow-editor/step-editor-dialog.tsx
   - apps/viewer/components/process-flow-editor/geometry-input-editor-dialog.tsx
   - apps/viewer/components/geometry-generator/geometry-generator-editor.tsx
   - apps/viewer/components/process-flow-parameters/recipe-parameter-summary.tsx
@@ -26,7 +27,7 @@ Start from… 提供 Flows／Drafts；flow 以 Use as starting point 載入完�
 
 Drafts 分頁維持 Resume；切換來源前須確認放棄未儲存內容。切換時只解除原草稿連結，不刪除該草稿；新分支可另存草稿、恢復後正式建立。直接使用 flowId 開啟或衝突後 Reload 仍編輯該 flow。新增 flow 預設從空畫布開始。正式 flow 不保存畫布座標；draft 保存 nodes、edges、viewport 和完整 configuration。舊 draft 的 `editingRecipeIds` 仍可讀取，但不控制 recipe 列表。
 
-未正式建立的 flow 可 Save Draft；第一次正式 Save 建立 flow 並刪除草稿。已建立的 flow 僅能 Save 更新原 ID，不顯示 Save Draft。Save Draft 反覆使用同一草稿 ID，網址保存 `draftId`；正式 Save 後網址改為 `flowId`。Name／Version／Owner／Description 在保存視窗編輯。拓樸不完整或已提供值無效時禁止正式保存；此時只有新 flow 可存草稿。Geometry／required recipe 尚未完成只阻擋相應預覽和執行。
+未正式建立的 flow 可 Save Draft；草稿儲存後狀態列顯示 Draft saved · Flow not yet created。第一次使用 Save flow… 建立正式 flow 並刪除草稿。已建立的 flow 使用 Save flow… 更新原 ID，不顯示 Save Draft。Save Draft 反覆使用同一草稿 ID，網址保存 `draftId`；正式儲存後網址改為 `flowId`。Name／Version／Owner／Description 在保存視窗編輯。拓樸不完整或已提供值無效時禁止正式保存；此時只有新 flow 可存草稿。Geometry／required recipe 尚未完成只阻擋相應預覽和執行。
 
 409 保留全部編輯內容，既有 flow 可取消或確認 Reload 重新載入正式版本。草稿 commit 失敗不刪草稿；舊的既有-flow 草稿在資料庫遷移時刪除，其舊連結顯示 Draft unavailable，不進入空白編輯器。
 
@@ -81,25 +82,41 @@ Geometry library 建立新 input 仍使用既有 generator `Define` 流程。
 
 ## 站點 recipes
 
-站點視窗最上方直接顯示 Step details 的 step label 與 template 資訊，不顯示內部 `stepRefId`。接著以 Active recipe 顯示已套用 recipe 的 parameter 值，再於 Candidate recipes 列出全部 recipe 卡片。卡片只顯示名稱、ID 與 parameter 名稱；點卡片或右側 Edit 按鈕開獨立編輯視窗，按 Save recipe 才寫回，Cancel／Close 放棄。recipe 與 parameter description 不顯示，但既有 recipe description 資料保留。
+### 共用 Data fields
+
+Candidate recipes 右上角的玫瑰紅 Add data field 按鈕會開啟單一欄位的設定視窗。名稱、型別和提出原因必填，range／單位／操作人名稱選填；未提供姓名記為 unknown，相似名稱會提示沿用既有欄位。每次儲存立即將一個共用的 proposed 欄位寫入 DB，關閉視窗並回到新增按鈕。再次開啟會重置欄位設定。儲存失敗會保留輸入，版本衝突會重新載入欄位清單後讓使用者重試。
+
+同一個 step template 的 recipes 共用採集欄位定義。Recipe 編輯頁以同一份欄位清單依序顯示計算參數與採集欄位。待核准欄位的名稱旁顯示 In proposed，核准後移除標籤並維持原順序。開啟 recipe 或視窗重新取得焦點時自動更新規格。載入失敗時可重試，已輸入的值會保留。
+
+採集欄位均為選填，清空移除 key，0／false 保留。Proposed 的型別或範圍問題顯示在欄位旁，仍可保留原值。正式欄位不合法時需修正才能套用修改。欄位被移除時，需明確放棄該值後才能套用。
+
+Apply changes 將採集值一起保留在 flow 的編輯狀態。Save flow 或 Save Draft 成功後，採集值才會出現在審核頁。如果欄位規格在這次儲存前又變更，回到提示中的 recipe，確認最新規格並套用修改後再存。編輯狀態會保留。
+
+Active recipe 摘要顯示所有待核准欄位與已填值的正式欄位。待核准欄位的名稱旁顯示 `Proposed`，未填值時顯示 `Not set`。這些欄位不參與 geometry 預覽／執行。管理介面連結可使用 `stepRefId`／`recipeId` 配合 `flowId` 或 `draftId` 直接開啟 recipe，開啟本身不產生未儲存修改。
+
+### 候選 recipe 操作
+
+站點總覽依序顯示 Step details、Active recipe 的套用選單和摘要，以及底部的 Edit recipe。按 Edit recipe 顯示 Candidate recipes，卡片列出名稱、ID、parameter 名稱並標示目前套用的 recipe。點卡片開啟同一視窗內的編輯頁。清單與表單從右側滑入，返回時反向滑動，站點標題與關閉按鈕固定。系統偏好減少動態效果時直接切換。
+
+Apply changes 將名稱、計算參數與採集值寫回目前 flow 的編輯狀態，並返回清單。站點總覽和候選清單會提示 Unsaved recipe changes，Flow Editor 狀態列則提醒使用者儲存 flow。改回原值、成功儲存或載入其他內容後，提醒會隨之更新。Cancel、Back to candidates 或在表單按 Esc 捨棄本次表單的修改並返回清單。在清單按 Esc 返回總覽，在總覽按 Esc 或按右上角 Close 關閉站點視窗。保留既有 recipe description 資料。
 
 - 新增站點建立並採用 Recipe 1，複製目前 step defaults。
-- 列表右下 Add recipe 以 step defaults 預填編輯視窗；儲存才新增，取消不新增。非空列表新增時不改變採用；空列表新增後採用新 recipe。
+- 列表右下 Add recipe 以 step defaults 預填編輯頁；套用修改時新增，取消不新增。非空列表新增時不改變採用；空列表新增後採用新 recipe。
 - Apply recipe 選單直接改變 `selectedRecipeId`，不提供未套用選項。既有資料若有候選但未套用，保持原狀並提示手動選擇。
 - 每張卡片右側 Delete 需確認；刪除已套用候選時採用下一個候選，沒有下一個才採用前一個。刪除最後一個後設為 null；空候選集合可保存。
-- 已套用 recipe 的 placements 參數只顯示 placement graph，不列出每筆 placement；編輯視窗仍可編輯每筆資料。
+- 已套用 recipe 的 placements 參數只顯示 placement graph，不列出每筆 placement；編輯頁仍可編輯每筆資料。
 - 已套用 recipe 的所有 `fieldGroupArray` 依 definition 顯示唯讀表格，不限 RDL：每個 item 一列，首欄以 `itemNameTemplate` 與既有 index 命名，其餘欄位依 child definitions 的順序、名稱與單位顯示。保留資料列序與數值，不顯示 `itemId` 或原始 JSON。
 - 摘要中的 scalar 顯示文字（保留 `0`／`False`），array 顯示清單；nested `fieldGroupArray` 遞迴顯示表格，placements 沿用唯讀 graph。未設定顯示 `Not set`、空群組／array 顯示 `No items`、不合法結構顯示 `Invalid value`，不補 defaults。placements 的空值與無效值沿用既有 preview 提示。
 - 群組表格提供 caption、列／欄標題與可鍵盤操作的局部水平捲動區域；固定欄位寬度下長文字可換行，nested table 也在自身範圍捲動，不撐寬站點視窗。
 - 刪除站點連帶移除 step configuration；刪除 input 移除 binding。
-- 站點 Preview 依已套用於 flow 的採用候選與其上游依賴；recipe 編輯視窗中尚未儲存的變更不影響摘要或站點 Preview。Geometry 編輯器的 catalog Preview 則依該視窗暫存來源。
+- 站點 Preview 依已套用於 flow 的採用候選與其上游依賴；recipe 編輯頁中尚未儲存的變更不影響摘要或站點 Preview。Geometry 編輯器的 catalog Preview 則依該視窗暫存來源。
 
 ## 驗收
 
 | ID | 操作與預期 |
 | --- | --- |
 | UI-FLOW-001 | 建立合法拓樸；未完成 geometry／recipe 可正式存，未完成接線只能存 draft |
-| UI-FLOW-002 | 建立兩組候選、編輯時取消／儲存、由選單採用；刪除已採用者改採下一個或前一個，刪除最後一個後為 null |
+| UI-FLOW-002 | 由 Edit recipe 進入清單並建立兩組候選；在同一視窗開啟編輯、取消／儲存後返回清單，再回總覽由選單採用；刪除已採用者改採相鄰候選，刪除最後一個後為 null |
 | UI-FLOW-003 | 保存／重載保留全部候選、選擇與 bindings，讀取不補 defaults |
 | UI-FLOW-004 | 直接編輯既有 flow 後 Save 保留原 ID、遞增 revision，不顯示 Save Draft；Start from 改為尚未儲存的新分支 |
 | UI-FLOW-005 | 新 flow 保存／恢復 draft 保留同一 ID、positions、viewport、候選與採用狀態；正式 Save 刪除草稿，舊 `editingRecipeIds` 可讀取 |

@@ -9,14 +9,14 @@ from .services import prepare_flow
 def create_draft(store: SQLiteStore, body: FlowDraftCreate):
     now = utc_now()
     return store.insert_flow_draft({**body.payload(), "id": generated_draft_id(), "revision": 1,
-                                   "createdAt": now, "updatedAt": now})
+                                   "createdAt": now, "updatedAt": now}, recipe_data_edits=body.recipeDataEdits)
 
 
 def update_draft(store: SQLiteStore, id_: str, body: FlowDraftUpdate):
-    return store.update_flow_draft(id_, body.payload())
+    return store.update_flow_draft(id_, body.payload(), recipe_data_edits=body.recipeDataEdits)
 
 
 def commit_draft(store: SQLiteStore, id_: str, body: FlowDraftCommit, generators: GeometryGeneratorRegistry):
     store._required_draft(id_, body.revision)
     resource = prepare_flow(store, body.flow, generators)
-    return store.commit_flow_draft(id_, body.revision, resource)
+    return store.commit_flow_draft(id_, body.revision, resource, recipe_data_edits=body.flow.recipeDataEdits)

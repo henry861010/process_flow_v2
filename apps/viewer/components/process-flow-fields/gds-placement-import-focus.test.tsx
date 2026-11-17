@@ -24,7 +24,7 @@ function NodeEditor({ onImport, onClose }: {
     {recipeOpen ? <EditorDialog title="Edit PNP recipe" onClose={() => setRecipeOpen(false)}>
       <label>Recipe name<input data-autofocus defaultValue="Recipe 1" /></label>
       <GdsPlacementImport unit="um" onImport={onImport} />
-      <button>Save recipe</button>
+      <button>Apply changes</button>
     </EditorDialog> : null}
   </section>;
 }
@@ -171,7 +171,7 @@ describe("PNP GDS import inside node and recipe dialogs (UI-PLACE-030)", () => {
     flushFrames();
     expect(isOpen()).toBe(false);
     expect(document.activeElement).toBe(button("Import from GDS"));
-    expect(button("Save recipe")).toBeDefined();
+    expect(button("Apply changes")).toBeDefined();
     expect(onClose).not.toHaveBeenCalled();
     key("Escape");
     flushFrames();

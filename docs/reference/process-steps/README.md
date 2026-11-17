@@ -37,7 +37,7 @@ step 必須同步 module、target contract、fixture 與 tests。
 | Carrier Bond | `carrier/bond` | `main_geometry`, `carrier_geometry` | — | 保留 source body keys，將 carrier root direct bodies 疊到整體 geometry top |
 | Debond | `carrier/debond` | `main_geometry` | — | 遞迴移除唯一頂層 carrier 與可選的相連同 footprint DAF |
 | Flip | `flip/flip` | `main_geometry` | — | 以 XY plane flip、normalize Z min，反轉 via/bump direction |
-| Under Fill | `uf/under_fill` | `main_geometry` | `material`, `thk`, `gap` | 填充 child bump cavities 與符合 gap 的 root regions |
+| Under Fill | `uf/under_fill` | `main_geometry` | `material`, `thk`, `gap` | 填充 child bump cavities，並依底部 joined bump 與 gap 計算實體 die-to-die 填膠 |
 | Micro Bump | `bump/uBump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | BGA Bump | `bump/bga_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
 | C4 Bump | `bump/c4_bump_formation` | `main_geometry` | `material`, `thk`, `density`, `koz` | 在 cursor 上方建立 `+z` bump feature |
@@ -101,6 +101,10 @@ Key 可重複；唯一 body identity 仍使用 `id`。PnP 與 geometry transform
   回傳未修改的 state；geometry、ID、cursor 與 process footprint 均不變。
   `bump_joined_height` 仍須為正有限數值；部分配對、多重匹配、跨層及高度不一致仍報錯，
   且整批驗證失敗時不修改 state。
+- Under Fill 只將底部有 `stage="joined"` bump 的 child 納入實體 gap 計算。
+  Bump 底面須與該 child 的最低 Z 對齊（容差 `1e-5 um`）。其他 child 的投影完全排除於
+  gap 網格外。Die-to-die gap 小於或等於設定值時，實體填膠自 cursor Z 起延伸 `thk`。
+  Child bump cavity 依 bump 高度範圍填膠。Schematic 的示意填膠依版面位置繪製。
 - `molding` 需要既有 process footprint 與正的 thickness。
 - ECL `koz` 在此 operation 直接用作 body footprint inset；這與 feature payload 中保存、交由 consumer 解讀的 `koz` 不同。
 - RDL `layers` 是 repeatable group；每 item 必須含 stable `itemId`，runtime normalized item 另含 `_itemId`/`_index`。

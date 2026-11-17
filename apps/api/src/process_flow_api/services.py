@@ -208,13 +208,14 @@ def prepare_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: Geomet
 
 
 def create_flow(store: SQLiteStore, body: ProcessFlowCreate, generators: GeometryGeneratorRegistry) -> JsonObject:
-    return store.insert_process_flow(prepare_flow(store, body, generators))
+    return store.insert_process_flow(prepare_flow(store, body, generators), recipe_data_edits=body.recipeDataEdits)
 
 
 def update_flow(store: SQLiteStore, flow_id: str, body: ProcessFlowUpdate,
                 generators: GeometryGeneratorRegistry) -> JsonObject:
     current = store._required_flow(flow_id, body.revision)
-    return store.update_process_flow(prepare_flow(store, body, generators, current=current), body.revision)
+    return store.update_process_flow(prepare_flow(store, body, generators, current=current), body.revision,
+                                     recipe_data_edits=body.recipeDataEdits)
 
 
 def execute_flow(store: SQLiteStore, flow_id: str, generators: GeometryGeneratorRegistry) -> JsonObject:

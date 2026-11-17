@@ -99,7 +99,10 @@ class PolygonConsumerTests(unittest.TestCase):
         state.initialize_box_layer(material="base", bottom_left=[0, 0, 0], top_right=[24, 10, 0], thickness=2)
         for x, role in ((0, "soc"), (14, "hbm")):
             die = ProcessGeometryState.create({"key": role})
-            die.initialize_box_layer(material="Si", bottom_left=[0, 0, 0], top_right=[10, 10, 0], thickness=6)
+            die.initialize_box_layer(material="Si", bottom_left=[0, 0, 2], top_right=[10, 10, 2], thickness=6)
+            die.add_bump(material="SnAg", density=40, direction="-z", stage="joined",
+                         geometry={"type": "box", "bottomLeft": [0, 0, 0],
+                                   "topRight": [10, 10, 0], "thickness": 2})
             state.place_geometry_state(die, x=x, y=0, bottom_z=2, anchor="bottomLeft")
         state.apply_under_fill(material="UF", thk=6, gap=5, key="uf")
         artifact = GeometryArtifact.from_state(state)

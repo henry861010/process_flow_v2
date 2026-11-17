@@ -251,7 +251,11 @@ class ProcessFlowTests(unittest.TestCase):
         values(flow, 'mold_cap').update(tolerance='', enabled=None, samples=['invalid'])
         draft = self.draft(flow)
         loaded = self.client.get('/api/process-flow-drafts/' + draft['id']).json()
-        self.assertEqual(loaded['state']['configuration'], flow['configuration'])
+        expected = copy.deepcopy(flow['configuration'])
+        for configuration in expected['stepConfigurations'].values():
+            for recipe in configuration['recipeCandidates']:
+                recipe.setdefault('dataValues', {})
+        self.assertEqual(loaded['state']['configuration'], expected)
         body = {'revision': draft['revision'], 'flow': {**create_body(flow), 'name': 'Committed values'}}
         response = self.client.post('/api/process-flow-drafts/' + draft['id'] + '/commit', json=body)
         self.assertEqual(response.status_code, 400, response.text)
@@ -341,6 +345,94 @@ class ProcessFlowTests(unittest.TestCase):
         self.assertEqual(len(self.app.state.store.list_process_flows()), before_count + 1)
         self.assertIsNone(self.app.state.store.get_flow_draft(draft['id']))
         self.assertEqual(self.client.get('/api/process-flows/' + source['id']).json(), source)
+
+    def test_collected_recipe_values_save_with_the_flow_and_respect_field_versions(self):
+        saved = self.create()
+        step = saved['definition']['stepRefs'][0]
+        step_id = step['stepRefId']
+        fields = f"/api/process-step-templates/{step['processStepTemplateId']}/data-fields"
+        spec = {'name': 'Sample count', 'valueType': 'integer', 'reason': 'Track measurements', 'actor': 'RD'}
+        added = self.client.post(fields, json={**spec, 'revision': 1})
+        self.assertEqual(added.status_code, 201, added.text)
+        field_id = added.json()['dataFieldDefinitions'][0]['id']
+        path = '/api/process-flows/' + saved['id']
+        body = {**create_body(saved), 'revision': saved['revision']}
+        recipe = body['configuration']['stepConfigurations'][step_id]['recipeCandidates'][0]
+        recipe['dataValues'] = {field_id: 0}
+        edit = {'stepRefId': step_id, 'recipeId': recipe['recipeId'], 'dataFieldsRevision': 2}
+        body['recipeDataEdits'] = [edit]
+        recipe['name'] = 'Measured recipe'
+        response = self.client.put(path, json=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['configuration'], body['configuration'])
+        self.assertNotIn('recipeDataEdits', response.json())
+        self.assertEqual(self.client.get('/api/data-field-reviews').json()[0]['usages'][0]['value'], 0)
+
+        updated = response.json()
+        body['revision'] = updated['revision']
+        recipe['dataValues'] = {}
+        legacy = self.client.put(path, json={key: value for key, value in body.items() if key != 'recipeDataEdits'})
+        self.assertEqual(legacy.status_code, 200, legacy.text)
+        self.assertEqual(legacy.json()['configuration'], updated['configuration'])
+        body['revision'] = legacy.json()['revision']
+
+        changed = self.client.put(f'{fields}/{field_id}', json={**spec, 'revision': 2, 'unit': 'pcs'})
+        self.assertEqual(changed.status_code, 200, changed.text)
+        recipe['name'] = 'New name with cleared data'
+        response = self.client.put(path, json=body)
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()['code'], 'DATA_FIELDS_CHANGED')
+        self.assertIn(recipe['name'], response.json()['message'])
+        self.assertIn('Apply changes', response.json()['message'])
+        self.assertEqual(self.client.get(path).json(), legacy.json())
+
+        edit['dataFieldsRevision'] = 3
+        response = self.client.put(path, json=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['configuration'], body['configuration'])
+        self.assertEqual(self.client.get('/api/data-field-reviews').json()[0]['valueCount'], 0)
+
+    def test_collected_values_survive_draft_creation_update_and_commit(self):
+        step = self.flow['definition']['stepRefs'][0]
+        step_id = step['stepRefId']
+        fields = f"/api/process-step-templates/{step['processStepTemplateId']}/data-fields"
+        added = self.client.post(fields, json={
+            'name': 'Inspected', 'valueType': 'boolean', 'reason': 'Record inspection', 'actor': 'RD', 'revision': 1,
+        })
+        self.assertEqual(added.status_code, 201, added.text)
+        field_id = added.json()['dataFieldDefinitions'][0]['id']
+        config = self.flow['configuration']
+        recipe = config['stepConfigurations'][step_id]['recipeCandidates'][0]
+        recipe['dataValues'] = {field_id: False}
+        edits = [{'stepRefId': step_id, 'recipeId': recipe['recipeId'], 'dataFieldsRevision': 2}]
+        draft_body = {'schemaVersion': 2, 'user': 'RD', 'name': 'Measurements', 'recipeDataEdits': edits, 'state': {
+            'metadata': {key: self.flow[key] for key in ('name', 'version', 'owner', 'description')},
+            'configuration': config, 'edges': [], 'viewport': {'x': 0, 'y': 0, 'zoom': 1},
+            'nodes': [{'id': step_id, 'kind': 'processStep', 'stepRef': step, 'position': {'x': 0, 'y': 0}}],
+        }}
+        created = self.client.post('/api/process-flow-drafts', json=draft_body)
+        self.assertEqual(created.status_code, 201, created.text)
+        self.assertNotIn('recipeDataEdits', created.json())
+        self.assertIs(self.client.get('/api/data-field-reviews').json()[0]['usages'][0]['value'], False)
+
+        path = '/api/process-flow-drafts/' + created.json()['id']
+        config = created.json()['state']['configuration']
+        draft_body['state']['configuration'] = config
+        recipe = config['stepConfigurations'][step_id]['recipeCandidates'][0]
+        recipe['dataValues'] = {field_id: True}
+        updated = self.client.put(path, json={**draft_body, 'revision': created.json()['revision']})
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()['state']['configuration'], config)
+
+        # A further edit in the editor must win over the value already saved in the draft.
+        recipe['dataValues'] = {field_id: False}
+        commit = self.client.post(path + '/commit', json={'revision': updated.json()['revision'], 'flow': {
+            **create_body(self.flow), 'name': 'Measurements committed', 'configuration': config, 'recipeDataEdits': edits,
+        }})
+        self.assertEqual(commit.status_code, 200, commit.text)
+        self.assertEqual(commit.json()['configuration'], config)
+        self.assertNotIn('recipeDataEdits', commit.json())
+        self.assertEqual(self.client.get(path).status_code, 404)
 
     def test_step_default_updates_never_refill_saved_recipes(self):
         saved = self.create()

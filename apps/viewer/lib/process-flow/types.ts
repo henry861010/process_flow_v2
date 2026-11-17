@@ -98,6 +98,27 @@ export type GeometryOutputPort = {
 
 export type TemplateStatus = "enabled" | "disabled";
 
+export type DataFieldSpec = {
+  name: string;
+  valueType: "string" | "integer" | "float" | "boolean";
+  reason: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+};
+export type DataFieldDefinition = DataFieldSpec & {
+  id: string;
+  status: "proposed" | "formal";
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+};
+export type DataValues = Record<string, string | number | boolean>;
+export type RecipeDataEdit = { stepRefId: string; recipeId: string; dataFieldsRevision: number };
+
 export type ProcessStepTemplate = {
   schemaVersion: 2;
   status: TemplateStatus;
@@ -111,6 +132,8 @@ export type ProcessStepTemplate = {
   inputPorts: GeometryInputPort[];
   outputPorts: GeometryOutputPort[];
   parameterDefinitions: ParameterDefinition[];
+  dataFieldDefinitions?: DataFieldDefinition[];
+  dataFieldsRevision?: number;
 };
 
 export type GeometryConstraints = {
@@ -158,7 +181,7 @@ export type ProcessFlow = FlowContent & {
   schemaVersion: 3; id: string; name: string; version: string; owner: string;
   description: string; revision: number; origin?: FlowOrigin;
 };
-export type ProcessFlowCreate = Omit<ProcessFlow, "id" | "revision">;
+export type ProcessFlowCreate = Omit<ProcessFlow, "id" | "revision"> & { recipeDataEdits?: RecipeDataEdit[] };
 export type ProcessFlowUpdate = ProcessFlowCreate & { revision: number };
 
 export type CatalogGeometryBinding = {
@@ -181,6 +204,7 @@ export type RecipeCandidate = {
   // Persisted values omit missing keys, including fieldGroupArray item.values.
   // Raw draft snapshots may retain incomplete or invalid editor input.
   recipeId: string; name: string; description: string; parameterValues: Record<string, unknown>;
+  dataValues?: DataValues;
 };
 export type StepConfiguration = {
   recipeCandidates: RecipeCandidate[];
@@ -281,4 +305,6 @@ export type FlowDraft = {
   origin?: FlowOrigin;
 };
 export type FlowDraftSummary = Omit<FlowDraft, "state">;
-export type FlowDraftCreate = Pick<FlowDraft, "schemaVersion" | "user" | "name" | "state" | "origin">;
+export type FlowDraftCreate = Pick<FlowDraft, "schemaVersion" | "user" | "name" | "state" | "origin"> & {
+  recipeDataEdits?: RecipeDataEdit[];
+};

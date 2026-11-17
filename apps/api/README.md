@@ -112,7 +112,7 @@ missing token必須重新preview，不可在前端自行重建geometry。
 
 統一 schema 3 ProcessFlow CRUD、execute 和 schema 2 FlowDraft CRUD／atomic commit；完整路由與錯誤契約見 [Process Flow API](../../docs/reference/process-flow-api.md)。更新／刪除要求 revision，409 保留原資料。正式儲存允許缺少 geometry／required recipe 值，但必須拓樸合法且已提供值有效。
 
-舊 template／instance／dual draft／combined create API 已移除。Bootstrap 使用 processFlows，ZIP 僅三檔。SQLite schema 16 migration 先備份，支援已知 8–13 路徑與 14 版草稿清理，拒絕未知版本與實驗 schema 15，不自動 reset。
+舊 template／instance／dual draft／combined create API 已移除。Bootstrap 使用 processFlows，ZIP 僅三檔。SQLite schema 17 migration 先備份，支援已知 8–13 路徑、14 版草稿清理，以及 16 版的共用資料欄位升級；拒絕未知版本與實驗 schema 15，不自動 reset。
 
 ### Preview 與 export
 
@@ -230,3 +230,25 @@ Z 座標、原始厚度及 Z mesh controls 保留，不套用此 tolerance 合�
 容差內的跨材料接觸允許形成共邊，但整個材料尺寸消失、材料變成相同體積、
 或連鎖合併範圍超過容差仍回報來源明確的錯誤。輸入 geometry sidecar 保留原始資料，
 CDB 與 log 記錄實際 tolerance 及 XY alignment policy 3；這不保證所有網格的 aspect ratio。
+
+## 共用資料欄位
+
+SQLite schema 17；資料欄位與 geometry parameters 分開保存，只有 proposed / formal 兩種狀態。
+管理介面可直接核准或移除 proposed；不新增 authentication，actor 僅為未驗證姓名。
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/data-field-reviews` | 所有欄位、使用位置、原始值、驗證問題及 reviewToken |
+| GET | `/api/process-step-templates/{id}/data-fields/{fieldId}/review` | 最新欄位審核快照 |
+| POST | `/api/process-step-templates/{id}/data-fields` | 建立 proposed：spec + actor + revision |
+| PUT | `/api/process-step-templates/{id}/data-fields/{fieldId}` | 修改 proposed 規格：spec + actor + revision |
+| POST | `/api/process-step-templates/{id}/data-fields/{fieldId}/approve` | actor + reviewToken；全部已填值合法才核准 |
+| POST | `/api/process-step-templates/{id}/data-fields/{fieldId}/remove` | actor + reviewToken；交易內刪除欄位及所有對應 flow／draft 值 |
+| PUT | `/api/process-flows/{id}/steps/{stepId}/recipes/{recipeId}/data-values` | revision + dataFieldsRevision + dataValues；只更新該 recipe 收集值 |
+| PUT | `/api/process-flow-drafts/{id}/steps/{stepId}/recipes/{recipeId}/data-values` | 同上，更新草稿 |
+
+Spec 為 name、valueType、reason、選填 unit/min/max；數值皆有限，range 僅適用 integer/float。
+欄位建立／修改的 actor 可省略，記為 unknown；核准／移除必須提供 reviewer actor。
+資料更新替換指定 recipe 的 dataValues；清空字串省略 key，0/false 保留。Proposed 非法規格值
+可保存，formal 值不合法回 400；欄位／來源 revision 過期、reviewToken 過期或欄位已移除回 409。
+新建／更新欄位及審核操作回傳最新 template；資料寫入回傳遞增 revision 的完整 flow／draft。

@@ -8,20 +8,42 @@ import { cn } from "@/lib/utils";
 import {
   deleteFlowDraft, getFlowDraft, listFlowDrafts, saveFlowDraft,
 } from "@/lib/process-flow-api";
-import type { FlowDraft, FlowDraftSummary, FlowOrigin, FlowDraftState } from "@/lib/process-flow/types";
+import type { FlowDraft, FlowDraftSummary, FlowOrigin, FlowDraftState, RecipeDataEdit } from "@/lib/process-flow/types";
 import { assertDraftVersion, draftFingerprint } from "@/lib/process-flow/editor-drafts";
 
 type State = FlowDraftState;
 type Confirmation = { title: string; description: string; action: string; resolve: (accepted: boolean) => void };
 const inputClass = "h-9 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
-export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, busy: parentBusy, modern = false, onLoad, onSaved }: {
+function recipeFingerprints(stepConfigurations: State["configuration"]["stepConfigurations"]) {
+  const entries = Object.entries(stepConfigurations)
+    .filter(([, step]) => step.recipeCandidates.length > 0 || step.selectedRecipeId !== null);
+  return Object.fromEntries(entries.map(([id, { selectedRecipeId, recipeCandidates }]) => [
+    id,
+    draftFingerprint({
+      selectedRecipeId,
+      recipeCandidates: recipeCandidates.map((recipe) => ({ ...recipe, dataValues: recipe.dataValues ?? {} })),
+    }),
+  ] as const));
+}
+
+function editorSnapshot(state: State) {
+  const recipes = recipeFingerprints(state.configuration.stepConfigurations);
+  return {
+    recipes,
+    fingerprint: draftFingerprint({ ...state, configuration: { ...state.configuration, stepConfigurations: recipes } }),
+  };
+}
+
+export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, busy: parentBusy, modern = false,
+  recipeDataEdits, onLoad, onSaved }: {
   target?: FlowOrigin; origin?: FlowOrigin; state: State; enabled: boolean;
   saveDisabled?: boolean; busy?: boolean; modern?: boolean; onLoad: (draft: FlowDraft) => State;
-  onSaved?: (draft: FlowDraft) => void;
+  recipeDataEdits?: RecipeDataEdit[];
+  onSaved?: (draft: FlowDraft, savedDataEdits: RecipeDataEdit[]) => void;
 }) {
-  const fingerprint = draftFingerprint(state);
-  const [baseline, setBaseline] = React.useState(fingerprint);
+  const snapshot = React.useMemo(() => editorSnapshot(state), [state]);
+  const [baseline, setBaseline] = React.useState(snapshot);
   const initialized = React.useRef(false);
   const stateRef = React.useRef(state);
   stateRef.current = state;
@@ -45,7 +67,11 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   const menu = React.useRef<HTMLDivElement>(null);
   const saveTrigger = React.useRef<HTMLButtonElement>(null);
   const saveReturnFocus = React.useRef<HTMLElement | null>(null);
-  const dirty = enabled && initialized.current && baseline !== fingerprint;
+  const dirty = enabled && initialized.current && baseline.fingerprint !== snapshot.fingerprint;
+  const changedRecipeSteps = React.useMemo(() => {
+    const stepIds = new Set([...Object.keys(baseline.recipes), ...Object.keys(snapshot.recipes)]);
+    return new Set([...stepIds].filter((id) => baseline.recipes[id] !== snapshot.recipes[id]));
+  }, [baseline.recipes, snapshot.recipes]);
   const busy = operation !== null || Boolean(parentBusy);
   const requestVersion = React.useRef(0);
   const invalidateRequests = React.useCallback(() => { requestVersion.current++; }, []);
@@ -53,7 +79,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   React.useEffect(() => {
     if (enabled && !initialized.current) {
       initialized.current = true;
-      setBaseline(draftFingerprint(stateRef.current));
+      setBaseline(editorSnapshot(stateRef.current));
     }
   }, [enabled]);
 
@@ -113,7 +139,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   }
   function answer(accepted: boolean) { confirmation?.resolve(accepted); setConfirmation(null); }
   async function confirmReplaceAsync(destination: string) {
-    if (draftFingerprint(stateRef.current) === baseline) return true;
+    if (editorSnapshot(stateRef.current).fingerprint === baseline.fingerprint) return true;
     return ask("Discard unsaved changes?", `Your changes have not been saved. ${destination}`, "Discard changes");
   }
 
@@ -125,13 +151,13 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
     operationRef.current = true; setOperation("save"); setError(null);
     try {
       const body = { schemaVersion: 2 as const, user: identityValues.user.trim(), name: identityValues.name.trim(),
-        state: captured, ...(origin ? { origin } : {}) };
+        state: captured, ...(origin ? { origin } : {}), ...(recipeDataEdits?.length ? { recipeDataEdits } : {}) };
       const saved = await saveFlowDraft(body, active ?? undefined);
       setActive(saved); setUser(saved.user); setName(saved.name);
-      setBaseline(draftFingerprint(captured)); setLastSavedAt(saved.updatedAt);
+      setBaseline(editorSnapshot(captured)); setLastSavedAt(saved.updatedAt);
       setSaveOpen(false);
       setNotice(`Draft "${saved.name}" saved at ${new Date(saved.updatedAt).toLocaleString()}.`);
-      onSaved?.(saved);
+      onSaved?.(saved, recipeDataEdits ?? []);
     } catch (cause) { setError(errorMessage(cause)); }
     finally {
       operationRef.current = false; setOperation(null);
@@ -149,11 +175,11 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
       assertDraftVersion(draft);
       const accepted = modern
         ? await confirmReplaceAsync(`Resume draft "${draft.name}"?`)
-        : draftFingerprint(stateRef.current) === baseline || window.confirm("Discard changes since the last saved draft?");
+        : editorSnapshot(stateRef.current).fingerprint === baseline.fingerprint || window.confirm("Discard changes since the last saved draft?");
       if (!accepted) return false;
       const restored = onLoad(draft);
       setActive(draft); setUser(draft.user); setName(draft.name);
-      setBaseline(draftFingerprint(restored)); setLastSavedAt(draft.updatedAt);
+      setBaseline(editorSnapshot(restored)); setLastSavedAt(draft.updatedAt);
       setPickerOpen(false); setNotice(`Draft "${draft.name}" loaded.`);
       return true;
     } catch (cause) { setError(errorMessage(cause)); return false; }
@@ -173,7 +199,7 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
       setRows((items) => items.filter((item) => item.id !== row.id));
       if (selectedDraftId === row.id) setSelectedDraftId(null);
       if (active?.id === row.id) {
-        setActive(null); setBaseline(""); setLastSavedAt(null);
+        setActive(null); setBaseline({ fingerprint: "", recipes: {} }); setLastSavedAt(null);
         setNotice("Draft deleted. Editor contents remain available to save as a draft.");
       }
     } catch (cause) { setError(errorMessage(cause)); }
@@ -182,9 +208,12 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
 
   function detach() { setActive(null); setName(""); setNotice(null); setLastSavedAt(null); setError(null); }
   const markClean = React.useCallback((captured: State = stateRef.current) => {
-    setBaseline(draftFingerprint(captured));
+    setBaseline(editorSnapshot(captured));
   }, []);
-  const markDirty = React.useCallback(() => setBaseline(""), []);
+  function setFlowSourceRecipes(stepConfigurations: State["configuration"]["stepConfigurations"], isBranch: boolean) {
+    const recipes = recipeFingerprints(stepConfigurations);
+    setBaseline((current) => ({ fingerprint: isBranch ? "" : current.fingerprint, recipes }));
+  }
   function confirmReplace() { return !dirty || window.confirm("Discard changes since the last save?"); }
   function openSave() {
     if (target) return;
@@ -257,8 +286,8 @@ export function useEditorDrafts({ target, origin, state, enabled, saveDisabled, 
   const controls = <>{saveControl}<Button type="button" variant="outline" size="sm" disabled={!enabled || busy} onClick={() => setPickerOpen(true)}><FileClock />From Draft</Button>{dialogContent}</>;
   const status = dirty && active ? `Draft "${active.name}" has unsaved changes.` : notice;
   return {
-    active, dirty, controls, saveControl, dialogs: dialogContent, notice: status, error, busy,
-    saving: operation === "save", loading, lastSavedAt, detach, markClean, markDirty, confirmReplace, confirmReplaceAsync,
+    active, dirty, changedRecipeSteps, controls, saveControl, dialogs: dialogContent, notice: status, error, busy,
+    saving: operation === "save", loading, lastSavedAt, detach, markClean, setFlowSourceRecipes, confirmReplace, confirmReplaceAsync,
     pickerContent, selectedDraft, setPickerOpen, load,
   };
 }
