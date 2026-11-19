@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, model_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_serializer, model_validator
 from process_flow_geometry_generators import GeometryGeneratorDefinition
 
 
@@ -197,10 +197,16 @@ class GeometryConstraints(StrictModel):
 class FlowInputDefinition(StrictModel):
     flowInputId: str = Field(min_length=1)
     name: str
+    inputLabel: str | None = None
     description: str = ""
     dataType: Literal["geometry"] = "geometry"
     required: bool = True
     geometryConstraints: GeometryConstraints | None = None
+
+    @field_validator("inputLabel")
+    @classmethod
+    def normalize_input_label(cls, value: str | None) -> str | None:
+        return (value.strip() or None) if value is not None else None
 
 
 class FlowInputEdgeSource(StrictModel):

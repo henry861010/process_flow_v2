@@ -57,9 +57,7 @@ primary fill。
 | Label width | `132px` | `138px` |
 | Status badge | hidden | `Bound/Unbound/...` visible |
 
-Node能解析到已綁定的geometry時，primary label MUST 顯示 `geometry.name`，secondary label
-顯示 Flow Input name。未綁定或binding指向無法解析的geometry時，primary label MUST 回退顯示
-Flow Input name，secondary label顯示目前的readiness提示。Template與Instance graph MUST 使用相同規則。
+Primary label MUST 優先顯示非空 `inputLabel`；未設定時，generator binding 使用 generator definition 的完整名稱，catalog binding 使用已解析的 `geometry.name`，最後回退 Flow Input name。Secondary label 顯示來源、geometry 與 Flow Input name，合併重複文字並排除與主標題相同的內容。沒有可用來源或輔助名稱時顯示 readiness 提示。主標題支援長字串換行及兩行截斷，title 保留完整標題與副標題。Label 不改變節點 ID、連線或幾何。
 
 Icon path由 dotted key轉成 `/resources/icons/<encoded segments>.svg`；default `iconScale=0.8`，
 合法範圍 `(0,1]`。load失敗回退 round `CircleDot` card，不留破圖。

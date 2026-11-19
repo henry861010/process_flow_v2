@@ -126,7 +126,11 @@ type ProcessFlow = {
 
 `StepRef` 保留 `stepRefId`、`stepLabel`（省略或空白時顯示 step name）、`processStepTemplateId`。不含 `parameterDefaults`。Definition 不保存畫布座標或目前查看的 recipe。
 
-FlowInputDefinition 宣告 `flowInputId`、name、description、dataType=geometry、required 與可選 geometryConstraints。Constraints 支援 entityTypes（完全匹配）、categories（完全或點分隔子分類）、structureFormats（完全匹配）；空或省略清單表示不限制。
+FlowInputDefinition 宣告 `flowInputId`、name、可選 `inputLabel`、description、dataType=geometry、required 與可選 geometryConstraints。Constraints 支援 entityTypes（完全匹配）、categories（完全或點分隔子分類）、structureFormats（完全匹配）；空或省略清單表示不限制。
+
+`inputLabel` 是 flow-local 的節點標籤，與 `name` 分開儲存，適用 generator 與 catalog 來源，允許重複。非空字串去除首尾空白；省略、null 或空白表示未設定，API 回傳省略此欄位。編輯器新增 generator input 時，以 generator definition 的 `label` 原樣預填並保存，與新增 step 時使用 template name 的規則一致；舊資料不回填。未設定時 generator 節點顯示 generator 名稱，catalog 沿用 geometry name／input name fallback。切換來源保留已填 label；label 不改變 `flowInputId`、binding 或幾何結果。Flow、draft、Start from 分支及 fixture 匯出均保留此欄位，維持現有 schema 版本。
+
+後續 pkg-to-flow 工具可由 `inputLabel` 找到 `flowInputId`，再存取 `configuration.inputBindings[flowInputId].parameters[field]`；process step 則使用 `stepLabel`。目前不強制唯一，也不實作 mapping 或重名消歧。
 
 FlowEdge 為 `{edgeId, source, target}`；source 是 `{kind: 'flowInput', flowInputId}` 或 `{kind: 'stepOutput', stepRefId, outputPortId}`；target 為 `{stepRefId, inputPortId}`。
 

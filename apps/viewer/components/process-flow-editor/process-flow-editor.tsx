@@ -71,6 +71,7 @@ import {
   type ConfigurationReadiness,
 } from "@/lib/process-flow/configuration";
 import {
+  geometryInputLabel,
   geometryInputNodePresentation,
   geometryInputStatusLabel,
   stepReadinessStatusLabel,
@@ -330,6 +331,14 @@ function ProcessFlowEditorInner() {
 
   const dependencies = analyzeFlowDependencies(draftDefinition, stepTemplates, configuration);
 
+  function inputSourceName(input: FlowInputDefinition, binding = configuration.inputBindings[input.flowInputId]) {
+    if (binding?.kind === "generator") {
+      return generatorDefinitions.find((item) => item.id === binding.generatorId && item.version === binding.generatorVersion)?.label
+        ?? generatorDefinitions.find((item) => item.id === binding.generatorId)?.label ?? binding.generatorId;
+    }
+    return binding?.kind === "catalog" ? geometries.find((item) => item.id === binding.geometryId)?.name : undefined;
+  }
+
   const displayNodes: FlowNode[] = nodes.map((node) => {
         if (isFlowInputNode(node)) {
           const geometry = geometryForFlowInput(
@@ -348,9 +357,10 @@ function ProcessFlowEditorInner() {
           const binding =
             configuration.inputBindings[node.data.definition.flowInputId];
           const presentation = geometryInputNodePresentation(
-            node.data.definition.name,
+            node.data.definition,
             geometry?.name,
             readiness,
+            binding?.kind === "generator" ? inputSourceName(node.data.definition) : undefined,
           );
           return {
             ...node,
@@ -466,7 +476,9 @@ function ProcessFlowEditorInner() {
             targetStepRefId: targetNode?.data.stepRef.stepRefId ?? "",
             targetInputPortId: edge.targetHandle ?? "",
             slotLabel: targetPort?.name ?? edge.targetHandle ?? "Input",
-            sourceLabel: sourceNode ? nodeSourceLabel(sourceNode) : "Missing source",
+            sourceLabel: sourceNode ? isFlowInputNode(sourceNode)
+              ? geometryInputLabel(sourceNode.data.definition, inputSourceName(sourceNode.data.definition))
+              : stepLabel(sourceNode) : "Missing source",
             graphMode: topologyLocked ? "view" : "edit",
             status: dependencies.edgeIds.has(edge.id) ? sourceReadiness?.status ?? "error" : "neutral",
             geometryViewVisible: sourceKind === "stepOutput",
@@ -587,6 +599,7 @@ function ProcessFlowEditorInner() {
       geometry: { id: string; category?: string | null; entityType?: string };
       binding: GeometryBinding;
       suggestedName?: string;
+      inputLabel?: string;
     },
     position?: { x: number; y: number },
   ) {
@@ -613,6 +626,7 @@ function ProcessFlowEditorInner() {
         definition: {
           flowInputId,
           name: source.suggestedName ?? "Geometry input",
+          ...(source.inputLabel ? { inputLabel: source.inputLabel } : {}),
           description: "",
           dataType: "geometry",
           required: true,
@@ -846,14 +860,15 @@ function ProcessFlowEditorInner() {
 
   function openFlowInputPreview(node: FlowInputNode, edit: GeometryInputEdit) {
     const flowInputId = node.data.definition.flowInputId;
+    const sourceLabel = geometryInputLabel(edit.definition, inputSourceName(edit.definition, edit.binding));
     setPreview({
       previewId: `flow-input:${flowInputId}`,
-      sourceLabel: edit.definition.name,
+      sourceLabel,
       slotLabel: "Input",
       sourceKind: "flowInput",
       request: {
         target: { type: "flowInput", flowInputId },
-        sourceLabel: edit.definition.name,
+        sourceLabel,
         flow: {
           definition: { ...draftDefinition, flowInputs: draftDefinition.flowInputs.map((input) =>
             input.flowInputId === flowInputId ? structuredClone(edit.definition) : input) },
@@ -1162,6 +1177,7 @@ function ProcessFlowEditorInner() {
               },
               binding: result.binding,
               suggestedName: result.suggestedFlowInputName,
+              inputLabel: generatorEditor.label,
             });
             setGeneratorEditor(null);
           }}
@@ -1607,10 +1623,6 @@ function stepLabel(node: StepNode) {
 
 function stepLabelFromRef(ref: StepRef, template: ProcessStepTemplate) {
   return normalizeStepLabel(ref.stepLabel, template.name);
-}
-
-function nodeSourceLabel(node: FlowNode) {
-  return isFlowInputNode(node) ? node.data.definition.name : stepLabel(node);
 }
 
 function uniqueIdentifierError(ids: string[], label: string) {

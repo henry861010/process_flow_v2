@@ -145,6 +145,7 @@ export type GeometryConstraints = {
 export type FlowInputDefinition = {
   flowInputId: string;
   name: string;
+  inputLabel?: string;
   description?: string;
   dataType: "geometry";
   required: boolean;

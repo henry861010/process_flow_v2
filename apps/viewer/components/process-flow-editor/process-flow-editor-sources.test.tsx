@@ -368,7 +368,8 @@ describe("flow editor library insertion", () => {
     const input = app.graph().nodes[0];
     expect(input.position).toEqual({ x: 10934, y: 2934 });
     expect(input.selected).toBe(true);
-    expect(input.data.definition).toMatchObject({ name: "Generated input" });
+    expect(input.data.definition).toMatchObject({ name: "Generated input", inputLabel: definition.label });
+    expect(input.data.displayLabel).toBe(definition.label);
     app.graph().onNodeDoubleClick!({} as React.MouseEvent, input);
     const dialog = props(app.render(), GeometryInputEditorDialog);
     const changed = { ...result, binding: { ...result.binding, parameters: { size: 20 } } };
@@ -447,18 +448,103 @@ async function geometryInputEditor(binding: GeometryBinding | null = savedBindin
       const field = find(render(), (element) => element.type === "label" && text(element).startsWith("Name"));
       find(field, (element) => element.type === "input").props.onChange({ target: { value: name } });
     },
+    editLabel: (value: string) => {
+      const field = find(render(), (element) => element.type === "label" && text(element) === "Label");
+      find(field, (element) => element.type === "input").props.onChange({ target: { value } });
+    },
   };
 }
 
 describe("flow geometry input editing session", () => {
+  it("keeps labels local to each generator and round-trips them through a draft and formal save", async () => {
+    source.definition.flowInputs[1].inputLabel = "Upper DMY";
+    source.configuration.inputBindings[source.definition.flowInputs[1].flowInputId] = structuredClone(savedBinding);
+    const session = await geometryInputEditor(); await session.flush(); await session.preview();
+    expect(session.app.graph().nodes.find((node) => node.id === session.node.id)?.data.displayLabel).toBe(pickerGenerator.label);
+    const originalBindings = structuredClone(source.configuration.inputBindings);
+    const previewCalls = vi.mocked(previewGeneratedGeometry).mock.calls.length;
+    session.editLabel("  Lower DMY  ");
+    session.editName("Independent name");
+    button(session.render(), "Apply changes").props.onClick();
+    const node = session.app.graph().nodes.find((node) => node.id === session.node.id)!;
+    expect(node.data.definition).toMatchObject({ name: "Independent name", inputLabel: "Lower DMY" });
+    expect(node.data.displayLabel).toBe("Lower DMY");
+    expect(session.app.graph().nodes.find((node) => (node.data.definition as FlowInputDefinition | undefined)?.flowInputId === source.definition.flowInputs[1].flowInputId)?.data.displayLabel)
+      .toBe("Upper DMY");
+    expect(previewGeneratedGeometry).toHaveBeenCalledTimes(previewCalls);
+    await saveNewDraft(session.app);
+    expect(savedDraft.state.configuration.inputBindings).toEqual(originalBindings);
+    const resumed = await editor("?draftId=branch-draft");
+    expect(resumed.graph().nodes.find((node) => node.id === session.node.id)?.data.displayLabel).toBe("Lower DMY");
+    resumed.openSave(); await resumed.save();
+    expect(vi.mocked(commitFlowDraft).mock.calls[0][1].definition.flowInputs.map((input) => input.inputLabel))
+      .toEqual(["Lower DMY", "Upper DMY"]);
+    expect(source.definition.flowInputs[0]).not.toHaveProperty("inputLabel");
+    expect(createGeometry).not.toHaveBeenCalled();
+  });
+
+  it("cancels label changes without dirtying the flow and clears back to the generator name", async () => {
+    source.definition.flowInputs[0].inputLabel = "Lower DMY";
+    const canceled = await geometryInputEditor(savedBinding, true); await canceled.flush(); await canceled.preview();
+    canceled.editLabel("Discarded"); canceled.close();
+    expect(canceled.app.status().saved).toBe(true);
+    expect(canceled.app.graph().nodes.find((node) => node.id === canceled.node.id)?.data.displayLabel).toBe("Lower DMY");
+    const cleared = await geometryInputEditor(savedBinding, true); await cleared.flush(); await cleared.preview();
+    cleared.editLabel("   ");
+    expect(text(find(cleared.render(), (element) => element.type === "h2"))).toBe(pickerGenerator.label);
+    button(cleared.render(), "Apply changes").props.onClick();
+    const node = cleared.app.graph().nodes.find((node) => node.id === cleared.node.id)!;
+    expect(node.data.definition).not.toHaveProperty("inputLabel");
+    expect(node.data.displayLabel).toBe(pickerGenerator.label);
+  });
+
+  it("preserves a custom label across source changes and uses it for catalog preview", async () => {
+    source.definition.flowInputs[0].inputLabel = "Lower DMY";
+    const session = await geometryInputEditor(); await session.flush(); await session.preview();
+    session.changeSource(); session.selectCatalog();
+    button(session.render(), "Preview geometry").props.onClick();
+    expect(props(session.app.render(), GeometryPreviewPanel).preview).toMatchObject({ sourceLabel: "Lower DMY",
+      request: { sourceLabel: "Lower DMY" } });
+    button(session.render(), "Apply changes").props.onClick();
+    expect(session.app.graph().nodes.find((node) => node.id === session.node.id)?.data.definition)
+      .toMatchObject({ inputLabel: "Lower DMY" });
+  });
+
   it("opening, previewing and canceling a saved input leave the flow clean", async () => {
     const session = await geometryInputEditor(savedBinding, true);
     expect(session.app.status().saved).toBe(true);
     await session.flush(); await session.preview();
+    const label = find(session.render(), (element) => element.type === "label" && text(element) === "Label");
+    expect(find(label, (element) => element.type === "input").props.value).toBe(savedGenerator.label);
     expect(session.app.status().saved).toBe(true);
     session.close();
     expect(session.app.status().saved).toBe(true);
+    expect(source.definition.flowInputs[0]).not.toHaveProperty("inputLabel");
     expect(updateProcessFlow).not.toHaveBeenCalled();
+  });
+
+  it("applies the prefilled generator label to an existing input without changing its binding", async () => {
+    const session = await geometryInputEditor(savedBinding, true); await session.flush(); await session.preview();
+    expect(button(session.render(), "Apply changes").props.disabled).toBe(false);
+    button(session.render(), "Apply changes").props.onClick();
+    session.app.openSave(); await session.app.save();
+    const request = vi.mocked(updateProcessFlow).mock.calls[0][1];
+    expect(request.definition.flowInputs[0].inputLabel).toBe(savedGenerator.label);
+    expect(request.configuration.inputBindings[session.flowInputId]).toEqual(savedBinding);
+  });
+
+  it("updates an untouched default for a different generator and preserves typed labels", async () => {
+    const session = await geometryInputEditor(); await session.flush(); await session.preview();
+    const labelValue = () => {
+      const label = find(session.render(), (element) => element.type === "label" && text(element) === "Label");
+      return find(label, (element) => element.type === "input").props.value;
+    };
+    expect(labelValue()).toBe(savedGenerator.label);
+    session.changeSource(); button(session.picker(), otherPickerGenerator.label).props.onClick();
+    expect(labelValue()).toBe(otherPickerGenerator.label);
+    session.editLabel("Custom DMY");
+    session.changeSource(); button(session.picker(), pickerGenerator.label).props.onClick(); await session.flush();
+    expect(labelValue()).toBe("Custom DMY");
   });
 
   it("blocks duplicate source requests and preserves the current draft when backing out of a pending choice", async () => {
@@ -505,6 +591,7 @@ describe("flow geometry input editing session", () => {
   });
 
   it("opens saved parameters directly without needing resolved geometry and remains clean on cancel", async () => {
+    source.definition.flowInputs[0].inputLabel = savedGenerator.label;
     const session = await geometryInputEditor();
     await session.flush();
     expect(getGeometryGeneratorVersion).toHaveBeenCalledWith(pickerGenerator.id, 1);

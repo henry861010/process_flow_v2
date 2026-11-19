@@ -11,6 +11,7 @@ import { GeometryCardDetails } from "@/components/process-flow-fields/geometry-c
 import { useEditorDialogFocus } from "@/components/process-flow-save/editor-dialog";
 import { Button } from "@/components/ui/button";
 import { getGeometryGeneratorVersion } from "@/lib/process-flow-api";
+import { geometryInputLabel } from "@/lib/process-flow/readiness-presentation";
 import type { FlowInputDefinition, GeneratorGeometryBinding, GeometryBinding, GeometryEntity } from "@/lib/process-flow/types";
 import { GeometrySourcePicker } from "./geometry-source-picker";
 
@@ -31,6 +32,7 @@ export function GeometryInputEditorDialog({ flowInput, initialBinding, geometrie
   onClose: () => void;
 }) {
   const [draftInput, setDraftInput] = React.useState(() => structuredClone(flowInput));
+  const [labelEdited, setLabelEdited] = React.useState(false);
   const [binding, setBinding] = React.useState(() => initialBinding && structuredClone(initialBinding));
   const [definition, setDefinition] = React.useState<GeometryGeneratorDefinition | null>(null);
   const [values, setValues] = React.useState<Record<string, unknown>>({});
@@ -123,14 +125,25 @@ export function GeometryInputEditorDialog({ flowInput, initialBinding, geometrie
     ? toGeneratorEditorValues(definition.parameterDefinitions, { ...definition.defaultParameters, ...initialBinding.parameters }) : null;
   const parametersChanged = definition !== null && !sameValue(originalValues, values);
   const pendingBinding = binding?.kind === "generator" && parametersChanged ? result?.binding : binding;
-  const changed = !sameValue(flowInput, draftInput) || !sameValue(initialBinding, pendingBinding);
+  const inputWithDefaultLabel = binding?.kind === "generator" && definition && !labelEdited && !draftInput.inputLabel?.trim()
+    ? { ...draftInput, inputLabel: definition.label } : draftInput;
+  const changed = !sameValue(flowInput, inputWithDefaultLabel) || !sameValue(initialBinding, pendingBinding);
   const canApply = !choosing && loadingId === null && !loadError && pendingBinding !== undefined && changed
     && (binding?.kind === "generator" ? generator.canDefine : Boolean(catalogGeometry));
   const sourceLabel = binding?.kind === "generator" ? definition?.label
     ?? generatorDefinitions.find((item) => item.id === binding.generatorId)?.label ?? binding.generatorId
     : catalogGeometry?.name ?? (binding ? "Geometry unavailable" : "No geometry selected");
+  const defaultLabel = binding ? sourceLabel : draftInput.name || "Geometry input";
 
   function editInput(patch: Partial<FlowInputDefinition>) { setDraftInput((current) => ({ ...current, ...patch })); }
+
+  function inputDefinition() {
+    const normalized = structuredClone(inputWithDefaultLabel);
+    const label = normalized.inputLabel?.trim();
+    if (label) normalized.inputLabel = label;
+    else delete normalized.inputLabel;
+    return normalized;
+  }
 
   const advancedSettings = (
     <FlowInputAdvancedDisclosure>
@@ -165,7 +178,7 @@ export function GeometryInputEditorDialog({ flowInput, initialBinding, geometrie
         className="flex max-h-[calc(100dvh-24px)] w-full max-w-[1240px] flex-col overflow-hidden rounded-lg border bg-background shadow-viewport outline-none sm:max-h-[calc(100dvh-40px)]">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b bg-white px-4 py-4 sm:px-5">
           <div className="min-w-0">
-            <h2 data-autofocus tabIndex={-1} className="break-words text-lg font-semibold outline-none">{draftInput.name || "Geometry input"}</h2>
+            <h2 data-autofocus tabIndex={-1} className="break-words text-lg font-semibold [overflow-wrap:anywhere] outline-none">{geometryInputLabel(draftInput, defaultLabel)}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
               <span className="break-words">{sourceLabel}</span>
               {!choosing ? <Button type="button" size="sm" variant="outline" onClick={changeSource}>Change source</Button> : null}
@@ -175,6 +188,9 @@ export function GeometryInputEditorDialog({ flowInput, initialBinding, geometrie
         </header>
 
         <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-5">
+          <label className="mb-5 block min-w-0 space-y-2 text-sm"><span>Label</span>
+            <input className={inputClass} value={inputWithDefaultLabel.inputLabel ?? ""} placeholder={defaultLabel}
+              onChange={(event) => { setLabelEdited(true); editInput({ inputLabel: event.target.value }); }} /></label>
           {choosing ? <>
             {binding ? <Button type="button" variant="ghost" size="sm" className="mb-3" onClick={backToGeometry}>
               <ArrowLeft />Back to geometry
@@ -202,7 +218,7 @@ export function GeometryInputEditorDialog({ flowInput, initialBinding, geometrie
             {binding?.kind === "catalog" ? (
               catalogGeometry ? <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border bg-white p-4">
                 <div className="min-w-0"><GeometryCardDetails geometry={catalogGeometry} /></div>
-                <Button type="button" variant="outline" onClick={() => onPreview({ definition: structuredClone(draftInput), binding: structuredClone(binding) })}>
+                <Button type="button" variant="outline" onClick={() => onPreview({ definition: inputDefinition(), binding: structuredClone(binding) })}>
                   <Eye />Preview geometry
                 </Button>
               </div> : <p role="alert" className="text-sm text-destructive">This catalog geometry is unavailable. Choose another source.</p>
@@ -215,7 +231,7 @@ export function GeometryInputEditorDialog({ flowInput, initialBinding, geometrie
         <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t bg-white px-4 py-3 sm:px-5">
           <Button type="button" variant="outline" onClick={close}>Cancel</Button>
           <Button type="button" disabled={!canApply} onClick={() => {
-            if (canApply && pendingBinding) onApply({ definition: structuredClone(draftInput), binding: structuredClone(pendingBinding) });
+            if (canApply && pendingBinding) onApply({ definition: inputDefinition(), binding: structuredClone(pendingBinding) });
           }}>Apply changes</Button>
         </footer>
       </section>

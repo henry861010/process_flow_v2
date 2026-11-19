@@ -69,6 +69,7 @@ class PreparedPreviewExecution:
     context: PreviewRequestContext
     execution_plan: ExecutionPlan | None = None
     flow_input_geometry: JsonObject | None = None
+    flow_input_label: str | None = None
     flow_input_artifact: GeometryArtifact | None = field(default=None, repr=False, compare=False)
 
 
@@ -405,9 +406,16 @@ def prepare_preview_execution(
         artifact = resolve_preview_flow_input(
             context, generators, target["flowInputId"], compiler=compiler, as_artifact=True,
         )
+        flow_input = next(item for item in context.definition["flowInputs"]
+                          if item["flowInputId"] == target["flowInputId"])
+        binding = context.configuration["inputBindings"][target["flowInputId"]]
+        label = (flow_input.get("inputLabel") or "").strip()
+        if not label and binding["kind"] == "generator":
+            label = generators.definition(binding["generatorId"], binding["generatorVersion"])["label"]
         return PreparedPreviewExecution(
             context=context,
             flow_input_geometry=artifact.geometry(),
+            flow_input_label=label or flow_input.get("name") or target["flowInputId"],
             flow_input_artifact=artifact,
         )
 
@@ -450,7 +458,9 @@ async def materialize_preview_snapshots(
             ),
             None,
         )
-        label = context.source_label or (flow_input or {}).get("name") or flow_input_id
+        label = (context.source_label or prepared.flow_input_label
+                 or ((flow_input or {}).get("inputLabel") or "").strip()
+                 or (flow_input or {}).get("name") or flow_input_id)
         return (
             PreviewSnapshotGeometry(
                 source_kind="flowInput",

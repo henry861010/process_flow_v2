@@ -3,15 +3,16 @@ import flows from "../../../api/src/process_flow_api/fixtures/process-flows.json
 import { createFlowBranch } from "./flow-editor-source";
 import type { ProcessFlow } from "./types";
 
-function source() { return structuredClone(flows.find((flow) => flow.id === "flow_inst_aaa_demo_hbm4_alpha")!) as ProcessFlow; }
+function source() { return structuredClone(flows.find((flow) => flow.id === "flow_inst_aaa_demo_hbm4_alpha")!) as unknown as ProcessFlow; }
 
 describe("flow branch snapshots", () => {
   it("keeps complete flow-local content and records the immediate source without an update identity", () => {
     const flow = source();
     flow.origin = { flowId: "ancestor", revision: 1 };
+    flow.definition.flowInputs[0].inputLabel = "Lower DMY";
     const config = Object.values(flow.configuration.stepConfigurations)[0];
     config.selectedRecipeId = null;
-    config.recipeCandidates.push({ recipeId: "unfinished", name: "Unfinished", parameterValues: {} });
+    config.recipeCandidates.push({ recipeId: "unfinished", name: "Unfinished", description: "", parameterValues: {} });
     const branch = createFlowBranch(flow, [flow]);
     expect(branch).toEqual({
       schemaVersion: 3, name: `${flow.name} (branch)`, version: flow.version,
@@ -22,6 +23,9 @@ describe("flow branch snapshots", () => {
     expect(branch).not.toHaveProperty("id");
     expect(branch).not.toHaveProperty("revision");
     branch.definition.flowInputs[0].name = "Changed input";
+    expect(branch.definition.flowInputs[0].inputLabel).toBe("Lower DMY");
+    branch.definition.flowInputs[0].inputLabel = "Upper DMY";
+    expect(flow.definition.flowInputs[0].inputLabel).toBe("Lower DMY");
     branch.definition.stepRefs[0].stepLabel = "Changed step";
     branch.definition.flowEdges[0].target.inputPortId = "changed-port";
     const binding = Object.values(branch.configuration.inputBindings)[0];

@@ -29,7 +29,7 @@ def schematic_layout_fingerprint(context):
     )
     definition["flowEdges"] = sorted(definition.get("flowEdges", []), key=lambda edge: edge["edgeId"])
     definition["flowInputs"] = sorted(
-        ({key: value for key, value in item.items() if key != "name"}
+        ({key: value for key, value in item.items() if key not in {"name", "inputLabel"}}
          for item in definition.get("flowInputs", [])), key=lambda item: item["flowInputId"])
     identity["definition"] = definition
     identity["stepTemplates"] = sorted(identity["stepTemplates"], key=lambda item: item["id"])

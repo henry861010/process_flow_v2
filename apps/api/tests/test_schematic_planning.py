@@ -86,6 +86,13 @@ def execute_document(ctx):
 
 
 class SchematicPlanningTests(unittest.TestCase):
+    def test_input_labels_do_not_change_layout_fingerprint(self):
+        ctx = context()
+        before = schematic_layout_fingerprint(ctx)
+        ctx.definition["flowInputs"][0]["inputLabel"] = "Lower DMY"
+        ctx.definition["flowInputs"][1]["inputLabel"] = "Upper DMY"
+        self.assertEqual(schematic_layout_fingerprint(ctx), before)
+
     def test_planning_is_target_independent_and_does_not_execute_or_compile(self):
         ctx = context()
         add_step(ctx, "later", "pnp/pnp", out("first"), {"placements": [placement(20)]}, inp("die"))

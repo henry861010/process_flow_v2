@@ -50,7 +50,9 @@ generator binding 直接查詢保存 ID／version 的 definition 並帶入完整
 resolved preview geometry；catalog binding 顯示唯讀資料與 Preview；未設定則直接選擇來源。
 不經摘要卡片、鉛筆或來源選擇器才能續編，不升級 generator 版本。
 
-Header 顯示 input 名稱、來源及 `Change source`。Generator 編輯主體直接共用 Geometry
+Header 顯示 input label、來源及 `Change source`。主要區域提供獨立的 `Label` 欄位，Name 仍留在 Advanced settings，修改其中一項不改變另一項。新增 generator input 時，Label 預填 generator definition 的完整名稱（例如 `DMY die generator`）；允許重複。既有未填 label 的 generator input 在載入保存版本的 definition 後，也將完整名稱直接填入欄位的 value，按 Apply changes 才保存；取消不改動 flow。使用者尚未編輯此預填值時，切換 generator 會跟隨新來源的名稱；既有或自行填寫的 label 則保留。清空後以 placeholder 提示來源的預設名稱，套用時移除 `inputLabel`，下次開啟再預填。未填 label 的 generator 節點與標題使用 generator 名稱；catalog 沿用原名稱 fallback。自訂 label 優先顯示於畫布、編輯視窗與 flow-input preview，畫布副標題保留去重後的來源／geometry／input 名稱。
+
+Generator 編輯主體直接共用 Geometry
 Generator page 的 `GeometryGeneratorEditorContent`：所有尺寸皆為工程預覽在上、驗證訊息與
 參數在下，預覽 views 在 1024px 起雙欄、窄視窗單欄。Body 負責捲動，footer 固定提供
 `Cancel`／`Apply changes`。
@@ -65,10 +67,11 @@ Generator page 的 `GeometryGeneratorEditorContent`：所有尺寸皆為工程�
 維持 registry 順序及 flowInputPicker 限制。選回目前 generator 保留編輯草稿；重新選回原
 binding generator 使用保存版本與參數；其他 generator 使用所選 definition 的 defaults。
 
-參數、來源與 input 設定皆為 session 暫存。只有 `Apply changes` 一次寫回 definition 與
+參數、來源、label 與 input 設定皆為 session 暫存。只有 `Apply changes` 一次寫回 definition 與
 binding；generator 使用目前有效 preview 的 normalized parameters，僅修改 input 設定時保留
 原 binding。無修改、來源未選定、generator 載入中或最新 preview 尚未有效時停用 Apply。
-Catalog Preview 使用暫存來源與 input 設定，不先套用到 flow。站點／畫布的其他 preview
+切換來源保留已填 label；未填時使用新來源的預設名稱。Label 去除首尾空白，既有 Name 不變。
+Catalog Preview 使用暫存來源與 input 設定及 label，不先套用到 flow。站點／畫布的其他 preview
 仍使用已套用的 flow 設定。正式保存使用 Flow Save，不新增 Geometry DB 紀錄。
 
 Cancel、Close、Escape 與背景點擊放棄整個 session；單純開啟、預覽與取消不產生 dirty state。

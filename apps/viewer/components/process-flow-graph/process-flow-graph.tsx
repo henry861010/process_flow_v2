@@ -413,6 +413,8 @@ function FlowInputNode({
   const ready = status === "ready";
   const label = data.displayLabel ?? "Select geometry";
   const sublabel = data.displaySublabel;
+  const title = [label, sublabel, graphMode === "edit"
+    ? "Click to connect; double-click to edit geometry input" : "Select initial geometry"].filter(Boolean).join("\n");
   const pickId = data.pickId ?? id;
   const iconUrl = getGeometryIconUrl(data.icon);
   const iconLoadStatus = useGeometryIconLoadStatus(iconUrl);
@@ -430,7 +432,7 @@ function FlowInputNode({
           "rounded-xl ring-2 ring-transparent hover:ring-primary/20",
           selected && "ring-primary/40",
         )}
-        title={graphMode === "edit" ? "Click to connect; double-click to edit geometry input" : "Select initial geometry"}
+        title={title}
         onDoubleClick={(event) => {
           if (graphMode !== "view") {
             return;
@@ -457,9 +459,9 @@ function FlowInputNode({
             graphMode === "edit" ? "w-[132px]" : "w-[138px]",
           )}
         >
-          <div className="line-clamp-2 text-xs font-semibold leading-tight">{label}</div>
+          <div title={label} className="line-clamp-2 text-xs font-semibold leading-tight [overflow-wrap:anywhere]">{label}</div>
           {sublabel ? (
-            <div
+            <div title={sublabel}
               className={cn(
                 "mt-1 truncate text-[10px] text-muted-foreground",
                 graphMode === "edit" ? "max-w-[132px]" : "max-w-[138px]",
@@ -502,7 +504,7 @@ function FlowInputNode({
           : "h-[138px] w-[138px] cursor-pointer hover:shadow-md",
         statusClasses.border,
       )}
-      title={graphMode === "edit" ? "Click to connect; double-click to edit geometry input" : "Select initial geometry"}
+      title={title}
       onDoubleClick={(event) => {
         if (graphMode !== "view") {
           return;
@@ -519,9 +521,9 @@ function FlowInputNode({
         className="!h-4 !w-4 !border-2 !border-white !bg-primary"
       />
       <CircleDot className="mb-2 h-5 w-5 text-primary" />
-      <div className="line-clamp-2 text-xs font-semibold leading-tight">{label}</div>
+      <div title={label} className="max-w-full line-clamp-2 text-xs font-semibold leading-tight [overflow-wrap:anywhere]">{label}</div>
       {sublabel ? (
-        <div
+        <div title={sublabel}
           className={cn(
             "mt-1 truncate text-[10px] text-muted-foreground",
             graphMode === "edit" ? "max-w-[92px]" : "max-w-[100px]",

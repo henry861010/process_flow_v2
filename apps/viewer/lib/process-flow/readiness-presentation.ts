@@ -1,25 +1,29 @@
 import type { ConfigurationReadiness } from "@/lib/process-flow/configuration";
-import type { GeometryBinding } from "@/lib/process-flow/types";
+import type { FlowInputDefinition, GeometryBinding } from "@/lib/process-flow/types";
 
 export function geometryInputDisplayName(name: string) {
   return name.trim().toLowerCase() === "flow input" ? "Geometry input" : name;
 }
 
+export function geometryInputLabel(
+  input: Pick<FlowInputDefinition, "name" | "inputLabel">,
+  sourceName?: string | null,
+) {
+  return input.inputLabel?.trim() || sourceName || geometryInputDisplayName(input.name) || "Geometry input";
+}
+
 export function geometryInputNodePresentation(
-  flowInputName: string,
+  input: FlowInputDefinition,
   geometryName: string | null | undefined,
   readiness: ConfigurationReadiness,
+  generatorName?: string,
 ) {
-  const displayFlowInputName = geometryInputDisplayName(flowInputName);
-  if (geometryName) {
-    return {
-      displayLabel: geometryName,
-      displaySublabel: displayFlowInputName,
-    };
-  }
+  const displayLabel = geometryInputLabel(input, generatorName || geometryName);
+  const names = [generatorName, geometryName, geometryInputDisplayName(input.name)]
+    .filter((name): name is string => Boolean(name) && name !== displayLabel);
   return {
-    displayLabel: displayFlowInputName,
-    displaySublabel: geometryInputSublabel(readiness),
+    displayLabel,
+    displaySublabel: [...new Set(names)].join(" · ") || (!geometryName ? geometryInputSublabel(readiness) : undefined),
   };
 }
 
