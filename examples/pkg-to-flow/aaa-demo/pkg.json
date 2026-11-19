@@ -1,0 +1,65 @@
+{
+  "structureEditor": {
+    "packageFeature": {
+      "materialSelected": {
+        "wafer": "Si",
+        "molding": "EMC-G700",
+        "fsPM1": "PI-2611",
+        "fsRDL1": "PI-2611",
+        "fsPM2": "PI-2611",
+        "fsRDL2": "PI-2611",
+        "fsPM3": "PI-2611",
+        "cu": "Cu",
+        "c4": "SAC305"
+      },
+      "others": {
+        "waferDiameter": 300000,
+        "waferThk": 775,
+        "moldingThk": 180,
+        "c4BumpThk": 65,
+        "c4BumpDensity": 58
+      },
+      "hbm": {
+        "hbmCount": 2,
+        "hbmInfo": {
+          "HBM-1": {
+            "bottomLeftX": -760,
+            "bottomLeftY": -520,
+            "upperRightX": 640,
+            "upperRightY": 480
+          },
+          "HBM-2": {
+            "bottomLeftX": 760,
+            "bottomLeftY": -520,
+            "upperRightX": 2160,
+            "upperRightY": 480
+          }
+        }
+      },
+      "fsRDL": {
+        "rdlCount": 2,
+        "rdlPMInfo": {
+          "PM1": {
+            "pmThk": 3
+          },
+          "PM2": {
+            "pmThk": 3
+          },
+          "PM3": {
+            "pmThk": 4
+          }
+        },
+        "rdlRDLInfo": {
+          "RDL1": {
+            "rdlThk": 2,
+            "rdlPatternDensity": 62
+          },
+          "RDL2": {
+            "rdlThk": 2,
+            "rdlPatternDensity": 48
+          }
+        }
+      }
+    }
+  }
+}

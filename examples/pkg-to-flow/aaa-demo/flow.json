@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 3,
+  "definition": {
+    "flowInputs": [
+      {
+        "flowInputId": "incoming_hbm",
+        "name": "Incoming HBM",
+        "description": "External geometry supplied by the process flow instance.",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "entityTypes": [
+            "die"
+          ],
+          "categories": [
+            "die.hbm"
+          ],
+          "structureFormats": [
+            "standard"
+          ]
+        }
+      },
+      {
+        "flowInputId": "flow_input",
+        "name": "Wafer carrier input",
+        "inputLabel": "Wafer carrier generator",
+        "description": "",
+        "dataType": "geometry",
+        "required": true,
+        "geometryConstraints": {
+          "categories": [
+            "carrier.wafer"
+          ]
+        }
+      }
+    ],
+    "stepRefs": [
+      {
+        "stepRefId": "pnp_hbm",
+        "stepLabel": "PnP",
+        "processStepTemplateId": "step_tpl_pnp"
+      },
+      {
+        "stepRefId": "mold_cap",
+        "stepLabel": "molding",
+        "processStepTemplateId": "step_tpl_molding"
+      },
+      {
+        "stepRefId": "rdl_build",
+        "stepLabel": "RDL layer",
+        "processStepTemplateId": "step_tpl_rdl"
+      },
+      {
+        "stepRefId": "c4_bump",
+        "stepLabel": "C4 Bump",
+        "processStepTemplateId": "step_tpl_c4_bump_formation"
+      }
+    ],
+    "flowEdges": [
+      {
+        "edgeId": "edge_aaa_hbm_to_pnp_die",
+        "source": {
+          "kind": "flowInput",
+          "flowInputId": "incoming_hbm"
+        },
+        "target": {
+          "stepRefId": "pnp_hbm",
+          "inputPortId": "die_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_aaa_pnp_to_mold",
+        "source": {
+          "kind": "stepOutput",
+          "stepRefId": "pnp_hbm",
+          "outputPortId": "result_geometry"
+        },
+        "target": {
+          "stepRefId": "mold_cap",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_aaa_mold_to_rdl",
+        "source": {
+          "kind": "stepOutput",
+          "stepRefId": "mold_cap",
+          "outputPortId": "result_geometry"
+        },
+        "target": {
+          "stepRefId": "rdl_build",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge_aaa_rdl_to_c4",
+        "source": {
+          "kind": "stepOutput",
+          "stepRefId": "rdl_build",
+          "outputPortId": "result_geometry"
+        },
+        "target": {
+          "stepRefId": "c4_bump",
+          "inputPortId": "main_geometry"
+        }
+      },
+      {
+        "edgeId": "edge:67ef4997-83ba-4f70-8a52-41912c9cb964",
+        "source": {
+          "kind": "flowInput",
+          "flowInputId": "flow_input"
+        },
+        "target": {
+          "stepRefId": "pnp_hbm",
+          "inputPortId": "main_geometry"
+        }
+      }
+    ]
+  },
+  "configuration": {
+    "inputBindings": {
+      "flow_input": {
+        "kind": "generator",
+        "generatorId": "wafer-carrier",
+        "generatorVersion": 1,
+        "parameters": {
+          "diameter": 300000,
+          "carrierThickness": 775,
+          "carrierMaterial": "Si"
+        }
+      }
+    },
+    "stepConfigurations": {
+      "pnp_hbm": {
+        "recipeCandidates": [
+          {
+            "recipeId": "recipe_1",
+            "name": "Recipe 1",
+            "description": "",
+            "parameterValues": {
+              "placements": [
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": -760,
+                    "bottomLeftY": -520,
+                    "topRightX": 640,
+                    "topRightY": 480
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                },
+                {
+                  "targetRegion": {
+                    "type": "rectangle",
+                    "bottomLeftX": 760,
+                    "bottomLeftY": -520,
+                    "topRightX": 2160,
+                    "topRightY": 480
+                  },
+                  "pose": {
+                    "x": 0,
+                    "y": 0,
+                    "rotationZ": 0
+                  },
+                  "anchor": "center"
+                }
+              ]
+            },
+            "dataValues": {}
+          }
+        ],
+        "selectedRecipeId": "recipe_1"
+      },
+      "mold_cap": {
+        "recipeCandidates": [
+          {
+            "recipeId": "recipe_1",
+            "name": "Recipe 1",
+            "description": "",
+            "parameterValues": {
+              "material": "EMC-G700",
+              "thickness": 200
+            },
+            "dataValues": {}
+          }
+        ],
+        "selectedRecipeId": "recipe_1"
+      },
+      "rdl_build": {
+        "recipeCandidates": [
+          {
+            "recipeId": "recipe_1",
+            "name": "Recipe 1",
+            "description": "",
+            "parameterValues": {
+              "layers": {
+                "items": [
+                  {
+                    "itemId": "pkg_PM1",
+                    "index": 1,
+                    "values": {
+                      "Dielectric": "PI-2611",
+                      "Conductivity": "Cu",
+                      "thk": 3,
+                      "density": 0
+                    }
+                  },
+                  {
+                    "itemId": "pkg_RDL1",
+                    "index": 2,
+                    "values": {
+                      "Dielectric": "PI-2611",
+                      "Conductivity": "Cu",
+                      "thk": 2,
+                      "density": 62
+                    }
+                  },
+                  {
+                    "itemId": "pkg_PM2",
+                    "index": 3,
+                    "values": {
+                      "Dielectric": "PI-2611",
+                      "Conductivity": "Cu",
+                      "thk": 3,
+                      "density": 0
+                    }
+                  },
+                  {
+                    "itemId": "pkg_RDL2",
+                    "index": 4,
+                    "values": {
+                      "Dielectric": "PI-2611",
+                      "Conductivity": "Cu",
+                      "thk": 2,
+                      "density": 48
+                    }
+                  },
+                  {
+                    "itemId": "pkg_PM3",
+                    "index": 5,
+                    "values": {
+                      "Dielectric": "PI-2611",
+                      "Conductivity": "Cu",
+                      "thk": 4,
+                      "density": 0
+                    }
+                  }
+                ]
+              }
+            },
+            "dataValues": {}
+          }
+        ],
+        "selectedRecipeId": "recipe_1"
+      },
+      "c4_bump": {
+        "recipeCandidates": [
+          {
+            "recipeId": "recipe_1",
+            "name": "Recipe 1",
+            "description": "",
+            "parameterValues": {
+              "material": "SAC305",
+              "thk": 65,
+              "density": 58,
+              "koz": 18
+            },
+            "dataValues": {}
+          }
+        ],
+        "selectedRecipeId": "recipe_1"
+      }
+    }
+  },
+  "origin": {
+    "flowId": "flow_tpl_aaa_demo",
+    "revision": 2
+  },
+  "description": "AAA Demo package mapping example: wafer carrier dimensions and material from pkg, 2 HBM placements, 2 RDL layers and 3 PM layers. Includes 20 um extra molding thickness; this reference flow has no grinding step.",
+  "name": "AAA Demo - PKG Example",
+  "owner": "demo.pkg-to-flow",
+  "version": "V0.0.1"
+}

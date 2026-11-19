@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 3,
+  "sourceRoot": "structureEditor.packageFeature",
+  "referenceFlow": {
+    "name": "AAA Demo",
+    "version": "V0.0.0"
+  },
+  "output": {
+    "name": "AAA Demo - PKG Example",
+    "owner": "demo.pkg-to-flow",
+    "version": "V0.0.1",
+    "description": "AAA Demo package mapping example: wafer carrier dimensions and material from pkg, 2 HBM placements, 2 RDL layers and 3 PM layers. Includes 20 um extra molding thickness; this reference flow has no grinding step."
+  },
+  "constants": {
+    "overmolding_thk": 20
+  },
+  "mappings": [
+    {
+      "target": "generator[\"Wafer carrier generator\"].diameter",
+      "expr": "others.waferDiameter"
+    },
+    {
+      "target": "generator[\"Wafer carrier generator\"].carrierThickness",
+      "expr": "others.waferThk"
+    },
+    {
+      "target": "generator[\"Wafer carrier generator\"].carrierMaterial",
+      "expr": "materialSelected.wafer"
+    },
+    {
+      "target": "step.molding.material",
+      "expr": "materialSelected.molding"
+    },
+    {
+      "target": "step.molding.thickness",
+      "expr": "others.moldingThk + constant.overmolding_thk"
+    },
+    {
+      "target": "step[\"C4 Bump\"].material",
+      "expr": "materialSelected.c4"
+    },
+    {
+      "target": "step[\"C4 Bump\"].thk",
+      "expr": "others.c4BumpThk"
+    },
+    {
+      "target": "step[\"C4 Bump\"].density",
+      "expr": "others.c4BumpDensity"
+    }
+  ],
+  "placements": [
+    {
+      "expr": "hbm.hbmInfo",
+      "target": "step.PnP.placements"
+    }
+  ],
+  "rdl": [
+    {
+      "expr": "fsRDL",
+      "target": "step[\"RDL layer\"].layers"
+    }
+  ]
+}
